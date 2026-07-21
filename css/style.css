@@ -1394,3 +1394,26 @@ input::placeholder {
     font-size: 17px;
   }
 }
+
+
+/* Formal V1.2 — wider product name and compact stock column */
+.batch-table .batch-name {
+  min-width: 254px;
+  width: 254px;
+}
+
+.batch-table th:nth-child(6),
+.batch-table td:nth-child(6) {
+  width: 76px;
+  min-width: 76px;
+  max-width: 76px;
+}
+
+.batch-table td:nth-child(6) input,
+.batch-table [id^="batchStock-"] {
+  width: 76px;
+  min-width: 76px;
+  max-width: 76px;
+  padding-left: 7px;
+  padding-right: 7px;
+}

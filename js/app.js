@@ -280,12 +280,12 @@ function setupProductModule() {
   nameInput.addEventListener("input", () => {
     const chars = Array.from(nameInput.value);
 
-    if (chars.length > 13) {
-      nameInput.value = chars.slice(0, 13).join("");
+    if (chars.length > 15) {
+      nameInput.value = chars.slice(0, 15).join("");
     }
 
     document.getElementById("nameCounter").textContent =
-      `${Array.from(nameInput.value).length} / 13`;
+      `${Array.from(nameInput.value).length} / 15`;
   });
 
   nameInput.addEventListener("paste", event => {
@@ -302,7 +302,7 @@ function setupProductModule() {
     const after = nameInput.value.slice(selectionEnd);
 
     nameInput.value = Array.from(before + pastedText + after)
-      .slice(0, 13)
+      .slice(0, 15)
       .join("");
 
     nameInput.dispatchEvent(new Event("input", { bubbles: true }));
@@ -374,7 +374,7 @@ function saveProduct() {
   }
 
   if (Array.from(name).length > 13) {
-    statusText.textContent = "产品名称最多13个字";
+    statusText.textContent = "产品名称最多15个字";
     return;
   }
 
@@ -477,7 +477,7 @@ function editProduct(id) {
   document.getElementById("editingProductId").value = product.id;
   document.getElementById("productId").value = product.id;
   document.getElementById("productName").value = product.name;
-  document.getElementById("nameCounter").textContent = `${Array.from(product.name).length} / 13`;
+  document.getElementById("nameCounter").textContent = `${Array.from(product.name).length} / 15`;
   document.getElementById("productCategory").value = product.category;
   document.getElementById("productRemark").value = product.remark || "";
   document.getElementById("productStatusText").textContent = `正在编辑 ${product.id}`;
@@ -509,7 +509,7 @@ function resetProductForm(clearStatus = true) {
   document.getElementById("editingProductId").value = "";
   document.getElementById("productId").value = "自动生成";
   document.getElementById("productName").value = "";
-  document.getElementById("nameCounter").textContent = "0 / 13";
+  document.getElementById("nameCounter").textContent = "0 / 15";
   document.getElementById("productCategory").value = "盆栽";
   document.getElementById("productRemark").value = "";
   if (clearStatus) {
@@ -785,9 +785,24 @@ function renderBatchSuggestions(){
   document.getElementById("batchProductSuggestions").innerHTML=getProducts().sort((a,b)=>a.id.localeCompare(b.id)).map(p=>`<option value="${escapeHTML(p.name)}">${escapeHTML(p.id)} · ${escapeHTML(p.category)}</option>`).join("");
 }
 function applyBatchRate(){
-  const s=loadJSON("importSystemSettings",{CNY:1.60,NTD:7.69,VND:6300,IDR:3571});
-  const c=document.getElementById("batchCurrency").value;
-  document.getElementById("batchRate").value=formatMoney(s[c]||0);
+  const defaults = {
+    CNY: 1.60,
+    NTD: 7.69,
+    VND: 6300.00,
+    IDR: 3571.00
+  };
+
+  const saved = loadJSON("importSystemSettings", {});
+  const settings = {
+    ...defaults,
+    ...(saved && typeof saved === "object" ? saved : {})
+  };
+
+  const currency = document.getElementById("batchCurrency").value;
+  const rate = Number(settings[currency]);
+
+  document.getElementById("batchRate").value =
+    formatMoney(Number.isFinite(rate) && rate > 0 ? rate : defaults[currency] || 0);
 }
 
 function formatNativeDateToDDMMYYYY(value) {
@@ -1012,8 +1027,8 @@ function addBatchRow(prefill = {}){
 }
 function attachBatchRowEvents(id){
   const n=document.getElementById(`batchName-${id}`);
-  n.addEventListener("input",()=>{let c=Array.from(n.value);if(c.length>13)n.value=c.slice(0,13).join("");const p=getProducts().find(x=>x.name.toLowerCase()===n.value.trim().toLowerCase());document.getElementById(`batchProductId-${id}`).value=p?.id||"";document.getElementById(`batchCategory-${id}`).value=p?.category||document.getElementById(`batchCategory-${id}`).value||"盆栽";calculateBatch();});
-  n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();n.value=Array.from(t).slice(0,13).join("");n.dispatchEvent(new Event("input",{bubbles:true}));});
+  n.addEventListener("input",()=>{let c=Array.from(n.value);if(c.length>15)n.value=c.slice(0,15).join("");const p=getProducts().find(x=>x.name.toLowerCase()===n.value.trim().toLowerCase());document.getElementById(`batchProductId-${id}`).value=p?.id||"";document.getElementById(`batchCategory-${id}`).value=p?.category||document.getElementById(`batchCategory-${id}`).value||"盆栽";calculateBatch();});
+  n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();n.value=Array.from(t).slice(0,15).join("");n.dispatchEvent(new Event("input",{bubbles:true}));});
   [`batchQty-${id}`,`batchPrice-${id}`].forEach(k=>{const x=document.getElementById(k);x.addEventListener("focus",()=>x.select());x.addEventListener("input",calculateBatch);x.addEventListener("blur",()=>{if(!k.includes("Qty")&&!k.includes("Stock"))formatInputAmount(x);calculateBatch();});});
   document.getElementById(`batchPrice-${id}`).addEventListener("input", () => {
     const price = parseAmount(
