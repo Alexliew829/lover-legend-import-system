@@ -9,7 +9,7 @@
   <link rel="icon" href="./assets/icons/favicon.ico" sizes="any" />
   <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png" />
   <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="./css/style.css?v=1.0.0" />
+  <link rel="stylesheet" href="./css/style.css?v=1.0.1" />
 </head>
 <body>
   <div class="app-shell">
@@ -289,31 +289,22 @@
 
           <div id="dataToolsStatus" class="status-text"></div>
         </section>
-
-
-        <section class="panel">
+        <section class="panel google-sync-panel">
           <h3>Google 同步</h3>
-          <label class="field"><span>Apps Script Web App URL</span><input id="googleScriptUrl" class="text-left-input" placeholder="部署后粘贴 /exec URL" /></label>
-          <label class="field"><span>使用者</span><select id="syncUser"><option>Alex</option><option>Khuan</option><option>Yong</option></select></label>
-          <div class="settings-tools-grid">
-            <button id="testGoogleBtn" class="tool-action-btn" type="button"><span>检查 Google 连线</span></button>
-            <button id="saveGoogleConfigBtn" class="tool-action-btn" type="button"><span>保存同步设置</span></button>
-            <button id="pullGoogleBtn" class="tool-action-btn" type="button"><span>同步最新资料</span></button>
-            <button id="pushGoogleBtn" class="tool-action-btn" type="button"><span>复制本机资料到 Google</span></button>
+          <div class="info-row">
+            <span>同步状态</span>
+            <strong id="googleSyncStatus" class="google-sync-state syncing">同步中...</strong>
           </div>
-          <div class="info-row"><span>目前使用者</span><strong id="googleCurrentUser">Alex</strong></div>
-          <div class="info-row"><span>Google Revision</span><strong id="googleRevision">0</strong></div>
-          <div class="info-row"><span>最后同步</span><strong id="googleLastSync">尚未同步</strong></div>
-          <p class="settings-help">
-            第一次请在资料最完整的电脑按“复制本机资料到 Google”；其他设备第一次只按“同步最新资料”。
-          </p>
-          <div id="googleSyncStatus" class="status-text"></div>
+          <div class="info-row">
+            <span>最后同步</span>
+            <strong id="googleLastSync">尚未同步</strong>
+          </div>
         </section>
 
         <section class="panel">
           <h3>系统资料</h3>
           <div class="info-row"><span>版本</span><strong>正式版 1.0</strong></div>
-          <div class="info-row"><span>储存方式</span><strong>本机缓存 + Google Sheet</strong></div>
+          <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
           <div class="info-row"><span>Google Sheet</span><strong>已连接 Google Web App</strong></div>
         </section>
       </section>
@@ -332,8 +323,8 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=1.0.0"></script>
-  <script src="./js/sync.js?v=1.0.0"></script>
-  <script src="./js/app.js?v=1.0.0"></script>
+  <script src="./js/common.js?v=1.0.1"></script>
+  <script src="./js/sync.js?v=1.0.1"></script>
+  <script src="./js/app.js?v=1.0.1"></script>
 </body>
 </html>

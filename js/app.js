@@ -189,6 +189,10 @@ function setupSettings() {
 
     saveJSON("importSystemSettings", data);
 
+    if (typeof scheduleGoogleSync === "function") {
+      scheduleGoogleSync();
+    }
+
     const status = document.getElementById("settingsStatus");
     status.textContent = "设置已保存";
     setTimeout(() => {
@@ -326,6 +330,13 @@ function getProducts() {
 
 function saveProducts(products) {
   saveJSON("importSystemProducts", products);
+
+  if (
+    typeof scheduleGoogleSync === "function" &&
+    !(typeof isApplyingGoogleData === "function" && isApplyingGoogleData())
+  ) {
+    scheduleGoogleSync();
+  }
 }
 
 function getProductPrefix(category) {
@@ -749,9 +760,27 @@ function loadBatchByNumber() {
 }
 
 function getImports(){return loadJSON("importSystemImports",[]);}
-function saveImports(v){saveJSON("importSystemImports",v);}
+function saveImports(v){
+  saveJSON("importSystemImports",v);
+
+  if (
+    typeof scheduleGoogleSync === "function" &&
+    !(typeof isApplyingGoogleData === "function" && isApplyingGoogleData())
+  ) {
+    scheduleGoogleSync();
+  }
+}
 function getBatches(){return loadJSON("importSystemBatches",[]);}
-function saveBatches(v){saveJSON("importSystemBatches",v);}
+function saveBatches(v){
+  saveJSON("importSystemBatches",v);
+
+  if (
+    typeof scheduleGoogleSync === "function" &&
+    !(typeof isApplyingGoogleData === "function" && isApplyingGoogleData())
+  ) {
+    scheduleGoogleSync();
+  }
+}
 function renderBatchSuggestions(){
   document.getElementById("batchProductSuggestions").innerHTML=getProducts().sort((a,b)=>a.id.localeCompare(b.id)).map(p=>`<option value="${escapeHTML(p.name)}">${escapeHTML(p.id)} · ${escapeHTML(p.category)}</option>`).join("");
 }

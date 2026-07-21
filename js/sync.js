@@ -1,299 +1,269 @@
 const CLOUD_CONFIG_KEY = "importSystemCloudConfig";
-const DEFAULT_GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyQ75Ug_K0bS9Wq_CHxr6XBhuLgRlokvDsSGH_Wzip9wYyIKA2HYVea3ZSv5vmjzrdr/exec";
+const DEFAULT_GOOGLE_SCRIPT_URL =
+  "https://script.google.com/macros/s/AKfycbyQ75Ug_K0bS9Wq_CHxr6XBhuLgRlokvDsSGH_Wzip9wYyIKA2HYVea3ZSv5vmjzrdr/exec";
+
 let cloudSyncBusy = false;
+let cloudApplyingRemote = false;
+let cloudInitialPullComplete = false;
+let cloudLocalDirty = false;
+let cloudSyncTimer = null;
+let cloudLastHiddenAt = 0;
 
 function getCloudConfig() {
   const saved = loadJSON(CLOUD_CONFIG_KEY, {});
 
-  // V2.30：旧部署网址自动迁移到正式 Web App URL。
-  if (!saved.url || saved.url === "https://script.google.com/macros/s/AKfycbw9ZviEXzHY8dZ4ExmsTghsZbqVNj6Rg826DvrndnbMverQQupcbEn0Al_uKn6adbXw/exec") {
-    saved.url = DEFAULT_GOOGLE_SCRIPT_URL;
-  }
-
   return {
-    url: saved.url || DEFAULT_GOOGLE_SCRIPT_URL,
-    user: saved.user || "Alex",
+    url: DEFAULT_GOOGLE_SCRIPT_URL,
     revision: Number(saved.revision) || 0,
     lastSyncAt: saved.lastSyncAt || ""
   };
 }
 
 function saveCloudConfig(config) {
-  saveJSON(CLOUD_CONFIG_KEY, config);
+  saveJSON(CLOUD_CONFIG_KEY, {
+    url: DEFAULT_GOOGLE_SCRIPT_URL,
+    revision: Number(config.revision) || 0,
+    lastSyncAt: config.lastSyncAt || ""
+  });
+}
+
+function isApplyingGoogleData() {
+  return cloudApplyingRemote;
 }
 
 function setupCloudSync() {
-  const urlInput = document.getElementById("googleScriptUrl");
-  const userSelect = document.getElementById("syncUser");
-  const pullBtn = document.getElementById("pullGoogleBtn");
-  const pushBtn = document.getElementById("pushGoogleBtn");
-  const testBtn = document.getElementById("testGoogleBtn");
-  const config = getCloudConfig();
+  renderCloudMeta(getCloudConfig());
+  setCloudState("syncing");
 
-  // 第一次打开正式版 1.0 时，自动保存已预设的 Web App URL。
-  if (!loadJSON(CLOUD_CONFIG_KEY, {}).url) {
-    saveCloudConfig(config);
-  }
+  // Google Sheet is the master source. Opening the system always pulls first.
+  window.setTimeout(() => {
+    pullFromGoogleAutomatically({ reloadWhenChanged: true });
+  }, 120);
 
-  if (urlInput) urlInput.value = config.url;
-  if (userSelect) userSelect.value = config.user;
-  renderCloudMeta(config);
+  // When returning to the app after it was in the background, check again.
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      cloudLastHiddenAt = Date.now();
+      return;
+    }
 
-  document.getElementById("saveGoogleConfigBtn")?.addEventListener("click", () => {
-    const next = {
-      ...getCloudConfig(),
-      url: urlInput.value.trim(),
-      user: userSelect.value
-    };
-    saveCloudConfig(next);
-    renderCloudMeta(next);
-    showCloudStatus("Google 同步设置已保存");
+    const hiddenDuration = Date.now() - cloudLastHiddenAt;
+
+    if (
+      hiddenDuration >= 10000 &&
+      !cloudLocalDirty &&
+      !cloudSyncBusy
+    ) {
+      pullFromGoogleAutomatically({ reloadWhenChanged: true });
+    }
   });
 
-  userSelect?.addEventListener("change", () => {
-    const next = { ...getCloudConfig(), user: userSelect.value };
-    saveCloudConfig(next);
-    renderCloudMeta(next);
+  window.addEventListener("online", () => {
+    if (cloudLocalDirty) {
+      scheduleGoogleSync(300);
+    } else {
+      pullFromGoogleAutomatically({ reloadWhenChanged: true });
+    }
   });
-
-  testBtn?.addEventListener("click", testGoogleConnection);
-  pullBtn?.addEventListener("click", pullFromGoogle);
-  pushBtn?.addEventListener("click", migrateLocalStorageToGoogle);
 }
 
 async function callGoogleApi(payload) {
-  const config = getCloudConfig();
-  if (!config.url) throw new Error("请先填写 Apps Script Web App URL");
-
-  const response = await fetch(config.url, {
+  const response = await fetch(DEFAULT_GOOGLE_SCRIPT_URL, {
     method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8"
+    },
     body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
-    throw new Error(`Google 连线失败 (${response.status})`);
+    throw new Error(`Google connection failed (${response.status})`);
   }
 
   const data = await response.json();
-  if (!data.ok) throw new Error(data.error || "Google 同步失败");
+
+  if (!data.ok) {
+    throw new Error(data.error || "Google sync failed");
+  }
+
   return data;
 }
 
-async function testGoogleConnection() {
-  if (cloudSyncBusy) return;
-  cloudSyncBusy = true;
-  showCloudStatus("正在检查 Google 连线...");
-
-  try {
-    const data = await callGoogleApi({ action: "pull" });
-    const config = getCloudConfig();
-    config.revision = Number(data.revision) || 0;
-    config.lastSyncAt = new Date().toISOString();
-    saveCloudConfig(config);
-    renderCloudMeta(config);
-    showCloudStatus(`Google 已连接 · Revision ${config.revision}`);
-  } catch (error) {
-    showCloudStatus(error.message, true);
-  } finally {
-    cloudSyncBusy = false;
-  }
+function makeLocalSnapshot() {
+  return {
+    settings: loadJSON("importSystemSettings", {}),
+    products: getProducts(),
+    imports: getImports(),
+    batches: getBatches()
+  };
 }
 
-async function pullFromGoogle() {
-  if (cloudSyncBusy) return;
+function normalizeForComparison(value) {
+  return JSON.stringify(value ?? null);
+}
 
-  const localHasData =
-    getProducts().length > 0 ||
-    getImports().length > 0 ||
-    getBatches().length > 0;
+function remoteDiffersFromLocal(data) {
+  const local = makeLocalSnapshot();
 
-  if (localHasData) {
-    const confirmed = confirm(
-      "同步最新资料会以 Google Sheet 覆盖这台设备目前的本机资料。\n\n确定继续？"
-    );
-    if (!confirmed) return;
-  }
+  return (
+    normalizeForComparison(data.settings || {}) !==
+      normalizeForComparison(local.settings || {}) ||
+    normalizeForComparison(data.products || []) !==
+      normalizeForComparison(local.products || []) ||
+    normalizeForComparison(data.imports || []) !==
+      normalizeForComparison(local.imports || []) ||
+    normalizeForComparison(data.batches || []) !==
+      normalizeForComparison(local.batches || [])
+  );
+}
 
-  cloudSyncBusy = true;
-  showCloudStatus("正在下载 Google 最新资料...");
+function applyRemoteData(data) {
+  cloudApplyingRemote = true;
 
   try {
-    const data = await callGoogleApi({ action: "pull" });
     saveJSON("importSystemSettings", data.settings || {});
     saveProducts(data.products || []);
     saveImports(data.imports || []);
     saveBatches(data.batches || []);
-
-    const config = getCloudConfig();
-    config.revision = Number(data.revision) || 0;
-    config.lastSyncAt = new Date().toISOString();
-    saveCloudConfig(config);
-    renderCloudMeta(config);
-
-    showCloudStatus(`同步完成 · Revision ${config.revision}`);
-    setTimeout(() => window.location.reload(), 700);
-  } catch (error) {
-    showCloudStatus(error.message, true);
   } finally {
-    cloudSyncBusy = false;
+    cloudApplyingRemote = false;
   }
 }
 
+async function pullFromGoogleAutomatically(options = {}) {
+  if (cloudSyncBusy || cloudLocalDirty) return;
 
-async function migrateLocalStorageToGoogle() {
-  if (cloudSyncBusy) return;
-
-  const products = getProducts();
-  const imports = getImports();
-  const batches = getBatches();
-
-  if (!products.length && !imports.length && !batches.length) {
-    showCloudStatus("这台设备没有本机资料，已阻止上传空白资料。", true);
-    return;
-  }
+  const { reloadWhenChanged = false } = options;
 
   cloudSyncBusy = true;
-  showCloudStatus("正在检查 Google Sheet 是否已有资料...");
+  setCloudState("syncing");
 
   try {
-    const remote = await callGoogleApi({ action: "pull" });
-    const remoteHasData =
-      (remote.products || []).length > 0 ||
-      (remote.imports || []).length > 0 ||
-      (remote.batches || []).length > 0;
+    const data = await callGoogleApi({ action: "pull" });
+    const changed = remoteDiffersFromLocal(data);
 
-    if (remoteHasData) {
-      const overwrite = confirm(
-        `Google Sheet 已有资料：\n\n` +
-        `产品：${(remote.products || []).length} 项\n` +
-        `进口记录：${(remote.imports || []).length} 项\n` +
-        `批次：${(remote.batches || []).length} 批\n\n` +
-        `继续会用这台电脑的本机资料覆盖 Google Sheet。\n\n确定继续？`
-      );
-
-      if (!overwrite) {
-        showCloudStatus("已取消复制，本机与 Google 资料都没有改变。");
-        return;
-      }
-    } else {
-      const confirmed = confirm(
-        `确定把这台电脑的 LocalStorage 资料复制到 Google Sheet？\n\n` +
-        `产品：${products.length} 项\n` +
-        `进口记录：${imports.length} 项\n` +
-        `批次：${batches.length} 批`
-      );
-
-      if (!confirmed) {
-        showCloudStatus("已取消复制。");
-        return;
-      }
+    if (changed) {
+      applyRemoteData(data);
     }
 
     const config = getCloudConfig();
-    const data = await callGoogleApi({
-      action: "push",
-      force: true,
-      baseRevision: Number(remote.revision) || 0,
-      updatedBy: config.user || "Alex",
-      settings: loadJSON("importSystemSettings", {}),
-      products,
-      imports,
-      batches
-    });
-
     config.revision = Number(data.revision) || 0;
     config.lastSyncAt = new Date().toISOString();
     saveCloudConfig(config);
-    renderCloudMeta(config);
 
-    showCloudStatus(
-      `复制完成 · 产品 ${products.length} 项 · 进口记录 ${imports.length} 项 · 批次 ${batches.length} 批 · Revision ${config.revision}`
-    );
+    cloudInitialPullComplete = true;
+    cloudLocalDirty = false;
+    renderCloudMeta(config);
+    setCloudState("synced");
+
+    if (changed && reloadWhenChanged) {
+      window.setTimeout(() => window.location.reload(), 250);
+    }
   } catch (error) {
-    showCloudStatus(error.message, true);
+    cloudInitialPullComplete = true;
+    setCloudState("failed");
+    console.error("Automatic Google pull failed:", error);
   } finally {
     cloudSyncBusy = false;
   }
 }
 
-async function pushToGoogle(force = false) {
-  if (cloudSyncBusy) return;
+function scheduleGoogleSync(delay = 700) {
+  if (cloudApplyingRemote) return;
 
-  const products = getProducts();
-  const imports = getImports();
-  const batches = getBatches();
+  cloudLocalDirty = true;
 
-  if (!products.length && !imports.length && !batches.length) {
-    showCloudStatus("本机没有资料，已阻止上传空白资料。", true);
+  if (!cloudInitialPullComplete) {
     return;
   }
 
-  const confirmed = force
-    ? confirm(
-        `确定把这台设备的全部资料上传到 Google Sheet？\n\n产品：${products.length} 项\n进口记录：${imports.length} 项\n批次：${batches.length} 批`
-      )
-    : true;
+  window.clearTimeout(cloudSyncTimer);
+  cloudSyncTimer = window.setTimeout(() => {
+    pushToGoogleAutomatically();
+  }, delay);
+}
 
-  if (!confirmed) return;
+async function pushToGoogleAutomatically() {
+  if (cloudSyncBusy || !cloudLocalDirty) return;
 
   cloudSyncBusy = true;
-  showCloudStatus("正在上传到 Google Sheet...");
+  setCloudState("syncing");
 
   try {
     const config = getCloudConfig();
+    const snapshot = makeLocalSnapshot();
+
     const data = await callGoogleApi({
       action: "push",
-      force,
+      force: false,
       baseRevision: Number(config.revision) || 0,
-      updatedBy: config.user || "Alex",
-      settings: loadJSON("importSystemSettings", {}),
-      products,
-      imports,
-      batches
+      updatedBy: "System",
+      settings: snapshot.settings,
+      products: snapshot.products,
+      imports: snapshot.imports,
+      batches: snapshot.batches
     });
 
     config.revision = Number(data.revision) || 0;
     config.lastSyncAt = new Date().toISOString();
     saveCloudConfig(config);
+
+    cloudLocalDirty = false;
     renderCloudMeta(config);
-    showCloudStatus(`已上传 Google · Revision ${config.revision}`);
+    setCloudState("synced");
   } catch (error) {
-    showCloudStatus(error.message, true);
+    // Revision protection remains active in the backend.
+    // On conflict or network failure, Google data is never force-overwritten.
+    setCloudState("failed");
+    console.error("Automatic Google push failed:", error);
   } finally {
     cloudSyncBusy = false;
   }
 }
 
 function renderCloudMeta(config = getCloudConfig()) {
-  const revisionEl = document.getElementById("googleRevision");
   const lastSyncEl = document.getElementById("googleLastSync");
-  const userEl = document.getElementById("googleCurrentUser");
 
-  if (revisionEl) revisionEl.textContent = String(config.revision || 0);
-  if (userEl) userEl.textContent = config.user || "Alex";
+  if (!lastSyncEl) return;
 
-  if (lastSyncEl) {
-    if (!config.lastSyncAt) {
-      lastSyncEl.textContent = "尚未同步";
-    } else {
-      const date = new Date(config.lastSyncAt);
-      lastSyncEl.textContent = date.toLocaleString("en-GB", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: false
-      }).replaceAll("/", "-");
-    }
+  if (!config.lastSyncAt) {
+    lastSyncEl.textContent = "尚未同步";
+    return;
   }
+
+  const date = new Date(config.lastSyncAt);
+
+  lastSyncEl.textContent = date
+    .toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false
+    })
+    .replaceAll("/", "-");
 }
 
-function showCloudStatus(message, isError = false) {
-  const el = document.getElementById("googleSyncStatus");
-  if (!el) return;
-  el.textContent = message;
-  el.classList.toggle("error-status", isError);
+function setCloudState(state) {
+  const element = document.getElementById("googleSyncStatus");
+  if (!element) return;
+
+  element.classList.remove("syncing", "synced", "failed");
+
+  if (state === "synced") {
+    element.textContent = "已同步";
+    element.classList.add("synced");
+    return;
+  }
+
+  if (state === "failed") {
+    element.textContent = "同步失败";
+    element.classList.add("failed");
+    return;
+  }
+
+  element.textContent = "同步中...";
+  element.classList.add("syncing");
 }

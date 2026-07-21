@@ -1302,3 +1302,39 @@ input::placeholder {
     font-size: 14px;
   }
 }
+
+
+/* Formal V1.0 — automatic Google sync status */
+.google-sync-panel .info-row {
+  min-height: 44px;
+}
+
+.google-sync-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.google-sync-state::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #8a8f8c;
+  flex: 0 0 auto;
+}
+
+.google-sync-state.syncing::before {
+  background: #c58a1c;
+  box-shadow: 0 0 0 4px rgba(197, 138, 28, 0.12);
+}
+
+.google-sync-state.synced::before {
+  background: #16834c;
+  box-shadow: 0 0 0 4px rgba(22, 131, 76, 0.12);
+}
+
+.google-sync-state.failed::before {
+  background: #c62828;
+  box-shadow: 0 0 0 4px rgba(198, 40, 40, 0.12);
+}
