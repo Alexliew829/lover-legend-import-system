@@ -961,19 +961,6 @@ function loadBatchByNumber() {
   );
   const containerDate = getStoredBatchValue(batch, batchItems, "containerDate", "");
   const arrivalDate = getStoredBatchValue(batch, batchItems, "arrivalDate", "");
-  const storedChinaTransportCost = Number(batch.chinaTransportCost);
-  const storedChinaTransportRM = Number(batch.chinaTransportRM);
-  const chinaTransportCost =
-    Number.isFinite(storedChinaTransportCost) && storedChinaTransportCost > 0
-      ? storedChinaTransportCost
-      : (
-          Number.isFinite(storedChinaTransportRM) &&
-          storedChinaTransportRM > 0 &&
-          effectiveRate > 0
-            ? storedChinaTransportRM * effectiveRate
-            : 0
-        );
-
   const storedPotCost = Number(batch.potCost);
   const storedPotRM = Number(batch.potRM);
   const potCost =
@@ -989,6 +976,58 @@ function loadBatchByNumber() {
 
   const shippingMY = Number(batch.shippingMY) || 0;
 
+  const storedChinaTransportCost = Number(batch.chinaTransportCost);
+  const storedChinaTransportRM = Number(batch.chinaTransportRM);
+
+  const totalProductForeign = batchItems.reduce(
+    (sum, item) => {
+      const storedForeignTotal = Number(item.foreignTotal);
+
+      if (Number.isFinite(storedForeignTotal) && storedForeignTotal > 0) {
+        return sum + storedForeignTotal;
+      }
+
+      return sum +
+        ((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0));
+    },
+    0
+  );
+
+  const storedForeignCostsRM = Number(batch.totalForeignCostsRM);
+  const storedGrandTotal = Number(batch.grandTotal);
+
+  const recoverableForeignCostsRM =
+    Number.isFinite(storedForeignCostsRM) && storedForeignCostsRM > 0
+      ? storedForeignCostsRM
+      : (
+          Number.isFinite(storedGrandTotal) &&
+          storedGrandTotal > shippingMY
+            ? storedGrandTotal - shippingMY
+            : 0
+        );
+
+  const recoveredChinaTransportCost =
+    recoverableForeignCostsRM > 0 &&
+    effectiveRate > 0
+      ? Math.max(
+          0,
+          (recoverableForeignCostsRM * effectiveRate) -
+          totalProductForeign -
+          potCost
+        )
+      : 0;
+
+  const chinaTransportCost =
+    Number.isFinite(storedChinaTransportCost) && storedChinaTransportCost > 0
+      ? storedChinaTransportCost
+      : (
+          Number.isFinite(storedChinaTransportRM) &&
+          storedChinaTransportRM > 0 &&
+          effectiveRate > 0
+            ? storedChinaTransportRM * effectiveRate
+            : recoveredChinaTransportCost
+        );
+
   document.getElementById("batchRackQuantity").value = rackQuantity;
   document.getElementById("batchTrackingNumber").value = trackingNumber;
   document.getElementById("batchChinaTransportCost").value =
@@ -998,9 +1037,15 @@ function loadBatchByNumber() {
     !chinaTransportCost &&
     (Number(batch.grandTotal) || Number(batch.shippingRate))
   ) {
-    console.warn(
-      `进口编号 ${batch.importNumber} 缺少内地运输＋打木架费用原值，已保留其他批次成本资料，更新前请核对。`
-    );
+    document.getElementById("batchStatusText").textContent =
+      `警告：进口编号 ${batch.importNumber} 的旧资料不足，无法恢复内地运输＋打木架费用。请勿更新此批次，先核对原始资料。`;
+  } else if (
+    !(Number.isFinite(storedChinaTransportCost) && storedChinaTransportCost > 0) &&
+    !(Number.isFinite(storedChinaTransportRM) && storedChinaTransportRM > 0) &&
+    recoveredChinaTransportCost > 0
+  ) {
+    document.getElementById("batchStatusText").textContent =
+      `已从该批原有总成本自动恢复内地运输＋打木架费用：${formatMoney(recoveredChinaTransportCost)} ${currency}`;
   }
   document.getElementById("batchPotCost").value =
     potCost ? formatMoney(potCost) : "";
@@ -1037,8 +1082,13 @@ function loadBatchByNumber() {
   calculateBatch();
   restoreStoredBatchRMDisplay(batch, batchItems);
 
-  document.getElementById("batchStatusText").textContent =
-    `已载入进口编号 ${batch.importNumber}。资料已按原输入顺序恢复，可继续修改后更新。`;
+  const currentStatus =
+    document.getElementById("batchStatusText").textContent.trim();
+
+  if (!currentStatus) {
+    document.getElementById("batchStatusText").textContent =
+      `已载入进口编号 ${batch.importNumber}。资料已按原输入顺序恢复，可继续修改后更新。`;
+  }
 
   input.value = batch.importNumber;
   setBatchEditMode(batch.importNumber);
