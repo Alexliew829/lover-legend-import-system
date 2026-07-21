@@ -1,14 +1,18 @@
-const CACHE = "lover-legend-import-cost-v2.30";
+const CACHE = "lover-legend-import-cost-formal-v1.0.0";
 const CORE = [
   "./",
   "./index.html",
-  "./css/style.css?v=2.30",
-  "./js/common.js?v=2.30",
-  "./js/sync.js?v=2.30",
-  "./js/app.js?v=2.30",
+  "./css/style.css?v=1.0.0",
+  "./js/common.js?v=1.0.0",
+  "./js/sync.js?v=1.0.0",
+  "./js/app.js?v=1.0.0",
   "./manifest.json",
   "./assets/images/logo-green.jpg",
-  "./assets/images/logo-red.jpg"
+  "./assets/images/logo-red.jpg",
+  "./assets/icons/favicon.ico",
+  "./assets/icons/apple-touch-icon.png",
+  "./assets/icons/icon-192.png",
+  "./assets/icons/icon-512.png"
 ];
 
 self.addEventListener("install", event => {

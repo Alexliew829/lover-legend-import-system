@@ -6,7 +6,10 @@
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
   <link rel="manifest" href="./manifest.json" />
-  <link rel="stylesheet" href="./css/style.css?v=2.30" />
+  <link rel="icon" href="./assets/icons/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png" />
+  <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
+  <link rel="stylesheet" href="./css/style.css?v=1.0.0" />
 </head>
 <body>
   <div class="app-shell">
@@ -19,7 +22,7 @@
         <div class="app-header-title">
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
-          <div class="app-header-version">V2.30</div>
+          <div class="app-header-version">正式版 1.0</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -296,17 +299,20 @@
             <button id="testGoogleBtn" class="tool-action-btn" type="button"><span>检查 Google 连线</span></button>
             <button id="saveGoogleConfigBtn" class="tool-action-btn" type="button"><span>保存同步设置</span></button>
             <button id="pullGoogleBtn" class="tool-action-btn" type="button"><span>同步最新资料</span></button>
-            <button id="pushGoogleBtn" class="tool-action-btn" type="button"><span>上传本机资料</span></button>
+            <button id="pushGoogleBtn" class="tool-action-btn" type="button"><span>复制本机资料到 Google</span></button>
           </div>
           <div class="info-row"><span>目前使用者</span><strong id="googleCurrentUser">Alex</strong></div>
           <div class="info-row"><span>Google Revision</span><strong id="googleRevision">0</strong></div>
           <div class="info-row"><span>最后同步</span><strong id="googleLastSync">尚未同步</strong></div>
+          <p class="settings-help">
+            第一次请在资料最完整的电脑按“复制本机资料到 Google”；其他设备第一次只按“同步最新资料”。
+          </p>
           <div id="googleSyncStatus" class="status-text"></div>
         </section>
 
         <section class="panel">
           <h3>系统资料</h3>
-          <div class="info-row"><span>版本</span><strong>2.29</strong></div>
+          <div class="info-row"><span>版本</span><strong>正式版 1.0</strong></div>
           <div class="info-row"><span>储存方式</span><strong>本机缓存 + Google Sheet</strong></div>
           <div class="info-row"><span>Google Sheet</span><strong>已连接 Google Web App</strong></div>
         </section>
@@ -326,8 +332,8 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=2.30"></script>
-  <script src="./js/sync.js?v=2.30"></script>
-  <script src="./js/app.js?v=2.30"></script>
+  <script src="./js/common.js?v=1.0.0"></script>
+  <script src="./js/sync.js?v=1.0.0"></script>
+  <script src="./js/app.js?v=1.0.0"></script>
 </body>
 </html>

@@ -30,7 +30,7 @@ function setupCloudSync() {
   const testBtn = document.getElementById("testGoogleBtn");
   const config = getCloudConfig();
 
-  // 第一次打开 V2.30 时，自动保存已预设的 Web App URL。
+  // 第一次打开正式版 1.0 时，自动保存已预设的 Web App URL。
   if (!loadJSON(CLOUD_CONFIG_KEY, {}).url) {
     saveCloudConfig(config);
   }
@@ -58,7 +58,7 @@ function setupCloudSync() {
 
   testBtn?.addEventListener("click", testGoogleConnection);
   pullBtn?.addEventListener("click", pullFromGoogle);
-  pushBtn?.addEventListener("click", () => pushToGoogle(true));
+  pushBtn?.addEventListener("click", migrateLocalStorageToGoogle);
 }
 
 async function callGoogleApi(payload) {
@@ -133,6 +133,83 @@ async function pullFromGoogle() {
 
     showCloudStatus(`同步完成 · Revision ${config.revision}`);
     setTimeout(() => window.location.reload(), 700);
+  } catch (error) {
+    showCloudStatus(error.message, true);
+  } finally {
+    cloudSyncBusy = false;
+  }
+}
+
+
+async function migrateLocalStorageToGoogle() {
+  if (cloudSyncBusy) return;
+
+  const products = getProducts();
+  const imports = getImports();
+  const batches = getBatches();
+
+  if (!products.length && !imports.length && !batches.length) {
+    showCloudStatus("这台设备没有本机资料，已阻止上传空白资料。", true);
+    return;
+  }
+
+  cloudSyncBusy = true;
+  showCloudStatus("正在检查 Google Sheet 是否已有资料...");
+
+  try {
+    const remote = await callGoogleApi({ action: "pull" });
+    const remoteHasData =
+      (remote.products || []).length > 0 ||
+      (remote.imports || []).length > 0 ||
+      (remote.batches || []).length > 0;
+
+    if (remoteHasData) {
+      const overwrite = confirm(
+        `Google Sheet 已有资料：\n\n` +
+        `产品：${(remote.products || []).length} 项\n` +
+        `进口记录：${(remote.imports || []).length} 项\n` +
+        `批次：${(remote.batches || []).length} 批\n\n` +
+        `继续会用这台电脑的本机资料覆盖 Google Sheet。\n\n确定继续？`
+      );
+
+      if (!overwrite) {
+        showCloudStatus("已取消复制，本机与 Google 资料都没有改变。");
+        return;
+      }
+    } else {
+      const confirmed = confirm(
+        `确定把这台电脑的 LocalStorage 资料复制到 Google Sheet？\n\n` +
+        `产品：${products.length} 项\n` +
+        `进口记录：${imports.length} 项\n` +
+        `批次：${batches.length} 批`
+      );
+
+      if (!confirmed) {
+        showCloudStatus("已取消复制。");
+        return;
+      }
+    }
+
+    const config = getCloudConfig();
+    const data = await callGoogleApi({
+      action: "push",
+      force: true,
+      baseRevision: Number(remote.revision) || 0,
+      updatedBy: config.user || "Alex",
+      settings: loadJSON("importSystemSettings", {}),
+      products,
+      imports,
+      batches
+    });
+
+    config.revision = Number(data.revision) || 0;
+    config.lastSyncAt = new Date().toISOString();
+    saveCloudConfig(config);
+    renderCloudMeta(config);
+
+    showCloudStatus(
+      `复制完成 · 产品 ${products.length} 项 · 进口记录 ${imports.length} 项 · 批次 ${batches.length} 批 · Revision ${config.revision}`
+    );
   } catch (error) {
     showCloudStatus(error.message, true);
   } finally {
