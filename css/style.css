@@ -1437,3 +1437,11 @@ input::placeholder {
   gap: 7px;
   flex-wrap: wrap;
 }
+
+
+/* Formal V1.4 — compact whole-batch delete inside recent batch cards */
+.batch-card-buttons .delete-btn {
+  color: #c62828;
+  background: #ffe8e8;
+  border-color: #efb2b2;
+}

@@ -541,7 +541,6 @@ function setBatchEditMode(importNumber = "") {
   const modeBox = document.getElementById("batchEditMode");
   const label = document.getElementById("currentImportNumberLabel");
   const saveButton = document.getElementById("saveBatchBtn");
-  const deleteButton = document.getElementById("deleteBatchBtn");
 
   if (!modeBox || !label || !saveButton) return;
 
@@ -550,13 +549,11 @@ function setBatchEditMode(importNumber = "") {
     label.textContent = importNumber;
     saveButton.textContent = "更新此批次";
     saveButton.classList.add("update-mode");
-    if (deleteButton) deleteButton.hidden = false;
   } else {
     modeBox.hidden = true;
     label.textContent = "";
     saveButton.textContent = "保存新批次";
     saveButton.classList.remove("update-mode");
-    if (deleteButton) deleteButton.hidden = true;
   }
 }
 
@@ -574,10 +571,6 @@ function setupImportModule(){
     if(confirm("确定清空本次尚未保存的输入？已保存的资料不会被删除。")) resetBatchForm();
   });
 
-  document.getElementById("deleteBatchBtn")?.addEventListener(
-    "click",
-    deleteCurrentBatch
-  );
   const batchForm = document.getElementById("batchImportForm");
 
   batchForm.addEventListener("submit", event => {
@@ -702,11 +695,26 @@ function copyBatchNumber(importNumber) {
 
 
 function getBatchItemsForDisplay(batch) {
-  const imports = getImports().filter(
+  const storedItems = Array.isArray(batch.items)
+    ? batch.items.filter(Boolean)
+    : [];
+
+  // batch.items is written with push(), so it preserves the user's original
+  // top-to-bottom entry order. Prefer it whenever it is complete.
+  if (
+    storedItems.length &&
+    (!Number(batch.itemCount) || storedItems.length >= Number(batch.itemCount))
+  ) {
+    return storedItems;
+  }
+
+  const importItems = getImports().filter(
     record => record.batchId === batch.id
   );
 
-  return imports.length ? imports : (batch.items || []);
+  // Older versions inserted every record with unshift(), which reversed the
+  // rows. Reverse those legacy records back to the original entry order.
+  return importItems.slice().reverse();
 }
 
 function restoreStoredBatchRMDisplay(batch, items) {
@@ -809,13 +817,7 @@ function reverseBatchInventoryImpact(products, batchItems, remainingImports) {
   return affectedProductIds;
 }
 
-function deleteCurrentBatch() {
-  const importNumber = currentEditingImportNumber;
-
-  if (!importNumber) {
-    alert("请先载入要删除的进口编号。");
-    return;
-  }
+function deleteBatchByNumber(importNumber) {
 
   const batches = getBatches();
   const batchIndex = batches.findIndex(
@@ -865,7 +867,13 @@ function deleteCurrentBatch() {
   saveImports(remainingImports);
   saveBatches(batches);
 
-  resetBatchForm();
+  if (
+    String(currentEditingImportNumber || "").toLowerCase() ===
+    String(batch.importNumber || "").toLowerCase()
+  ) {
+    resetBatchForm();
+  }
+
   renderBatchSuggestions();
   renderBatchList();
   renderInventoryManagementList();
@@ -873,6 +881,39 @@ function deleteCurrentBatch() {
 
   document.getElementById("batchStatusText").textContent =
     `已删除整批进口 ${batch.importNumber}，库存数量、平均成本及库存成本总值已自动调整。`;
+}
+
+
+function getStoredBatchValue(batch, items, key, fallback = "") {
+  const direct = batch?.[key];
+
+  if (direct !== undefined && direct !== null && direct !== "") {
+    return direct;
+  }
+
+  const itemValue = (items || []).find(
+    item => item?.[key] !== undefined && item?.[key] !== null && item?.[key] !== ""
+  )?.[key];
+
+  return itemValue !== undefined && itemValue !== null && itemValue !== ""
+    ? itemValue
+    : fallback;
+}
+
+function getDefaultExchangeRate(currency) {
+  const defaults = {
+    CNY: 1.60,
+    NTD: 7.69,
+    VND: 6300.00,
+    IDR: 3571.00
+  };
+
+  const saved = loadJSON("importSystemSettings", {});
+  const value = Number(saved?.[currency]);
+
+  return Number.isFinite(value) && value > 0
+    ? value
+    : defaults[currency] || 0;
 }
 
 function loadBatchByNumber() {
@@ -898,30 +939,54 @@ function loadBatchByNumber() {
 
   resetBatchForm();
 
-  document.getElementById("batchRackQuantity").value = batch.rackQuantity || "";
-  document.getElementById("batchTrackingNumber").value = batch.trackingNumber || "";
+  const batchItems = getBatchItemsForDisplay(batch);
+  const currency = String(
+    getStoredBatchValue(batch, batchItems, "currency", "CNY")
+  ).toUpperCase();
+  const storedRate = Number(
+    getStoredBatchValue(batch, batchItems, "rate", 0)
+  );
+  const effectiveRate =
+    Number.isFinite(storedRate) && storedRate > 0
+      ? storedRate
+      : getDefaultExchangeRate(currency);
+
+  const rackQuantity = getStoredBatchValue(batch, batchItems, "rackQuantity", "");
+  const trackingNumber = getStoredBatchValue(batch, batchItems, "trackingNumber", "");
+  const overseasTrackingNumber = getStoredBatchValue(
+    batch,
+    batchItems,
+    "overseasTrackingNumber",
+    ""
+  );
+  const containerDate = getStoredBatchValue(batch, batchItems, "containerDate", "");
+  const arrivalDate = getStoredBatchValue(batch, batchItems, "arrivalDate", "");
+  const chinaTransportCost = Number(batch.chinaTransportCost) || 0;
+  const potCost = Number(batch.potCost) || 0;
+  const shippingMY = Number(batch.shippingMY) || 0;
+
+  document.getElementById("batchRackQuantity").value = rackQuantity;
+  document.getElementById("batchTrackingNumber").value = trackingNumber;
   document.getElementById("batchChinaTransportCost").value =
-    batch.chinaTransportCost ? formatMoney(batch.chinaTransportCost) : "";
+    chinaTransportCost ? formatMoney(chinaTransportCost) : "";
   document.getElementById("batchPotCost").value =
-    batch.potCost ? formatMoney(batch.potCost) : "";
-  document.getElementById("batchCurrency").value = batch.currency || "CNY";
-  document.getElementById("batchRate").value = formatMoney(batch.rate || 0);
-  document.getElementById("batchContainerDate").value = batch.containerDate || "";
-  document.getElementById("batchArrivalDate").value = batch.arrivalDate || "";
+    potCost ? formatMoney(potCost) : "";
+  document.getElementById("batchCurrency").value = currency;
+  document.getElementById("batchRate").value = formatMoney(effectiveRate);
+  document.getElementById("batchContainerDate").value = containerDate;
+  document.getElementById("batchArrivalDate").value = arrivalDate;
   document.getElementById("batchShippingMY").value =
-    batch.shippingMY ? formatMoney(batch.shippingMY) : "";
+    shippingMY ? formatMoney(shippingMY) : "";
 
   document.getElementById("batchOverseasTrackingNumber").value =
-    batch.overseasTrackingNumber || "";
+    overseasTrackingNumber;
   document.getElementById("batchContainerDatePicker").value =
-    formatDDMMYYYYToNative(batch.containerDate || "");
+    formatDDMMYYYYToNative(containerDate);
   document.getElementById("batchArrivalDatePicker").value =
-    formatDDMMYYYYToNative(batch.arrivalDate || "");
+    formatDDMMYYYYToNative(arrivalDate);
 
   document.getElementById("batchRows").innerHTML = "";
   batchRowSeq = 0;
-
-  const batchItems = getBatchItemsForDisplay(batch);
 
   batchItems.forEach(item => {
     addBatchRow({
@@ -940,7 +1005,7 @@ function loadBatchByNumber() {
   restoreStoredBatchRMDisplay(batch, batchItems);
 
   document.getElementById("batchStatusText").textContent =
-    `已载入进口编号 ${batch.importNumber}。可继续修改后更新，或删除整批进口。`;
+    `已载入进口编号 ${batch.importNumber}。资料已按原输入顺序恢复，可继续修改后更新。`;
 
   input.value = batch.importNumber;
   setBatchEditMode(batch.importNumber);
@@ -1659,7 +1724,7 @@ function saveBatchImport() {
       createdAt: new Date().toISOString()
     };
 
-    imports.unshift(record);
+    imports.push(record);
     batch.items.push(record);
   });
 
@@ -1707,6 +1772,7 @@ function renderBatchList(){
       <div class="batch-card-buttons">
         ${x.importNumber ? `<button class="copy-number-btn" type="button" onclick="copyBatchNumber('${escapeHTML(x.importNumber)}')">Copy</button>` : ""}
         ${x.importNumber ? `<button class="small-btn edit-btn" type="button" onclick="openBatchForEdit('${escapeHTML(x.importNumber)}')">载入</button>` : ""}
+        ${x.importNumber ? `<button class="small-btn delete-btn" type="button" onclick="deleteBatchByNumber('${escapeHTML(x.importNumber)}')">删除整批进口</button>` : ""}
       </div>
     </div>
     <div class="product-code">${x.totalQuantity} 件 · ${x.rackQuantity} 个木架</div>

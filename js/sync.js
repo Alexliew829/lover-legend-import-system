@@ -38,7 +38,7 @@ function setupCloudSync() {
   // Google Sheet is the master source. Opening the system always pulls first.
   window.setTimeout(() => {
     pullFromGoogleAutomatically({ reloadWhenChanged: true });
-  }, 40);
+  }, 20);
 
   // When returning to the app after it was in the background, check again.
   document.addEventListener("visibilitychange", () => {
@@ -60,7 +60,7 @@ function setupCloudSync() {
 
   window.addEventListener("online", () => {
     if (cloudLocalDirty) {
-      scheduleGoogleSync(40);
+      scheduleGoogleSync(20);
     } else {
       pullFromGoogleAutomatically({ reloadWhenChanged: true });
     }
@@ -168,7 +168,7 @@ async function pullFromGoogleAutomatically(options = {}) {
   }
 }
 
-function scheduleGoogleSync(delay = 80) {
+function scheduleGoogleSync(delay = 40) {
   if (cloudApplyingRemote) return;
 
   cloudLocalDirty = true;
