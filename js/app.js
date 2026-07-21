@@ -937,7 +937,7 @@ function loadBatchByNumber() {
     return;
   }
 
-  resetBatchForm();
+  resetBatchForm(true);
 
   const batchItems = getBatchItemsForDisplay(batch);
   const currency = String(
@@ -961,14 +961,47 @@ function loadBatchByNumber() {
   );
   const containerDate = getStoredBatchValue(batch, batchItems, "containerDate", "");
   const arrivalDate = getStoredBatchValue(batch, batchItems, "arrivalDate", "");
-  const chinaTransportCost = Number(batch.chinaTransportCost) || 0;
-  const potCost = Number(batch.potCost) || 0;
+  const storedChinaTransportCost = Number(batch.chinaTransportCost);
+  const storedChinaTransportRM = Number(batch.chinaTransportRM);
+  const chinaTransportCost =
+    Number.isFinite(storedChinaTransportCost) && storedChinaTransportCost > 0
+      ? storedChinaTransportCost
+      : (
+          Number.isFinite(storedChinaTransportRM) &&
+          storedChinaTransportRM > 0 &&
+          effectiveRate > 0
+            ? storedChinaTransportRM * effectiveRate
+            : 0
+        );
+
+  const storedPotCost = Number(batch.potCost);
+  const storedPotRM = Number(batch.potRM);
+  const potCost =
+    Number.isFinite(storedPotCost) && storedPotCost > 0
+      ? storedPotCost
+      : (
+          Number.isFinite(storedPotRM) &&
+          storedPotRM > 0 &&
+          effectiveRate > 0
+            ? storedPotRM * effectiveRate
+            : 0
+        );
+
   const shippingMY = Number(batch.shippingMY) || 0;
 
   document.getElementById("batchRackQuantity").value = rackQuantity;
   document.getElementById("batchTrackingNumber").value = trackingNumber;
   document.getElementById("batchChinaTransportCost").value =
     chinaTransportCost ? formatMoney(chinaTransportCost) : "";
+
+  if (
+    !chinaTransportCost &&
+    (Number(batch.grandTotal) || Number(batch.shippingRate))
+  ) {
+    console.warn(
+      `进口编号 ${batch.importNumber} 缺少内地运输＋打木架费用原值，已保留其他批次成本资料，更新前请核对。`
+    );
+  }
   document.getElementById("batchPotCost").value =
     potCost ? formatMoney(potCost) : "";
   document.getElementById("batchCurrency").value = currency;
@@ -1238,7 +1271,10 @@ function updateTransitDays() {
   return days;
 }
 
-function resetBatchForm(){
+function resetBatchForm(preserveLookup = false){
+  const lookupInput = document.getElementById("batchLookupInput");
+  const lookupValue = preserveLookup ? lookupInput.value : "";
+
   setBatchEditMode("");
   document.getElementById("batchImportForm").reset();
   ["batchRackQuantity","batchChinaTransportCost","batchPotCost","batchShippingMY"].forEach(id=>document.getElementById(id).value="");
@@ -1246,8 +1282,15 @@ function resetBatchForm(){
   document.getElementById("batchTransitDays").value="-";
   document.getElementById("batchOverseasTrackingNumber").value="";
   document.getElementById("batchContainerDatePicker").value="";
-  document.getElementById("batchArrivalDatePicker").value=""; document.getElementById("batchStatusText").textContent="";
-  batchRowSeq=0; document.getElementById("batchRows").innerHTML=""; addBatchRow(); calculateBatch();
+  document.getElementById("batchArrivalDatePicker").value="";
+  document.getElementById("batchStatusText").textContent="";
+
+  lookupInput.value = lookupValue;
+
+  batchRowSeq=0;
+  document.getElementById("batchRows").innerHTML="";
+  addBatchRow();
+  calculateBatch();
 }
 function addBatchRow(prefill = {}){
   const id=++batchRowSeq,tr=document.createElement("tr"); tr.dataset.rowId=id;
