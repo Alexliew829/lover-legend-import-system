@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=1.2.0" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=1.2.0" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=1.2.0" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=1.2.0" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=1.2.0" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=1.2.0" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=1.2.0" />
+  <link rel="manifest" href="./manifest.json?v=1.3.0" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=1.3.0" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=1.3.0" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=1.3.0" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=1.3.0" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=1.3.0" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=1.3.0" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=1.2.0" />
-  <link rel="stylesheet" href="./css/style.css?v=1.2.0" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=1.3.0" />
+  <link rel="stylesheet" href="./css/style.css?v=1.3.0" />
 </head>
 <body>
   <div class="app-shell">
@@ -30,7 +30,7 @@
         <div class="app-header-title">
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
-          <div class="app-header-version">正式版 1.2</div>
+          <div class="app-header-version">正式版 1.3</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -227,6 +227,7 @@
 
             <div class="batch-form-actions">
               <button id="saveBatchBtn" class="primary-btn" type="submit">保存新批次</button>
+              <button id="deleteBatchBtn" class="danger-btn" type="button" hidden>删除整批进口</button>
               <button id="resetBatchBtn" class="ghost-btn" type="button">清空本次输入</button>
             </div>
             <div class="clear-help">只清空尚未保存的本次输入，不会删除已经保存的资料。</div>
@@ -311,7 +312,7 @@
 
         <section class="panel">
           <h3>系统资料</h3>
-          <div class="info-row"><span>版本</span><strong>正式版 1.2</strong></div>
+          <div class="info-row"><span>版本</span><strong>正式版 1.3</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
           <div class="info-row"><span>Google Sheet</span><strong>已连接 Google Web App</strong></div>
         </section>
@@ -331,8 +332,8 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=1.2.0"></script>
-  <script src="./js/sync.js?v=1.2.0"></script>
-  <script src="./js/app.js?v=1.2.0"></script>
+  <script src="./js/common.js?v=1.3.0"></script>
+  <script src="./js/sync.js?v=1.3.0"></script>
+  <script src="./js/app.js?v=1.3.0"></script>
 </body>
 </html>

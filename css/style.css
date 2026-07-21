@@ -1417,3 +1417,23 @@ input::placeholder {
   padding-left: 7px;
   padding-right: 7px;
 }
+
+
+/* Formal V1.3 — whole batch delete and batch card actions */
+.danger-btn {
+  border: 1px solid #e5a3a3;
+  background: #ffe7e7;
+  color: #c51f1f;
+  font-weight: 800;
+}
+
+.danger-btn:hover {
+  background: #ffd7d7;
+}
+
+.batch-card-buttons {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}

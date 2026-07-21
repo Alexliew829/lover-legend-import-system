@@ -60,7 +60,7 @@ function setupCloudSync() {
 
   window.addEventListener("online", () => {
     if (cloudLocalDirty) {
-      scheduleGoogleSync(100);
+      scheduleGoogleSync(40);
     } else {
       pullFromGoogleAutomatically({ reloadWhenChanged: true });
     }
@@ -157,7 +157,7 @@ async function pullFromGoogleAutomatically(options = {}) {
     setCloudState("synced");
 
     if (changed && reloadWhenChanged) {
-      window.setTimeout(() => window.location.reload(), 100);
+      window.setTimeout(() => window.location.reload(), 50);
     }
   } catch (error) {
     cloudInitialPullComplete = true;
@@ -168,7 +168,7 @@ async function pullFromGoogleAutomatically(options = {}) {
   }
 }
 
-function scheduleGoogleSync(delay = 180) {
+function scheduleGoogleSync(delay = 80) {
   if (cloudApplyingRemote) return;
 
   cloudLocalDirty = true;
