@@ -7,7 +7,6 @@ let cloudApplyingRemote = false;
 let cloudInitialPullComplete = false;
 let cloudLocalDirty = false;
 let cloudSyncTimer = null;
-let cloudLastHiddenAt = 0;
 
 function getCloudConfig() {
   const saved = loadJSON(CLOUD_CONFIG_KEY, {});
@@ -35,34 +34,16 @@ function setupCloudSync() {
   renderCloudMeta(getCloudConfig());
   setCloudState("syncing");
 
-  // Google Sheet is the master source. Opening the system always pulls first.
+  // Open the system: read Google once so every device starts with current data.
+  // After that, idle use does not repeatedly sync.
   window.setTimeout(() => {
     pullFromGoogleAutomatically({ reloadWhenChanged: true });
   }, 20);
 
-  // When returning to the app after it was in the background, check again.
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) {
-      cloudLastHiddenAt = Date.now();
-      return;
-    }
-
-    const hiddenDuration = Date.now() - cloudLastHiddenAt;
-
-    if (
-      hiddenDuration >= 10000 &&
-      !cloudLocalDirty &&
-      !cloudSyncBusy
-    ) {
-      pullFromGoogleAutomatically({ reloadWhenChanged: true });
-    }
-  });
-
+  // Network recovery only retries an unsaved local change.
   window.addEventListener("online", () => {
     if (cloudLocalDirty) {
       scheduleGoogleSync(20);
-    } else {
-      pullFromGoogleAutomatically({ reloadWhenChanged: true });
     }
   });
 }

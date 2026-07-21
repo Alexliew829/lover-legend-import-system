@@ -209,7 +209,11 @@ function setupDashboard() {
 
 function renderDashboard() {
   const products = loadJSON("importSystemProducts", []);
-  const activeInventoryProducts = products.filter(item => !item.inventoryArchived);
+  const activeInventoryProducts = products.filter(
+    item =>
+      !item.inventoryArchived &&
+      (Number(item.stock) || 0) > 0
+  );
 
   const productCount = activeInventoryProducts.length;
   const stockCount = activeInventoryProducts.reduce(
@@ -220,7 +224,7 @@ function renderDashboard() {
     return sum + ((Number(item.stock) || 0) * (Number(item.averageCost) || 0));
   }, 0);
 
-  const dates = products
+  const dates = activeInventoryProducts
     .map(item => item.lastImport)
     .filter(Boolean)
     .sort((a, b) => {
@@ -373,7 +377,7 @@ function saveProduct() {
     return;
   }
 
-  if (Array.from(name).length > 13) {
+  if (Array.from(name).length > 15) {
     statusText.textContent = "产品名称最多15个字";
     return;
   }
@@ -1896,7 +1900,11 @@ function renderInventoryManagementList() {
   const imports = getImports();
 
   const products = getProducts()
-    .filter(product => !product.inventoryArchived)
+    .filter(
+      product =>
+        !product.inventoryArchived &&
+        (Number(product.stock) || 0) > 0
+    )
     .map(product => {
       const productName = String(product.name || "").trim().toLowerCase();
       const importNumbers = imports
