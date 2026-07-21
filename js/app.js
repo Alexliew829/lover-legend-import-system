@@ -1,0 +1,1979 @@
+document.addEventListener("DOMContentLoaded", () => {
+  repairLegacyImportDates();
+  setupNavigation();
+  setupSettings();
+  setupDashboard();
+  setupImportModule();
+  setupInventoryModule();
+  registerServiceWorker();
+  setupCloudSync();
+});
+
+
+function repairLegacyImportDates() {
+  const repair = value => {
+    const text = String(value || "").trim();
+
+    if (!text) return "";
+
+    if (parseDateDDMMYYYY(text)) {
+      const validMatch = text.match(
+        /^(\d{2})-(\d{2})-(\d{4})$/
+      );
+
+      if (validMatch) {
+        const year = Number(validMatch[3]);
+
+        // Previous versions could wrongly store 2026 as 2726.
+        if (year >= 2700 && year <= 2799) {
+          const corrected =
+            `${validMatch[1]}-${validMatch[2]}-20${validMatch[3].slice(-2)}`;
+
+          if (parseDateDDMMYYYY(corrected)) {
+            return corrected;
+          }
+        }
+      }
+
+      return text;
+    }
+
+    // Old masking bug:
+    // 21-07-26 -> 21-00-7726
+    const brokenMask = text.match(
+      /^(\d{2})-00-(\d)(\d{3})$/
+    );
+
+    if (brokenMask) {
+      const corrected =
+        `${brokenMask[1]}-` +
+        `${brokenMask[2].padStart(2, "0")}-` +
+        `20${brokenMask[3].slice(-2)}`;
+
+      if (parseDateDDMMYYYY(corrected)) {
+        return corrected;
+      }
+    }
+
+    const shortYear = text.match(
+      /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2})$/
+    );
+
+    if (shortYear) {
+      const corrected =
+        `${String(Number(shortYear[1])).padStart(2, "0")}-` +
+        `${String(Number(shortYear[2])).padStart(2, "0")}-` +
+        `20${shortYear[3]}`;
+
+      if (parseDateDDMMYYYY(corrected)) {
+        return corrected;
+      }
+    }
+
+    return text;
+  };
+
+  const products = getProducts();
+  const imports = getImports();
+  const batches = getBatches();
+
+  let changed = false;
+
+  products.forEach(product => {
+    const corrected = repair(product.lastImport);
+
+    if (corrected !== product.lastImport) {
+      product.lastImport = corrected;
+      changed = true;
+    }
+  });
+
+  imports.forEach(record => {
+    ["date", "containerDate", "arrivalDate"].forEach(key => {
+      const corrected = repair(record[key]);
+
+      if (corrected !== record[key]) {
+        record[key] = corrected;
+        changed = true;
+      }
+    });
+  });
+
+  batches.forEach(batch => {
+    ["date", "containerDate", "arrivalDate"].forEach(key => {
+      const corrected = repair(batch[key]);
+
+      if (corrected !== batch[key]) {
+        batch[key] = corrected;
+        changed = true;
+      }
+    });
+
+    (batch.items || []).forEach(item => {
+      ["date", "containerDate", "arrivalDate"].forEach(key => {
+        const corrected = repair(item[key]);
+
+        if (corrected !== item[key]) {
+          item[key] = corrected;
+          changed = true;
+        }
+      });
+    });
+  });
+
+  if (changed) {
+    saveProducts(products);
+    saveImports(imports);
+    saveBatches(batches);
+  }
+}
+
+function setupNavigation() {
+  const buttons = document.querySelectorAll(".nav-btn");
+  const pages = document.querySelectorAll(".page");
+
+  buttons.forEach(button => {
+    button.addEventListener("click", () => {
+      const target = button.dataset.page;
+
+      buttons.forEach(item => item.classList.remove("active"));
+      pages.forEach(page => page.classList.remove("active"));
+
+      button.classList.add("active");
+      document.getElementById(target)?.classList.add("active");
+
+      if (target === "importPage") {
+        renderBatchSuggestions();
+        renderBatchList();
+      }
+
+      if (target === "dashboardPage") {
+        renderInventoryManagementList();
+        renderDashboard();
+      }
+
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  });
+}
+
+function setupSettings() {
+  const defaults = {
+    CNY: 1.60,
+    NTD: 7.69,
+    VND: 6300.00,
+    IDR: 3571.00
+  };
+
+  const saved = loadJSON("importSystemSettings", defaults);
+  const ids = {
+    CNY: "rateCNY",
+    NTD: "rateNTD",
+    VND: "rateVND",
+    IDR: "rateIDR"
+  };
+
+  Object.entries(ids).forEach(([currency, id]) => {
+    const input = document.getElementById(id);
+    input.value = formatMoney(saved[currency] ?? defaults[currency]);
+    input.addEventListener("focus", () => input.select());
+    input.addEventListener("blur", () => formatInputAmount(input));
+  });
+
+  document.getElementById("saveSettingsBtn").addEventListener("click", () => {
+    const data = {};
+
+    Object.entries(ids).forEach(([currency, id]) => {
+      data[currency] = parseAmount(document.getElementById(id).value);
+    });
+
+    saveJSON("importSystemSettings", data);
+
+    const status = document.getElementById("settingsStatus");
+    status.textContent = "设置已保存";
+    setTimeout(() => {
+      status.textContent = "";
+    }, 1800);
+  });
+
+  setupDataTools();
+}
+
+function setupDashboard() {
+  renderDashboard();
+}
+
+function renderDashboard() {
+  const products = loadJSON("importSystemProducts", []);
+  const activeInventoryProducts = products.filter(item => !item.inventoryArchived);
+
+  const productCount = activeInventoryProducts.length;
+  const stockCount = activeInventoryProducts.reduce(
+    (sum, item) => sum + (Number(item.stock) || 0),
+    0
+  );
+  const inventoryValue = activeInventoryProducts.reduce((sum, item) => {
+    return sum + ((Number(item.stock) || 0) * (Number(item.averageCost) || 0));
+  }, 0);
+
+  const dates = products
+    .map(item => item.lastImport)
+    .filter(Boolean)
+    .sort((a, b) => {
+      const parse = value => {
+        const [d, m, y] = value.split("-").map(Number);
+        return new Date(y, m - 1, d).getTime();
+      };
+      return parse(b) - parse(a);
+    });
+
+  document.getElementById("productCount").textContent = formatNumber(productCount);
+  document.getElementById("stockCount").textContent = formatNumber(stockCount);
+  document.getElementById("inventoryValue").textContent = formatMoney(inventoryValue, "RM ");
+  const batches = getBatches();
+  const latestBatchContainerDate = batches
+    .map(batch => batch.containerDate)
+    .filter(value => parseDDMMYYYY(value) > 0)
+    .sort((a, b) => parseDDMMYYYY(b) - parseDDMMYYYY(a))[0];
+
+  document.getElementById("lastImport").textContent =
+    latestBatchContainerDate || dates[0] || "-";
+
+}
+
+function renderInventoryList(products) {
+  const list = document.getElementById("inventoryList");
+
+  if (!products.length) {
+    list.innerHTML = '<div class="empty-state">暂无库存资料</div>';
+    return;
+  }
+
+  list.innerHTML = products.map(item => {
+    const stock = Number(item.stock) || 0;
+    const averageCost = Number(item.averageCost) || 0;
+    const value = stock * averageCost;
+
+    return `
+      <article class="inventory-card">
+        <h4>${escapeHTML(item.name || "未命名产品")}</h4>
+        <div class="inventory-meta">
+          <div><span>库存</span><strong>${formatNumber(stock)}</strong></div>
+          <div><span>平均成本</span><strong>${formatMoney(averageCost, "RM ")}</strong></div>
+          <div><span>库存成本</span><strong>${formatMoney(value, "RM ")}</strong></div>
+          <div><span>最后进口</span><strong>${escapeHTML(item.lastImport || "-")}</strong></div>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+function setupProductModule() {
+  const form = document.getElementById("productForm");
+  const nameInput = document.getElementById("productName");
+  const searchInput = document.getElementById("productSearch");
+
+  nameInput.addEventListener("input", () => {
+    const chars = Array.from(nameInput.value);
+
+    if (chars.length > 13) {
+      nameInput.value = chars.slice(0, 13).join("");
+    }
+
+    document.getElementById("nameCounter").textContent =
+      `${Array.from(nameInput.value).length} / 13`;
+  });
+
+  nameInput.addEventListener("paste", event => {
+    event.preventDefault();
+
+    const clipboard = event.clipboardData || window.clipboardData;
+    const pastedText = clipboard
+      ? clipboard.getData("text").replace(/[\r\n\t]+/g, " ").trim()
+      : "";
+
+    const selectionStart = nameInput.selectionStart ?? nameInput.value.length;
+    const selectionEnd = nameInput.selectionEnd ?? selectionStart;
+    const before = nameInput.value.slice(0, selectionStart);
+    const after = nameInput.value.slice(selectionEnd);
+
+    nameInput.value = Array.from(before + pastedText + after)
+      .slice(0, 13)
+      .join("");
+
+    nameInput.dispatchEvent(new Event("input", { bubbles: true }));
+
+    const caret = nameInput.value.length;
+    nameInput.setSelectionRange(caret, caret);
+  });
+
+  form.addEventListener("submit", event => {
+    event.preventDefault();
+    saveProduct();
+  });
+
+  document.getElementById("newProductBtn").addEventListener("click", resetProductForm);
+  document.getElementById("cancelEditBtn").addEventListener("click", resetProductForm);
+  searchInput.addEventListener("input", renderProductList);
+
+  resetProductForm();
+  renderProductList();
+}
+
+function getProducts() {
+  return loadJSON("importSystemProducts", []);
+}
+
+function saveProducts(products) {
+  saveJSON("importSystemProducts", products);
+}
+
+function getProductPrefix(category) {
+  if (category === "盆栽") return "PZ";
+  if (category === "花盆") return "PS";
+  return "ZB";
+}
+
+function generateNextProductId(products, category = "盆栽") {
+  const prefix = getProductPrefix(category);
+
+  const maxNumber = products.reduce((max, product) => {
+    const match = String(product.id || "").match(
+      new RegExp(`^${prefix}(\\d{4})$`)
+    );
+
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0);
+
+  return `${prefix}${String(maxNumber + 1).padStart(4, "0")}`;
+}
+
+function saveProduct() {
+  const products = getProducts();
+  const editingId = document.getElementById("editingProductId").value;
+  const name = document.getElementById("productName").value.trim();
+  const category = document.getElementById("productCategory").value;
+  const status = "启用";
+  const remark = document.getElementById("productRemark").value.trim();
+  const statusText = document.getElementById("productStatusText");
+
+  if (!name) {
+    statusText.textContent = "请输入产品名称";
+    return;
+  }
+
+  if (Array.from(name).length > 13) {
+    statusText.textContent = "产品名称最多13个字";
+    return;
+  }
+
+  const duplicate = products.find(product =>
+    product.name.toLowerCase() === name.toLowerCase() && product.id !== editingId
+  );
+
+  if (duplicate) {
+    statusText.textContent = "已有相同名称的产品";
+    return;
+  }
+
+  if (editingId) {
+    const index = products.findIndex(product => product.id === editingId);
+    if (index === -1) {
+      statusText.textContent = "找不到要修改的产品";
+      return;
+    }
+
+    products[index] = {
+      ...products[index],
+      name,
+      category,
+      status,
+      remark,
+      updatedAt: new Date().toISOString()
+    };
+
+    statusText.textContent = "产品已修改";
+  } else {
+    products.push({
+      id: generateNextProductId(products, category),
+      name,
+      category,
+      status,
+      remark,
+      stock: 0,
+      averageCost: 0,
+      lastImport: "",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+
+    statusText.textContent = "产品已新增";
+  }
+
+  saveProducts(products);
+  renderProductList();
+  renderInventoryManagementList();
+  renderDashboard();
+  resetProductForm(false);
+
+  setTimeout(() => {
+    statusText.textContent = "";
+  }, 1800);
+}
+
+function renderProductList() {
+  const products = getProducts();
+  const keyword = document.getElementById("productSearch").value.trim().toLowerCase();
+  const filtered = products.filter(product => {
+    const target = `${product.id} ${product.name} ${product.category}`.toLowerCase();
+    return target.includes(keyword);
+  });
+
+  document.getElementById("productListCount").textContent = `${filtered.length} 项`;
+
+  const list = document.getElementById("productList");
+  if (!filtered.length) {
+    list.innerHTML = '<div class="empty-state">暂无符合的产品</div>';
+    return;
+  }
+
+  list.innerHTML = filtered
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .map(product => `
+      <article class="product-card">
+        <div class="product-card-head">
+          <div>
+            <h4>${escapeHTML(product.name)}</h4>
+            <div class="product-code">${escapeHTML(product.id)}</div>
+          </div>
+          <div class="product-badges">
+            <span class="badge">${escapeHTML(product.category)}</span>
+          </div>
+        </div>
+        ${product.remark ? `<p class="product-remark">${escapeHTML(product.remark)}</p>` : ""}
+        <div class="product-actions">
+          <button class="small-btn edit-btn" type="button" onclick="editProduct('${product.id}')">编辑</button>
+          <button class="small-btn delete-btn" type="button" onclick="deleteProduct('${product.id}')">删除</button>
+        </div>
+      </article>
+    `).join("");
+}
+
+function editProduct(id) {
+  const product = getProducts().find(item => item.id === id);
+  if (!product) return;
+
+  document.getElementById("editingProductId").value = product.id;
+  document.getElementById("productId").value = product.id;
+  document.getElementById("productName").value = product.name;
+  document.getElementById("nameCounter").textContent = `${Array.from(product.name).length} / 13`;
+  document.getElementById("productCategory").value = product.category;
+  document.getElementById("productRemark").value = product.remark || "";
+  document.getElementById("productStatusText").textContent = `正在编辑 ${product.id}`;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function deleteProduct(id) {
+  const products = getProducts();
+  const product = products.find(item => item.id === id);
+  if (!product) return;
+
+  const hasImportHistory = (Number(product.stock) || 0) > 0 || (Number(product.averageCost) || 0) > 0 || product.lastImport;
+
+  if (hasImportHistory) {
+    alert("此产品已有库存或进口记录，不能删除。");
+    return;
+  }
+
+  const confirmed = confirm(`确定删除 ${product.id} · ${product.name}？`);
+  if (!confirmed) return;
+
+  saveProducts(products.filter(item => item.id !== id));
+  renderProductList();
+  renderDashboard();
+  resetProductForm();
+}
+
+function resetProductForm(clearStatus = true) {
+  document.getElementById("editingProductId").value = "";
+  document.getElementById("productId").value = "自动生成";
+  document.getElementById("productName").value = "";
+  document.getElementById("nameCounter").textContent = "0 / 13";
+  document.getElementById("productCategory").value = "盆栽";
+  document.getElementById("productRemark").value = "";
+  if (clearStatus) {
+    document.getElementById("productStatusText").textContent = "";
+  }
+}
+
+
+
+let batchRowSeq = 0;
+function bindBatchMoneyInput(id) {
+  const input = document.getElementById(id);
+  if (!input || input.dataset.batchBound === "1") return;
+
+  input.dataset.batchBound = "1";
+  input.addEventListener("focus", () => input.select());
+  input.addEventListener("input", calculateBatch);
+  input.addEventListener("blur", () => {
+    formatInputAmount(input);
+    calculateBatch();
+  });
+}
+
+let currentEditingImportNumber = "";
+
+function setBatchEditMode(importNumber = "") {
+  currentEditingImportNumber = importNumber;
+
+  const modeBox = document.getElementById("batchEditMode");
+  const label = document.getElementById("currentImportNumberLabel");
+  const saveButton = document.getElementById("saveBatchBtn");
+
+  if (!modeBox || !label || !saveButton) return;
+
+  if (importNumber) {
+    modeBox.hidden = false;
+    label.textContent = importNumber;
+    saveButton.textContent = "更新此批次";
+    saveButton.classList.add("update-mode");
+  } else {
+    modeBox.hidden = true;
+    label.textContent = "";
+    saveButton.textContent = "保存新批次";
+    saveButton.classList.remove("update-mode");
+  }
+}
+
+function setupImportModule(){
+  setupDatePickers();
+
+  document.getElementById("addBatchRowBtn").addEventListener("click",()=>addBatchRow());
+  document.getElementById("loadBatchByNumberBtn").addEventListener("click", loadBatchByNumber);
+  document.getElementById("batchLookupInput").addEventListener("keydown", event => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    loadBatchByNumber();
+  });
+  document.getElementById("resetBatchBtn").addEventListener("click",()=>{
+    if(confirm("确定清空本次尚未保存的输入？已保存的资料不会被删除。")) resetBatchForm();
+  });
+  const batchForm = document.getElementById("batchImportForm");
+
+  batchForm.addEventListener("submit", event => {
+    event.preventDefault();
+    saveBatchImport();
+  });
+
+  batchForm.addEventListener("keydown", event => {
+    if (event.key !== "Enter") return;
+
+    const target = event.target;
+
+    if (
+      !(target instanceof HTMLInputElement) &&
+      !(target instanceof HTMLSelectElement)
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (
+      target instanceof HTMLInputElement &&
+      target.inputMode === "decimal"
+    ) {
+      formatInputAmount(target);
+    }
+
+    calculateBatch();
+
+    const moved = moveToNextBatchField(target);
+
+    // 海外到大马运费是最后一个可输入栏位。
+    // 没有下一栏时，只离开输入框并保留资料，不会自动保存。
+    if (!moved && target instanceof HTMLElement) {
+      target.blur();
+    }
+  });
+  ["batchChinaTransportCost","batchPotCost","batchShippingMY","batchRate"].forEach(id=>{
+    const x=document.getElementById(id); x.addEventListener("focus",()=>x.select());
+    x.addEventListener("input",calculateBatch); x.addEventListener("blur",()=>{formatInputAmount(x);calculateBatch();});
+  });
+  document.getElementById("batchCurrency").addEventListener("change",()=>{applyBatchRate();calculateBatch();});
+
+  renderBatchSuggestions(); renderBatchList(); resetBatchForm();
+}
+
+function moveToNextBatchField(currentField) {
+  const form = document.getElementById("batchImportForm");
+
+  const fields = Array.from(
+    form.querySelectorAll(
+      'input:not([type="hidden"]):not([disabled]), select:not([disabled])'
+    )
+  ).filter(field => {
+    return field.offsetParent !== null && !field.closest(".batch-summary");
+  });
+
+  const currentIndex = fields.indexOf(currentField);
+  if (currentIndex === -1) return;
+
+  const nextField = fields[currentIndex + 1];
+
+  if (!nextField) {
+    return false;
+  }
+
+  nextField.focus();
+
+  if (nextField instanceof HTMLInputElement) {
+    nextField.select();
+  }
+
+  return true;
+}
+
+
+function generateImportNumber(currency, containerDate, batches) {
+  const code = String(currency || "IMP").toUpperCase();
+  const digits = String(containerDate || "").replace(/\D/g, "");
+  const dateCode = digits.length === 8
+    ? digits
+    : formatDateDDMMYYYY(new Date()).replace(/\D/g, "");
+  const prefix = `${code}${dateCode}`;
+
+  const maxSequence = batches.reduce((max, batch) => {
+    const match = String(batch.importNumber || "").match(
+      new RegExp(`^${prefix}(\\d+)$`)
+    );
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0);
+
+  return `${prefix}${maxSequence + 1}`;
+}
+
+function copyBatchNumber(importNumber) {
+  if (!importNumber) return;
+
+  const done = () => alert(`已复制进口编号：${importNumber}`);
+
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(importNumber).then(done).catch(() => {
+      const temp = document.createElement("textarea");
+      temp.value = importNumber;
+      document.body.appendChild(temp);
+      temp.select();
+      document.execCommand("copy");
+      temp.remove();
+      done();
+    });
+    return;
+  }
+
+  const temp = document.createElement("textarea");
+  temp.value = importNumber;
+  document.body.appendChild(temp);
+  temp.select();
+  document.execCommand("copy");
+  temp.remove();
+  done();
+}
+
+function loadBatchByNumber() {
+  const input = document.getElementById("batchLookupInput");
+  const importNumber = input.value.trim();
+
+  if (!importNumber) {
+    alert("请先 Paste 进口编号。");
+    input.focus();
+    return;
+  }
+
+  const batch = getBatches().find(
+    item => String(item.importNumber || "").toLowerCase() === importNumber.toLowerCase()
+  );
+
+  if (!batch) {
+    alert("找不到这个进口编号。");
+    input.focus();
+    input.select();
+    return;
+  }
+
+  resetBatchForm();
+
+  document.getElementById("batchRackQuantity").value = batch.rackQuantity || "";
+  document.getElementById("batchTrackingNumber").value = batch.trackingNumber || "";
+  document.getElementById("batchChinaTransportCost").value =
+    batch.chinaTransportCost ? formatMoney(batch.chinaTransportCost) : "";
+  document.getElementById("batchPotCost").value =
+    batch.potCost ? formatMoney(batch.potCost) : "";
+  document.getElementById("batchCurrency").value = batch.currency || "CNY";
+  document.getElementById("batchRate").value = formatMoney(batch.rate || 0);
+  document.getElementById("batchContainerDate").value = batch.containerDate || "";
+  document.getElementById("batchArrivalDate").value = batch.arrivalDate || "";
+  document.getElementById("batchShippingMY").value =
+    batch.shippingMY ? formatMoney(batch.shippingMY) : "";
+
+  document.getElementById("batchOverseasTrackingNumber").value =
+    batch.overseasTrackingNumber || "";
+  document.getElementById("batchContainerDatePicker").value =
+    formatDDMMYYYYToNative(batch.containerDate || "");
+  document.getElementById("batchArrivalDatePicker").value =
+    formatDDMMYYYYToNative(batch.arrivalDate || "");
+
+  document.getElementById("batchRows").innerHTML = "";
+  batchRowSeq = 0;
+
+  (batch.items || []).forEach(item => {
+    addBatchRow({
+      name: item.productName || "",
+      category: item.category || "盆栽",
+      productId: item.productId || "",
+      quantity: Number(item.quantity) || 0,
+      unitPrice: Number(item.unitPrice) || 0
+    });
+  });
+
+  if (!batch.items?.length) addBatchRow();
+
+  calculateBatch();
+
+  document.getElementById("batchStatusText").textContent =
+    `已载入进口编号 ${batch.importNumber}，仅供检查。再次保存会建立新批次。`;
+
+  input.value = batch.importNumber;
+  setBatchEditMode(batch.importNumber);
+}
+
+function getImports(){return loadJSON("importSystemImports",[]);}
+function saveImports(v){saveJSON("importSystemImports",v);}
+function getBatches(){return loadJSON("importSystemBatches",[]);}
+function saveBatches(v){saveJSON("importSystemBatches",v);}
+function renderBatchSuggestions(){
+  document.getElementById("batchProductSuggestions").innerHTML=getProducts().sort((a,b)=>a.id.localeCompare(b.id)).map(p=>`<option value="${escapeHTML(p.name)}">${escapeHTML(p.id)} · ${escapeHTML(p.category)}</option>`).join("");
+}
+function applyBatchRate(){
+  const s=loadJSON("importSystemSettings",{CNY:1.60,NTD:7.69,VND:6300,IDR:3571});
+  const c=document.getElementById("batchCurrency").value;
+  document.getElementById("batchRate").value=formatMoney(s[c]||0);
+}
+
+function formatNativeDateToDDMMYYYY(value) {
+  if (!value) return "";
+  const [year, month, day] = value.split("-");
+  return `${day}-${month}-${year}`;
+}
+
+function formatDDMMYYYYToNative(value) {
+  const date = parseDateDDMMYYYY(value);
+  if (!date) return "";
+
+  return [
+    date.getUTCFullYear(),
+    String(date.getUTCMonth() + 1).padStart(2, "0"),
+    String(date.getUTCDate()).padStart(2, "0")
+  ].join("-");
+}
+
+function normalizeFlexibleDateInput(input) {
+  const raw = String(input.value || "").trim();
+
+  if (!raw) {
+    input.classList.remove("date-error");
+    return "";
+  }
+
+  const parts = raw.split(/[-/.\s]+/).filter(Boolean);
+
+  if (parts.length !== 3) {
+    input.classList.add("date-error");
+    return "";
+  }
+
+  let [day, month, year] = parts;
+
+  if (
+    !/^\d{1,2}$/.test(day) ||
+    !/^\d{1,2}$/.test(month) ||
+    !/^\d{2}(?:\d{2})?$/.test(year)
+  ) {
+    input.classList.add("date-error");
+    return "";
+  }
+
+  day = String(Number(day)).padStart(2, "0");
+  month = String(Number(month)).padStart(2, "0");
+
+  if (year.length === 2) {
+    year = `20${year}`;
+  }
+
+  const normalized = `${day}-${month}-${year}`;
+  const validDate = parseDateDDMMYYYY(normalized);
+
+  input.value = normalized;
+  input.classList.toggle("date-error", !validDate);
+
+  return validDate ? normalized : "";
+}
+
+function setupDatePickers() {
+  const pairs = [
+    ["batchContainerDate", "batchContainerDatePicker"],
+    ["batchArrivalDate", "batchArrivalDatePicker"]
+  ];
+
+  pairs.forEach(([textId, pickerId]) => {
+    const textInput = document.getElementById(textId);
+    const picker = document.getElementById(pickerId);
+    if (!textInput || !picker) return;
+
+    picker.addEventListener("change", () => {
+      textInput.value = formatNativeDateToDDMMYYYY(picker.value);
+      updateTransitDays();
+      calculateBatch();
+    });
+
+    textInput.addEventListener("blur", () => {
+      normalizeFlexibleDateInput(textInput);
+      picker.value = formatDDMMYYYYToNative(textInput.value);
+      updateTransitDays();
+      calculateBatch();
+    });
+  });
+
+  document.querySelectorAll(".calendar-btn").forEach(button => {
+    button.addEventListener("click", () => {
+      const picker = document.getElementById(button.dataset.dateTarget);
+      if (!picker) return;
+
+      if (typeof picker.showPicker === "function") {
+        picker.showPicker();
+      } else {
+        picker.focus();
+        picker.click();
+      }
+    });
+  });
+}
+
+function parseDateDDMMYYYY(value) {
+  const match = String(value || "")
+    .trim()
+    .match(/^(\d{2})-(\d{2})-(\d{4})$/);
+
+  if (!match) return null;
+
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return date;
+}
+function normalizeDateInput(input) {
+  const date=parseDateDDMMYYYY(input.value);
+  if(!input.value){input.classList.remove("date-error");return;}
+  input.classList.toggle("date-error",!date);
+}
+function updateTransitDays() {
+  const containerInput =
+    document.getElementById("batchContainerDate");
+  const arrivalInput =
+    document.getElementById("batchArrivalDate");
+  const output =
+    document.getElementById("batchTransitDays");
+
+  if (!containerInput || !arrivalInput || !output) {
+    return 0;
+  }
+
+  if (containerInput.value) {
+    normalizeFlexibleDateInput(containerInput);
+  }
+
+  if (arrivalInput.value) {
+    normalizeFlexibleDateInput(arrivalInput);
+  }
+
+  const containerValue =
+    String(containerInput.value || "").trim();
+  const arrivalValue =
+    String(arrivalInput.value || "").trim();
+
+  if (!containerValue || !arrivalValue) {
+    output.value = "-";
+    return 0;
+  }
+
+  const containerDate =
+    parseDateDDMMYYYY(containerValue);
+  const arrivalDate =
+    parseDateDDMMYYYY(arrivalValue);
+
+  if (!containerDate || !arrivalDate) {
+    output.value = "日期错误";
+    return 0;
+  }
+
+  const days = Math.round(
+    (arrivalDate.getTime() - containerDate.getTime()) /
+    86400000
+  );
+
+  if (days < 0) {
+    output.value = "日期错误";
+    return 0;
+  }
+
+  output.value = String(days);
+  return days;
+}
+
+function resetBatchForm(){
+  setBatchEditMode("");
+  document.getElementById("batchImportForm").reset();
+  ["batchRackQuantity","batchChinaTransportCost","batchPotCost","batchShippingMY"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("batchCurrency").value="CNY"; applyBatchRate();
+  document.getElementById("batchTransitDays").value="-";
+  document.getElementById("batchOverseasTrackingNumber").value="";
+  document.getElementById("batchContainerDatePicker").value="";
+  document.getElementById("batchArrivalDatePicker").value=""; document.getElementById("batchStatusText").textContent="";
+  batchRowSeq=0; document.getElementById("batchRows").innerHTML=""; addBatchRow(); calculateBatch();
+}
+function addBatchRow(prefill = {}){
+  const id=++batchRowSeq,tr=document.createElement("tr"); tr.dataset.rowId=id;
+  tr.innerHTML=`<td><input id="batchName-${id}" class="batch-name" list="batchProductSuggestions" placeholder="输入或选择产品" value="${escapeHTML(prefill.name || "")}"><input id="batchProductId-${id}" type="hidden" value="${escapeHTML(prefill.productId || "")}"></td>
+  <td><select id="batchCategory-${id}">
+    <option value="盆栽">盆栽</option>
+    <option value="花盆">花盆</option>
+    <option value="周边产品">周边产品</option>
+  </select></td>
+  <td><input id="batchQty-${id}" inputmode="numeric" placeholder="0"></td>
+  <td><input id="batchPrice-${id}" inputmode="decimal" placeholder="0.00"></td>
+  <td><input id="batchPurchaseForeign-${id}" value="0.00" disabled></td>
+  <td><input id="batchStock-${id}" inputmode="numeric" placeholder="0" disabled></td>
+  <td><input id="batchUnitCost-${id}" value="0.00" disabled></td>
+  <td><button type="button" class="remove-item-btn" onclick="removeBatchRow(${id})">删除</button></td>`;
+  document.getElementById("batchRows").appendChild(tr);
+  document.getElementById(`batchCategory-${id}`).value =
+    prefill.category || "盆栽";
+  if (prefill.quantity) {
+    document.getElementById(`batchQty-${id}`).value = prefill.quantity;
+    document.getElementById(`batchStock-${id}`).value = prefill.quantity;
+  }
+  if (prefill.unitPrice) {
+    document.getElementById(`batchPrice-${id}`).value =
+      formatMoney(prefill.unitPrice);
+  }
+  attachBatchRowEvents(id);
+  calculateBatch();
+}
+function attachBatchRowEvents(id){
+  const n=document.getElementById(`batchName-${id}`);
+  n.addEventListener("input",()=>{let c=Array.from(n.value);if(c.length>13)n.value=c.slice(0,13).join("");const p=getProducts().find(x=>x.name.toLowerCase()===n.value.trim().toLowerCase());document.getElementById(`batchProductId-${id}`).value=p?.id||"";document.getElementById(`batchCategory-${id}`).value=p?.category||document.getElementById(`batchCategory-${id}`).value||"盆栽";calculateBatch();});
+  n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();n.value=Array.from(t).slice(0,13).join("");n.dispatchEvent(new Event("input",{bubbles:true}));});
+  [`batchQty-${id}`,`batchPrice-${id}`].forEach(k=>{const x=document.getElementById(k);x.addEventListener("focus",()=>x.select());x.addEventListener("input",calculateBatch);x.addEventListener("blur",()=>{if(!k.includes("Qty")&&!k.includes("Stock"))formatInputAmount(x);calculateBatch();});});
+  document.getElementById(`batchPrice-${id}`).addEventListener("input", () => {
+    const price = parseAmount(
+      document.getElementById(`batchPrice-${id}`).value
+    );
+    const currency = document.getElementById("batchCurrency");
+
+    if (price >= 100000 && currency.value !== "VND") {
+      currency.value = "VND";
+      applyBatchRate();
+    } else if (price < 100000 && currency.value === "VND") {
+      currency.value = "CNY";
+      applyBatchRate();
+    }
+
+    calculateBatch();
+  });
+  document.getElementById(`batchQty-${id}`).addEventListener("input", () => {
+    const quantity = Math.max(0, Math.floor(parseAmount(document.getElementById(`batchQty-${id}`).value)));
+    document.getElementById(`batchStock-${id}`).value = quantity || "";
+  });
+  document.getElementById(`batchCategory-${id}`).addEventListener("change", () => {
+    const name = document.getElementById(`batchName-${id}`).value.trim().toLowerCase();
+    const category = document.getElementById(`batchCategory-${id}`).value;
+
+    const product = getProducts().find(
+      item => item.name.toLowerCase() === name && item.category === category
+    );
+
+    document.getElementById(`batchProductId-${id}`).value = product?.id || "";
+    calculateBatch();
+  });
+}
+function removeBatchRow(id){const r=document.querySelectorAll("#batchRows tr");if(r.length<=1){alert("至少保留一行。");return;}document.querySelector(`#batchRows tr[data-row-id="${id}"]`)?.remove();calculateBatch();}
+function collectBatchRows(){
+  const rate=parseAmount(document.getElementById("batchRate").value),currency=document.getElementById("batchCurrency").value;
+  return Array.from(document.querySelectorAll("#batchRows tr")).map(tr=>{const id=Number(tr.dataset.rowId),name=document.getElementById(`batchName-${id}`).value.trim(),quantity=Math.max(0,Math.floor(parseAmount(document.getElementById(`batchQty-${id}`).value))),unitPrice=parseAmount(document.getElementById(`batchPrice-${id}`).value),stockAdded=quantity,foreignTotal=quantity*unitPrice,purchaseRM=rate>0?foreignTotal/rate:0,productId=document.getElementById(`batchProductId-${id}`).value,existing=getProducts().find(x=>x.id===productId);return{id,name,category:document.getElementById(`batchCategory-${id}`).value||"盆栽",productId,quantity,unitPrice,stockAdded,currency,rate,foreignTotal,purchaseRM,oldStock:Number(existing?.stock)||0,oldAverage:Number(existing?.averageCost)||0};});
+}
+function calculateBatch() {
+  updateTransitDays();
+
+  const rows = collectBatchRows();
+  const valid = rows.filter(row =>
+    row.name &&
+    row.quantity > 0 &&
+    row.unitPrice > 0
+  );
+
+  const batchRate = parseAmount(
+    document.getElementById("batchRate").value
+  );
+
+  const totalPurchaseForeign = valid.reduce(
+    (sum, row) => sum + row.foreignTotal,
+    0
+  );
+
+  const chinaForeign = parseAmount(
+    document.getElementById("batchChinaTransportCost").value
+  );
+
+  const potForeign = parseAmount(
+    document.getElementById("batchPotCost").value
+  );
+
+  const foreignGrandTotal =
+    totalPurchaseForeign +
+    chinaForeign +
+    potForeign;
+
+  const allForeignCostsRM = batchRate > 0
+    ? foreignGrandTotal / batchRate
+    : 0;
+
+  const shippingMY = parseAmount(
+    document.getElementById("batchShippingMY").value
+  );
+
+  const shippingRate = allForeignCostsRM > 0
+    ? (shippingMY / allForeignCostsRM) * 100
+    : 0;
+
+  valid.forEach(row => {
+    const purchaseRM = batchRate > 0
+      ? row.foreignTotal / batchRate
+      : 0;
+
+    const potRM = batchRate > 0
+      ? (chinaForeign + potForeign) / batchRate : 0;
+
+    const baseCost = purchaseRM + (potRM * (row.foreignTotal / totalPurchaseForeign));
+
+    const itemTotal = baseCost * (1 + (shippingRate / 100));
+
+    const stockAdded = row.quantity;
+    const unitCost = stockAdded > 0
+      ? itemTotal / stockAdded
+      : 0;
+
+    const newStock = row.oldStock + stockAdded;
+    const newAverage = newStock > 0
+      ? (
+          (row.oldStock * row.oldAverage) +
+          (stockAdded * unitCost)
+        ) / newStock
+      : unitCost;
+
+    let direction = "-";
+    if (row.oldStock === 0 && stockAdded > 0) {
+      direction = "首次进货";
+    } else if (unitCost > row.oldAverage) {
+      direction = "Average Up";
+    } else if (unitCost < row.oldAverage) {
+      direction = "Average Down";
+    } else if (stockAdded > 0) {
+      direction = "持平";
+    }
+
+    Object.assign(row, {
+      purchaseRM,
+      itemTotal,
+      stockAdded,
+      unitCost,
+      newStock,
+      newAverage,
+      direction
+    });
+
+    const foreignCell = document.getElementById(
+      `batchPurchaseForeign-${row.id}`
+    );
+    if (foreignCell) foreignCell.value = formatMoney(row.foreignTotal);
+
+    const unitCostCell = document.getElementById(
+      `batchUnitCost-${row.id}`
+    );
+    if (unitCostCell) unitCostCell.value = formatMoney(unitCost);
+
+    const stockCell = document.getElementById(
+      `batchStock-${row.id}`
+    );
+    if (stockCell) stockCell.value = stockAdded || "";
+  });
+
+  rows.filter(row => !valid.includes(row)).forEach(row => {
+    const foreignCell = document.getElementById(
+      `batchPurchaseForeign-${row.id}`
+    );
+    if (foreignCell) foreignCell.value = "0.00";
+
+    const unitCostCell = document.getElementById(
+      `batchUnitCost-${row.id}`
+    );
+    if (unitCostCell) unitCostCell.value = "0.00";
+
+    const stockCell = document.getElementById(
+      `batchStock-${row.id}`
+    );
+    if (stockCell) stockCell.value = "";
+  });
+
+  const totalQuantity = valid.reduce(
+    (sum, row) => sum + row.quantity,
+    0
+  );
+
+  const grandTotal = allForeignCostsRM + shippingMY;
+
+  const foreignGrandTotalField =
+    document.getElementById("batchForeignGrandTotal");
+  if (foreignGrandTotalField) {
+    foreignGrandTotalField.value =
+      `${formatMoney(foreignGrandTotal)} ` +
+      document.getElementById("batchCurrency").value;
+  }
+
+  const topForeign =
+    document.getElementById("batchPurchaseTotalForeignTop");
+  if (topForeign) {
+    topForeign.textContent =
+      `${formatMoney(totalPurchaseForeign)} ` +
+      document.getElementById("batchCurrency").value;
+  }
+
+  const itemCount = document.getElementById("batchItemCount");
+  if (itemCount) itemCount.textContent = valid.length;
+
+  const quantityTotal =
+    document.getElementById("batchQuantityTotal");
+  if (quantityTotal) {
+    quantityTotal.textContent = formatNumber(totalQuantity);
+  }
+
+  const quantityTop =
+    document.getElementById("batchQuantityTop");
+  if (quantityTop) {
+    quantityTop.textContent = formatNumber(totalQuantity);
+  }
+
+  const foreignRM =
+    document.getElementById("batchPurchaseTotalRM");
+  if (foreignRM) {
+    foreignRM.textContent =
+      formatMoney(allForeignCostsRM, "RM ");
+  }
+
+  const shippingRateField =
+    document.getElementById("batchShippingRate");
+  if (shippingRateField) {
+    shippingRateField.textContent =
+      `${formatMoney(shippingRate)}%`;
+  }
+
+  const grandTotalField =
+    document.getElementById("batchGrandTotalRM");
+  if (grandTotalField) {
+    grandTotalField.textContent =
+      formatMoney(grandTotal, "RM ");
+  }
+
+  return {
+    valid,
+    totalPurchaseForeign,
+    foreignGrandTotal,
+    totalPurchaseRM: allForeignCostsRM,
+    chinaForeign,
+    potForeign,
+    shippingMY,
+    shippingRate,
+    grandTotal,
+    totalQuantity,
+    transitDays: updateTransitDays()
+  };
+}
+
+function saveBatchImport() {
+  const status = document.getElementById("batchStatusText");
+  const result = calculateBatch();
+
+  if (!result.valid.length) {
+    status.textContent = "请至少完整输入一行产品。";
+    return;
+  }
+
+  const names = result.valid.map(item => item.name.toLowerCase());
+
+  if (new Set(names).size !== names.length) {
+    status.textContent = "同一批不能重复相同产品名称。";
+    return;
+  }
+
+  const products = getProducts();
+  const imports = getImports();
+  const batches = getBatches();
+  const today = formatDateDDMMYYYY(new Date());
+
+  const isEditing = Boolean(currentEditingImportNumber);
+
+  let importNumber = currentEditingImportNumber;
+  let batchId = "";
+
+  let existingBatchIndex = -1;
+  let oldBatch = null;
+  let oldBatchItems = [];
+
+  if (isEditing) {
+    existingBatchIndex = batches.findIndex(
+      batch => batch.importNumber === currentEditingImportNumber
+    );
+
+    if (existingBatchIndex === -1) {
+      status.textContent = "找不到原批次，无法更新。";
+      return;
+    }
+
+    oldBatch = batches[existingBatchIndex];
+    batchId = oldBatch.id;
+    oldBatchItems = imports.filter(
+      record => record.batchId === batchId
+    );
+
+    // First reverse the stock/cost impact of the old batch.
+    oldBatchItems.forEach(record => {
+      const productIndex = products.findIndex(
+        product => product.id === record.productId
+      );
+
+      if (productIndex === -1) return;
+
+      const product = products[productIndex];
+      const oldStockAdded = Number(record.stockAdded) || 0;
+      const oldUnitCost = Number(record.unitCost) || 0;
+
+      const currentStock = Number(product.stock) || 0;
+      const currentAverage = Number(product.averageCost) || 0;
+      const currentTotalCost = currentStock * currentAverage;
+
+      const revertedStock = Math.max(0, currentStock - oldStockAdded);
+      const revertedTotalCost = Math.max(
+        0,
+        currentTotalCost - (oldStockAdded * oldUnitCost)
+      );
+
+      products[productIndex] = {
+        ...product,
+        stock: revertedStock,
+        averageCost:
+          revertedStock > 0
+            ? revertedTotalCost / revertedStock
+            : 0,
+        updatedAt: new Date().toISOString()
+      };
+    });
+
+    // Remove old import records for this batch before rebuilding them.
+    for (let i = imports.length - 1; i >= 0; i -= 1) {
+      if (imports[i].batchId === batchId) {
+        imports.splice(i, 1);
+      }
+    }
+  } else {
+    batchId = `BAT${Date.now()}`;
+    importNumber = generateImportNumber(
+      document.getElementById("batchCurrency").value,
+      document.getElementById("batchContainerDate").value,
+      batches
+    );
+  }
+
+  const batch = {
+    id: batchId,
+    importNumber,
+    date: isEditing ? (oldBatch?.date || today) : today,
+    rackQuantity: Math.max(
+      0,
+      Math.floor(
+        parseAmount(
+          document.getElementById("batchRackQuantity").value
+        )
+      )
+    ),
+    trackingNumber:
+      document.getElementById("batchTrackingNumber").value.trim(),
+    overseasTrackingNumber:
+      document.getElementById("batchOverseasTrackingNumber").value.trim(),
+    chinaTransportCost: result.chinaForeign,
+    chinaTransportRM:
+      result.totalPurchaseRM > 0 && result.foreignGrandTotal > 0
+        ? (result.chinaForeign / result.foreignGrandTotal) *
+          result.totalPurchaseRM
+        : 0,
+    potCost: result.potForeign,
+    potRM:
+      result.totalPurchaseRM > 0 && result.foreignGrandTotal > 0
+        ? (result.potForeign / result.foreignGrandTotal) *
+          result.totalPurchaseRM
+        : 0,
+    currency: document.getElementById("batchCurrency").value,
+    rate: parseAmount(
+      document.getElementById("batchRate").value
+    ),
+    containerDate:
+      document.getElementById("batchContainerDate").value,
+    arrivalDate:
+      document.getElementById("batchArrivalDate").value,
+    transitDays: result.transitDays,
+    shippingMY: result.shippingMY,
+    shippingRate: result.shippingRate,
+    totalForeignCostsRM: result.totalPurchaseRM,
+    grandTotal: result.grandTotal,
+    totalQuantity: result.totalQuantity,
+    itemCount: result.valid.length,
+    createdAt:
+      isEditing
+        ? (oldBatch?.createdAt || new Date().toISOString())
+        : new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    items: []
+  };
+
+  result.valid.forEach(item => {
+    let productIndex = products.findIndex(
+      product =>
+        product.name.toLowerCase() === item.name.toLowerCase() &&
+        product.category === item.category
+    );
+
+    if (productIndex === -1) {
+      products.push({
+        id: generateNextProductId(products, item.category),
+        name: item.name,
+        category: item.category,
+        status: "启用",
+        remark: "",
+        stock: 0,
+        averageCost: 0,
+        lastImport: "",
+        inventoryArchived: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+
+      productIndex = products.length - 1;
+    }
+
+    const product = products[productIndex];
+    const oldStock = Number(product.stock) || 0;
+    const oldAverage = Number(product.averageCost) || 0;
+    const newStock = oldStock + item.stockAdded;
+
+    const newAverage =
+      newStock > 0
+        ? (
+            (oldStock * oldAverage) +
+            (item.stockAdded * item.unitCost)
+          ) / newStock
+        : item.unitCost;
+
+    products[productIndex] = {
+      ...product,
+      stock: newStock,
+      averageCost: newAverage,
+      inventoryArchived: false,
+      lastImport: batch.containerDate || today,
+      updatedAt: new Date().toISOString()
+    };
+
+    const record = {
+      id: `IMP${Date.now()}${item.id}`,
+      batchId,
+      importNumber,
+      date: today,
+      productId: products[productIndex].id,
+      productName: item.name,
+      category: item.category,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      currency: item.currency,
+      rate: item.rate,
+      foreignTotal: item.foreignTotal,
+      purchaseRM: item.purchaseRM,
+      shippingRate: result.shippingRate,
+      unitCost: item.unitCost,
+      stockAdded: item.stockAdded,
+      batchTotal: item.itemTotal,
+      averageDirection: item.direction,
+      rackQuantity: batch.rackQuantity,
+      trackingNumber: batch.trackingNumber,
+      overseasTrackingNumber: batch.overseasTrackingNumber,
+      containerDate: batch.containerDate,
+      arrivalDate: batch.arrivalDate,
+      transitDays: batch.transitDays,
+      createdAt: new Date().toISOString()
+    };
+
+    imports.unshift(record);
+    batch.items.push(record);
+  });
+
+  if (isEditing) {
+    batches[existingBatchIndex] = batch;
+  } else {
+    batches.unshift(batch);
+  }
+
+  saveProducts(products);
+  saveImports(imports);
+  saveBatches(batches);
+
+  renderBatchSuggestions();
+  renderBatchList();
+  renderInventoryManagementList();
+  renderDashboard();
+
+  if (isEditing) {
+    status.textContent =
+      `已更新批次 ${importNumber}，进口编号保持不变。`;
+    setBatchEditMode(importNumber);
+  } else {
+    status.textContent =
+      `整批已保存，进口编号：${importNumber}。`;
+    setBatchEditMode(importNumber);
+  }
+}
+
+function renderBatchList(){
+  const b=getBatches();document.getElementById("batchListCount").textContent=`${b.length} 批`;const l=document.getElementById("batchList");if(!b.length){l.innerHTML='<div class="empty-state">暂无进口批次</div>';return;}l.innerHTML=b.slice(0,10).map(x=>`<article class="import-card">
+    <div class="batch-card-title-row">
+      <div>
+        <h4>${escapeHTML(x.containerDate || x.date || "-")} · ${x.itemCount} 种产品</h4>
+        <div class="import-number-line"><span>进口编号</span><strong>${escapeHTML(x.importNumber || "-")}</strong></div>
+      </div>
+      ${x.importNumber ? `<button class="copy-number-btn" type="button" onclick="copyBatchNumber('${escapeHTML(x.importNumber)}')">Copy</button>` : ""}
+    </div>
+    <div class="product-code">${x.totalQuantity} 件 · ${x.rackQuantity} 个木架</div>
+    <div class="import-card-meta"><div><span>运输天数</span><strong>${x.transitDays?`${x.transitDays} 天`:"-"}</strong></div><div><span>海外运费比例</span><strong>${formatMoney(x.shippingRate)}%</strong></div><div><span>批次总成本</span><strong>${formatMoney(x.grandTotal,"RM ")}</strong></div><div><span>运输单号</span><strong>${escapeHTML(x.overseasTrackingNumber || x.trackingNumber || "-")}</strong></div></div>
+  </article>`).join("");
+}
+function formatDateDDMMYYYY(d){return `${String(d.getDate()).padStart(2,"0")}-${String(d.getMonth()+1).padStart(2,"0")}-${d.getFullYear()}`;}
+function formatDateFromInput(v){if(!v)return"";const[y,m,d]=v.split("-");return`${d}-${m}-${y}`;}
+
+
+function getLatestContainerDateByProduct(productId) {
+  const imports = getImports()
+    .filter(record => record.productId === productId && record.containerDate)
+    .sort((a, b) => parseDDMMYYYY(b.containerDate) - parseDDMMYYYY(a.containerDate));
+
+  return imports[0]?.containerDate || "";
+}
+
+function setupInventoryModule() {
+  document.getElementById("inventorySearch").addEventListener("input", renderInventoryManagementList);
+  document.getElementById("inventorySort").addEventListener("change", renderInventoryManagementList);
+  renderInventoryManagementList();
+}
+
+function renderInventoryManagementList() {
+  const keyword = document.getElementById("inventorySearch").value.trim().toLowerCase();
+  const sortMode = document.getElementById("inventorySort").value;
+  const imports = getImports();
+
+  const products = getProducts()
+    .filter(product => !product.inventoryArchived)
+    .map(product => {
+      const productName = String(product.name || "").trim().toLowerCase();
+      const importNumbers = imports
+        .filter(record => {
+          const sameProductId =
+            product.id && record.productId && record.productId === product.id;
+          const sameProductName =
+            String(record.productName || "").trim().toLowerCase() === productName;
+
+          return sameProductId || sameProductName;
+        })
+        .map(record => String(record.importNumber || "").trim())
+        .filter(Boolean)
+        .join(" ");
+
+      return {
+        ...product,
+        importNumbers,
+        displayLastImport:
+          getLatestContainerDateByProduct(product.id) ||
+          product.lastImport ||
+          ""
+      };
+    })
+    .filter(product => {
+      const target =
+        `${product.id} ${product.name} ${product.category} ${product.importNumbers}`
+          .toLowerCase();
+      return target.includes(keyword);
+    });
+
+  products.sort((a, b) => {
+    const stockA = Number(a.stock) || 0;
+    const stockB = Number(b.stock) || 0;
+    const costA = Number(a.averageCost) || 0;
+    const costB = Number(b.averageCost) || 0;
+    const valueA = stockA * costA;
+    const valueB = stockB * costB;
+
+    if (sortMode === "name") return String(a.name).localeCompare(String(b.name), "zh");
+    if (sortMode === "stock-desc") return stockB - stockA;
+    if (sortMode === "stock-asc") return stockA - stockB;
+    if (sortMode === "value-desc") return valueB - valueA;
+    if (sortMode === "cost-desc") return costB - costA;
+
+    return parseDDMMYYYY(b.displayLastImport) - parseDDMMYYYY(a.displayLastImport);
+  });
+
+  document.getElementById("inventoryPageCount").textContent = `${products.length} 项`;
+
+  const normalizedKeyword = keyword.trim().toLowerCase();
+  const matchedBatch = normalizedKeyword
+    ? getBatches().find(batch =>
+        String(batch.importNumber || "").trim().toLowerCase() === normalizedKeyword
+      )
+    : null;
+
+  const filteredInventoryValue = matchedBatch
+    ? Number(matchedBatch.grandTotal) || 0
+    : products.reduce((sum, product) => {
+        const stock = Number(product.stock) || 0;
+        const averageCost = Number(product.averageCost) || 0;
+        return sum + (stock * averageCost);
+      }, 0);
+
+  const filteredValueField = document.getElementById("inventoryFilteredValue");
+  if (filteredValueField) {
+    filteredValueField.textContent = formatMoney(filteredInventoryValue, "RM ");
+  }
+
+  const list = document.getElementById("inventoryManagementList");
+  if (!products.length) {
+    list.innerHTML = '<div class="empty-state">暂无符合的库存资料</div>';
+    return;
+  }
+
+  list.innerHTML = products.map(product => {
+    const stock = Number(product.stock) || 0;
+    const averageCost = Number(product.averageCost) || 0;
+    const inventoryValue = stock * averageCost;
+
+    return `
+      <article class="inventory-manage-card">
+        <div class="inventory-manage-head">
+          <div>
+            <h4>${escapeHTML(product.name)}</h4>
+            <div class="product-code">${escapeHTML(product.id)} · ${escapeHTML(product.category)}</div>
+          </div>
+        </div>
+
+        <div class="inventory-summary-grid">
+          <div><span>当前库存</span><strong>${formatNumber(stock)}</strong></div>
+          <div><span>平均成本</span><strong>${formatMoney(averageCost, "RM ")}</strong></div>
+          <div><span>库存成本总值</span><strong>${formatMoney(inventoryValue, "RM ")}</strong></div>
+          <div><span>最后进口</span><strong>${escapeHTML(product.displayLastImport || "-")}</strong></div>
+        </div>
+
+        <div class="inventory-card-actions">
+          <button class="small-btn edit-btn" type="button" onclick="toggleInventoryEditor('${product.id}')">
+            修改库存
+          </button>
+          <button class="small-btn remove-inventory-btn" type="button" onclick="removeInventoryItem('${product.id}')">
+            移除库存
+          </button>
+        </div>
+
+        <div id="inventoryEditor-${product.id}" class="inventory-edit-box">
+          <label>
+            新库存数量
+            <input id="inventoryStockInput-${product.id}"
+                   inputmode="numeric"
+                   value="${stock}"
+                   oninput="previewInventoryAdjustment('${product.id}')" />
+          </label>
+
+          <p class="inventory-edit-note">
+            修改库存后，系统会保留现有库存成本总值，并自动重新计算平均成本。
+          </p>
+
+          <div class="inventory-preview">
+            <div>
+              <span>新平均成本</span>
+              <strong id="inventoryNewAverage-${product.id}">${formatMoney(averageCost, "RM ")}</strong>
+            </div>
+            <div>
+              <span>库存成本总值</span>
+              <strong id="inventoryPreservedValue-${product.id}">${formatMoney(inventoryValue, "RM ")}</strong>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="primary-btn" type="button" onclick="saveInventoryAdjustment('${product.id}')">
+              保存库存
+            </button>
+            <button class="ghost-btn" type="button" onclick="toggleInventoryEditor('${product.id}', false)">
+              取消
+            </button>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+
+function removeInventoryItem(productId) {
+  const products = getProducts();
+  const index = products.findIndex(item => item.id === productId);
+
+  if (index === -1) return;
+
+  const product = products[index];
+  const confirmed = confirm(
+    `确定把「${product.name}」从当前库存移除？\n\n` +
+    "⚠️ 此操作无法还原当前库存数量和平均成本。\n" +
+    "产品编号与历史进口记录会保留；以后再次进口只会建立新的库存。"
+  );
+
+  if (!confirmed) return;
+
+  products[index] = {
+    ...product,
+    stock: 0,
+    averageCost: 0,
+    inventoryArchived: true,
+    updatedAt: new Date().toISOString()
+  };
+
+  saveProducts(products);
+  renderInventoryManagementList();
+  renderDashboard();
+}
+
+function toggleInventoryEditor(productId, forceOpen = null) {
+  const editor = document.getElementById(`inventoryEditor-${productId}`);
+  if (!editor) return;
+
+  const shouldOpen = forceOpen === null ? !editor.classList.contains("active") : forceOpen;
+  editor.classList.toggle("active", shouldOpen);
+
+  if (shouldOpen) {
+    const input = document.getElementById(`inventoryStockInput-${productId}`);
+    input?.focus();
+    input?.select();
+    previewInventoryAdjustment(productId);
+  }
+}
+
+function previewInventoryAdjustment(productId) {
+  const product = getProducts().find(item => item.id === productId);
+  if (!product) return;
+
+  const oldStock = Number(product.stock) || 0;
+  const oldAverage = Number(product.averageCost) || 0;
+  const preservedValue = oldStock * oldAverage;
+  const newStock = Math.max(0, Math.floor(parseAmount(
+    document.getElementById(`inventoryStockInput-${productId}`).value
+  )));
+  const newAverage = newStock > 0 ? preservedValue / newStock : 0;
+
+  document.getElementById(`inventoryNewAverage-${productId}`).textContent =
+    formatMoney(newAverage, "RM ");
+  document.getElementById(`inventoryPreservedValue-${productId}`).textContent =
+    formatMoney(preservedValue, "RM ");
+}
+
+function saveInventoryAdjustment(productId) {
+  const products = getProducts();
+  const index = products.findIndex(item => item.id === productId);
+  if (index === -1) return;
+
+  const input = document.getElementById(`inventoryStockInput-${productId}`);
+  const newStock = Math.max(0, Math.floor(parseAmount(input.value)));
+  const oldStock = Number(products[index].stock) || 0;
+  const oldAverage = Number(products[index].averageCost) || 0;
+  const preservedValue = oldStock * oldAverage;
+  const newAverage = newStock > 0 ? preservedValue / newStock : 0;
+
+  if (!confirm(
+    `确定把 ${products[index].name} 的库存从 ${oldStock} 修改为 ${newStock}？`
+  )) {
+    return;
+  }
+
+  products[index] = {
+    ...products[index],
+    stock: newStock,
+    averageCost: newAverage,
+    updatedAt: new Date().toISOString()
+  };
+
+  saveProducts(products);
+  renderInventoryManagementList();
+  renderProductList();
+  renderDashboard();
+}
+
+function parseDDMMYYYY(value) {
+  const date = parseDateDDMMYYYY(value);
+  return date ? date.getTime() : 0;
+}
+
+function escapeHTML(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+
+function setupDataTools() {
+  const exportButton = document.getElementById("exportExcelBtn");
+  const backupButton = document.getElementById("backupDataBtn");
+  const restoreButton = document.getElementById("restoreDataBtn");
+  const restoreInput = document.getElementById("restoreFileInput");
+
+  exportButton?.addEventListener("click", exportSystemExcel);
+  backupButton?.addEventListener("click", backupSystemData);
+  restoreButton?.addEventListener("click", () => restoreInput?.click());
+  restoreInput?.addEventListener("change", restoreSystemData);
+}
+
+function downloadTextFile(filename, content, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function xmlEscape(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+function excelCell(value, type = "String") {
+  return `<Cell><Data ss:Type="${type}">${xmlEscape(value)}</Data></Cell>`;
+}
+
+function excelWorksheet(name, headers, rows) {
+  const headerXml = `<Row>${headers.map(header => excelCell(header)).join("")}</Row>`;
+  const rowXml = rows.map(row => {
+    return `<Row>${row.map(value => {
+      const isNumber = typeof value === "number" && Number.isFinite(value);
+      return excelCell(isNumber ? value : value ?? "", isNumber ? "Number" : "String");
+    }).join("")}</Row>`;
+  }).join("");
+
+  return `<Worksheet ss:Name="${xmlEscape(name)}"><Table>${headerXml}${rowXml}</Table></Worksheet>`;
+}
+
+function exportSystemExcel() {
+  const products = getProducts();
+  const imports = getImports();
+  const batches = getBatches();
+
+  const inventoryRows = products.map(product => [
+    product.id || "",
+    product.name || "",
+    product.category || "",
+    Number(product.stock) || 0,
+    Number(product.averageCost) || 0,
+    (Number(product.stock) || 0) * (Number(product.averageCost) || 0),
+    product.lastImport || "",
+    product.inventoryArchived ? "已移除" : "当前库存"
+  ]);
+
+  const importRows = imports.map(record => [
+    record.batchId || "",
+    record.containerDate || "",
+    record.arrivalDate || "",
+    record.productId || "",
+    record.productName || "",
+    record.category || "",
+    Number(record.quantity) || 0,
+    Number(record.unitPrice) || 0,
+    record.currency || "",
+    Number(record.rate) || 0,
+    Number(record.purchaseRM) || 0,
+    Number(record.unitCost) || 0,
+    Number(record.stockAdded) || 0,
+    record.averageDirection || ""
+  ]);
+
+  const batchRows = batches.map(batch => [
+    batch.id || "",
+    batch.containerDate || "",
+    batch.arrivalDate || "",
+    Number(batch.transitDays) || 0,
+    Number(batch.itemCount) || 0,
+    Number(batch.totalQuantity) || 0,
+    Number(batch.rackQuantity) || 0,
+    batch.trackingNumber || "",
+    batch.currency || "",
+    Number(batch.rate) || 0,
+    Number(batch.shippingMY) || 0,
+    Number(batch.shippingRate) || 0,
+    Number(batch.grandTotal) || 0
+  ]);
+
+  const workbook =
+    `<?xml version="1.0"?>` +
+    `<?mso-application progid="Excel.Sheet"?>` +
+    `<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" ` +
+    `xmlns:o="urn:schemas-microsoft-com:office:office" ` +
+    `xmlns:x="urn:schemas-microsoft-com:office:excel" ` +
+    `xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">` +
+    excelWorksheet(
+      "Inventory",
+      ["产品编号", "产品名称", "类别", "当前库存", "平均成本", "库存成本总值", "最后进口", "状态"],
+      inventoryRows
+    ) +
+    excelWorksheet(
+      "Imports",
+      ["批次编号", "装柜日期", "抵达日期", "产品编号", "产品名称", "类别", "数量", "单价", "货币", "汇率", "货款RM", "每件成本RM", "入库", "成本变化"],
+      importRows
+    ) +
+    excelWorksheet(
+      "Batches",
+      ["批次编号", "装柜日期", "抵达日期", "运输天数", "产品种类", "总数量", "木架总数", "运输单号", "货币", "汇率", "海外运费RM", "海外运费比例", "批次总成本RM"],
+      batchRows
+    ) +
+    `</Workbook>`;
+
+  downloadTextFile(
+    `Import_Inventory_${formatDateDDMMYYYY(new Date())}.xls`,
+    workbook,
+    "application/vnd.ms-excel;charset=utf-8"
+  );
+
+  showDataToolsStatus("Excel 已导出");
+}
+
+function backupSystemData() {
+  const backup = {
+    app: "Lover Legend Import Cost & Inventory System",
+    version: "2.08",
+    exportedAt: new Date().toISOString(),
+    settings: loadJSON("importSystemSettings", {}),
+    products: getProducts(),
+    imports: getImports(),
+    batches: getBatches()
+  };
+
+  downloadTextFile(
+    `Import_Inventory_Backup_${formatDateDDMMYYYY(new Date())}.json`,
+    JSON.stringify(backup, null, 2),
+    "application/json;charset=utf-8"
+  );
+
+  showDataToolsStatus("Backup 已完成");
+}
+
+function restoreSystemData(event) {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+
+  if (!file) return;
+
+  const reader = new FileReader();
+
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(String(reader.result || ""));
+
+      if (
+        !Array.isArray(data.products) ||
+        !Array.isArray(data.imports) ||
+        !Array.isArray(data.batches)
+      ) {
+        throw new Error("Backup 格式不正确");
+      }
+
+      const confirmed = confirm(
+        "Restore 会覆盖当前产品、库存和进口记录。\n\n确定继续？"
+      );
+
+      if (!confirmed) return;
+
+      saveJSON("importSystemSettings", data.settings || {});
+      saveProducts(data.products);
+      saveImports(data.imports);
+      saveBatches(data.batches);
+
+      showDataToolsStatus("Restore 已完成，系统即将重新载入");
+
+      setTimeout(() => window.location.reload(), 700);
+    } catch (error) {
+      console.error(error);
+      showDataToolsStatus("Restore 失败：文件格式不正确", true);
+    }
+  };
+
+  reader.readAsText(file);
+}
+
+function showDataToolsStatus(message, isError = false) {
+  const status = document.getElementById("dataToolsStatus");
+  if (!status) return;
+
+  status.textContent = message;
+  status.classList.toggle("error-status", isError);
+
+  setTimeout(() => {
+    status.textContent = "";
+    status.classList.remove("error-status");
+  }, 2500);
+}
+
+
+function registerServiceWorker() {
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("./sw.js").catch(error => {
+      console.error("Service Worker registration failed:", error);
+    });
+  }
+}

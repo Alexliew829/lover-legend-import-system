@@ -1,0 +1,12 @@
+{
+  "name": "Lover Legend Import Cost & Inventory System",
+  "short_name": "Import Cost",
+  "description": "进口成本与库存系统 Version 2.30",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f6f1",
+  "theme_color": "#1f5d3a",
+  "lang": "zh-CN",
+  "icons": []
+}
