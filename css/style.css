@@ -1304,37 +1304,93 @@ input::placeholder {
 }
 
 
-/* Formal V1.0 — automatic Google sync status */
-.google-sync-panel .info-row {
-  min-height: 44px;
+
+
+/* Formal V1.1 — Dashboard Google auto-sync status */
+.dashboard-sync-card {
+  margin: 0 0 14px;
 }
 
-.google-sync-state {
+.dashboard-sync-status {
+  min-height: 58px;
+  padding: 14px 16px;
+  border: 1px solid;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: 18px;
+  font-weight: 800;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.dashboard-sync-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  justify-content: center;
+  flex: 0 0 26px;
+  font-size: 18px;
+  line-height: 1;
+  font-family: Arial, sans-serif;
 }
 
-.google-sync-state::before {
-  content: "";
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #8a8f8c;
-  flex: 0 0 auto;
+.dashboard-sync-status.syncing {
+  color: #7b5400;
+  background: #fff5cf;
+  border-color: #dfad23;
 }
 
-.google-sync-state.syncing::before {
-  background: #c58a1c;
-  box-shadow: 0 0 0 4px rgba(197, 138, 28, 0.12);
+.dashboard-sync-status.syncing .dashboard-sync-icon {
+  color: #fff;
+  background: #d69a13;
+  animation: sync-rotate 1.15s linear infinite;
 }
 
-.google-sync-state.synced::before {
-  background: #16834c;
-  box-shadow: 0 0 0 4px rgba(22, 131, 76, 0.12);
+.dashboard-sync-status.synced {
+  color: #075f57;
+  background: #dff7f3;
+  border-color: #45aaa0;
 }
 
-.google-sync-state.failed::before {
-  background: #c62828;
-  box-shadow: 0 0 0 4px rgba(198, 40, 40, 0.12);
+.dashboard-sync-status.synced .dashboard-sync-icon {
+  color: #fff;
+  background: #168f84;
+}
+
+.dashboard-sync-status.failed {
+  color: #a31818;
+  background: #ffe5e5;
+  border-color: #df6666;
+}
+
+.dashboard-sync-status.failed .dashboard-sync-icon {
+  color: #fff;
+  background: #c62c2c;
+}
+
+.dashboard-sync-time {
+  padding: 7px 3px 0;
+  color: #5f6662;
+  font-size: 13px;
+}
+
+.dashboard-sync-time strong {
+  color: #26302b;
+}
+
+@keyframes sync-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 520px) {
+  .dashboard-sync-status {
+    min-height: 54px;
+    padding: 12px 14px;
+    font-size: 17px;
+  }
 }

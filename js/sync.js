@@ -250,20 +250,26 @@ function setCloudState(state) {
   const element = document.getElementById("googleSyncStatus");
   if (!element) return;
 
+  const icon = element.querySelector(".dashboard-sync-icon");
+  const text = element.querySelector(".dashboard-sync-text");
+
   element.classList.remove("syncing", "synced", "failed");
 
   if (state === "synced") {
-    element.textContent = "已同步";
     element.classList.add("synced");
+    if (icon) icon.textContent = "✓";
+    if (text) text.textContent = "已同步";
     return;
   }
 
   if (state === "failed") {
-    element.textContent = "同步失败";
     element.classList.add("failed");
+    if (icon) icon.textContent = "!";
+    if (text) text.textContent = "同步失败，请检查网络";
     return;
   }
 
-  element.textContent = "同步中...";
   element.classList.add("syncing");
+  if (icon) icon.textContent = "↻";
+  if (text) text.textContent = "同步中...";
 }
