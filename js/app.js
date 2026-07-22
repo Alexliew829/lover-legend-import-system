@@ -520,6 +520,7 @@ function resetProductForm(clearStatus = true) {
 
 
 let batchRowSeq = 0;
+let batchListExpanded = false;
 function bindBatchMoneyInput(id) {
   const input = document.getElementById(id);
   if (!input || input.dataset.batchBound === "1") return;
@@ -613,6 +614,23 @@ function setupImportModule(){
     x.addEventListener("input",calculateBatch); x.addEventListener("blur",()=>{formatInputAmount(x);calculateBatch();});
   });
   document.getElementById("batchCurrency").addEventListener("change",()=>{applyBatchRate();calculateBatch();});
+
+  const batchSearch = document.getElementById("batchSearch");
+  const toggleBatchListBtn = document.getElementById("toggleBatchListBtn");
+
+  if (batchSearch) {
+    batchSearch.addEventListener("input", () => {
+      batchListExpanded = false;
+      renderBatchList();
+    });
+  }
+
+  if (toggleBatchListBtn) {
+    toggleBatchListBtn.addEventListener("click", () => {
+      batchListExpanded = !batchListExpanded;
+      renderBatchList();
+    });
+  }
 
   renderBatchSuggestions(); renderBatchList(); resetBatchForm();
 }
@@ -2018,35 +2036,105 @@ function getBatchShippingRate(batch) {
     : 0;
 }
 
-function renderBatchList(){
-  const b = getBatches().slice().sort((a, b) => {
-  const dateDiff =
-    parseDDMMYYYY(b.containerDate || b.date || "") -
-    parseDDMMYYYY(a.containerDate || a.date || "");
+function renderBatchList() {
+  const allBatches = getBatches().slice().sort((a, b) => {
+    const dateDiff =
+      parseDDMMYYYY(b.containerDate || b.date || "") -
+      parseDDMMYYYY(a.containerDate || a.date || "");
 
-  if (dateDiff) return dateDiff;
+    if (dateDiff) return dateDiff;
 
-  return String(b.createdAt || "")
-    .localeCompare(String(a.createdAt || ""));
-});
-  document.getElementById("batchListCount").textContent=`${b.length} 批`;const l=document.getElementById("batchList");if(!b.length){l.innerHTML='<div class="empty-state">暂无进口批次</div>';return;}l.innerHTML=b.slice(0,10).map(x=>`<article class="import-card">
-    <div class="batch-card-title-row">
-      <div>
-        <h4>${escapeHTML(x.containerDate || x.date || "-")} · ${x.itemCount} 种产品</h4>
-        <div class="import-number-line"><span>进口编号</span><strong>${escapeHTML(x.importNumber || "-")}</strong></div>
+    return String(b.createdAt || "")
+      .localeCompare(String(a.createdAt || ""));
+  });
+
+  const searchInput = document.getElementById("batchSearch");
+  const toggleButton = document.getElementById("toggleBatchListBtn");
+  const countElement = document.getElementById("batchListCount");
+  const listElement = document.getElementById("batchList");
+  const keyword = String(searchInput?.value || "").trim().toLowerCase();
+
+  const filteredBatches = allBatches.filter(batch => {
+    if (!keyword) return true;
+
+    const items = getBatchItemsForDisplay(batch);
+    const productText = items
+      .map(item => `${item?.productName || item?.name || ""} ${item?.productId || ""} ${item?.category || ""}`)
+      .join(" ");
+
+    const searchableText = [
+      batch.importNumber,
+      batch.containerDate,
+      batch.arrivalDate,
+      batch.date,
+      batch.trackingNumber,
+      batch.overseasTrackingNumber,
+      batch.currency,
+      productText
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return searchableText.includes(keyword);
+  });
+
+  const displayLimit = 10;
+  const visibleBatches = batchListExpanded
+    ? filteredBatches
+    : filteredBatches.slice(0, displayLimit);
+
+  if (countElement) {
+    countElement.textContent = keyword
+      ? `${visibleBatches.length} / ${filteredBatches.length} 批`
+      : `${visibleBatches.length} / ${allBatches.length} 批`;
+  }
+
+  if (toggleButton) {
+    const canToggle = filteredBatches.length > displayLimit;
+    toggleButton.hidden = !canToggle;
+    toggleButton.textContent = batchListExpanded ? "收起" : "显示全部";
+    toggleButton.setAttribute("aria-expanded", String(batchListExpanded));
+  }
+
+  if (!listElement) return;
+
+  if (!filteredBatches.length) {
+    listElement.innerHTML = keyword
+      ? '<div class="empty-state">暂无符合的进口批次</div>'
+      : '<div class="empty-state">暂无进口批次</div>';
+    return;
+  }
+
+  listElement.innerHTML = visibleBatches.map(batch => {
+    const items = getBatchItemsForDisplay(batch);
+    const firstProductName =
+      items[0]?.productName || items[0]?.name || "-";
+
+    return `<article class="import-card">
+      <div class="batch-card-title-row">
+        <div>
+          <h4>${escapeHTML(batch.containerDate || batch.date || "-")} · ${Number(batch.itemCount) || items.length} 种产品</h4>
+          <div class="import-number-line"><span>进口编号</span><strong>${escapeHTML(batch.importNumber || "-")}</strong></div>
+        </div>
+        <div class="batch-card-buttons">
+          ${batch.importNumber ? `<button class="copy-number-btn" type="button" onclick="copyBatchNumber('${escapeHTML(batch.importNumber)}', this)">Copy</button>` : ""}
+          ${batch.importNumber ? `<button class="small-btn edit-btn" type="button" onclick="openBatchForEdit('${escapeHTML(batch.importNumber)}')">载入</button>` : ""}
+          ${batch.importNumber ? `<button class="small-btn delete-btn" type="button" onclick="deleteBatchByNumber('${escapeHTML(batch.importNumber)}')">删除</button>` : ""}
+        </div>
       </div>
-      <div class="batch-card-buttons">
-        ${x.importNumber ? `<button class="copy-number-btn" type="button" onclick="copyBatchNumber('${escapeHTML(x.importNumber)}', this)">Copy</button>` : ""}
-        ${x.importNumber ? `<button class="small-btn edit-btn" type="button" onclick="openBatchForEdit('${escapeHTML(x.importNumber)}')">载入</button>` : ""}
-        ${x.importNumber ? `<button class="small-btn delete-btn" type="button" onclick="deleteBatchByNumber('${escapeHTML(x.importNumber)}')">删除</button>` : ""}
+      <div class="product-code">
+        ${Number(batch.totalQuantity) || 0} 件 · ${Number(batch.rackQuantity) || 0} 个木架 ·
+        ${escapeHTML(firstProductName)}
       </div>
-    </div>
-  <div class="product-code">
-  ${x.totalQuantity} 件 · ${x.rackQuantity} 个木架 ·
-  ${escapeHTML((getBatchItemsForDisplay(x)[0]?.productName || getBatchItemsForDisplay(x)[0]?.name || "-"))}
-</div>
-    <div class="import-card-meta"><div><span>运输天数</span><strong>${x.transitDays?`${x.transitDays} 天`:"-"}</strong></div><div><span>海外运费比例</span><strong>${formatMoney(getBatchShippingRate(x))}%</strong></div><div><span>批次总成本</span><strong>${formatMoney(x.grandTotal,"RM ")}</strong></div><div><span>运输单号</span><strong>${escapeHTML(x.overseasTrackingNumber || x.trackingNumber || "-")}</strong></div></div>
-  </article>`).join("");
+      <div class="import-card-meta">
+        <div><span>运输天数</span><strong>${batch.transitDays ? `${batch.transitDays} 天` : "-"}</strong></div>
+        <div><span>海外运费比例</span><strong>${formatMoney(getBatchShippingRate(batch))}%</strong></div>
+        <div><span>批次总成本</span><strong>${formatMoney(batch.grandTotal, "RM ")}</strong></div>
+        <div><span>运输单号</span><strong>${escapeHTML(batch.overseasTrackingNumber || batch.trackingNumber || "-")}</strong></div>
+      </div>
+    </article>`;
+  }).join("");
 }
 function formatDateDDMMYYYY(d){return `${String(d.getDate()).padStart(2,"0")}-${String(d.getMonth()+1).padStart(2,"0")}-${d.getFullYear()}`;}
 function formatDateFromInput(v){if(!v)return"";const[y,m,d]=v.split("-");return`${d}-${m}-${y}`;}
