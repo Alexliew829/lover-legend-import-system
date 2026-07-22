@@ -2050,7 +2050,71 @@ function getLatestContainerDateByProduct(productId) {
 function setupInventoryModule() {
   document.getElementById("inventorySearch").addEventListener("input", renderInventoryManagementList);
   document.getElementById("inventorySort").addEventListener("change", renderInventoryManagementList);
+
+  document.getElementById("inventoryManagementList").addEventListener("click", event => {
+    const button = event.target.closest(".inventory-import-number");
+    if (!button) return;
+
+    copyInventoryImportNumber(button);
+  });
+
   renderInventoryManagementList();
+}
+
+async function copyInventoryImportNumber(button) {
+  const importNumber = String(button.dataset.importNumber || "").trim();
+  if (!importNumber) return;
+
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(importNumber);
+    } else {
+      const textarea = document.createElement("textarea");
+      textarea.value = importNumber;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      const copied = document.execCommand("copy");
+      textarea.remove();
+      if (!copied) throw new Error("Copy command failed");
+    }
+
+    const originalText = button.dataset.originalText || importNumber;
+    button.dataset.originalText = originalText;
+    button.textContent = "✓ 已复制";
+    button.classList.add("copied");
+
+    showCopiedSyncMessage(importNumber);
+
+    window.clearTimeout(button._copyResetTimer);
+    button._copyResetTimer = window.setTimeout(() => {
+      button.textContent = originalText;
+      button.classList.remove("copied");
+    }, 1200);
+  } catch (error) {
+    console.error("Copy import number failed:", error);
+    alert(`复制失败，请手动复制：${importNumber}`);
+  }
+}
+
+function showCopiedSyncMessage(importNumber) {
+  const element = document.getElementById("googleSyncStatus");
+  if (!element) return;
+
+  const icon = element.querySelector(".dashboard-sync-icon");
+  const text = element.querySelector(".dashboard-sync-text");
+
+  element.classList.remove("syncing", "failed");
+  element.classList.add("synced");
+  if (icon) icon.textContent = "✓";
+  if (text) text.textContent = `已复制：${importNumber}`;
+
+  window.clearTimeout(window.inventoryCopyStatusTimer);
+  window.inventoryCopyStatusTimer = window.setTimeout(() => {
+    setCloudState("synced");
+  }, 2000);
 }
 
 function renderInventoryManagementList() {
@@ -2163,7 +2227,7 @@ function renderInventoryManagementList() {
           <div>
             <div class="inventory-product-title-row">
               <h4>${escapeHTML(product.name)}</h4>
-              ${product.latestImportNumber ? `<span class="inventory-import-number">${escapeHTML(product.latestImportNumber)}</span>` : ""}
+              ${product.latestImportNumber ? `<button class="inventory-import-number" type="button" data-import-number="${escapeHTML(product.latestImportNumber)}" title="点击复制进口编号">${escapeHTML(product.latestImportNumber)}</button>` : ""}
             </div>
             <div class="product-code">${escapeHTML(product.id)} · ${escapeHTML(product.category)}</div>
           </div>
@@ -2343,7 +2407,7 @@ function exportSystemExcel() {
 function backupSystemData() {
   const backup = {
     app: "Lover Legend Import Cost & Inventory System",
-    version: "2.1",
+    version: "2.26",
     exportedAt: new Date().toISOString(),
     settings: loadJSON("importSystemSettings", {}),
     products: getProducts(),

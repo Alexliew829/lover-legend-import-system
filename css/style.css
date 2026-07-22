@@ -49,10 +49,10 @@ select {
 
 .app-header-card {
   width: 100%;
-  max-width: 430px;
+  max-width: 610px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: 74px minmax(0, 1fr) 74px;
+  grid-template-columns: 82px minmax(0, 1fr) 82px;
   align-items: center;
   gap: 10px;
   padding: 11px 13px;
@@ -87,18 +87,27 @@ select {
 
 .app-header-main-title {
   color: #008b8b;
-  font-size: 20px;
-  line-height: 1.12;
+  font-size: 27px;
+  line-height: 1.08;
   font-weight: 800;
   white-space: nowrap;
 }
 
 .app-header-subtitle {
   margin-top: 4px;
-  color: #d00000;
-  font-size: 12px;
+  color: #07813f;
+  font-size: 16px;
   line-height: 1.15;
   font-weight: 800;
+  white-space: nowrap;
+}
+
+.app-header-brand {
+  margin-top: 4px;
+  color: #d00000;
+  font-size: 17px;
+  line-height: 1.1;
+  font-weight: 900;
   white-space: nowrap;
 }
 
@@ -508,11 +517,15 @@ small {
   }
 
   .app-header-main-title {
-    font-size: 16px;
+    font-size: 18px;
   }
 
   .app-header-subtitle {
-    font-size: 9px;
+    font-size: 11px;
+  }
+
+  .app-header-brand {
+    font-size: 12px;
   }
 
   .app-header-version {
@@ -692,6 +705,24 @@ small {
   font-weight: 800;
   line-height: 1.2;
   white-space: nowrap;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.inventory-import-number:hover {
+  background: #dff1e5;
+  border-color: #4c9568;
+}
+
+.inventory-import-number:focus-visible {
+  outline: 3px solid rgba(31, 93, 58, 0.22);
+  outline-offset: 2px;
+}
+
+.inventory-import-number.copied {
+  background: #d9f4df;
+  border-color: #2f8a4d;
+  color: #14612e;
 }
 
 .inventory-summary-grid {
