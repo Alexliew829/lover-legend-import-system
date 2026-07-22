@@ -1445,3 +1445,10 @@ input::placeholder {
   background: #ffe8e8;
   border-color: #efb2b2;
 }
+
+
+/* Formal V1.8 — dashboard inventory is strictly read-only */
+.inventory-manage-card .inventory-card-actions,
+.inventory-manage-card .inventory-edit-box {
+  display: none !important;
+}

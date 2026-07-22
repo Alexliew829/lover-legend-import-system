@@ -189,10 +189,6 @@ function setupSettings() {
 
     saveJSON("importSystemSettings", data);
 
-    if (typeof scheduleGoogleSync === "function") {
-      scheduleGoogleSync();
-    }
-
     const status = document.getElementById("settingsStatus");
     status.textContent = "设置已保存";
     setTimeout(() => {
@@ -334,13 +330,6 @@ function getProducts() {
 
 function saveProducts(products) {
   saveJSON("importSystemProducts", products);
-
-  if (
-    typeof scheduleGoogleSync === "function" &&
-    !(typeof isApplyingGoogleData === "function" && isApplyingGoogleData())
-  ) {
-    scheduleGoogleSync();
-  }
 }
 
 function getProductPrefix(category) {
@@ -572,7 +561,7 @@ function setupImportModule(){
     loadBatchByNumber();
   });
   document.getElementById("resetBatchBtn").addEventListener("click",()=>{
-    if(confirm("确定清空本次尚未保存的输入？已保存的资料不会被删除。")) resetBatchForm();
+    if(confirm("确定清空本次尚未保存的输入？已保存的资料不会被删除。")) resetBatchForm({ clearLookup: true });
   });
 
   const batchForm = document.getElementById("batchImportForm");
@@ -1099,26 +1088,12 @@ function loadBatchByNumber() {
 }
 
 function getImports(){return loadJSON("importSystemImports",[]);}
-function saveImports(v){
-  saveJSON("importSystemImports",v);
-
-  if (
-    typeof scheduleGoogleSync === "function" &&
-    !(typeof isApplyingGoogleData === "function" && isApplyingGoogleData())
-  ) {
-    scheduleGoogleSync();
-  }
+function saveImports(v) {
+  saveJSON("importSystemImports", v);
 }
 function getBatches(){return loadJSON("importSystemBatches",[]);}
-function saveBatches(v){
-  saveJSON("importSystemBatches",v);
-
-  if (
-    typeof scheduleGoogleSync === "function" &&
-    !(typeof isApplyingGoogleData === "function" && isApplyingGoogleData())
-  ) {
-    scheduleGoogleSync();
-  }
+function saveBatches(v) {
+  saveJSON("importSystemBatches", v);
 }
 function renderBatchSuggestions(){
   document.getElementById("batchProductSuggestions").innerHTML=getProducts().sort((a,b)=>a.id.localeCompare(b.id)).map(p=>`<option value="${escapeHTML(p.name)}">${escapeHTML(p.id)} · ${escapeHTML(p.category)}</option>`).join("");
@@ -1325,24 +1300,71 @@ function updateTransitDays() {
   return days;
 }
 
-function resetBatchForm(preserveLookup = false){
-  const lookupInput = document.getElementById("batchLookupInput");
-  const lookupValue = preserveLookup ? lookupInput.value : "";
+function resetBatchForm(options = {}) {
+  const {
+    clearLookup = true,
+    clearStatus = true
+  } = options;
 
   setBatchEditMode("");
-  document.getElementById("batchImportForm").reset();
-  ["batchRackQuantity","batchChinaTransportCost","batchPotCost","batchShippingMY"].forEach(id=>document.getElementById(id).value="");
-  document.getElementById("batchCurrency").value="CNY"; applyBatchRate();
-  document.getElementById("batchTransitDays").value="-";
-  document.getElementById("batchOverseasTrackingNumber").value="";
-  document.getElementById("batchContainerDatePicker").value="";
-  document.getElementById("batchArrivalDatePicker").value="";
-  document.getElementById("batchStatusText").textContent="";
 
-  lookupInput.value = lookupValue;
+  const form = document.getElementById("batchImportForm");
+  if (form) form.reset();
 
-  batchRowSeq=0;
-  document.getElementById("batchRows").innerHTML="";
+  [
+    "batchRackQuantity",
+    "batchChinaTransportCost",
+    "batchPotCost",
+    "batchShippingMY"
+  ].forEach(id => {
+    const field = document.getElementById(id);
+    if (field) field.value = "";
+  });
+
+  const tracking = document.getElementById("batchTrackingNumber");
+  if (tracking) tracking.value = "";
+
+  const overseasTracking =
+    document.getElementById("batchOverseasTrackingNumber");
+  if (overseasTracking) overseasTracking.value = "";
+
+  const containerDate = document.getElementById("batchContainerDate");
+  if (containerDate) containerDate.value = "";
+
+  const arrivalDate = document.getElementById("batchArrivalDate");
+  if (arrivalDate) arrivalDate.value = "";
+
+  const containerPicker =
+    document.getElementById("batchContainerDatePicker");
+  if (containerPicker) containerPicker.value = "";
+
+  const arrivalPicker =
+    document.getElementById("batchArrivalDatePicker");
+  if (arrivalPicker) arrivalPicker.value = "";
+
+  const transitDays = document.getElementById("batchTransitDays");
+  if (transitDays) transitDays.value = "-";
+
+  const currency = document.getElementById("batchCurrency");
+  if (currency) currency.value = "CNY";
+
+  applyBatchRate();
+
+  if (clearLookup) {
+    const lookup = document.getElementById("batchLookupInput");
+    if (lookup) lookup.value = "";
+  }
+
+  if (clearStatus) {
+    const status = document.getElementById("batchStatusText");
+    if (status) status.textContent = "";
+  }
+
+  batchRowSeq = 0;
+
+  const rows = document.getElementById("batchRows");
+  if (rows) rows.innerHTML = "";
+
   addBatchRow();
   calculateBatch();
 }
@@ -1623,6 +1645,19 @@ function calculateBatch() {
   };
 }
 
+
+function clearBatchAfterSuccessfulAction() {
+  resetBatchForm({
+    clearLookup: true,
+    clearStatus: false
+  });
+
+  const lookupInput = document.getElementById("batchLookupInput");
+  if (lookupInput) lookupInput.value = "";
+
+  setBatchEditMode("");
+}
+
 function saveBatchImport() {
   const status = document.getElementById("batchStatusText");
   const result = calculateBatch();
@@ -1643,6 +1678,26 @@ function saveBatchImport() {
   const imports = getImports();
   const batches = getBatches();
   const today = formatDateDDMMYYYY(new Date());
+
+  const lookupValue =
+    document.getElementById("batchLookupInput")?.value.trim() || "";
+
+  const existingByLookup = lookupValue
+    ? getBatches().find(
+        batch =>
+          String(batch.importNumber || "").toLowerCase() ===
+          lookupValue.toLowerCase()
+      )
+    : null;
+
+  if (existingByLookup && !currentEditingImportNumber) {
+    status.textContent =
+      `进口编号 ${existingByLookup.importNumber} 已存在，系统已切换为更新模式。请先载入后再修改。`;
+    document.getElementById("batchLookupInput").value =
+      existingByLookup.importNumber;
+    loadBatchByNumber();
+    return;
+  }
 
   const isEditing = Boolean(currentEditingImportNumber);
 
@@ -1835,19 +1890,24 @@ function saveBatchImport() {
   saveImports(imports);
   saveBatches(batches);
 
+  if (typeof scheduleGoogleSync === "function") {
+    scheduleGoogleSync(20);
+  }
+
   renderBatchSuggestions();
   renderBatchList();
   renderInventoryManagementList();
   renderDashboard();
 
-  if (isEditing) {
-    status.textContent =
-      `已更新批次 ${importNumber}，进口编号保持不变。`;
-    setBatchEditMode(importNumber);
-  } else {
-    status.textContent =
-      `整批已保存，进口编号：${importNumber}。`;
-    setBatchEditMode(importNumber);
+  const successMessage = isEditing
+    ? `已更新批次 ${importNumber}，进口编号保持不变。`
+    : `整批已保存，进口编号：${importNumber}。`;
+
+  clearBatchAfterSuccessfulAction();
+
+  const refreshedStatus = document.getElementById("batchStatusText");
+  if (refreshedStatus) {
+    refreshedStatus.textContent = `${successMessage} 输入资料已自动清空。`;
   }
 }
 
@@ -1869,7 +1929,7 @@ function renderBatchList(){
       <div class="batch-card-buttons">
         ${x.importNumber ? `<button class="copy-number-btn" type="button" onclick="copyBatchNumber('${escapeHTML(x.importNumber)}')">Copy</button>` : ""}
         ${x.importNumber ? `<button class="small-btn edit-btn" type="button" onclick="openBatchForEdit('${escapeHTML(x.importNumber)}')">载入</button>` : ""}
-        ${x.importNumber ? `<button class="small-btn delete-btn" type="button" onclick="deleteBatchByNumber('${escapeHTML(x.importNumber)}')">删除整批进口</button>` : ""}
+        ${x.importNumber ? `<button class="small-btn delete-btn" type="button" onclick="deleteBatchByNumber('${escapeHTML(x.importNumber)}')">删除</button>` : ""}
       </div>
     </div>
     <div class="product-code">${x.totalQuantity} 件 · ${x.rackQuantity} 个木架</div>
@@ -2001,146 +2061,15 @@ function renderInventoryManagementList() {
           <div><span>库存成本总值</span><strong>${formatMoney(inventoryValue, "RM ")}</strong></div>
           <div><span>最后进口</span><strong>${escapeHTML(product.displayLastImport || "-")}</strong></div>
         </div>
-
-        <div class="inventory-card-actions">
-          <button class="small-btn edit-btn" type="button" onclick="toggleInventoryEditor('${product.id}')">
-            修改库存
-          </button>
-          <button class="small-btn remove-inventory-btn" type="button" onclick="removeInventoryItem('${product.id}')">
-            移除库存
-          </button>
-        </div>
-
-        <div id="inventoryEditor-${product.id}" class="inventory-edit-box">
-          <label>
-            新库存数量
-            <input id="inventoryStockInput-${product.id}"
-                   inputmode="numeric"
-                   value="${stock}"
-                   oninput="previewInventoryAdjustment('${product.id}')" />
-          </label>
-
-          <p class="inventory-edit-note">
-            修改库存后，系统会保留现有库存成本总值，并自动重新计算平均成本。
-          </p>
-
-          <div class="inventory-preview">
-            <div>
-              <span>新平均成本</span>
-              <strong id="inventoryNewAverage-${product.id}">${formatMoney(averageCost, "RM ")}</strong>
-            </div>
-            <div>
-              <span>库存成本总值</span>
-              <strong id="inventoryPreservedValue-${product.id}">${formatMoney(inventoryValue, "RM ")}</strong>
-            </div>
-          </div>
-
-          <div class="form-actions">
-            <button class="primary-btn" type="button" onclick="saveInventoryAdjustment('${product.id}')">
-              保存库存
-            </button>
-            <button class="ghost-btn" type="button" onclick="toggleInventoryEditor('${product.id}', false)">
-              取消
-            </button>
-          </div>
-        </div>
       </article>
     `;
   }).join("");
 }
 
 
-function removeInventoryItem(productId) {
-  const products = getProducts();
-  const index = products.findIndex(item => item.id === productId);
 
-  if (index === -1) return;
 
-  const product = products[index];
-  const confirmed = confirm(
-    `确定把「${product.name}」从当前库存移除？\n\n` +
-    "⚠️ 此操作无法还原当前库存数量和平均成本。\n" +
-    "产品编号与历史进口记录会保留；以后再次进口只会建立新的库存。"
-  );
 
-  if (!confirmed) return;
-
-  products[index] = {
-    ...product,
-    stock: 0,
-    averageCost: 0,
-    inventoryArchived: true,
-    updatedAt: new Date().toISOString()
-  };
-
-  saveProducts(products);
-  renderInventoryManagementList();
-  renderDashboard();
-}
-
-function toggleInventoryEditor(productId, forceOpen = null) {
-  const editor = document.getElementById(`inventoryEditor-${productId}`);
-  if (!editor) return;
-
-  const shouldOpen = forceOpen === null ? !editor.classList.contains("active") : forceOpen;
-  editor.classList.toggle("active", shouldOpen);
-
-  if (shouldOpen) {
-    const input = document.getElementById(`inventoryStockInput-${productId}`);
-    input?.focus();
-    input?.select();
-    previewInventoryAdjustment(productId);
-  }
-}
-
-function previewInventoryAdjustment(productId) {
-  const product = getProducts().find(item => item.id === productId);
-  if (!product) return;
-
-  const oldStock = Number(product.stock) || 0;
-  const oldAverage = Number(product.averageCost) || 0;
-  const preservedValue = oldStock * oldAverage;
-  const newStock = Math.max(0, Math.floor(parseAmount(
-    document.getElementById(`inventoryStockInput-${productId}`).value
-  )));
-  const newAverage = newStock > 0 ? preservedValue / newStock : 0;
-
-  document.getElementById(`inventoryNewAverage-${productId}`).textContent =
-    formatMoney(newAverage, "RM ");
-  document.getElementById(`inventoryPreservedValue-${productId}`).textContent =
-    formatMoney(preservedValue, "RM ");
-}
-
-function saveInventoryAdjustment(productId) {
-  const products = getProducts();
-  const index = products.findIndex(item => item.id === productId);
-  if (index === -1) return;
-
-  const input = document.getElementById(`inventoryStockInput-${productId}`);
-  const newStock = Math.max(0, Math.floor(parseAmount(input.value)));
-  const oldStock = Number(products[index].stock) || 0;
-  const oldAverage = Number(products[index].averageCost) || 0;
-  const preservedValue = oldStock * oldAverage;
-  const newAverage = newStock > 0 ? preservedValue / newStock : 0;
-
-  if (!confirm(
-    `确定把 ${products[index].name} 的库存从 ${oldStock} 修改为 ${newStock}？`
-  )) {
-    return;
-  }
-
-  products[index] = {
-    ...products[index],
-    stock: newStock,
-    averageCost: newAverage,
-    updatedAt: new Date().toISOString()
-  };
-
-  saveProducts(products);
-  renderInventoryManagementList();
-  renderProductList();
-  renderDashboard();
-}
 
 function parseDDMMYYYY(value) {
   const date = parseDateDDMMYYYY(value);
