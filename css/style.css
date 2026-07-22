@@ -1452,3 +1452,63 @@ input::placeholder {
 .inventory-manage-card .inventory-edit-box {
   display: none !important;
 }
+
+
+/* Formal V1.9 — compact import lookup and inline copy feedback */
+.batch-inline-lookup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.batch-inline-lookup label {
+  font-size: 13px;
+  font-weight: 800;
+  color: #39463f;
+  white-space: nowrap;
+}
+
+.batch-inline-lookup .batch-lookup-input {
+  width: 210px;
+  min-width: 160px;
+}
+
+.copy-number-btn {
+  position: relative;
+  overflow: visible;
+}
+
+.copy-number-btn .copy-feedback {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  line-height: 1;
+  color: #168f84;
+  font-weight: 800;
+}
+
+.copy-number-btn.copied {
+  border-color: #45aaa0;
+  background: #e4f8f4;
+  color: #075f57;
+}
+
+@media (max-width: 640px) {
+  .batch-products-topbar {
+    align-items: flex-start;
+  }
+
+  .batch-lookup-group {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .batch-inline-lookup {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .batch-inline-lookup .batch-lookup-input {
+    width: min(210px, 60vw);
+  }
+}

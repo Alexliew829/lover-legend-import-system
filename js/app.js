@@ -554,7 +554,6 @@ function setupImportModule(){
   setupDatePickers();
 
   document.getElementById("addBatchRowBtn").addEventListener("click",()=>addBatchRow());
-  document.getElementById("loadBatchByNumberBtn").addEventListener("click", loadBatchByNumber);
   document.getElementById("batchLookupInput").addEventListener("keydown", event => {
     if (event.key !== "Enter") return;
     event.preventDefault();
@@ -659,31 +658,50 @@ function generateImportNumber(currency, containerDate, batches) {
   return `${prefix}${maxSequence + 1}`;
 }
 
-function copyBatchNumber(importNumber) {
+function copyBatchNumber(importNumber, button) {
   if (!importNumber) return;
 
-  const done = () => alert(`已复制进口编号：${importNumber}`);
+  const showCopied = () => {
+    if (!button) return;
+
+    const originalText =
+      button.dataset.originalText ||
+      button.textContent ||
+      "Copy";
+
+    button.dataset.originalText = originalText;
+    button.classList.add("copied");
+    button.innerHTML =
+      `Copy<span class="copy-feedback">已复制</span>`;
+
+    window.setTimeout(() => {
+      button.classList.remove("copied");
+      button.textContent = originalText;
+    }, 1800);
+  };
+
+  const fallbackCopy = () => {
+    const temp = document.createElement("textarea");
+    temp.value = importNumber;
+    temp.setAttribute("readonly", "");
+    temp.style.position = "fixed";
+    temp.style.opacity = "0";
+    document.body.appendChild(temp);
+    temp.select();
+    document.execCommand("copy");
+    temp.remove();
+    showCopied();
+  };
 
   if (navigator.clipboard?.writeText) {
-    navigator.clipboard.writeText(importNumber).then(done).catch(() => {
-      const temp = document.createElement("textarea");
-      temp.value = importNumber;
-      document.body.appendChild(temp);
-      temp.select();
-      document.execCommand("copy");
-      temp.remove();
-      done();
-    });
+    navigator.clipboard
+      .writeText(importNumber)
+      .then(showCopied)
+      .catch(fallbackCopy);
     return;
   }
 
-  const temp = document.createElement("textarea");
-  temp.value = importNumber;
-  document.body.appendChild(temp);
-  temp.select();
-  document.execCommand("copy");
-  temp.remove();
-  done();
+  fallbackCopy();
 }
 
 
@@ -1927,7 +1945,7 @@ function renderBatchList(){
         <div class="import-number-line"><span>进口编号</span><strong>${escapeHTML(x.importNumber || "-")}</strong></div>
       </div>
       <div class="batch-card-buttons">
-        ${x.importNumber ? `<button class="copy-number-btn" type="button" onclick="copyBatchNumber('${escapeHTML(x.importNumber)}')">Copy</button>` : ""}
+        ${x.importNumber ? `<button class="copy-number-btn" type="button" onclick="copyBatchNumber('${escapeHTML(x.importNumber)}', this)">Copy</button>` : ""}
         ${x.importNumber ? `<button class="small-btn edit-btn" type="button" onclick="openBatchForEdit('${escapeHTML(x.importNumber)}')">载入</button>` : ""}
         ${x.importNumber ? `<button class="small-btn delete-btn" type="button" onclick="deleteBatchByNumber('${escapeHTML(x.importNumber)}')">删除</button>` : ""}
       </div>
