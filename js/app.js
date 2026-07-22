@@ -1937,6 +1937,76 @@ function openBatchForEdit(importNumber) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+
+function getBatchShippingRate(batch) {
+  const storedRate = Number(batch?.shippingRate);
+
+  if (Number.isFinite(storedRate) && storedRate > 0) {
+    return storedRate;
+  }
+
+  const shippingMY = Number(batch?.shippingMY) || 0;
+
+  if (shippingMY <= 0) {
+    return 0;
+  }
+
+  let allForeignCostsRM =
+    Number(batch?.totalForeignCostsRM) || 0;
+
+  if (allForeignCostsRM <= 0) {
+    const items = Array.isArray(batch?.items)
+      ? batch.items
+      : [];
+
+    const currencyRate =
+      Number(batch?.rate) ||
+      Number(items.find(item => Number(item?.rate) > 0)?.rate) ||
+      0;
+
+    const productForeignTotal = items.reduce((sum, item) => {
+      const foreignTotal = Number(item?.foreignTotal);
+
+      if (Number.isFinite(foreignTotal) && foreignTotal > 0) {
+        return sum + foreignTotal;
+      }
+
+      return sum +
+        ((Number(item?.quantity) || 0) *
+         (Number(item?.unitPrice) || 0));
+    }, 0);
+
+    const chinaTransportCost =
+      Number(batch?.chinaTransportCost) || 0;
+
+    const potCost =
+      Number(batch?.potCost) || 0;
+
+    const foreignGrandTotal =
+      productForeignTotal +
+      chinaTransportCost +
+      potCost;
+
+    if (currencyRate > 0 && foreignGrandTotal > 0) {
+      allForeignCostsRM =
+        foreignGrandTotal / currencyRate;
+    }
+  }
+
+  if (allForeignCostsRM <= 0) {
+    const grandTotal = Number(batch?.grandTotal) || 0;
+
+    if (grandTotal > shippingMY) {
+      allForeignCostsRM =
+        grandTotal - shippingMY;
+    }
+  }
+
+  return allForeignCostsRM > 0
+    ? (shippingMY / allForeignCostsRM) * 100
+    : 0;
+}
+
 function renderBatchList(){
   const b=getBatches();document.getElementById("batchListCount").textContent=`${b.length} 批`;const l=document.getElementById("batchList");if(!b.length){l.innerHTML='<div class="empty-state">暂无进口批次</div>';return;}l.innerHTML=b.slice(0,10).map(x=>`<article class="import-card">
     <div class="batch-card-title-row">
@@ -1951,7 +2021,7 @@ function renderBatchList(){
       </div>
     </div>
     <div class="product-code">${x.totalQuantity} 件 · ${x.rackQuantity} 个木架</div>
-    <div class="import-card-meta"><div><span>运输天数</span><strong>${x.transitDays?`${x.transitDays} 天`:"-"}</strong></div><div><span>海外运费比例</span><strong>${formatMoney(x.shippingRate)}%</strong></div><div><span>批次总成本</span><strong>${formatMoney(x.grandTotal,"RM ")}</strong></div><div><span>运输单号</span><strong>${escapeHTML(x.overseasTrackingNumber || x.trackingNumber || "-")}</strong></div></div>
+    <div class="import-card-meta"><div><span>运输天数</span><strong>${x.transitDays?`${x.transitDays} 天`:"-"}</strong></div><div><span>海外运费比例</span><strong>${formatMoney(getBatchShippingRate(x))}%</strong></div><div><span>批次总成本</span><strong>${formatMoney(x.grandTotal,"RM ")}</strong></div><div><span>运输单号</span><strong>${escapeHTML(x.overseasTrackingNumber || x.trackingNumber || "-")}</strong></div></div>
   </article>`).join("");
 }
 function formatDateDDMMYYYY(d){return `${String(d.getDate()).padStart(2,"0")}-${String(d.getMonth()+1).padStart(2,"0")}-${d.getFullYear()}`;}
