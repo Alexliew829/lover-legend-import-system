@@ -1,12 +1,12 @@
-const CACHE = "lover-legend-import-cost-formal-v1.9.0";
+const CACHE = "lover-legend-import-cost-formal-v2.0.0";
 const CORE = [
   "./",
   "./index.html",
-  "./css/style.css?v=1.9.0",
-  "./js/common.js?v=1.9.0",
-  "./js/sync.js?v=1.9.0",
-  "./js/app.js?v=1.9.0",
-  "./manifest.json?v=1.9.0",
+  "./css/style.css?v=2.0.0",
+  "./js/common.js?v=2.0.0",
+  "./js/sync.js?v=2.0.0",
+  "./js/app.js?v=2.0.0",
+  "./manifest.json?v=2.0.0",
   "./assets/images/logo-green.jpg",
   "./assets/images/logo-red.jpg",
   "./assets/icons/favicon.ico",
@@ -18,33 +18,49 @@ const CORE = [
 ];
 
 self.addEventListener("install", event => {
-  self.skipWaiting();
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(CORE)));
 });
 
 self.addEventListener("activate", event => {
   event.waitUntil(
-    Promise.all([
-      caches.keys().then(keys =>
-        Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)))
-      ),
-      self.clients.claim()
-    ])
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key))))
+      .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
 
-  event.respondWith(
-    fetch(event.request)
-      .then(response => {
-        if (response && response.status === 200) {
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) return;
+
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
           const copy = response.clone();
-          caches.open(CACHE).then(cache => cache.put(event.request, copy));
-        }
-        return response;
-      })
-      .catch(() => caches.match(event.request).then(cached => cached || caches.match("./index.html")))
+          caches.open(CACHE).then(cache => cache.put("./index.html", copy));
+          return response;
+        })
+        .catch(() => caches.match("./index.html"))
+    );
+    return;
+  }
+
+  event.respondWith(
+    caches.match(event.request).then(cached => {
+      const network = fetch(event.request)
+        .then(response => {
+          if (response && response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE).then(cache => cache.put(event.request, copy));
+          }
+          return response;
+        })
+        .catch(() => cached);
+
+      return cached || network;
+    })
   );
 });

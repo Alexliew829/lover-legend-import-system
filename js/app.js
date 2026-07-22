@@ -188,6 +188,9 @@ function setupSettings() {
     });
 
     saveJSON("importSystemSettings", data);
+    if (typeof markCloudSettingsSaved === "function") {
+      markCloudSettingsSaved();
+    }
 
     const status = document.getElementById("settingsStatus");
     status.textContent = "设置已保存";
@@ -329,7 +332,11 @@ function getProducts() {
 }
 
 function saveProducts(products) {
+  const previous = getProducts();
   saveJSON("importSystemProducts", products);
+  if (typeof markCloudCollectionSaved === "function") {
+    markCloudCollectionSaved("products", previous, products);
+  }
 }
 
 function getProductPrefix(category) {
@@ -1107,11 +1114,19 @@ function loadBatchByNumber() {
 
 function getImports(){return loadJSON("importSystemImports",[]);}
 function saveImports(v) {
+  const previous = getImports();
   saveJSON("importSystemImports", v);
+  if (typeof markCloudCollectionSaved === "function") {
+    markCloudCollectionSaved("imports", previous, v);
+  }
 }
 function getBatches(){return loadJSON("importSystemBatches",[]);}
 function saveBatches(v) {
+  const previous = getBatches();
   saveJSON("importSystemBatches", v);
+  if (typeof markCloudCollectionSaved === "function") {
+    markCloudCollectionSaved("batches", previous, v);
+  }
 }
 function renderBatchSuggestions(){
   document.getElementById("batchProductSuggestions").innerHTML=getProducts().sort((a,b)=>a.id.localeCompare(b.id)).map(p=>`<option value="${escapeHTML(p.name)}">${escapeHTML(p.id)} · ${escapeHTML(p.category)}</option>`).join("");
@@ -1908,10 +1923,6 @@ function saveBatchImport() {
   saveImports(imports);
   saveBatches(batches);
 
-  if (typeof scheduleGoogleSync === "function") {
-    scheduleGoogleSync(20);
-  }
-
   renderBatchSuggestions();
   renderBatchList();
   renderInventoryManagementList();
@@ -2354,13 +2365,19 @@ function restoreSystemData(event) {
       if (!confirmed) return;
 
       saveJSON("importSystemSettings", data.settings || {});
+      if (typeof markCloudSettingsSaved === "function") {
+        markCloudSettingsSaved();
+      }
       saveProducts(data.products);
       saveImports(data.imports);
       saveBatches(data.batches);
 
-      showDataToolsStatus("Restore 已完成，系统即将重新载入");
-
-      setTimeout(() => window.location.reload(), 700);
+      renderBatchSuggestions();
+      renderBatchList();
+      renderInventoryManagementList();
+      renderProductList();
+      renderDashboard();
+      showDataToolsStatus("Restore 已完成，资料正在同步");
     } catch (error) {
       console.error(error);
       showDataToolsStatus("Restore 失败：文件格式不正确", true);
