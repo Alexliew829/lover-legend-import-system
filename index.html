@@ -239,10 +239,26 @@
         </section>
 
         <section class="panel">
-          <div class="section-title-row">
-            <h3>最近进口批次</h3>
-            <span class="muted" id="batchListCount">0 批</span>
-          </div>
+         <div class="section-title-row batch-list-toolbar">
+  <h3>最近进口批次</h3>
+
+  <input
+    id="batchSearch"
+    class="search-input text-left-input"
+    type="text"
+    placeholder="搜索进口编号、产品名称、运输单号..."
+    autocomplete="off"
+  />
+
+  <button
+    id="toggleBatchListBtn"
+    class="secondary-btn"
+    type="button">
+    显示全部
+  </button>
+
+  <span class="muted" id="batchListCount">0 批</span>
+</div>
 
           <div id="batchList" class="import-list">
             <div class="empty-state">暂无进口批次</div>
