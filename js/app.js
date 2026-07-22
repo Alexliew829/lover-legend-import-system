@@ -2043,10 +2043,7 @@ function renderBatchList(){
     </div>
   <div class="product-code">
   ${x.totalQuantity} 件 · ${x.rackQuantity} 个木架 ·
-  <span title="${escapeHTML((x.items?.[0]?.name)||"-")}">
-    ${escapeHTML(((x.items?.[0]?.name)||"-").substring(0,20))}
-    ${((x.items?.[0]?.name||"").length>20)?"...":""}
-  </span>
+  ${escapeHTML((getBatchItemsForDisplay(x)[0]?.productName || getBatchItemsForDisplay(x)[0]?.name || "-"))}
 </div>
     <div class="import-card-meta"><div><span>运输天数</span><strong>${x.transitDays?`${x.transitDays} 天`:"-"}</strong></div><div><span>海外运费比例</span><strong>${formatMoney(getBatchShippingRate(x))}%</strong></div><div><span>批次总成本</span><strong>${formatMoney(x.grandTotal,"RM ")}</strong></div><div><span>运输单号</span><strong>${escapeHTML(x.overseasTrackingNumber || x.trackingNumber || "-")}</strong></div></div>
   </article>`).join("");
