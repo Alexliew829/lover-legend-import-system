@@ -1451,27 +1451,49 @@ input::placeholder {
 
 
 /* Formal V1.2 — wider product name and compact stock column */
+/* Formal V2.4 — wider product name (20 Chinese chars) */
+
 .batch-table .batch-name {
-  min-width: 254px;
-  width: 254px;
+  width: 340px;
+  min-width: 340px;
+  max-width: 340px;
+}
+
+.batch-table .batch-name input,
+.batch-table .batch-name select {
+  width: 100%;
+  min-width: 340px;
+  text-align: left !important;
+}
+
+.batch-table th:nth-child(3),
+.batch-table td:nth-child(3) {
+  width: 60px;
+  min-width: 60px;
+  max-width: 60px;
+}
+
+.batch-table td:nth-child(3) input {
+  width: 60px;
+  min-width: 60px;
+  max-width: 60px;
+  text-align: center;
 }
 
 .batch-table th:nth-child(6),
 .batch-table td:nth-child(6) {
-  width: 76px;
-  min-width: 76px;
-  max-width: 76px;
+  width: 70px;
+  min-width: 70px;
+  max-width: 70px;
 }
 
 .batch-table td:nth-child(6) input,
 .batch-table [id^="batchStock-"] {
-  width: 76px;
-  min-width: 76px;
-  max-width: 76px;
-  padding-left: 7px;
-  padding-right: 7px;
+  width: 70px;
+  min-width: 70px;
+  max-width: 70px;
+  text-align: center;
 }
-
 
 /* Formal V1.3 — whole batch delete and batch card actions */
 .danger-btn {
