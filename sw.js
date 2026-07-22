@@ -1,12 +1,12 @@
-const CACHE = "lover-legend-import-cost-formal-v2.2";
+const CACHE = "lover-legend-import-cost-formal-v2.3-fast-sync-final";
 const CORE = [
   "./",
   "./index.html",
-  "./css/style.css?v=2.2",
-  "./js/common.js?v=2.2",
-  "./js/sync.js?v=2.2",
-  "./js/app.js?v=2.2",
-  "./manifest.json?v=2.2",
+  "./css/style.css?v=2.3",
+  "./js/common.js?v=2.3",
+  "./js/sync.js?v=2.3.1",
+  "./js/app.js?v=2.3",
+  "./manifest.json?v=2.3",
   "./assets/images/logo-green.jpg",
   "./assets/images/logo-red.jpg",
   "./assets/icons/favicon.ico",
@@ -18,6 +18,7 @@ const CORE = [
 ];
 
 self.addEventListener("install", event => {
+  self.skipWaiting();
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(CORE)));
 });
 

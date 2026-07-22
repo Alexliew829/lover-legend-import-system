@@ -51,27 +51,53 @@ function setupCloudSync() {
   renderCloudMeta(getCloudConfig());
   setCloudState("syncing");
 
-  window.addEventListener("online", () => scheduleGoogleSync(50));
-
-  // V2.0: pending local work is pushed first; otherwise pull once.
-  window.setTimeout(() => runCloudSync(), 30);
-}
-
-async function callGoogleApi(payload) {
-  const response = await fetch(DEFAULT_GOOGLE_SCRIPT_URL, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(payload),
-    cache: "no-store"
+  window.addEventListener("online", () => scheduleGoogleSync(20));
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && getCloudQueue().dirty) scheduleGoogleSync(20);
   });
 
-  if (!response.ok) {
-    throw new Error(`Google connection failed (${response.status})`);
-  }
+  // Pending local work is pushed first; otherwise pull once.
+  window.setTimeout(() => runCloudSync(), 0);
+}
 
-  const data = await response.json();
-  if (!data.ok) throw new Error(data.error || "Google sync failed");
-  return data;
+async function callGoogleApi(payload, attempt = 0) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 25000);
+
+  try {
+    const response = await fetch(DEFAULT_GOOGLE_SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`Google connection failed (${response.status})`);
+    }
+
+    const data = await response.json();
+    if (!data.ok) throw new Error(data.error || "Google sync failed");
+    return data;
+  } catch (error) {
+    const retryable =
+      navigator.onLine &&
+      attempt < 2 &&
+      (error?.name === "AbortError" || error instanceof TypeError || /connection failed/i.test(String(error?.message || error)));
+
+    if (retryable) {
+      await new Promise(resolve => window.setTimeout(resolve, attempt === 0 ? 300 : 900));
+      return callGoogleApi(payload, attempt + 1);
+    }
+
+    if (error?.name === "AbortError") {
+      throw new Error("Google sync timeout");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 function makeLocalSnapshot() {
@@ -85,6 +111,7 @@ function makeLocalSnapshot() {
 
 function markCloudCollectionSaved(collection, previousItems, nextItems) {
   if (cloudApplyingRemote) return;
+  if (JSON.stringify(previousItems || []) === JSON.stringify(nextItems || [])) return;
 
   const queue = getCloudQueue();
   const oldIds = new Set((previousItems || []).map(item => String(item?.id || "")).filter(Boolean));
@@ -100,7 +127,7 @@ function markCloudCollectionSaved(collection, previousItems, nextItems) {
   queue.dirty = true;
   queue.changedAt = new Date().toISOString();
   saveCloudQueue(queue);
-  scheduleGoogleSync(140);
+  scheduleGoogleSync(80);
 }
 
 function markCloudSettingsSaved() {
@@ -109,10 +136,10 @@ function markCloudSettingsSaved() {
   queue.dirty = true;
   queue.changedAt = new Date().toISOString();
   saveCloudQueue(queue);
-  scheduleGoogleSync(140);
+  scheduleGoogleSync(80);
 }
 
-function scheduleGoogleSync(delay = 140) {
+function scheduleGoogleSync(delay = 80) {
   if (cloudApplyingRemote) return;
 
   const queue = getCloudQueue();
@@ -157,14 +184,26 @@ async function runCloudSync() {
   } finally {
     cloudSyncBusy = false;
     if (cloudSyncRequestedWhileBusy || getCloudQueue().dirty) {
-      cloudSyncTimer = window.setTimeout(() => runCloudSync(), 180);
+      cloudSyncTimer = window.setTimeout(() => runCloudSync(), 100);
     }
   }
 }
 
 async function pullLatestSnapshot() {
-  const data = await callGoogleApi({ action: "pull" });
   const config = getCloudConfig();
+  const data = await callGoogleApi({
+    action: "pull",
+    knownRevision: Number(config.revision) || 0
+  });
+  if (data.unchanged) {
+    config.revision = Number(data.revision) || 0;
+    config.lastSyncAt = new Date().toISOString();
+    saveCloudConfig(config);
+    renderCloudMeta(config);
+    setCloudState("synced");
+    return;
+  }
+
   const local = makeLocalSnapshot();
 
   // Migration protection: V1.9 did not persist its dirty state.
@@ -229,7 +268,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     action: "push",
     force: false,
     baseRevision: Number(config.revision) || 0,
-    updatedBy: "System V2.0",
+    updatedBy: "System V2.3 Fast Sync",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
