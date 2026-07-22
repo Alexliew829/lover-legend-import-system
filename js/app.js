@@ -1699,7 +1699,14 @@ function saveBatchImport() {
     status.textContent = "请至少完整输入一行产品。";
     return;
   }
-  
+
+  const names = result.valid.map(item => item.name.toLowerCase());
+
+  if (new Set(names).size !== names.length) {
+    status.textContent = "同一批不能重复相同产品名称。";
+    return;
+  }
+
   const products = getProducts();
   const imports = getImports();
   const batches = getBatches();
