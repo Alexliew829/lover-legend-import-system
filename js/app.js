@@ -2066,7 +2066,7 @@ function renderInventoryManagementList() {
     )
     .map(product => {
       const productName = String(product.name || "").trim().toLowerCase();
-      const importNumbers = imports
+      const matchingImports = imports
         .filter(record => {
           const sameProductId =
             product.id && record.productId && record.productId === product.id;
@@ -2075,6 +2075,15 @@ function renderInventoryManagementList() {
 
           return sameProductId || sameProductName;
         })
+        .sort((a, b) => {
+          const containerDateDiff =
+            parseDDMMYYYY(b.containerDate) - parseDDMMYYYY(a.containerDate);
+          if (containerDateDiff) return containerDateDiff;
+
+          return String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
+        });
+
+      const importNumbers = matchingImports
         .map(record => String(record.importNumber || "").trim())
         .filter(Boolean)
         .join(" ");
@@ -2082,7 +2091,10 @@ function renderInventoryManagementList() {
       return {
         ...product,
         importNumbers,
+        latestImportNumber:
+          String(matchingImports[0]?.importNumber || "").trim(),
         displayLastImport:
+          matchingImports[0]?.containerDate ||
           getLatestContainerDateByProduct(product.id) ||
           product.lastImport ||
           ""
@@ -2149,7 +2161,10 @@ function renderInventoryManagementList() {
       <article class="inventory-manage-card">
         <div class="inventory-manage-head">
           <div>
-            <h4>${escapeHTML(product.name)}</h4>
+            <div class="inventory-product-title-row">
+              <h4>${escapeHTML(product.name)}</h4>
+              ${product.latestImportNumber ? `<span class="inventory-import-number">${escapeHTML(product.latestImportNumber)}</span>` : ""}
+            </div>
             <div class="product-code">${escapeHTML(product.id)} · ${escapeHTML(product.category)}</div>
           </div>
         </div>
@@ -2241,7 +2256,14 @@ function exportSystemExcel() {
   const imports = getImports();
   const batches = getBatches();
 
-  const inventoryRows = products.map(product => [
+  // Inventory 工作表只导出真正仍有库存的产品。
+  // 删除批次或测试后留下的零库存、已移除产品不会再成为 Excel 垃圾资料。
+  const activeInventoryProducts = products.filter(product =>
+    !product.inventoryArchived &&
+    (Number(product.stock) || 0) > 0
+  );
+
+  const inventoryRows = activeInventoryProducts.map(product => [
     product.id || "",
     product.name || "",
     product.category || "",
@@ -2249,7 +2271,7 @@ function exportSystemExcel() {
     Number(product.averageCost) || 0,
     (Number(product.stock) || 0) * (Number(product.averageCost) || 0),
     product.lastImport || "",
-    product.inventoryArchived ? "已移除" : "当前库存"
+    "当前库存"
   ]);
 
   const importRows = imports.map(record => [
@@ -2315,13 +2337,13 @@ function exportSystemExcel() {
     "application/vnd.ms-excel;charset=utf-8"
   );
 
-  showDataToolsStatus("Excel 已导出");
+  showDataToolsStatus(`Excel 已导出：${activeInventoryProducts.length} 项当前库存`);
 }
 
 function backupSystemData() {
   const backup = {
     app: "Lover Legend Import Cost & Inventory System",
-    version: "2.08",
+    version: "2.1",
     exportedAt: new Date().toISOString(),
     settings: loadJSON("importSystemSettings", {}),
     products: getProducts(),

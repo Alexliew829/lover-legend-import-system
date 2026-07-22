@@ -667,8 +667,31 @@ small {
 }
 
 .inventory-manage-head h4 {
-  margin: 0 0 4px;
+  margin: 0;
   font-size: 17px;
+}
+
+.inventory-product-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.inventory-import-number {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 7px;
+  border: 1px solid #a9c7b5;
+  border-radius: 6px;
+  background: #eef7f1;
+  color: #236a43;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .inventory-summary-grid {
