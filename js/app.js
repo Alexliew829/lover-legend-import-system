@@ -2019,7 +2019,17 @@ function getBatchShippingRate(batch) {
 }
 
 function renderBatchList(){
-  const b=getBatches();document.getElementById("batchListCount").textContent=`${b.length} 批`;const l=document.getElementById("batchList");if(!b.length){l.innerHTML='<div class="empty-state">暂无进口批次</div>';return;}l.innerHTML=b.slice(0,10).map(x=>`<article class="import-card">
+  const b = getBatches().slice().sort((a, b) => {
+  const dateDiff =
+    parseDDMMYYYY(b.containerDate || b.date || "") -
+    parseDDMMYYYY(a.containerDate || a.date || "");
+
+  if (dateDiff) return dateDiff;
+
+  return String(b.createdAt || "")
+    .localeCompare(String(a.createdAt || ""));
+});
+  document.getElementById("batchListCount").textContent=`${b.length} 批`;const l=document.getElementById("batchList");if(!b.length){l.innerHTML='<div class="empty-state">暂无进口批次</div>';return;}l.innerHTML=b.slice(0,10).map(x=>`<article class="import-card">
     <div class="batch-card-title-row">
       <div>
         <h4>${escapeHTML(x.containerDate || x.date || "-")} · ${x.itemCount} 种产品</h4>
