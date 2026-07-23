@@ -268,7 +268,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     action: "push",
     force: false,
     baseRevision: Number(config.revision) || 0,
-    updatedBy: "System V2.5 Fast Sync",
+    updatedBy: "System V2.5.6 Cost Preserve + Fast Sync",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
@@ -352,6 +352,17 @@ function applyRemoteData(data) {
   } finally {
     cloudApplyingRemote = false;
   }
+
+  const repaired = typeof repairStoredInventoryFromImports === "function"
+    ? repairStoredInventoryFromImports({ persistCloud: false })
+    : false;
+  if (repaired) {
+    const queue = getCloudQueue();
+    queue.dirty = true;
+    queue.changedAt = new Date().toISOString();
+    saveCloudQueue(queue);
+  }
+
   refreshSystemViewsAfterSync();
 }
 
