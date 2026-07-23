@@ -579,44 +579,70 @@ function setupImportModule(){
   });
 
   batchForm.addEventListener("keydown", event => {
-  const target = event.target;
+    const target = event.target;
 
-  if (
-    !(target instanceof HTMLInputElement) &&
-    !(target instanceof HTMLSelectElement)
-  ) {
-    return;
-  }
+    if (
+      !(target instanceof HTMLInputElement) &&
+      !(target instanceof HTMLSelectElement)
+    ) {
+      return;
+    }
 
-  // 上下左右键
-  if (
-    ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)
-  ) {
+    const isArrowKey = [
+      "ArrowLeft",
+      "ArrowRight",
+      "ArrowUp",
+      "ArrowDown"
+    ].includes(event.key);
+
+    if (isArrowKey) {
+      const row = target.closest("#batchRows tr");
+
+      // 方向键只控制“同批产品”表格，不影响下面的批次资料输入框。
+      if (row) {
+        // 产品名称属于文字输入框：
+        // 左右键先正常移动文字光标，只有到达最左或最右才跳格。
+        if (
+          target instanceof HTMLInputElement &&
+          target.classList.contains("batch-name") &&
+          (event.key === "ArrowLeft" || event.key === "ArrowRight")
+        ) {
+          const start = target.selectionStart ?? 0;
+          const end = target.selectionEnd ?? start;
+          const hasSelection = start !== end;
+
+          if (hasSelection) return;
+
+          if (event.key === "ArrowLeft" && start > 0) return;
+          if (event.key === "ArrowRight" && end < target.value.length) return;
+        }
+
+        event.preventDefault();
+        moveBatchField(target, event.key);
+      }
+
+      return;
+    }
+
+    if (event.key !== "Enter") return;
+
     event.preventDefault();
-    moveBatchField(target, event.key);
-    return;
-  }
 
-  // 不是 Enter 就不处理
-  if (event.key !== "Enter") return;
+    if (
+      target instanceof HTMLInputElement &&
+      target.inputMode === "decimal"
+    ) {
+      formatInputAmount(target);
+    }
 
-  event.preventDefault();
+    calculateBatch();
 
-  if (
-    target instanceof HTMLInputElement &&
-    target.inputMode === "decimal"
-  ) {
-    formatInputAmount(target);
-  }
+    const moved = moveToNextBatchField(target);
 
-  calculateBatch();
-
-  const moved = moveToNextBatchField(target);
-
-  if (!moved && target instanceof HTMLElement) {
-    target.blur();
-  }
-});
+    if (!moved && target instanceof HTMLElement) {
+      target.blur();
+    }
+  });
   ["batchChinaTransportCost","batchPotCost","batchShippingMY","batchRate"].forEach(id=>{
     const x=document.getElementById(id); x.addEventListener("focus",()=>x.select());
     x.addEventListener("input",calculateBatch); x.addEventListener("blur",()=>{formatInputAmount(x);calculateBatch();});
@@ -671,7 +697,72 @@ function moveToNextBatchField(currentField) {
 
   return true;
 }
+function moveBatchField(currentField, key) {
+  const row = currentField.closest("#batchRows tr");
 
+  if (!row) return false;
+
+  const rows = Array.from(
+    document.querySelectorAll("#batchRows tr")
+  );
+
+  const rowIndex = rows.indexOf(row);
+
+  const getRowFields = currentRow => {
+    return Array.from(
+      currentRow.querySelectorAll(
+        'input:not([type="hidden"]):not([disabled]), select:not([disabled])'
+      )
+    );
+  };
+
+  const currentFields = getRowFields(row);
+  const columnIndex = currentFields.indexOf(currentField);
+
+  if (columnIndex === -1) return false;
+
+  let targetField = null;
+
+  if (key === "ArrowLeft") {
+    targetField = currentFields[columnIndex - 1] || null;
+  }
+
+  if (key === "ArrowRight") {
+    targetField = currentFields[columnIndex + 1] || null;
+  }
+
+  if (key === "ArrowUp" && rowIndex > 0) {
+    const previousFields = getRowFields(rows[rowIndex - 1]);
+    targetField = previousFields[columnIndex] || null;
+  }
+
+  if (key === "ArrowDown") {
+    if (rowIndex === rows.length - 1) {
+      addBatchRow();
+
+      const updatedRows = Array.from(
+        document.querySelectorAll("#batchRows tr")
+      );
+
+      const nextRow = updatedRows[rowIndex + 1];
+      const nextFields = nextRow ? getRowFields(nextRow) : [];
+      targetField = nextFields[columnIndex] || null;
+    } else {
+      const nextFields = getRowFields(rows[rowIndex + 1]);
+      targetField = nextFields[columnIndex] || null;
+    }
+  }
+
+  if (!targetField) return false;
+
+  targetField.focus();
+
+  if (targetField instanceof HTMLInputElement) {
+    targetField.select();
+  }
+
+  return true;
+}
 
 function generateImportNumber(currency, containerDate, batches) {
   const code = String(currency || "IMP").toUpperCase();
