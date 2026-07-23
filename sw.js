@@ -1,8 +1,8 @@
-const CACHE = "lover-legend-import-cost-formal-v2.5-history-input-fix";
+const CACHE = "lover-legend-import-cost-formal-v2.5-related-quantity-style-fix";
 const CORE = [
   "./",
   "./index.html",
-  "./css/style.css?v=2.5.1",
+  "./css/style.css?v=2.5.2",
   "./js/common.js?v=2.5",
   "./js/sync.js?v=2.5",
   "./js/app.js?v=2.5",

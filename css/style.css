@@ -1681,7 +1681,9 @@ input::placeholder {
 }
 
 .history-related-batch span {
-  font-size: 12px;
+  color: #d60000;
+  font-size: inherit;
+  font-weight: 900;
   text-align: right;
 }
 
