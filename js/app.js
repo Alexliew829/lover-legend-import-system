@@ -579,36 +579,44 @@ function setupImportModule(){
   });
 
   batchForm.addEventListener("keydown", event => {
-    if (event.key !== "Enter") return;
+  const target = event.target;
 
-    const target = event.target;
+  if (
+    !(target instanceof HTMLInputElement) &&
+    !(target instanceof HTMLSelectElement)
+  ) {
+    return;
+  }
 
-    if (
-      !(target instanceof HTMLInputElement) &&
-      !(target instanceof HTMLSelectElement)
-    ) {
-      return;
-    }
-
+  // 上下左右键
+  if (
+    ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)
+  ) {
     event.preventDefault();
+    moveBatchField(target, event.key);
+    return;
+  }
 
-    if (
-      target instanceof HTMLInputElement &&
-      target.inputMode === "decimal"
-    ) {
-      formatInputAmount(target);
-    }
+  // 不是 Enter 就不处理
+  if (event.key !== "Enter") return;
 
-    calculateBatch();
+  event.preventDefault();
 
-    const moved = moveToNextBatchField(target);
+  if (
+    target instanceof HTMLInputElement &&
+    target.inputMode === "decimal"
+  ) {
+    formatInputAmount(target);
+  }
 
-    // 海外到大马运费是最后一个可输入栏位。
-    // 没有下一栏时，只离开输入框并保留资料，不会自动保存。
-    if (!moved && target instanceof HTMLElement) {
-      target.blur();
-    }
-  });
+  calculateBatch();
+
+  const moved = moveToNextBatchField(target);
+
+  if (!moved && target instanceof HTMLElement) {
+    target.blur();
+  }
+});
   ["batchChinaTransportCost","batchPotCost","batchShippingMY","batchRate"].forEach(id=>{
     const x=document.getElementById(id); x.addEventListener("focus",()=>x.select());
     x.addEventListener("input",calculateBatch); x.addEventListener("blur",()=>{formatInputAmount(x);calculateBatch();});
