@@ -171,7 +171,21 @@ async function runCloudSync() {
 
   try {
     const queue = getCloudQueue();
-    if (queue.dirty) {
+    const snapshot = makeLocalSnapshot();
+    const localHasCoreData =
+      (snapshot.products || []).length > 0 ||
+      (snapshot.imports || []).length > 0 ||
+      (snapshot.batches || []).length > 0;
+
+    // 浏览器资料被清除后可能残留旧 dirty 标记；绝不能把空阵列推到云端。
+    if (queue.dirty && !localHasCoreData) {
+      saveCloudQueue({
+        dirty: false,
+        changedAt: "",
+        deleted: { products: [], imports: [], batches: [] }
+      });
+      await pullLatestSnapshot();
+    } else if (queue.dirty) {
       await pushPendingSnapshot(queue);
     } else {
       await pullLatestSnapshot();
@@ -191,11 +205,23 @@ async function runCloudSync() {
 
 async function pullLatestSnapshot() {
   const config = getCloudConfig();
+  const local = makeLocalSnapshot();
+  const localHasCoreData =
+    (local.products || []).length > 0 ||
+    (local.imports || []).length > 0 ||
+    (local.batches || []).length > 0;
+
   const data = await callGoogleApi({
     action: "pull",
-    knownRevision: Number(config.revision) || 0
+    knownRevision: Number(config.revision) || 0,
+    // 清除浏览器资料或首次开启时，即使 revision 相同也必须下载完整资料。
+    forceFull: !localHasCoreData
   });
   if (data.unchanged) {
+    // 本地为空时绝不能接受 unchanged，否则首页会显示 0。
+    if (!localHasCoreData) {
+      throw new Error("云端未返回完整资料，请重新同步");
+    }
     config.revision = Number(data.revision) || 0;
     config.lastSyncAt = new Date().toISOString();
     saveCloudConfig(config);
@@ -204,24 +230,9 @@ async function pullLatestSnapshot() {
     return;
   }
 
-  const local = makeLocalSnapshot();
 
-  // Migration protection: V1.9 did not persist its dirty state.
-  // If local records are newer than the last successful sync, merge and push
-  // instead of allowing the first V2.0 pull to erase them.
-  if (hasUnsyncedLocalChanges(local, data, config)) {
-    const queue = getCloudQueue();
-    queue.dirty = true;
-    queue.changedAt = queue.changedAt || new Date().toISOString();
-    saveCloudQueue(queue);
-
-    const merged = mergeSnapshots(data, local, queue);
-    applyRemoteData(merged);
-    config.revision = Number(data.revision) || 0;
-    saveCloudConfig(config);
-    await pushPendingSnapshot(queue);
-    return;
-  }
+  // 启动拉取以 Google Sheet 为准。只有明确标记为 dirty 的本地修改才允许推送；
+  // 不再用时间猜测本地较新，避免 Restore 后旧浏览器资料反向覆盖云端。
 
   if (Number(data.revision) !== Number(config.revision) || !config.lastSyncAt) {
     applyRemoteData(data);
@@ -353,14 +364,10 @@ function applyRemoteData(data) {
     cloudApplyingRemote = false;
   }
 
-  const repaired = typeof repairStoredInventoryFromImports === "function"
-    ? repairStoredInventoryFromImports({ persistCloud: false })
-    : false;
-  if (repaired) {
-    const queue = getCloudQueue();
-    queue.dirty = true;
-    queue.changedAt = new Date().toISOString();
-    saveCloudQueue(queue);
+  // 云端拉取后只在本机重建显示，不自动标记 dirty，避免一打开网页就把
+  // 浏览器旧资料或修复结果反向写回刚 Restore 的 Google Sheet。
+  if (typeof repairStoredInventoryFromImports === "function") {
+    repairStoredInventoryFromImports({ persistCloud: false });
   }
 
   refreshSystemViewsAfterSync();
