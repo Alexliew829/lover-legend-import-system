@@ -177,7 +177,7 @@ async function runCloudSync() {
       (snapshot.imports || []).length > 0 ||
       (snapshot.batches || []).length > 0;
 
-    // 浏览器资料被清除后可能残留旧 dirty 标记；绝不能把空阵列推到云端。
+    // 浏览器资料为空时，绝不能把空阵列推回Google Sheet。
     if (queue.dirty && !localHasCoreData) {
       saveCloudQueue({
         dirty: false,
@@ -215,13 +215,12 @@ async function pullLatestSnapshot() {
     action: "pull",
     knownRevision: Number(config.revision) || 0,
     hasLocalData: localHasCoreData,
-    // 清除浏览器资料或首次开启时，即使 revision 相同也必须下载完整资料。
     forceFull: !localHasCoreData
   });
+
   if (data.unchanged) {
-    // 本地为空时绝不能接受 unchanged，否则首页会显示 0。
     if (!localHasCoreData) {
-      throw new Error("云端未返回完整资料，请重新同步");
+      throw new Error("Google Sheet未返回完整资料，已停止显示空库存");
     }
     config.revision = Number(data.revision) || 0;
     config.lastSyncAt = new Date().toISOString();
@@ -231,19 +230,12 @@ async function pullLatestSnapshot() {
     return;
   }
 
-
-  // 服务器既然返回完整快照，就必须应用。不能只比较 revision：
-  // 浏览器资料被清除后，revision 仍可能与云端相同，旧逻辑会因此保持首页为 0。
-  if (
-    !Array.isArray(data.products) ||
-    !Array.isArray(data.imports) ||
-    !Array.isArray(data.batches)
-  ) {
-    throw new Error("Google Sheet 返回的资料不完整");
+  if (!Array.isArray(data.products) || !Array.isArray(data.imports) || !Array.isArray(data.batches)) {
+    throw new Error("Google Sheet返回资料不完整");
   }
 
+  // 正常启动拉取以Google Sheet为准；只有明确dirty的本地修改才可推送。
   applyRemoteData(data);
-
   config.revision = Number(data.revision) || 0;
   config.lastSyncAt = new Date().toISOString();
   saveCloudConfig(config);
@@ -285,7 +277,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     action: "push",
     force: false,
     baseRevision: Number(config.revision) || 0,
-    updatedBy: "System V2.5.3 Inventory Reconcile",
+    updatedBy: "System V2.6 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
@@ -360,22 +352,21 @@ function getItemTime(item) {
 }
 
 function applyRemoteData(data) {
+  if (!Array.isArray(data.products) || !Array.isArray(data.imports) || !Array.isArray(data.batches)) {
+    throw new Error("云端资料不完整，已停止覆盖本机资料");
+  }
+
   cloudApplyingRemote = true;
   try {
     localStorage.setItem("importSystemSettings", JSON.stringify(data.settings || {}));
-    localStorage.setItem("importSystemProducts", JSON.stringify(data.products || []));
-    localStorage.setItem("importSystemImports", JSON.stringify(data.imports || []));
-    localStorage.setItem("importSystemBatches", JSON.stringify(data.batches || []));
+    localStorage.setItem("importSystemProducts", JSON.stringify(data.products));
+    localStorage.setItem("importSystemImports", JSON.stringify(data.imports));
+    localStorage.setItem("importSystemBatches", JSON.stringify(data.batches));
   } finally {
     cloudApplyingRemote = false;
   }
 
-  // 云端拉取后只在本机重建显示，不自动标记 dirty，避免一打开网页就把
-  // 浏览器旧资料或修复结果反向写回刚 Restore 的 Google Sheet。
-  if (typeof repairStoredInventoryFromImports === "function") {
-    repairStoredInventoryFromImports({ persistCloud: false });
-  }
-
+  // 云端拉取后只刷新画面，不自动重建或上传，避免同步循环与Restore后反向覆盖。
   refreshSystemViewsAfterSync();
 }
 
