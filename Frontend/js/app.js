@@ -964,13 +964,24 @@ function getCanonicalInventoryImports(imports = getImports(), batches = getBatch
     }
   };
 
-  (imports || []).forEach(addRecord);
+  const batchMap = new Map(
+    (batches || []).map(batch => [String(batch.id || batch.importNumber || ""), batch])
+  );
+
+  (imports || []).forEach(record => {
+    const parentBatch = batchMap.get(String(record?.batchId || record?.importNumber || ""));
+    addRecord({
+      ...record,
+      unitCost: resolveImportUnitCost(record, parentBatch)
+    });
+  });
   (batches || []).forEach(batch => {
     (Array.isArray(batch?.items) ? batch.items : []).forEach(item => addRecord({
       ...item,
       batchId: item.batchId || batch.id,
       importNumber: item.importNumber || batch.importNumber,
-      containerDate: item.containerDate || batch.containerDate
+      containerDate: item.containerDate || batch.containerDate,
+      unitCost: resolveImportUnitCost(item, batch)
     }));
   });
 
@@ -1021,7 +1032,7 @@ function repairStoredInventoryFromImports({ persistCloud = true } = {}) {
 }
 
 
-function resolveImportUnitCost(record) {
+function resolveImportUnitCost(record, batch = null) {
   const direct = Number(record?.unitCost);
   if (Number.isFinite(direct) && direct > 0) return direct;
 
@@ -1029,16 +1040,61 @@ function resolveImportUnitCost(record) {
     0,
     Number(record?.originalQuantity ?? record?.stockAdded ?? record?.quantity) || 0
   );
+  if (originalQuantity <= 0) return 0;
+
   const batchTotal = Number(record?.batchTotal);
-  if (originalQuantity > 0 && Number.isFinite(batchTotal) && batchTotal > 0) {
+  if (Number.isFinite(batchTotal) && batchTotal > 0) {
     return batchTotal / originalQuantity;
+  }
+
+  // 旧版本的进口明细可能没有保存 unitCost / batchTotal。
+  // 优先根据该批次原始费用，使用与新增进口完全相同的分摊公式重建。
+  if (batch && typeof batch === "object") {
+    const items = Array.isArray(batch.items) ? batch.items : [];
+    const foreignTotal = Math.max(
+      0,
+      Number(record?.foreignTotal) ||
+      ((Number(record?.quantity) || originalQuantity) * (Number(record?.unitPrice) || 0))
+    );
+    const totalPurchaseForeign = items.reduce((sum, item) => {
+      const itemForeign = Number(item?.foreignTotal);
+      if (Number.isFinite(itemForeign) && itemForeign > 0) return sum + itemForeign;
+      return sum + ((Number(item?.quantity) || 0) * (Number(item?.unitPrice) || 0));
+    }, 0);
+    const rate = Number(record?.rate) > 0
+      ? Number(record.rate)
+      : (Number(batch.rate) > 0 ? Number(batch.rate) : 0);
+    const sharedForeign =
+      (Number(batch.chinaTransportCost) || 0) +
+      (Number(batch.potCost) || 0);
+    const shippingRate = Number(record?.shippingRate);
+    const effectiveShippingRate = Number.isFinite(shippingRate)
+      ? shippingRate
+      : (Number(batch.shippingRate) || 0);
+
+    if (rate > 0 && foreignTotal > 0 && totalPurchaseForeign > 0) {
+      const purchaseRM = foreignTotal / rate;
+      const sharedRM = sharedForeign / rate;
+      const allocatedSharedRM = sharedRM * (foreignTotal / totalPurchaseForeign);
+      const itemTotal = (purchaseRM + allocatedSharedRM) *
+        (1 + effectiveShippingRate / 100);
+      if (Number.isFinite(itemTotal) && itemTotal > 0) {
+        return itemTotal / originalQuantity;
+      }
+    }
+
+    // 最后备用：按货款比例分配整批总成本。
+    const grandTotal = Number(batch.grandTotal);
+    if (grandTotal > 0 && foreignTotal > 0 && totalPurchaseForeign > 0) {
+      return (grandTotal * (foreignTotal / totalPurchaseForeign)) / originalQuantity;
+    }
   }
 
   const purchaseRM = Number(record?.purchaseRM);
   const shippingRate = Number(record?.shippingRate);
-  if (originalQuantity > 0 && Number.isFinite(purchaseRM) && purchaseRM > 0) {
-    const rate = Number.isFinite(shippingRate) ? shippingRate : 0;
-    return (purchaseRM * (1 + rate / 100)) / originalQuantity;
+  if (Number.isFinite(purchaseRM) && purchaseRM > 0) {
+    const effectiveRate = Number.isFinite(shippingRate) ? shippingRate : 0;
+    return (purchaseRM * (1 + effectiveRate / 100)) / originalQuantity;
   }
 
   return 0;
@@ -2331,7 +2387,7 @@ function saveBatchImport() {
         // 此值仅作为最近一次库存调整记录；原进口历史不变。
         remainingQuantity: newRemaining,
         stockAdded: originalQuantity,
-        unitCost: resolveImportUnitCost(oldItem),
+        unitCost: resolveImportUnitCost(oldItem, oldBatch),
         updatedAt: new Date().toISOString()
       });
     }
