@@ -1173,7 +1173,7 @@ function loadBatchByNumber() {
     (Number(batch.grandTotal) || Number(batch.shippingRate))
   ) {
     document.getElementById("batchStatusText").textContent =
-      `警告：进口编号 ${batch.importNumber} 的旧资料不足，无法恢复内地运输＋打木架费用。请勿更新此批次，先核对原始资料。`;
+      `提醒：此批次属于旧版本资料，无法自动恢复当时的内地运输＋打木架费用。如该栏位为空，请按原始单据补回后再更新，不会影响现有库存及Average Cost。`;
   } else if (
     !(Number.isFinite(storedChinaTransportCost) && storedChinaTransportCost > 0) &&
     !(Number.isFinite(storedChinaTransportRM) && storedChinaTransportRM > 0) &&
