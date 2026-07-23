@@ -214,6 +214,7 @@ async function pullLatestSnapshot() {
   const data = await callGoogleApi({
     action: "pull",
     knownRevision: Number(config.revision) || 0,
+    hasLocalData: localHasCoreData,
     // 清除浏览器资料或首次开启时，即使 revision 相同也必须下载完整资料。
     forceFull: !localHasCoreData
   });
@@ -231,12 +232,17 @@ async function pullLatestSnapshot() {
   }
 
 
-  // 启动拉取以 Google Sheet 为准。只有明确标记为 dirty 的本地修改才允许推送；
-  // 不再用时间猜测本地较新，避免 Restore 后旧浏览器资料反向覆盖云端。
-
-  if (Number(data.revision) !== Number(config.revision) || !config.lastSyncAt) {
-    applyRemoteData(data);
+  // 服务器既然返回完整快照，就必须应用。不能只比较 revision：
+  // 浏览器资料被清除后，revision 仍可能与云端相同，旧逻辑会因此保持首页为 0。
+  if (
+    !Array.isArray(data.products) ||
+    !Array.isArray(data.imports) ||
+    !Array.isArray(data.batches)
+  ) {
+    throw new Error("Google Sheet 返回的资料不完整");
   }
+
+  applyRemoteData(data);
 
   config.revision = Number(data.revision) || 0;
   config.lastSyncAt = new Date().toISOString();
