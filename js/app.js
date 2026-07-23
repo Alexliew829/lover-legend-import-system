@@ -1694,9 +1694,10 @@ function calculateBatch() {
   updateTransitDays();
 
   const rows = collectBatchRows();
+  const isInventoryAdjustment = Boolean(currentEditingImportNumber);
   const valid = rows.filter(row =>
     row.name &&
-    row.quantity > 0 &&
+    (isInventoryAdjustment ? row.quantity >= 0 : row.quantity > 0) &&
     row.unitPrice > 0
   );
 
@@ -1959,7 +1960,16 @@ function saveBatchImport() {
       const edited = editedMap.get(key);
       const originalQuantity = Math.max(0, Number(oldItem.originalQuantity ?? oldItem.quantity) || 0);
       const oldRemaining = Math.max(0, Number(oldItem.remainingQuantity ?? oldItem.quantity) || 0);
-      const newRemaining = Math.max(0, Math.floor(Number(edited.quantity) || 0));
+      const parsedRemaining = Number(edited.quantity);
+      const newRemaining = Number.isFinite(parsedRemaining)
+        ? Math.max(0, Math.floor(parsedRemaining))
+        : oldRemaining;
+
+      if (newRemaining > originalQuantity) {
+        status.textContent =
+          `${oldItem.productName || edited.name || "此产品"} 的当前剩余数量不能超过原进口数量 ${originalQuantity}。`;
+        return;
+      }
 
       const productIndex = products.findIndex(product =>
         product.id === oldItem.productId ||
