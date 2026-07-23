@@ -1032,109 +1032,9 @@ function repairStoredInventoryFromImports({ persistCloud = true } = {}) {
 }
 
 
-
-function getImportIdentityKey(record) {
-  return [
-    String(record?.id || ""),
-    String(record?.productId || ""),
-    String(record?.productName || record?.name || "").trim().toLowerCase(),
-    String(record?.category || "盆栽")
-  ].join("::");
-}
-
-function getImportForeignTotal(record) {
-  const stored = Number(record?.foreignTotal);
-  if (Number.isFinite(stored) && stored > 0) return stored;
-  const quantity = Math.max(0, Number(record?.originalQuantity ?? record?.quantity ?? record?.stockAdded) || 0);
-  const unitPrice = Math.max(0, Number(record?.unitPrice) || 0);
-  return quantity * unitPrice;
-}
-
-function buildRecoveredBatchCostMap(batch) {
-  const output = new Map();
-  if (!batch || typeof batch !== "object") return output;
-
-  const items = Array.isArray(batch.items) ? batch.items : [];
-  if (!items.length) return output;
-
-  const known = [];
-  const missing = [];
-  let knownTotal = 0;
-
-  items.forEach(item => {
-    const qty = Math.max(0, Number(item?.originalQuantity ?? item?.stockAdded ?? item?.quantity) || 0);
-    const immutableUnit = Number(item?.originalUnitCost);
-    const directUnit = Number(item?.unitCost);
-    const immutableTotal = Number(item?.originalBatchTotal);
-    const directTotal = Number(item?.batchTotal);
-
-    let itemTotal = 0;
-    if (Number.isFinite(immutableTotal) && immutableTotal > 0) itemTotal = immutableTotal;
-    else if (Number.isFinite(directTotal) && directTotal > 0) itemTotal = directTotal;
-    else if (qty > 0 && Number.isFinite(immutableUnit) && immutableUnit > 0) itemTotal = qty * immutableUnit;
-    else if (qty > 0 && Number.isFinite(directUnit) && directUnit > 0) itemTotal = qty * directUnit;
-
-    const entry = { item, qty, foreignTotal: getImportForeignTotal(item), itemTotal };
-    if (itemTotal > 0 && qty > 0) {
-      known.push(entry);
-      knownTotal += itemTotal;
-      output.set(getImportIdentityKey(item), itemTotal / qty);
-    } else {
-      missing.push(entry);
-    }
-  });
-
-  if (!missing.length) return output;
-
-  let batchTotal = Number(batch.grandTotal);
-  if (!(Number.isFinite(batchTotal) && batchTotal > 0)) {
-    const foreignCostsRM = Number(batch.totalForeignCostsRM) || 0;
-    const shippingMY = Number(batch.shippingMY) || 0;
-    batchTotal = foreignCostsRM + shippingMY;
-  }
-
-  if (!(Number.isFinite(batchTotal) && batchTotal > knownTotal)) return output;
-
-  const residual = batchTotal - knownTotal;
-  const weightTotal = missing.reduce((sum, entry) => sum + (entry.foreignTotal > 0 ? entry.foreignTotal : entry.qty), 0);
-  if (weightTotal <= 0) return output;
-
-  missing.forEach(entry => {
-    if (entry.qty <= 0) return;
-    const weight = entry.foreignTotal > 0 ? entry.foreignTotal : entry.qty;
-    const allocatedTotal = residual * (weight / weightTotal);
-    if (allocatedTotal > 0) output.set(getImportIdentityKey(entry.item), allocatedTotal / entry.qty);
-  });
-
-  return output;
-}
-
-function findRecoveredBatchUnitCost(record, batch) {
-  const map = buildRecoveredBatchCostMap(batch);
-  const exact = map.get(getImportIdentityKey(record));
-  if (Number.isFinite(exact) && exact > 0) return exact;
-
-  const productId = String(record?.productId || "");
-  const name = String(record?.productName || record?.name || "").trim().toLowerCase();
-  const category = String(record?.category || "盆栽");
-  const items = Array.isArray(batch?.items) ? batch.items : [];
-  const matched = items.find(item =>
-    (productId && String(item?.productId || "") === productId) ||
-    (name && String(item?.productName || item?.name || "").trim().toLowerCase() === name && String(item?.category || "盆栽") === category)
-  );
-  const matchedCost = matched ? map.get(getImportIdentityKey(matched)) : 0;
-  return Number.isFinite(matchedCost) && matchedCost > 0 ? matchedCost : 0;
-}
-
-function resolveImportUnitCost(record, batch = null) {
-  const immutable = Number(record?.originalUnitCost);
-  if (Number.isFinite(immutable) && immutable > 0) return immutable;
-
+function resolveImportUnitCost(record, batch = null, fallbackProduct = null, fallbackImport = null) {
   const direct = Number(record?.unitCost);
   if (Number.isFinite(direct) && direct > 0) return direct;
-
-  const recoveredFromBatch = findRecoveredBatchUnitCost(record, batch);
-  if (recoveredFromBatch > 0) return recoveredFromBatch;
 
   const originalQuantity = Math.max(
     0,
@@ -1146,6 +1046,17 @@ function resolveImportUnitCost(record, batch = null) {
   if (Number.isFinite(batchTotal) && batchTotal > 0) {
     return batchTotal / originalQuantity;
   }
+
+  const fallbackDirect = Number(fallbackImport?.unitCost);
+  if (Number.isFinite(fallbackDirect) && fallbackDirect > 0) return fallbackDirect;
+
+  const fallbackBatchTotal = Number(fallbackImport?.batchTotal);
+  if (Number.isFinite(fallbackBatchTotal) && fallbackBatchTotal > 0) {
+    return fallbackBatchTotal / originalQuantity;
+  }
+
+  const productAverage = Number(fallbackProduct?.averageCost);
+  if (Number.isFinite(productAverage) && productAverage > 0) return productAverage;
 
   // 旧版本的进口明细可能没有保存 unitCost / batchTotal。
   // 优先根据该批次原始费用，使用与新增进口完全相同的分摊公式重建。
@@ -2476,31 +2387,50 @@ function saveBatchImport() {
         (String(product.name || "").trim().toLowerCase() === String(oldItem.productName || "").trim().toLowerCase() &&
          product.category === oldItem.category)
       );
-      if (productIndex !== -1) {
-        affectedProductIndexes.add(productIndex);
-      }
+      const productBeforeEdit = productIndex !== -1 ? products[productIndex] : null;
+      if (productIndex !== -1) affectedProductIndexes.add(productIndex);
+
+      const matchingStoredImport = imports.find(record =>
+        String(record.id || "") === String(oldItem.id || "") ||
+        (
+          String(record.batchId || record.importNumber || "") === String(oldBatch.id || oldBatch.importNumber || "") &&
+          (
+            (record.productId && oldItem.productId && String(record.productId) === String(oldItem.productId)) ||
+            (
+              String(record.productName || "").trim().toLowerCase() === String(oldItem.productName || "").trim().toLowerCase() &&
+              String(record.category || "盆栽") === String(oldItem.category || "盆栽")
+            )
+          )
+        )
+      );
+
+      const preservedUnitCost = resolveImportUnitCost(oldItem, oldBatch, productBeforeEdit, matchingStoredImport);
+      const preservedBatchTotal = [
+        Number(oldItem.batchTotal),
+        Number(matchingStoredImport?.batchTotal),
+        preservedUnitCost > 0 ? preservedUnitCost * originalQuantity : 0
+      ].find(value => Number.isFinite(value) && value > 0) || 0;
 
       updatedItems.push({
         ...oldItem,
         originalQuantity,
         quantity: originalQuantity,
-        // 此值仅作为最近一次库存调整记录；原进口历史不变。
         remainingQuantity: newRemaining,
         stockAdded: originalQuantity,
-        unitCost: resolveImportUnitCost(oldItem, oldBatch),
-        originalUnitCost: resolveImportUnitCost(oldItem, oldBatch),
-        originalBatchTotal: originalQuantity * resolveImportUnitCost(oldItem, oldBatch),
-        batchTotal: Number(oldItem.batchTotal) > 0
-          ? Number(oldItem.batchTotal)
-          : originalQuantity * resolveImportUnitCost(oldItem, oldBatch),
+        unitCost: preservedUnitCost,
+        batchTotal: preservedBatchTotal,
         updatedAt: new Date().toISOString()
       });
     }
 
-    for (let i = imports.length - 1; i >= 0; i -= 1) {
-      if (imports[i].batchId === oldBatch.id) imports.splice(i, 1);
+    const replacements = new Map(updatedItems.map(item => [String(item.id || ""), item]));
+    for (let i = 0; i < imports.length; i += 1) {
+      const replacement = replacements.get(String(imports[i].id || ""));
+      if (replacement) imports[i] = replacement;
     }
-    imports.push(...updatedItems);
+    updatedItems.forEach(item => {
+      if (!imports.some(record => String(record.id || "") === String(item.id || ""))) imports.push(item);
+    });
 
     batches[batchIndex] = {
       ...oldBatch,
@@ -2618,9 +2548,7 @@ function saveBatchImport() {
       unitPrice: item.unitPrice, currency: item.currency, rate: item.rate,
       foreignTotal: item.foreignTotal, purchaseRM: item.purchaseRM,
       shippingRate: result.shippingRate, unitCost: item.unitCost,
-      originalUnitCost: item.unitCost,
       stockAdded: item.stockAdded, batchTotal: item.itemTotal,
-      originalBatchTotal: item.itemTotal,
       averageDirection: item.direction, rackQuantity: batch.rackQuantity,
       trackingNumber: batch.trackingNumber,
       overseasTrackingNumber: batch.overseasTrackingNumber,

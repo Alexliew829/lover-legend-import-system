@@ -268,7 +268,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     action: "push",
     force: false,
     baseRevision: Number(config.revision) || 0,
-    updatedBy: "System V2.5.6 Cost Preserve + Fast Sync",
+    updatedBy: "System V2.5.3 Inventory Reconcile",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
