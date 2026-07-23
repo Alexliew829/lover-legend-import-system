@@ -1067,6 +1067,42 @@ function getDefaultExchangeRate(currency) {
     : defaults[currency] || 0;
 }
 
+function getCumulativeOriginalQuantity(productId, productName, category, imports = getImports()) {
+  const normalizedName = String(productName || "").trim().toLowerCase();
+  const normalizedCategory = String(category || "盆栽");
+
+  return imports.reduce((sum, item) => {
+    const sameProduct = productId
+      ? String(item.productId || "") === String(productId)
+      : (
+          String(item.productName || "").trim().toLowerCase() === normalizedName &&
+          String(item.category || "盆栽") === normalizedCategory
+        );
+
+    if (!sameProduct) return sum;
+
+    return sum + Math.max(
+      0,
+      Number(item.originalQuantity ?? item.quantity) || 0
+    );
+  }, 0);
+}
+
+function getCurrentProductStock(productId, productName, category, products = getProducts()) {
+  const normalizedName = String(productName || "").trim().toLowerCase();
+  const normalizedCategory = String(category || "盆栽");
+
+  const product = products.find(item =>
+    (productId && String(item.id || "") === String(productId)) ||
+    (
+      String(item.name || "").trim().toLowerCase() === normalizedName &&
+      String(item.category || "盆栽") === normalizedCategory
+    )
+  );
+
+  return Math.max(0, Number(product?.stock) || 0);
+}
+
 function loadBatchByNumber() {
   const input = document.getElementById("batchLookupInput");
   const importNumber = input.value.trim();
@@ -1218,11 +1254,26 @@ function loadBatchByNumber() {
   batchRowSeq = 0;
 
   batchItems.forEach(item => {
+    const originalQuantity = Math.max(
+      0,
+      Number(item.originalQuantity ?? item.quantity) || 0
+    );
+    const storedRemainingQuantity = Number(
+      item.remainingQuantity ?? item.quantity
+    );
+    const remainingQuantity = Number.isFinite(storedRemainingQuantity)
+      ? Math.min(
+          originalQuantity,
+          Math.max(0, Math.floor(storedRemainingQuantity))
+        )
+      : originalQuantity;
+
     addBatchRow({
       name: item.productName || "",
       category: item.category || "盆栽",
       productId: item.productId || "",
-      quantity: Number(item.remainingQuantity ?? item.quantity) || 0,
+      originalQuantity,
+      quantity: remainingQuantity,
       unitPrice: Number(item.unitPrice) || 0,
       unitCost: Number(item.unitCost) || 0
     });
@@ -1285,8 +1336,19 @@ function renderImportHistory() {
   const shippingRate = getBatchShippingRate(batch);
 
   const rows = items.map(item => {
-    const originalQuantity = Number(item.originalQuantity ?? item.quantity) || 0;
-    const remainingQuantity = Number(item.remainingQuantity ?? item.quantity) || 0;
+    const originalQuantity = Math.max(
+      0,
+      Number(item.originalQuantity ?? item.quantity) || 0
+    );
+    const storedRemainingQuantity = Number(
+      item.remainingQuantity ?? item.quantity
+    );
+    const remainingQuantity = Number.isFinite(storedRemainingQuantity)
+      ? Math.min(
+          originalQuantity,
+          Math.max(0, Math.floor(storedRemainingQuantity))
+        )
+      : originalQuantity;
     return `
       <tr>
         <td>${escapeHTML(item.productName || "-")}</td>
@@ -1611,7 +1673,15 @@ function resetBatchForm(options = {}) {
   calculateBatch();
 }
 function addBatchRow(prefill = {}){
-  const id=++batchRowSeq,tr=document.createElement("tr"); tr.dataset.rowId=id;
+  const id=++batchRowSeq,tr=document.createElement("tr");
+  tr.dataset.rowId=id;
+
+  const editableMaximum = Number(prefill.originalQuantity);
+  const hasEditableMaximum = Number.isFinite(editableMaximum) && editableMaximum >= 0;
+  if (hasEditableMaximum) {
+    tr.dataset.originalQuantity = String(Math.floor(editableMaximum));
+  }
+
   tr.innerHTML=`<td><input id="batchName-${id}" class="batch-name" list="batchProductSuggestions" placeholder="输入或选择产品" value="${escapeHTML(prefill.name || "")}"><input id="batchProductId-${id}" type="hidden" value="${escapeHTML(prefill.productId || "")}"></td>
   <td><select id="batchCategory-${id}">
     <option value="盆栽">盆栽</option>
@@ -1627,9 +1697,19 @@ function addBatchRow(prefill = {}){
   document.getElementById("batchRows").appendChild(tr);
   document.getElementById(`batchCategory-${id}`).value =
     prefill.category || "盆栽";
-  if (prefill.quantity) {
-    document.getElementById(`batchQty-${id}`).value = prefill.quantity;
-    document.getElementById(`batchStock-${id}`).value = prefill.quantity;
+  if (Number.isFinite(Number(prefill.quantity))) {
+    const quantity = Math.max(0, Math.floor(Number(prefill.quantity)));
+    const quantityInput = document.getElementById(`batchQty-${id}`);
+    quantityInput.value = quantity;
+    document.getElementById(`batchStock-${id}`).value = quantity;
+
+    if (hasEditableMaximum) {
+      quantityInput.max = String(Math.floor(editableMaximum));
+      quantityInput.setAttribute(
+        "aria-label",
+        `此进口编号当前剩余数量，允许 0 至 ${Math.floor(editableMaximum)}`
+      );
+    }
   }
   if (prefill.unitPrice) {
     document.getElementById(`batchPrice-${id}`).value =
@@ -1958,8 +2038,19 @@ function saveBatchImport() {
     const updatedItems = [];
     for (const [key, oldItem] of oldMap.entries()) {
       const edited = editedMap.get(key);
-      const originalQuantity = Math.max(0, Number(oldItem.originalQuantity ?? oldItem.quantity) || 0);
-      const oldRemaining = Math.max(0, Number(oldItem.remainingQuantity ?? oldItem.quantity) || 0);
+      const originalQuantity = Math.max(
+        0,
+        Number(oldItem.originalQuantity ?? oldItem.quantity) || 0
+      );
+      const oldRemainingRaw = Number(
+        oldItem.remainingQuantity ?? oldItem.quantity
+      );
+      const oldRemaining = Number.isFinite(oldRemainingRaw)
+        ? Math.min(
+            originalQuantity,
+            Math.max(0, Math.floor(oldRemainingRaw))
+          )
+        : originalQuantity;
       const parsedRemaining = Number(edited.quantity);
       const newRemaining = Number.isFinite(parsedRemaining)
         ? Math.max(0, Math.floor(parsedRemaining))
@@ -1967,7 +2058,7 @@ function saveBatchImport() {
 
       if (newRemaining > originalQuantity) {
         status.textContent =
-          `${oldItem.productName || edited.name || "此产品"} 的当前剩余数量不能超过原进口数量 ${originalQuantity}。`;
+          `${oldItem.productName || edited.name || "此产品"} 原进口 ${originalQuantity}，此进口编号的当前剩余数量只允许输入 0 至 ${originalQuantity}，不能保存 ${newRemaining}。`;
         return;
       }
 
@@ -1977,14 +2068,25 @@ function saveBatchImport() {
          product.category === oldItem.category)
       );
       if (productIndex !== -1) {
-        const delta = newRemaining - oldRemaining;
-        const currentStock = Math.max(0, Number(products[productIndex].stock) || 0);
+        const currentTotalStock = Math.max(
+          0,
+          Number(products[productIndex].stock) || 0
+        );
+        const stockDifference = newRemaining - oldRemaining;
+        const updatedTotalStock = Math.max(
+          0,
+          currentTotalStock + stockDifference
+        );
+
         products[productIndex] = {
           ...products[productIndex],
-          stock: Math.max(0, currentStock + delta),
-          // 销售只改变库存，Average Cost 保持不变。
+          stock: updatedTotalStock,
+          // 编辑某进口编号只调整该批次剩余数量；产品总库存按差额加减。
+          // 销售、退货及盘点不会改变 Average Cost。
           averageCost: Number(products[productIndex].averageCost) || 0,
-          inventoryArchived: newRemaining <= 0 ? products[productIndex].inventoryArchived : false,
+          inventoryArchived: updatedTotalStock <= 0
+            ? products[productIndex].inventoryArchived
+            : false,
           updatedAt: new Date().toISOString()
         };
       }
@@ -1993,6 +2095,7 @@ function saveBatchImport() {
         ...oldItem,
         originalQuantity,
         quantity: originalQuantity,
+        // 此值仅作为最近一次库存调整记录；原进口历史不变。
         remainingQuantity: newRemaining,
         stockAdded: originalQuantity,
         updatedAt: new Date().toISOString()
@@ -2029,7 +2132,7 @@ function saveBatchImport() {
 
     clearBatchAfterSuccessfulAction();
     document.getElementById("batchStatusText").textContent =
-      `已更新 ${currentEditingImportNumber || oldBatch.importNumber} 的当前库存；库存数量可增加或减少，原进口数量、原成本、Average Cost及海外运费比例保持不变。`;
+      `已更新 ${currentEditingImportNumber || oldBatch.importNumber} 的批次剩余数量；每项允许范围为 0 至该进口编号的原进口数量。产品总库存已按差额同步调整，原进口历史、原成本、Average Cost及海外运费比例保持不变。`;
     return;
   }
 
