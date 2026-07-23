@@ -4,6 +4,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupSettings();
   setupDashboard();
   setupImportModule();
+  setupImportHistory();
   setupInventoryModule();
   registerServiceWorker();
   setupCloudSync();
@@ -152,6 +153,10 @@ function setupNavigation() {
         renderDashboard();
       }
 
+      if (target === "historyPage") {
+        renderImportHistory();
+      }
+
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
   });
@@ -215,6 +220,17 @@ function renderDashboard() {
   );
 
   const productCount = activeInventoryProducts.length;
+  const categoryOrder = ["盆栽", "花盆", "周边产品"];
+  const categoryCounts = activeInventoryProducts.reduce((counts, item) => {
+    const category = item.category || "盆栽";
+    counts[category] = (counts[category] || 0) + 1;
+    return counts;
+  }, {});
+  const categorySummary = categoryOrder
+    .filter(category => (categoryCounts[category] || 0) > 0)
+    .map(category => `${category}：${formatNumber(categoryCounts[category])}`)
+    .join("\n");
+
   const stockCount = activeInventoryProducts.reduce(
     (sum, item) => sum + (Number(item.stock) || 0),
     0
@@ -234,7 +250,7 @@ function renderDashboard() {
       return parse(b) - parse(a);
     });
 
-  document.getElementById("productCount").textContent = formatNumber(productCount);
+  document.getElementById("productCount").textContent = categorySummary || formatNumber(productCount);
   document.getElementById("stockCount").textContent = formatNumber(stockCount);
   document.getElementById("inventoryValue").textContent = formatMoney(inventoryValue, "RM ");
   const batches = getBatches();
@@ -1206,7 +1222,7 @@ function loadBatchByNumber() {
       name: item.productName || "",
       category: item.category || "盆栽",
       productId: item.productId || "",
-      quantity: Number(item.quantity) || 0,
+      quantity: Number(item.remainingQuantity ?? item.quantity) || 0,
       unitPrice: Number(item.unitPrice) || 0,
       unitCost: Number(item.unitCost) || 0
     });
@@ -1227,6 +1243,82 @@ function loadBatchByNumber() {
 
   input.value = batch.importNumber;
   setBatchEditMode(batch.importNumber);
+}
+
+
+function setupImportHistory() {
+  const input = document.getElementById("historyLookupInput");
+  const button = document.getElementById("historyLookupBtn");
+
+  if (button) button.addEventListener("click", renderImportHistory);
+  if (input) {
+    input.addEventListener("keydown", event => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      renderImportHistory();
+    });
+  }
+}
+
+function renderImportHistory() {
+  const input = document.getElementById("historyLookupInput");
+  const output = document.getElementById("historyResult");
+  if (!input || !output) return;
+
+  const importNumber = input.value.trim();
+  if (!importNumber) {
+    output.innerHTML = '<div class="empty-state">Paste 进口编号后查看原始进口历史</div>';
+    return;
+  }
+
+  const batch = getBatches().find(item =>
+    String(item.importNumber || "").toLowerCase() === importNumber.toLowerCase()
+  );
+
+  if (!batch) {
+    output.innerHTML = '<div class="empty-state">找不到这个进口编号</div>';
+    return;
+  }
+
+  const items = getBatchItemsForDisplay(batch);
+  const currency = escapeHTML(batch.currency || items[0]?.currency || "-");
+  const shippingRate = getBatchShippingRate(batch);
+
+  const rows = items.map(item => {
+    const originalQuantity = Number(item.originalQuantity ?? item.quantity) || 0;
+    const remainingQuantity = Number(item.remainingQuantity ?? item.quantity) || 0;
+    return `
+      <tr>
+        <td>${escapeHTML(item.productName || "-")}</td>
+        <td>${escapeHTML(item.category || "-")}</td>
+        <td>${formatNumber(originalQuantity)}</td>
+        <td>${formatNumber(remainingQuantity)}</td>
+        <td>${formatMoney(Number(item.unitPrice) || 0)} ${currency}</td>
+        <td>${formatMoney(Number(item.unitCost) || 0, "RM ")}</td>
+      </tr>`;
+  }).join("");
+
+  output.innerHTML = `
+    <article class="history-card">
+      <div class="history-number">${escapeHTML(batch.importNumber || "-")}</div>
+      <div class="history-meta-grid">
+        <div><span>装柜日期</span><strong>${escapeHTML(batch.containerDate || "-")}</strong></div>
+        <div><span>抵达日期</span><strong>${escapeHTML(batch.arrivalDate || "-")}</strong></div>
+        <div><span>货币 / 汇率</span><strong>${currency} / ${formatMoney(Number(batch.rate) || 0)}</strong></div>
+        <div><span>海外运费比例</span><strong>${formatMoney(shippingRate)}%</strong></div>
+        <div><span>海外运费</span><strong>${formatMoney(Number(batch.shippingMY) || 0, "RM ")}</strong></div>
+        <div><span>整批原总成本</span><strong>${formatMoney(Number(batch.grandTotal) || 0, "RM ")}</strong></div>
+        <div><span>内地运输＋木架</span><strong>${formatMoney(Number(batch.chinaTransportCost) || 0)} ${currency}</strong></div>
+        <div><span>搭配花盆费用</span><strong>${formatMoney(Number(batch.potCost) || 0)} ${currency}</strong></div>
+      </div>
+      <div class="history-readonly-note">只读历史资料，不能编辑</div>
+      <div class="history-table-wrap">
+        <table class="history-table">
+          <thead><tr><th>产品</th><th>类别</th><th>原进口</th><th>当前剩余</th><th>原单价</th><th>原每棵成本</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="6">暂无产品资料</td></tr>'}</tbody>
+        </table>
+      </div>
+    </article>`;
 }
 
 function getImports(){return loadJSON("importSystemImports",[]);}
@@ -1780,6 +1872,15 @@ function calculateBatch() {
       formatMoney(grandTotal, "RM ");
   }
 
+  if (currentEditingImportNumber) {
+    const storedBatch = getBatches().find(
+      batch => batch.importNumber === currentEditingImportNumber
+    );
+    if (storedBatch) {
+      restoreStoredBatchRMDisplay(storedBatch, getBatchItemsForDisplay(storedBatch));
+    }
+  }
+
   return {
     valid,
     totalPurchaseForeign,
@@ -1817,8 +1918,7 @@ function saveBatchImport() {
     return;
   }
 
-  const names = result.valid.map(item => item.name.toLowerCase());
-
+  const names = result.valid.map(item => `${item.name.toLowerCase()}|${item.category}`);
   if (new Set(names).size !== names.length) {
     status.textContent = "同一批不能重复相同产品名称。";
     return;
@@ -1828,151 +1928,154 @@ function saveBatchImport() {
   const imports = getImports();
   const batches = getBatches();
   const today = formatDateDDMMYYYY(new Date());
-
-  const lookupValue =
-    document.getElementById("batchLookupInput")?.value.trim() || "";
-
-  const existingByLookup = lookupValue
-    ? getBatches().find(
-        batch =>
-          String(batch.importNumber || "").toLowerCase() ===
-          lookupValue.toLowerCase()
-      )
-    : null;
-
-  if (existingByLookup && !currentEditingImportNumber) {
-    status.textContent =
-      `进口编号 ${existingByLookup.importNumber} 已存在，系统已切换为更新模式。请先载入后再修改。`;
-    document.getElementById("batchLookupInput").value =
-      existingByLookup.importNumber;
-    loadBatchByNumber();
-    return;
-  }
-
   const isEditing = Boolean(currentEditingImportNumber);
 
-  let importNumber = currentEditingImportNumber;
-  let batchId = "";
-
-  let existingBatchIndex = -1;
-  let oldBatch = null;
-  let oldBatchItems = [];
-
   if (isEditing) {
-    existingBatchIndex = batches.findIndex(
+    const batchIndex = batches.findIndex(
       batch => batch.importNumber === currentEditingImportNumber
     );
-
-    if (existingBatchIndex === -1) {
-      status.textContent = "找不到原批次，无法更新。";
+    if (batchIndex === -1) {
+      status.textContent = "找不到原批次，无法更新库存。";
       return;
     }
 
-    oldBatch = batches[existingBatchIndex];
-    batchId = oldBatch.id;
-    oldBatchItems = imports.filter(
-      record => record.batchId === batchId
-    );
+    const oldBatch = batches[batchIndex];
+    const oldItems = getBatchItemsForDisplay(oldBatch);
+    const keyOf = item => `${String(item.productId || "")}::${String(item.productName || item.name || "").trim().toLowerCase()}::${String(item.category || "盆栽")}`;
+    const oldMap = new Map(oldItems.map(item => [keyOf(item), item]));
+    const editedMap = new Map(result.valid.map(item => [keyOf({
+      productId: item.productId,
+      productName: item.name,
+      category: item.category
+    }), item]));
 
-    const remainingImports = imports.filter(
-      record => record.batchId !== batchId
-    );
-
-    // First reverse the old batch, then rebuild it with the edited values.
-    reverseBatchInventoryImpact(
-      products,
-      oldBatchItems.length ? oldBatchItems : (oldBatch.items || []),
-      remainingImports
-    );
-
-    // Remove old import records for this batch before rebuilding them.
-    for (let i = imports.length - 1; i >= 0; i -= 1) {
-      if (imports[i].batchId === batchId) {
-        imports.splice(i, 1);
-      }
+    if (oldMap.size !== editedMap.size || [...oldMap.keys()].some(key => !editedMap.has(key))) {
+      status.textContent = "库存调整只能修改原批次产品的剩余数量，不能新增、删除或更换产品。";
+      return;
     }
-  } else {
-    batchId = `BAT${Date.now()}`;
-    importNumber = generateImportNumber(
-      document.getElementById("batchCurrency").value,
-      document.getElementById("batchContainerDate").value,
-      batches
-    );
+
+    const updatedItems = [];
+    for (const [key, oldItem] of oldMap.entries()) {
+      const edited = editedMap.get(key);
+      const originalQuantity = Math.max(0, Number(oldItem.originalQuantity ?? oldItem.quantity) || 0);
+      const oldRemaining = Math.max(0, Number(oldItem.remainingQuantity ?? oldItem.quantity) || 0);
+      const newRemaining = Math.max(0, Math.floor(Number(edited.quantity) || 0));
+
+      if (newRemaining > originalQuantity) {
+        status.textContent = `${oldItem.productName} 的当前剩余数量不能超过原进口数量 ${originalQuantity}。`;
+        return;
+      }
+
+      const productIndex = products.findIndex(product =>
+        product.id === oldItem.productId ||
+        (String(product.name || "").trim().toLowerCase() === String(oldItem.productName || "").trim().toLowerCase() &&
+         product.category === oldItem.category)
+      );
+      if (productIndex !== -1) {
+        const delta = newRemaining - oldRemaining;
+        const currentStock = Math.max(0, Number(products[productIndex].stock) || 0);
+        products[productIndex] = {
+          ...products[productIndex],
+          stock: Math.max(0, currentStock + delta),
+          // 销售只改变库存，Average Cost 保持不变。
+          averageCost: Number(products[productIndex].averageCost) || 0,
+          inventoryArchived: newRemaining <= 0 ? products[productIndex].inventoryArchived : false,
+          updatedAt: new Date().toISOString()
+        };
+      }
+
+      updatedItems.push({
+        ...oldItem,
+        originalQuantity,
+        quantity: originalQuantity,
+        remainingQuantity: newRemaining,
+        stockAdded: originalQuantity,
+        updatedAt: new Date().toISOString()
+      });
+    }
+
+    for (let i = imports.length - 1; i >= 0; i -= 1) {
+      if (imports[i].batchId === oldBatch.id) imports.splice(i, 1);
+    }
+    imports.push(...updatedItems);
+
+    batches[batchIndex] = {
+      ...oldBatch,
+      items: updatedItems,
+      totalQuantity: oldItems.reduce(
+        (sum, item) => sum + (Number(item.originalQuantity ?? item.quantity) || 0),
+        0
+      ),
+      totalRemainingQuantity: updatedItems.reduce(
+        (sum, item) => sum + (Number(item.remainingQuantity) || 0),
+        0
+      ),
+      updatedAt: new Date().toISOString()
+    };
+
+    saveProducts(products);
+    saveImports(imports);
+    saveBatches(batches);
+    renderBatchSuggestions();
+    renderBatchList();
+    renderInventoryManagementList();
+    renderDashboard();
+    renderImportHistory();
+
+    clearBatchAfterSuccessfulAction();
+    document.getElementById("batchStatusText").textContent =
+      `已更新 ${currentEditingImportNumber || oldBatch.importNumber} 的当前库存；原进口数量、原成本、Average Cost及海外运费比例保持不变。`;
+    return;
   }
+
+  const batchId = `BAT${Date.now()}`;
+  const importNumber = generateImportNumber(
+    document.getElementById("batchCurrency").value,
+    document.getElementById("batchContainerDate").value,
+    batches
+  );
 
   const batch = {
     id: batchId,
     importNumber,
-    date: isEditing ? (oldBatch?.date || today) : today,
-    rackQuantity: Math.max(
-      0,
-      Math.floor(
-        parseAmount(
-          document.getElementById("batchRackQuantity").value
-        )
-      )
-    ),
-    trackingNumber:
-      document.getElementById("batchTrackingNumber").value.trim(),
-    overseasTrackingNumber:
-      document.getElementById("batchOverseasTrackingNumber").value.trim(),
+    date: today,
+    rackQuantity: Math.max(0, Math.floor(parseAmount(document.getElementById("batchRackQuantity").value))),
+    trackingNumber: document.getElementById("batchTrackingNumber").value.trim(),
+    overseasTrackingNumber: document.getElementById("batchOverseasTrackingNumber").value.trim(),
     chinaTransportCost: result.chinaForeign,
-    chinaTransportRM:
-      result.totalPurchaseRM > 0 && result.foreignGrandTotal > 0
-        ? (result.chinaForeign / result.foreignGrandTotal) *
-          result.totalPurchaseRM
-        : 0,
+    chinaTransportRM: result.totalPurchaseRM > 0 && result.foreignGrandTotal > 0
+      ? (result.chinaForeign / result.foreignGrandTotal) * result.totalPurchaseRM : 0,
     potCost: result.potForeign,
-    potRM:
-      result.totalPurchaseRM > 0 && result.foreignGrandTotal > 0
-        ? (result.potForeign / result.foreignGrandTotal) *
-          result.totalPurchaseRM
-        : 0,
+    potRM: result.totalPurchaseRM > 0 && result.foreignGrandTotal > 0
+      ? (result.potForeign / result.foreignGrandTotal) * result.totalPurchaseRM : 0,
     currency: document.getElementById("batchCurrency").value,
-    rate: parseAmount(
-      document.getElementById("batchRate").value
-    ),
-    containerDate:
-      document.getElementById("batchContainerDate").value,
-    arrivalDate:
-      document.getElementById("batchArrivalDate").value,
+    rate: parseAmount(document.getElementById("batchRate").value),
+    containerDate: document.getElementById("batchContainerDate").value,
+    arrivalDate: document.getElementById("batchArrivalDate").value,
     transitDays: result.transitDays,
     shippingMY: result.shippingMY,
     shippingRate: result.shippingRate,
     totalForeignCostsRM: result.totalPurchaseRM,
     grandTotal: result.grandTotal,
     totalQuantity: result.totalQuantity,
+    totalRemainingQuantity: result.totalQuantity,
     itemCount: result.valid.length,
-    createdAt:
-      isEditing
-        ? (oldBatch?.createdAt || new Date().toISOString())
-        : new Date().toISOString(),
+    createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     items: []
   };
 
   result.valid.forEach(item => {
-    let productIndex = products.findIndex(
-      product =>
-        product.name.toLowerCase() === item.name.toLowerCase() &&
-        product.category === item.category
+    let productIndex = products.findIndex(product =>
+      product.name.toLowerCase() === item.name.toLowerCase() && product.category === item.category
     );
-
     if (productIndex === -1) {
       products.push({
-        id: generateNextProductId(products, item.category),
-        name: item.name,
-        category: item.category,
-        status: "启用",
-        remark: "",
-        stock: 0,
-        averageCost: 0,
-        lastImport: "",
-        inventoryArchived: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        id: generateNextProductId(products, item.category), name: item.name,
+        category: item.category, status: "启用", remark: "", stock: 0,
+        averageCost: 0, lastImport: "", inventoryArchived: false,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
       });
-
       productIndex = products.length - 1;
     }
 
@@ -1980,81 +2083,46 @@ function saveBatchImport() {
     const oldStock = Number(product.stock) || 0;
     const oldAverage = Number(product.averageCost) || 0;
     const newStock = oldStock + item.stockAdded;
-
-    const newAverage =
-      newStock > 0
-        ? (
-            (oldStock * oldAverage) +
-            (item.stockAdded * item.unitCost)
-          ) / newStock
-        : item.unitCost;
+    const newAverage = newStock > 0
+      ? ((oldStock * oldAverage) + (item.stockAdded * item.unitCost)) / newStock
+      : item.unitCost;
 
     products[productIndex] = {
-      ...product,
-      stock: newStock,
-      averageCost: newAverage,
-      inventoryArchived: false,
-      lastImport: batch.containerDate || today,
+      ...product, stock: newStock, averageCost: newAverage,
+      inventoryArchived: false, lastImport: batch.containerDate || today,
       updatedAt: new Date().toISOString()
     };
 
     const record = {
-      id: `IMP${Date.now()}${item.id}`,
-      batchId,
-      importNumber,
-      date: today,
-      productId: products[productIndex].id,
-      productName: item.name,
-      category: item.category,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      currency: item.currency,
-      rate: item.rate,
-      foreignTotal: item.foreignTotal,
-      purchaseRM: item.purchaseRM,
-      shippingRate: result.shippingRate,
-      unitCost: item.unitCost,
-      stockAdded: item.stockAdded,
-      batchTotal: item.itemTotal,
-      averageDirection: item.direction,
-      rackQuantity: batch.rackQuantity,
+      id: `IMP${Date.now()}${item.id}`, batchId, importNumber, date: today,
+      productId: products[productIndex].id, productName: item.name,
+      category: item.category, originalQuantity: item.quantity,
+      quantity: item.quantity, remainingQuantity: item.quantity,
+      unitPrice: item.unitPrice, currency: item.currency, rate: item.rate,
+      foreignTotal: item.foreignTotal, purchaseRM: item.purchaseRM,
+      shippingRate: result.shippingRate, unitCost: item.unitCost,
+      stockAdded: item.stockAdded, batchTotal: item.itemTotal,
+      averageDirection: item.direction, rackQuantity: batch.rackQuantity,
       trackingNumber: batch.trackingNumber,
       overseasTrackingNumber: batch.overseasTrackingNumber,
-      containerDate: batch.containerDate,
-      arrivalDate: batch.arrivalDate,
-      transitDays: batch.transitDays,
-      createdAt: new Date().toISOString()
+      containerDate: batch.containerDate, arrivalDate: batch.arrivalDate,
+      transitDays: batch.transitDays, createdAt: new Date().toISOString()
     };
-
     imports.push(record);
     batch.items.push(record);
   });
 
-  if (isEditing) {
-    batches[existingBatchIndex] = batch;
-  } else {
-    batches.unshift(batch);
-  }
-
+  batches.unshift(batch);
   saveProducts(products);
   saveImports(imports);
   saveBatches(batches);
-
   renderBatchSuggestions();
   renderBatchList();
   renderInventoryManagementList();
   renderDashboard();
-
-  const successMessage = isEditing
-    ? `已更新批次 ${importNumber}，进口编号保持不变。`
-    : `整批已保存，进口编号：${importNumber}。`;
-
   clearBatchAfterSuccessfulAction();
-
-  const refreshedStatus = document.getElementById("batchStatusText");
-  if (refreshedStatus) {
-    refreshedStatus.textContent = `${successMessage} 输入资料已自动清空。`;
-  }
+  document.getElementById("batchStatusText").textContent =
+    `整批已保存，进口编号：${importNumber}。输入资料已自动清空。`;
 }
 
 
@@ -2607,7 +2675,7 @@ function exportSystemExcel() {
 function backupSystemData() {
   const backup = {
     app: "Lover Legend Import Cost & Inventory System",
-    version: "2.4",
+    version: "2.5",
     exportedAt: new Date().toISOString(),
     settings: loadJSON("importSystemSettings", {}),
     products: getProducts(),

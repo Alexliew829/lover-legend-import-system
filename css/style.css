@@ -1566,3 +1566,43 @@ input::placeholder {
     width: min(210px, 60vw);
   }
 }
+
+
+/* Formal V2.5 — category summary and read-only import history */
+#productCount {
+  white-space: pre-line;
+  line-height: 1.35;
+  font-size: 18px;
+}
+.history-lookup-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.history-lookup-row .search-input { flex: 1; }
+.history-readonly-note {
+  margin: 8px 0 12px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: #fff7df;
+  color: #775600;
+  font-size: 13px;
+  font-weight: 700;
+}
+.history-card { border: 1px solid #dce5df; border-radius: 12px; padding: 14px; background: #fff; }
+.history-number { font-size: 19px; font-weight: 900; color: #1f5d3a; margin-bottom: 12px; word-break: break-all; }
+.history-meta-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.history-meta-grid div { padding: 9px; border-radius: 8px; background: #f5f8f6; }
+.history-meta-grid span { display: block; font-size: 11px; color: #68756e; margin-bottom: 3px; }
+.history-meta-grid strong { font-size: 13px; color: #1d2922; word-break: break-word; }
+.history-table-wrap { overflow-x: auto; margin-top: 12px; }
+.history-table { width: 100%; border-collapse: collapse; min-width: 680px; }
+.history-table th, .history-table td { padding: 9px 8px; border-bottom: 1px solid #e2e8e4; text-align: left; font-size: 12px; }
+.history-table th { background: #eef5f0; color: #315440; }
+@media (max-width: 640px) {
+  .history-meta-grid { grid-template-columns: 1fr; }
+  .history-lookup-row { align-items: stretch; }
+  .history-lookup-row .primary-btn { white-space: nowrap; }
+  .bottom-nav .nav-btn small { font-size: 10px; }
+}
