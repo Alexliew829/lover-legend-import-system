@@ -213,10 +213,11 @@ function setupDashboard() {
 
 function renderDashboard() {
   const products = loadJSON("importSystemProducts", []);
+  // 库存数量才是首页是否显示的最终依据。
+  // 旧版本或删除批次后可能遗留 inventoryArchived=true，
+  // 只要库存仍大于 0，就必须继续显示。
   const activeInventoryProducts = products.filter(
-    item =>
-      !item.inventoryArchived &&
-      (Number(item.stock) || 0) > 0
+    item => (Number(item.stock) || 0) > 0
   );
 
   const productCount = activeInventoryProducts.length;
@@ -916,12 +917,22 @@ function restoreStoredBatchRMDisplay(batch, items) {
   });
 }
 
-function recalculateProductLastImport(productId, remainingImports) {
+function recalculateProductLastImport(productId, remainingImports, productName = "", category = "盆栽") {
+  const normalizedName = String(productName || "").trim().toLowerCase();
+  const normalizedCategory = String(category || "盆栽");
+
   return remainingImports
-    .filter(record =>
-      record.productId === productId &&
-      record.containerDate
-    )
+    .filter(record => {
+      const sameProductId =
+        productId && record.productId &&
+        String(record.productId) === String(productId);
+      const sameProductIdentity =
+        normalizedName &&
+        String(record.productName || "").trim().toLowerCase() === normalizedName &&
+        String(record.category || "盆栽") === normalizedCategory;
+
+      return (sameProductId || sameProductIdentity) && record.containerDate;
+    })
     .sort(
       (a, b) =>
         parseDDMMYYYY(b.containerDate) -
@@ -933,15 +944,19 @@ function reverseBatchInventoryImpact(products, batchItems, remainingImports) {
   const affectedProductIds = new Set();
 
   batchItems.forEach(record => {
-    const productIndex = products.findIndex(
-      product =>
-        product.id === record.productId ||
-        (
-          !record.productId &&
-          String(product.name || "").trim().toLowerCase() ===
-          String(record.productName || "").trim().toLowerCase()
-        )
-    );
+    const recordName = String(record.productName || "").trim().toLowerCase();
+    const recordCategory = String(record.category || "盆栽");
+    const productIndex = products.findIndex(product => {
+      const sameProductId =
+        product.id && record.productId &&
+        String(product.id) === String(record.productId);
+      const sameProductIdentity =
+        recordName &&
+        String(product.name || "").trim().toLowerCase() === recordName &&
+        String(product.category || "盆栽") === recordCategory;
+
+      return sameProductId || sameProductIdentity;
+    });
 
     if (productIndex === -1) return;
 
@@ -970,8 +985,13 @@ function reverseBatchInventoryImpact(products, batchItems, remainingImports) {
           : 0,
       lastImport: recalculateProductLastImport(
         product.id,
-        remainingImports
+        remainingImports,
+        product.name,
+        product.category
       ),
+      // 删除较新的进口批次后，只要旧批次仍有库存，
+      // 首页必须恢复显示该产品。
+      inventoryArchived: revertedStock > 0 ? false : product.inventoryArchived,
       updatedAt: new Date().toISOString()
     };
   });
@@ -1022,6 +1042,13 @@ function deleteBatchByNumber(importNumber) {
     effectiveItems,
     remainingImports
   );
+
+  // 修复旧资料可能遗留的隐藏标记：有库存就不能被首页隐藏。
+  products.forEach(product => {
+    if ((Number(product.stock) || 0) > 0) {
+      product.inventoryArchived = false;
+    }
+  });
 
   batches.splice(batchIndex, 1);
 
@@ -2591,11 +2618,9 @@ function renderInventoryManagementList() {
   const imports = getImports();
 
   const products = getProducts()
-    .filter(
-      product =>
-        !product.inventoryArchived &&
-        (Number(product.stock) || 0) > 0
-    )
+    // 首页以实际库存为准；避免旧的 inventoryArchived 标记
+    // 把删除新批次后仍剩旧库存的产品错误隐藏。
+    .filter(product => (Number(product.stock) || 0) > 0)
     .map(product => {
       const productName = String(product.name || "").trim().toLowerCase();
       const matchingImports = imports
@@ -2826,9 +2851,8 @@ function exportSystemExcel() {
 
   // Inventory 工作表只导出真正仍有库存的产品。
   // 删除批次或测试后留下的零库存、已移除产品不会再成为 Excel 垃圾资料。
-  const activeInventoryProducts = products.filter(product =>
-    !product.inventoryArchived &&
-    (Number(product.stock) || 0) > 0
+  const activeInventoryProducts = products.filter(
+    product => (Number(product.stock) || 0) > 0
   );
 
   const inventoryRows = activeInventoryProducts.map(product => [
