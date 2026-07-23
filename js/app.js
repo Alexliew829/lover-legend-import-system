@@ -795,7 +795,18 @@ function generateImportNumber(currency, containerDate, batches) {
     return match ? Math.max(max, Number(match[1])) : max;
   }, 0);
 
-  return `${prefix}${maxSequence + 1}`;
+  let nextSequence = maxSequence + 1;
+  let nextImportNumber = `${prefix}${nextSequence}`;
+  const usedNumbers = new Set(
+    batches.map(batch => String(batch.importNumber || "").toUpperCase())
+  );
+
+  while (usedNumbers.has(nextImportNumber.toUpperCase())) {
+    nextSequence += 1;
+    nextImportNumber = `${prefix}${nextSequence}`;
+  }
+
+  return nextImportNumber;
 }
 
 function copyBatchNumber(importNumber, button) {
@@ -1335,6 +1346,9 @@ function renderImportHistory() {
   const currency = escapeHTML(batch.currency || items[0]?.currency || "-");
   const shippingRate = getBatchShippingRate(batch);
 
+  const allBatches = getBatches();
+  const allImports = getImports();
+
   const rows = items.map(item => {
     const originalQuantity = Math.max(
       0,
@@ -1360,6 +1374,83 @@ function renderImportHistory() {
       </tr>`;
   }).join("");
 
+  const relatedBatchNotices = items.map(item => {
+    const productId = String(item.productId || "").trim();
+    const productName = String(item.productName || "").trim();
+    const productNameLower = productName.toLowerCase();
+
+    const relatedRecords = allImports.filter(record => {
+      const sameProductId =
+        productId && record.productId && String(record.productId) === productId;
+      const sameProductName =
+        String(record.productName || "").trim().toLowerCase() === productNameLower;
+
+      return (sameProductId || sameProductName) &&
+        String(record.importNumber || "").trim() !== String(batch.importNumber || "").trim();
+    });
+
+    const uniqueRelated = [];
+    const seenNumbers = new Set();
+
+    relatedRecords.forEach(record => {
+      const number = String(record.importNumber || "").trim();
+      if (!number || seenNumbers.has(number)) return;
+      seenNumbers.add(number);
+
+      const original = Math.max(
+        0,
+        Number(record.originalQuantity ?? record.quantity) || 0
+      );
+      const remainingRaw = Number(
+        record.remainingQuantity ?? record.quantity
+      );
+      const remaining = Number.isFinite(remainingRaw)
+        ? Math.max(0, Math.floor(remainingRaw))
+        : original;
+
+      uniqueRelated.push({
+        importNumber: number,
+        originalQuantity: original,
+        remainingQuantity: remaining
+      });
+    });
+
+    if (!uniqueRelated.length) return "";
+
+    const currentBatchOriginal = Math.max(
+      0,
+      Number(item.originalQuantity ?? item.quantity) || 0
+    );
+    const currentBatchRemainingRaw = Number(
+      item.remainingQuantity ?? item.quantity
+    );
+    const currentBatchRemaining = Number.isFinite(currentBatchRemainingRaw)
+      ? Math.max(0, Math.floor(currentBatchRemainingRaw))
+      : currentBatchOriginal;
+
+    const totalRemaining = uniqueRelated.reduce(
+      (sum, related) => sum + related.remainingQuantity,
+      currentBatchRemaining
+    );
+
+    const relatedRows = uniqueRelated.map(related => `
+      <div class="history-related-batch">
+        <strong>${escapeHTML(related.importNumber)}</strong>
+        <span>原进口 ${formatNumber(related.originalQuantity)} · 当前剩余 ${formatNumber(related.remainingQuantity)}</span>
+      </div>
+    `).join("");
+
+    return `
+      <div class="history-related-notice">
+        <div class="history-related-title">
+          此产品还有 ${uniqueRelated.length} 个其他进口编号：${escapeHTML(productName || "未命名产品")}
+        </div>
+        ${relatedRows}
+        <div class="history-related-total">目前同产品总库存：${formatNumber(totalRemaining)}</div>
+      </div>
+    `;
+  }).filter(Boolean).join("");
+
   output.innerHTML = `
     <article class="history-card">
       <div class="history-number">${escapeHTML(batch.importNumber || "-")}</div>
@@ -1380,6 +1471,7 @@ function renderImportHistory() {
           <tbody>${rows || '<tr><td colspan="6">暂无产品资料</td></tr>'}</tbody>
         </table>
       </div>
+      ${relatedBatchNotices}
     </article>`;
 }
 
@@ -2523,16 +2615,43 @@ function renderInventoryManagementList() {
           return String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
         });
 
-      const importNumbers = matchingImports
-        .map(record => String(record.importNumber || "").trim())
-        .filter(Boolean)
+      const batchStocks = [];
+      const seenImportNumbers = new Set();
+
+      matchingImports.forEach(record => {
+        const importNumber = String(record.importNumber || "").trim();
+        if (!importNumber || seenImportNumbers.has(importNumber)) return;
+        seenImportNumbers.add(importNumber);
+
+        const originalQuantity = Math.max(
+          0,
+          Number(record.originalQuantity ?? record.quantity) || 0
+        );
+        const remainingRaw = Number(
+          record.remainingQuantity ?? record.quantity
+        );
+        const remainingQuantity = Number.isFinite(remainingRaw)
+          ? Math.max(0, Math.floor(remainingRaw))
+          : originalQuantity;
+
+        if (remainingQuantity > 0) {
+          batchStocks.push({
+            importNumber,
+            remainingQuantity
+          });
+        }
+      });
+
+      const importNumbers = batchStocks
+        .map(item => item.importNumber)
         .join(" ");
 
       return {
         ...product,
         importNumbers,
+        batchStocks,
         latestImportNumber:
-          String(matchingImports[0]?.importNumber || "").trim(),
+          String(batchStocks[0]?.importNumber || matchingImports[0]?.importNumber || "").trim(),
         displayLastImport:
           matchingImports[0]?.containerDate ||
           getLatestContainerDateByProduct(product.id) ||
@@ -2603,8 +2722,17 @@ function renderInventoryManagementList() {
           <div>
             <div class="inventory-product-title-row">
               <h4>${escapeHTML(product.name)}</h4>
-              ${product.latestImportNumber ? `<button class="inventory-import-number" type="button" data-import-number="${escapeHTML(product.latestImportNumber)}" title="点击复制进口编号">${escapeHTML(product.latestImportNumber)}</button>` : ""}
             </div>
+            ${product.batchStocks?.length ? `
+              <div class="inventory-batch-list">
+                ${product.batchStocks.map(batchStock => `
+                  <button class="inventory-import-number inventory-batch-number" type="button" data-import-number="${escapeHTML(batchStock.importNumber)}" title="点击复制进口编号">
+                    ${escapeHTML(batchStock.importNumber)}
+                    <span>${formatNumber(batchStock.remainingQuantity)}</span>
+                  </button>
+                `).join("")}
+              </div>
+            ` : ""}
             <div class="product-code">${escapeHTML(product.id)} · ${escapeHTML(product.category)}</div>
           </div>
         </div>

@@ -1631,3 +1631,74 @@ input::placeholder {
   }
   .bottom-nav .nav-btn small { font-size: 10px; }
 }
+
+
+/* V2.5 multiple import batches */
+.inventory-batch-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.inventory-batch-number {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.inventory-batch-number span {
+  min-width: 22px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #1f5d3a;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.history-related-notice {
+  margin-top: 12px;
+  padding: 11px 12px;
+  border: 1px solid #a9d4b8;
+  border-radius: 10px;
+  background: #edf8f0;
+  color: #204d32;
+}
+
+.history-related-title {
+  margin-bottom: 8px;
+  font-weight: 900;
+}
+
+.history-related-batch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 0;
+  border-top: 1px dashed #bad9c3;
+}
+
+.history-related-batch span {
+  font-size: 12px;
+  text-align: right;
+}
+
+.history-related-total {
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid #bad9c3;
+  font-weight: 900;
+}
+
+@media (max-width: 640px) {
+  .history-related-batch {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .history-related-batch span {
+    text-align: left;
+  }
+}
