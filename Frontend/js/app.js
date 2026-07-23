@@ -123,8 +123,7 @@ function repairLegacyImportDates() {
   });
 
   if (changed) {
-    const reconciled = reconcileProductsFromImportRecords(products, imports, batches);
-    saveProducts(reconciled.products);
+    saveProducts(products);
     saveImports(imports);
     saveBatches(batches);
   }
@@ -213,13 +212,11 @@ function setupDashboard() {
 }
 
 function renderDashboard() {
-  repairStoredInventoryFromImports();
   const products = loadJSON("importSystemProducts", []);
-  // 库存数量才是首页是否显示的最终依据。
-  // 旧版本或删除批次后可能遗留 inventoryArchived=true，
-  // 只要库存仍大于 0，就必须继续显示。
   const activeInventoryProducts = products.filter(
-    item => (Number(item.stock) || 0) > 0
+    item =>
+      !item.inventoryArchived &&
+      (Number(item.stock) || 0) > 0
   );
 
   const productCount = activeInventoryProducts.length;
@@ -919,22 +916,12 @@ function restoreStoredBatchRMDisplay(batch, items) {
   });
 }
 
-function recalculateProductLastImport(productId, remainingImports, productName = "", category = "盆栽") {
-  const normalizedName = String(productName || "").trim().toLowerCase();
-  const normalizedCategory = String(category || "盆栽");
-
+function recalculateProductLastImport(productId, remainingImports) {
   return remainingImports
-    .filter(record => {
-      const sameProductId =
-        productId && record.productId &&
-        String(record.productId) === String(productId);
-      const sameProductIdentity =
-        normalizedName &&
-        String(record.productName || "").trim().toLowerCase() === normalizedName &&
-        String(record.category || "盆栽") === normalizedCategory;
-
-      return (sameProductId || sameProductIdentity) && record.containerDate;
-    })
+    .filter(record =>
+      record.productId === productId &&
+      record.containerDate
+    )
     .sort(
       (a, b) =>
         parseDDMMYYYY(b.containerDate) -
@@ -942,250 +929,54 @@ function recalculateProductLastImport(productId, remainingImports, productName =
     )[0]?.containerDate || "";
 }
 
-
-function getCanonicalInventoryImports(imports = getImports(), batches = getBatches()) {
-  const records = new Map();
-
-  const addRecord = record => {
-    if (!record || typeof record !== "object") return;
-    const id = String(record.id || "").trim();
-    const fallbackKey = [
-      String(record.batchId || record.importNumber || ""),
-      String(record.productId || ""),
-      String(record.productName || record.name || "").trim().toLowerCase(),
-      String(record.category || "盆栽")
-    ].join("::");
-    const key = id || fallbackKey;
-    if (!key || key === "::::::盆栽") return;
-
-    const existing = records.get(key);
-    if (!existing || Date.parse(record.updatedAt || record.createdAt || "") >= Date.parse(existing.updatedAt || existing.createdAt || "")) {
-      records.set(key, record);
-    }
-  };
-
-  const batchMap = new Map(
-    (batches || []).map(batch => [String(batch.id || batch.importNumber || ""), batch])
-  );
-
-  (imports || []).forEach(record => {
-    const parentBatch = batchMap.get(String(record?.batchId || record?.importNumber || ""));
-    addRecord({
-      ...record,
-      unitCost: resolveImportUnitCost(record, parentBatch)
-    });
-  });
-  (batches || []).forEach(batch => {
-    (Array.isArray(batch?.items) ? batch.items : []).forEach(item => addRecord({
-      ...item,
-      batchId: item.batchId || batch.id,
-      importNumber: item.importNumber || batch.importNumber,
-      containerDate: item.containerDate || batch.containerDate,
-      unitCost: resolveImportUnitCost(item, batch)
-    }));
-  });
-
-  return [...records.values()];
-}
-
-function reconcileProductsFromImportRecords(products, imports = getImports(), batches = getBatches()) {
-  const canonicalImports = getCanonicalInventoryImports(imports, batches);
-  let changed = false;
-
-  const nextProducts = (products || []).map(product => {
-    const rebuilt = rebuildProductInventoryFromImports(product, canonicalImports);
-    const currentStock = Math.max(0, Number(product.stock) || 0);
-    const currentAverage = Math.max(0, Number(product.averageCost) || 0);
-    const stockChanged = Math.abs(currentStock - rebuilt.stock) > 0.000001;
-    const averageChanged = Math.abs(currentAverage - rebuilt.averageCost) > 0.005;
-    const lastImportChanged = String(product.lastImport || "") !== String(rebuilt.lastImport || "");
-
-    if (!stockChanged && !averageChanged && !lastImportChanged && !(rebuilt.stock > 0 && product.inventoryArchived)) {
-      return product;
-    }
-
-    changed = true;
-    return {
-      ...product,
-      stock: rebuilt.stock,
-      averageCost: rebuilt.averageCost,
-      lastImport: rebuilt.lastImport,
-      inventoryArchived: rebuilt.stock > 0 ? false : product.inventoryArchived,
-      updatedAt: new Date().toISOString()
-    };
-  });
-
-  return { products: nextProducts, changed };
-}
-
-function repairStoredInventoryFromImports({ persistCloud = true } = {}) {
-  const currentProducts = getProducts();
-  const result = reconcileProductsFromImportRecords(currentProducts, getImports(), getBatches());
-  if (!result.changed) return false;
-
-  if (persistCloud) {
-    saveProducts(result.products);
-  } else {
-    localStorage.setItem("importSystemProducts", JSON.stringify(result.products));
-  }
-  return true;
-}
-
-
-function resolveImportUnitCost(record, batch = null) {
-  const direct = Number(record?.unitCost);
-  if (Number.isFinite(direct) && direct > 0) return direct;
-
-  const originalQuantity = Math.max(
-    0,
-    Number(record?.originalQuantity ?? record?.stockAdded ?? record?.quantity) || 0
-  );
-  if (originalQuantity <= 0) return 0;
-
-  const batchTotal = Number(record?.batchTotal);
-  if (Number.isFinite(batchTotal) && batchTotal > 0) {
-    return batchTotal / originalQuantity;
-  }
-
-  // 旧版本的进口明细可能没有保存 unitCost / batchTotal。
-  // 优先根据该批次原始费用，使用与新增进口完全相同的分摊公式重建。
-  if (batch && typeof batch === "object") {
-    const items = Array.isArray(batch.items) ? batch.items : [];
-    const foreignTotal = Math.max(
-      0,
-      Number(record?.foreignTotal) ||
-      ((Number(record?.quantity) || originalQuantity) * (Number(record?.unitPrice) || 0))
-    );
-    const totalPurchaseForeign = items.reduce((sum, item) => {
-      const itemForeign = Number(item?.foreignTotal);
-      if (Number.isFinite(itemForeign) && itemForeign > 0) return sum + itemForeign;
-      return sum + ((Number(item?.quantity) || 0) * (Number(item?.unitPrice) || 0));
-    }, 0);
-    const rate = Number(record?.rate) > 0
-      ? Number(record.rate)
-      : (Number(batch.rate) > 0 ? Number(batch.rate) : 0);
-    const sharedForeign =
-      (Number(batch.chinaTransportCost) || 0) +
-      (Number(batch.potCost) || 0);
-    const shippingRate = Number(record?.shippingRate);
-    const effectiveShippingRate = Number.isFinite(shippingRate)
-      ? shippingRate
-      : (Number(batch.shippingRate) || 0);
-
-    if (rate > 0 && foreignTotal > 0 && totalPurchaseForeign > 0) {
-      const purchaseRM = foreignTotal / rate;
-      const sharedRM = sharedForeign / rate;
-      const allocatedSharedRM = sharedRM * (foreignTotal / totalPurchaseForeign);
-      const itemTotal = (purchaseRM + allocatedSharedRM) *
-        (1 + effectiveShippingRate / 100);
-      if (Number.isFinite(itemTotal) && itemTotal > 0) {
-        return itemTotal / originalQuantity;
-      }
-    }
-
-    // 最后备用：按货款比例分配整批总成本。
-    const grandTotal = Number(batch.grandTotal);
-    if (grandTotal > 0 && foreignTotal > 0 && totalPurchaseForeign > 0) {
-      return (grandTotal * (foreignTotal / totalPurchaseForeign)) / originalQuantity;
-    }
-  }
-
-  const purchaseRM = Number(record?.purchaseRM);
-  const shippingRate = Number(record?.shippingRate);
-  if (Number.isFinite(purchaseRM) && purchaseRM > 0) {
-    const effectiveRate = Number.isFinite(shippingRate) ? shippingRate : 0;
-    return (purchaseRM * (1 + effectiveRate / 100)) / originalQuantity;
-  }
-
-  return 0;
-}
-
-function rebuildProductInventoryFromImports(product, remainingImports) {
-  const productId = String(product.id || "");
-  const productName = String(product.name || "").trim().toLowerCase();
-  const productCategory = String(product.category || "盆栽");
-
-  const matchingImports = remainingImports.filter(record => {
-    const sameProductId =
-      productId && record.productId &&
-      String(record.productId) === productId;
-    const sameProductIdentity =
-      productName &&
-      String(record.productName || "").trim().toLowerCase() === productName &&
-      String(record.category || "盆栽") === productCategory;
-
-    return sameProductId || sameProductIdentity;
-  });
-
-  let stock = 0;
-  let totalCost = 0;
-
-  matchingImports.forEach(record => {
-    const remainingRaw = record.remainingQuantity;
-    const quantity = Math.max(
-      0,
-      Number(
-        remainingRaw !== undefined && remainingRaw !== null && remainingRaw !== ""
-          ? remainingRaw
-          : (record.stockAdded ?? record.quantity)
-      ) || 0
-    );
-    const unitCost = resolveImportUnitCost(record);
-
-    stock += quantity;
-    totalCost += quantity * unitCost;
-  });
-
-  return {
-    stock,
-    averageCost: stock > 0 ? totalCost / stock : 0,
-    lastImport: recalculateProductLastImport(
-      product.id,
-      matchingImports,
-      product.name,
-      product.category
-    )
-  };
-}
-
 function reverseBatchInventoryImpact(products, batchItems, remainingImports) {
-  const affectedProductIndexes = new Set();
+  const affectedProductIds = new Set();
 
   batchItems.forEach(record => {
-    const recordName = String(record.productName || "").trim().toLowerCase();
-    const recordCategory = String(record.category || "盆栽");
-    const productIndex = products.findIndex(product => {
-      const sameProductId =
-        product.id && record.productId &&
-        String(product.id) === String(record.productId);
-      const sameProductIdentity =
-        recordName &&
-        String(product.name || "").trim().toLowerCase() === recordName &&
-        String(product.category || "盆栽") === recordCategory;
+    const productIndex = products.findIndex(
+      product =>
+        product.id === record.productId ||
+        (
+          !record.productId &&
+          String(product.name || "").trim().toLowerCase() ===
+          String(record.productName || "").trim().toLowerCase()
+        )
+    );
 
-      return sameProductId || sameProductIdentity;
-    });
+    if (productIndex === -1) return;
 
-    if (productIndex !== -1) affectedProductIndexes.add(productIndex);
-  });
-
-  // 不再只从当前库存扣除被删除批次。
-  // 直接根据所有仍存在的进口明细重建库存和成本，避免旧批次仍有库存却遗漏。
-  affectedProductIndexes.forEach(productIndex => {
     const product = products[productIndex];
-    const rebuilt = rebuildProductInventoryFromImports(product, remainingImports);
+    const stockAdded = Math.max(0, Number(record.stockAdded) || Number(record.quantity) || 0);
+    const unitCost = Math.max(0, Number(record.unitCost) || 0);
+
+    const currentStock = Math.max(0, Number(product.stock) || 0);
+    const currentAverage = Math.max(0, Number(product.averageCost) || 0);
+    const currentTotalCost = currentStock * currentAverage;
+
+    const revertedStock = Math.max(0, currentStock - stockAdded);
+    const revertedTotalCost = Math.max(
+      0,
+      currentTotalCost - (stockAdded * unitCost)
+    );
+
+    affectedProductIds.add(product.id);
 
     products[productIndex] = {
       ...product,
-      stock: rebuilt.stock,
-      averageCost: rebuilt.averageCost,
-      lastImport: rebuilt.lastImport,
-      inventoryArchived: rebuilt.stock > 0 ? false : product.inventoryArchived,
+      stock: revertedStock,
+      averageCost:
+        revertedStock > 0
+          ? revertedTotalCost / revertedStock
+          : 0,
+      lastImport: recalculateProductLastImport(
+        product.id,
+        remainingImports
+      ),
       updatedAt: new Date().toISOString()
     };
   });
 
-  return affectedProductIndexes;
+  return affectedProductIds;
 }
 
 function deleteBatchByNumber(importNumber) {
@@ -1231,13 +1022,6 @@ function deleteBatchByNumber(importNumber) {
     effectiveItems,
     remainingImports
   );
-
-  // 修复旧资料可能遗留的隐藏标记：有库存就不能被首页隐藏。
-  products.forEach(product => {
-    if ((Number(product.stock) || 0) > 0) {
-      product.inventoryArchived = false;
-    }
-  });
 
   batches.splice(batchIndex, 1);
 
@@ -2344,7 +2128,6 @@ function saveBatchImport() {
     }
 
     const updatedItems = [];
-    const affectedProductIndexes = new Set();
     for (const [key, oldItem] of oldMap.entries()) {
       const edited = editedMap.get(key);
       const originalQuantity = Math.max(
@@ -2377,7 +2160,27 @@ function saveBatchImport() {
          product.category === oldItem.category)
       );
       if (productIndex !== -1) {
-        affectedProductIndexes.add(productIndex);
+        const currentTotalStock = Math.max(
+          0,
+          Number(products[productIndex].stock) || 0
+        );
+        const stockDifference = newRemaining - oldRemaining;
+        const updatedTotalStock = Math.max(
+          0,
+          currentTotalStock + stockDifference
+        );
+
+        products[productIndex] = {
+          ...products[productIndex],
+          stock: updatedTotalStock,
+          // 编辑某进口编号只调整该批次剩余数量；产品总库存按差额加减。
+          // 销售、退货及盘点不会改变 Average Cost。
+          averageCost: Number(products[productIndex].averageCost) || 0,
+          inventoryArchived: updatedTotalStock <= 0
+            ? products[productIndex].inventoryArchived
+            : false,
+          updatedAt: new Date().toISOString()
+        };
       }
 
       updatedItems.push({
@@ -2387,7 +2190,6 @@ function saveBatchImport() {
         // 此值仅作为最近一次库存调整记录；原进口历史不变。
         remainingQuantity: newRemaining,
         stockAdded: originalQuantity,
-        unitCost: resolveImportUnitCost(oldItem, oldBatch),
         updatedAt: new Date().toISOString()
       });
     }
@@ -2411,20 +2213,6 @@ function saveBatchImport() {
       updatedAt: new Date().toISOString()
     };
 
-    const canonicalImports = getCanonicalInventoryImports(imports, batches);
-    affectedProductIndexes.forEach(productIndex => {
-      const product = products[productIndex];
-      const rebuilt = rebuildProductInventoryFromImports(product, canonicalImports);
-      products[productIndex] = {
-        ...product,
-        stock: rebuilt.stock,
-        averageCost: rebuilt.averageCost,
-        lastImport: rebuilt.lastImport,
-        inventoryArchived: rebuilt.stock > 0 ? false : product.inventoryArchived,
-        updatedAt: new Date().toISOString()
-      };
-    });
-
     saveProducts(products);
     saveImports(imports);
     saveBatches(batches);
@@ -2436,7 +2224,7 @@ function saveBatchImport() {
 
     clearBatchAfterSuccessfulAction();
     document.getElementById("batchStatusText").textContent =
-      `已更新 ${currentEditingImportNumber || oldBatch.importNumber} 的批次剩余数量；每项允许范围为 0 至该进口编号的原进口数量。产品总库存及Average Cost已按所有剩余进口记录重新计算；原进口历史及海外运费比例保持不变。`;
+      `已更新 ${currentEditingImportNumber || oldBatch.importNumber} 的批次剩余数量；每项允许范围为 0 至该进口编号的原进口数量。产品总库存已按差额同步调整，原进口历史、原成本、Average Cost及海外运费比例保持不变。`;
     return;
   }
 
@@ -2798,15 +2586,16 @@ function showCopiedSyncMessage(importNumber) {
 }
 
 function renderInventoryManagementList() {
-  repairStoredInventoryFromImports();
   const keyword = document.getElementById("inventorySearch").value.trim().toLowerCase();
   const sortMode = document.getElementById("inventorySort").value;
   const imports = getImports();
 
   const products = getProducts()
-    // 首页以实际库存为准；避免旧的 inventoryArchived 标记
-    // 把删除新批次后仍剩旧库存的产品错误隐藏。
-    .filter(product => (Number(product.stock) || 0) > 0)
+    .filter(
+      product =>
+        !product.inventoryArchived &&
+        (Number(product.stock) || 0) > 0
+    )
     .map(product => {
       const productName = String(product.name || "").trim().toLowerCase();
       const matchingImports = imports
@@ -3037,8 +2826,9 @@ function exportSystemExcel() {
 
   // Inventory 工作表只导出真正仍有库存的产品。
   // 删除批次或测试后留下的零库存、已移除产品不会再成为 Excel 垃圾资料。
-  const activeInventoryProducts = products.filter(
-    product => (Number(product.stock) || 0) > 0
+  const activeInventoryProducts = products.filter(product =>
+    !product.inventoryArchived &&
+    (Number(product.stock) || 0) > 0
   );
 
   const inventoryRows = activeInventoryProducts.map(product => [

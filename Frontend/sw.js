@@ -1,11 +1,11 @@
-const CACHE = "lover-legend-import-cost-formal-v2.5.5-inventory-reconcile";
+const CACHE = "lover-legend-import-cost-formal-v2.5-related-quantity-style-fix";
 const CORE = [
   "./",
-  "./index.html?v=2.5.5",
-  "./css/style.css?v=2.5.5",
+  "./index.html",
+  "./css/style.css?v=2.5.2",
   "./js/common.js?v=2.5",
   "./js/sync.js?v=2.5",
-  "./js/app.js?v=2.5.5",
+  "./js/app.js?v=2.5",
   "./manifest.json?v=2.5",
   "./assets/images/logo-green.jpg",
   "./assets/images/logo-red.jpg",
@@ -41,7 +41,7 @@ self.addEventListener("fetch", event => {
       fetch(event.request)
         .then(response => {
           const copy = response.clone();
-          caches.open(CACHE).then(cache => cache.put("./index.html?v=2.5.5", copy));
+          caches.open(CACHE).then(cache => cache.put("./index.html", copy));
           return response;
         })
         .catch(() => caches.match("./index.html"))

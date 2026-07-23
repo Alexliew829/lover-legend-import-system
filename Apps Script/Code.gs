@@ -29,9 +29,7 @@ const SCHEMAS = {
     ["productId", "产品编号"],
     ["productName", "产品名称"],
     ["category", "类别"],
-    ["originalQuantity", "原进口数量"],
     ["quantity", "数量"],
-    ["remainingQuantity", "当前剩余数量"],
     ["unitPrice", "单价"],
     ["currency", "货币"],
     ["rate", "汇率"],
@@ -220,8 +218,7 @@ function pushAll_(body) {
       `产品 ${(body.products || []).length}，进口明细 ${(body.imports || []).length}，批次 ${(body.batches || []).length}`
     );
 
-    // 日常同步只写资料，不再每次自动调整整张工作表格式与栏宽。
-    // formatAll_() 只在 initializeDatabase() 执行，明显缩短同步时间。
+    formatAll_();
 
     return {
       ok: true,
