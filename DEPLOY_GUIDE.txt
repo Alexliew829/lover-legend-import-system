@@ -1,0 +1,17 @@
+Lover Legend Import Cost & Inventory System V2.5 — 部署说明
+
+GitHub Pages：
+- 把 Frontend 文件夹里面的全部内容上传到 Repository 根目录并覆盖旧文件。
+- 等待 GitHub Pages 部署完成。
+- 电脑按 Ctrl + F5；手机或 PWA 完全关闭后重新打开。
+
+Apps Script：
+- 本次 V2.5 没有修改 Apps Script/Code.gs。
+- 本次 V2.5 没有修改 Apps Script/appsscript.json。
+- 不需要重新 Deploy Apps Script。
+- 继续使用原本 Web App URL。
+
+安装图标：
+- 电脑：Chrome 打开 GitHub Pages → 安装应用。
+- iPhone：Safari → 分享 → 加入主画面。
+- Android：Chrome → 安装应用 / 加入主画面。
