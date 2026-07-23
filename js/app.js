@@ -1961,11 +1961,6 @@ function saveBatchImport() {
       const oldRemaining = Math.max(0, Number(oldItem.remainingQuantity ?? oldItem.quantity) || 0);
       const newRemaining = Math.max(0, Math.floor(Number(edited.quantity) || 0));
 
-      if (newRemaining > originalQuantity) {
-        status.textContent = `${oldItem.productName} 的当前剩余数量不能超过原进口数量 ${originalQuantity}。`;
-        return;
-      }
-
       const productIndex = products.findIndex(product =>
         product.id === oldItem.productId ||
         (String(product.name || "").trim().toLowerCase() === String(oldItem.productName || "").trim().toLowerCase() &&
@@ -2024,7 +2019,7 @@ function saveBatchImport() {
 
     clearBatchAfterSuccessfulAction();
     document.getElementById("batchStatusText").textContent =
-      `已更新 ${currentEditingImportNumber || oldBatch.importNumber} 的当前库存；原进口数量、原成本、Average Cost及海外运费比例保持不变。`;
+      `已更新 ${currentEditingImportNumber || oldBatch.importNumber} 的当前库存；库存数量可增加或减少，原进口数量、原成本、Average Cost及海外运费比例保持不变。`;
     return;
   }
 

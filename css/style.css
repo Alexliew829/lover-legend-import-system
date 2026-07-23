@@ -1523,8 +1523,9 @@ input::placeholder {
 }
 
 .batch-inline-lookup .batch-lookup-input {
-  width: 210px;
-  min-width: 160px;
+  width: 340px;
+  min-width: 300px;
+  max-width: 42vw;
 }
 
 .copy-number-btn {
@@ -1563,7 +1564,9 @@ input::placeholder {
   }
 
   .batch-inline-lookup .batch-lookup-input {
-    width: min(210px, 60vw);
+    width: 100%;
+    min-width: 0;
+    max-width: none;
   }
 }
 
@@ -1580,7 +1583,18 @@ input::placeholder {
   align-items: center;
   margin-bottom: 10px;
 }
-.history-lookup-row .search-input { flex: 1; }
+#historyLookupInput {
+  flex: 1 1 420px;
+  width: 100%;
+  min-width: 320px;
+  margin-bottom: 0;
+}
+.history-lookup-row #historyLookupBtn {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 150px;
+  white-space: nowrap;
+}
 .history-readonly-note {
   margin: 8px 0 12px;
   padding: 9px 11px;
@@ -1602,7 +1616,18 @@ input::placeholder {
 .history-table th { background: #eef5f0; color: #315440; }
 @media (max-width: 640px) {
   .history-meta-grid { grid-template-columns: 1fr; }
-  .history-lookup-row { align-items: stretch; }
-  .history-lookup-row .primary-btn { white-space: nowrap; }
+  .history-lookup-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  #historyLookupInput {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+  }
+  .history-lookup-row #historyLookupBtn {
+    width: 100%;
+    min-width: 0;
+  }
   .bottom-nav .nav-btn small { font-size: 10px; }
 }
