@@ -123,7 +123,8 @@ function repairLegacyImportDates() {
   });
 
   if (changed) {
-    saveProducts(products);
+    const reconciled = reconcileProductsFromImportRecords(products, imports, batches);
+    saveProducts(reconciled.products);
     saveImports(imports);
     saveBatches(batches);
   }
@@ -212,6 +213,7 @@ function setupDashboard() {
 }
 
 function renderDashboard() {
+  repairStoredInventoryFromImports();
   const products = loadJSON("importSystemProducts", []);
   // 库存数量才是首页是否显示的最终依据。
   // 旧版本或删除批次后可能遗留 inventoryArchived=true，
@@ -940,6 +942,108 @@ function recalculateProductLastImport(productId, remainingImports, productName =
     )[0]?.containerDate || "";
 }
 
+
+function getCanonicalInventoryImports(imports = getImports(), batches = getBatches()) {
+  const records = new Map();
+
+  const addRecord = record => {
+    if (!record || typeof record !== "object") return;
+    const id = String(record.id || "").trim();
+    const fallbackKey = [
+      String(record.batchId || record.importNumber || ""),
+      String(record.productId || ""),
+      String(record.productName || record.name || "").trim().toLowerCase(),
+      String(record.category || "盆栽")
+    ].join("::");
+    const key = id || fallbackKey;
+    if (!key || key === "::::::盆栽") return;
+
+    const existing = records.get(key);
+    if (!existing || Date.parse(record.updatedAt || record.createdAt || "") >= Date.parse(existing.updatedAt || existing.createdAt || "")) {
+      records.set(key, record);
+    }
+  };
+
+  (imports || []).forEach(addRecord);
+  (batches || []).forEach(batch => {
+    (Array.isArray(batch?.items) ? batch.items : []).forEach(item => addRecord({
+      ...item,
+      batchId: item.batchId || batch.id,
+      importNumber: item.importNumber || batch.importNumber,
+      containerDate: item.containerDate || batch.containerDate
+    }));
+  });
+
+  return [...records.values()];
+}
+
+function reconcileProductsFromImportRecords(products, imports = getImports(), batches = getBatches()) {
+  const canonicalImports = getCanonicalInventoryImports(imports, batches);
+  let changed = false;
+
+  const nextProducts = (products || []).map(product => {
+    const rebuilt = rebuildProductInventoryFromImports(product, canonicalImports);
+    const currentStock = Math.max(0, Number(product.stock) || 0);
+    const currentAverage = Math.max(0, Number(product.averageCost) || 0);
+    const stockChanged = Math.abs(currentStock - rebuilt.stock) > 0.000001;
+    const averageChanged = Math.abs(currentAverage - rebuilt.averageCost) > 0.005;
+    const lastImportChanged = String(product.lastImport || "") !== String(rebuilt.lastImport || "");
+
+    if (!stockChanged && !averageChanged && !lastImportChanged && !(rebuilt.stock > 0 && product.inventoryArchived)) {
+      return product;
+    }
+
+    changed = true;
+    return {
+      ...product,
+      stock: rebuilt.stock,
+      averageCost: rebuilt.averageCost,
+      lastImport: rebuilt.lastImport,
+      inventoryArchived: rebuilt.stock > 0 ? false : product.inventoryArchived,
+      updatedAt: new Date().toISOString()
+    };
+  });
+
+  return { products: nextProducts, changed };
+}
+
+function repairStoredInventoryFromImports({ persistCloud = true } = {}) {
+  const currentProducts = getProducts();
+  const result = reconcileProductsFromImportRecords(currentProducts, getImports(), getBatches());
+  if (!result.changed) return false;
+
+  if (persistCloud) {
+    saveProducts(result.products);
+  } else {
+    localStorage.setItem("importSystemProducts", JSON.stringify(result.products));
+  }
+  return true;
+}
+
+
+function resolveImportUnitCost(record) {
+  const direct = Number(record?.unitCost);
+  if (Number.isFinite(direct) && direct > 0) return direct;
+
+  const originalQuantity = Math.max(
+    0,
+    Number(record?.originalQuantity ?? record?.stockAdded ?? record?.quantity) || 0
+  );
+  const batchTotal = Number(record?.batchTotal);
+  if (originalQuantity > 0 && Number.isFinite(batchTotal) && batchTotal > 0) {
+    return batchTotal / originalQuantity;
+  }
+
+  const purchaseRM = Number(record?.purchaseRM);
+  const shippingRate = Number(record?.shippingRate);
+  if (originalQuantity > 0 && Number.isFinite(purchaseRM) && purchaseRM > 0) {
+    const rate = Number.isFinite(shippingRate) ? shippingRate : 0;
+    return (purchaseRM * (1 + rate / 100)) / originalQuantity;
+  }
+
+  return 0;
+}
+
 function rebuildProductInventoryFromImports(product, remainingImports) {
   const productId = String(product.id || "");
   const productName = String(product.name || "").trim().toLowerCase();
@@ -970,7 +1074,7 @@ function rebuildProductInventoryFromImports(product, remainingImports) {
           : (record.stockAdded ?? record.quantity)
       ) || 0
     );
-    const unitCost = Math.max(0, Number(record.unitCost) || 0);
+    const unitCost = resolveImportUnitCost(record);
 
     stock += quantity;
     totalCost += quantity * unitCost;
@@ -2184,6 +2288,7 @@ function saveBatchImport() {
     }
 
     const updatedItems = [];
+    const affectedProductIndexes = new Set();
     for (const [key, oldItem] of oldMap.entries()) {
       const edited = editedMap.get(key);
       const originalQuantity = Math.max(
@@ -2216,27 +2321,7 @@ function saveBatchImport() {
          product.category === oldItem.category)
       );
       if (productIndex !== -1) {
-        const currentTotalStock = Math.max(
-          0,
-          Number(products[productIndex].stock) || 0
-        );
-        const stockDifference = newRemaining - oldRemaining;
-        const updatedTotalStock = Math.max(
-          0,
-          currentTotalStock + stockDifference
-        );
-
-        products[productIndex] = {
-          ...products[productIndex],
-          stock: updatedTotalStock,
-          // 编辑某进口编号只调整该批次剩余数量；产品总库存按差额加减。
-          // 销售、退货及盘点不会改变 Average Cost。
-          averageCost: Number(products[productIndex].averageCost) || 0,
-          inventoryArchived: updatedTotalStock <= 0
-            ? products[productIndex].inventoryArchived
-            : false,
-          updatedAt: new Date().toISOString()
-        };
+        affectedProductIndexes.add(productIndex);
       }
 
       updatedItems.push({
@@ -2246,6 +2331,7 @@ function saveBatchImport() {
         // 此值仅作为最近一次库存调整记录；原进口历史不变。
         remainingQuantity: newRemaining,
         stockAdded: originalQuantity,
+        unitCost: resolveImportUnitCost(oldItem),
         updatedAt: new Date().toISOString()
       });
     }
@@ -2269,6 +2355,20 @@ function saveBatchImport() {
       updatedAt: new Date().toISOString()
     };
 
+    const canonicalImports = getCanonicalInventoryImports(imports, batches);
+    affectedProductIndexes.forEach(productIndex => {
+      const product = products[productIndex];
+      const rebuilt = rebuildProductInventoryFromImports(product, canonicalImports);
+      products[productIndex] = {
+        ...product,
+        stock: rebuilt.stock,
+        averageCost: rebuilt.averageCost,
+        lastImport: rebuilt.lastImport,
+        inventoryArchived: rebuilt.stock > 0 ? false : product.inventoryArchived,
+        updatedAt: new Date().toISOString()
+      };
+    });
+
     saveProducts(products);
     saveImports(imports);
     saveBatches(batches);
@@ -2280,7 +2380,7 @@ function saveBatchImport() {
 
     clearBatchAfterSuccessfulAction();
     document.getElementById("batchStatusText").textContent =
-      `已更新 ${currentEditingImportNumber || oldBatch.importNumber} 的批次剩余数量；每项允许范围为 0 至该进口编号的原进口数量。产品总库存已按差额同步调整，原进口历史、原成本、Average Cost及海外运费比例保持不变。`;
+      `已更新 ${currentEditingImportNumber || oldBatch.importNumber} 的批次剩余数量；每项允许范围为 0 至该进口编号的原进口数量。产品总库存及Average Cost已按所有剩余进口记录重新计算；原进口历史及海外运费比例保持不变。`;
     return;
   }
 
@@ -2642,6 +2742,7 @@ function showCopiedSyncMessage(importNumber) {
 }
 
 function renderInventoryManagementList() {
+  repairStoredInventoryFromImports();
   const keyword = document.getElementById("inventorySearch").value.trim().toLowerCase();
   const sortMode = document.getElementById("inventorySort").value;
   const imports = getImports();
