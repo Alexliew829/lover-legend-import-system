@@ -2585,7 +2585,7 @@ function saveBatchImport() {
   const batchId = `BAT${Date.now()}`;
   const importNumber = generateImportNumber(
     document.getElementById("batchCurrency").value,
-    document.getElementById("batchContainerDate").value,
+    document.getElementById("batchArrivalDate").value,
     batches
   );
 
