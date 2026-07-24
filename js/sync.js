@@ -171,7 +171,21 @@ async function runCloudSync() {
 
   try {
     const queue = getCloudQueue();
-    if (queue.dirty) {
+    const snapshot = makeLocalSnapshot();
+    const localHasCoreData =
+      (snapshot.products || []).length > 0 ||
+      (snapshot.imports || []).length > 0 ||
+      (snapshot.batches || []).length > 0;
+
+    // 浏览器资料为空时，绝不能把空阵列推回Google Sheet。
+    if (queue.dirty && !localHasCoreData) {
+      saveCloudQueue({
+        dirty: false,
+        changedAt: "",
+        deleted: { products: [], imports: [], batches: [] }
+      });
+      await pullLatestSnapshot();
+    } else if (queue.dirty) {
       await pushPendingSnapshot(queue);
     } else {
       await pullLatestSnapshot();
@@ -191,11 +205,23 @@ async function runCloudSync() {
 
 async function pullLatestSnapshot() {
   const config = getCloudConfig();
+  const local = makeLocalSnapshot();
+  const localHasCoreData =
+    (local.products || []).length > 0 ||
+    (local.imports || []).length > 0 ||
+    (local.batches || []).length > 0;
+
   const data = await callGoogleApi({
     action: "pull",
-    knownRevision: Number(config.revision) || 0
+    knownRevision: Number(config.revision) || 0,
+    hasLocalData: localHasCoreData,
+    forceFull: !localHasCoreData
   });
+
   if (data.unchanged) {
+    if (!localHasCoreData) {
+      throw new Error("Google Sheet未返回完整资料，已停止显示空库存");
+    }
     config.revision = Number(data.revision) || 0;
     config.lastSyncAt = new Date().toISOString();
     saveCloudConfig(config);
@@ -204,29 +230,12 @@ async function pullLatestSnapshot() {
     return;
   }
 
-  const local = makeLocalSnapshot();
-
-  // Migration protection: V1.9 did not persist its dirty state.
-  // If local records are newer than the last successful sync, merge and push
-  // instead of allowing the first V2.0 pull to erase them.
-  if (hasUnsyncedLocalChanges(local, data, config)) {
-    const queue = getCloudQueue();
-    queue.dirty = true;
-    queue.changedAt = queue.changedAt || new Date().toISOString();
-    saveCloudQueue(queue);
-
-    const merged = mergeSnapshots(data, local, queue);
-    applyRemoteData(merged);
-    config.revision = Number(data.revision) || 0;
-    saveCloudConfig(config);
-    await pushPendingSnapshot(queue);
-    return;
+  if (!Array.isArray(data.products) || !Array.isArray(data.imports) || !Array.isArray(data.batches)) {
+    throw new Error("Google Sheet返回资料不完整");
   }
 
-  if (Number(data.revision) !== Number(config.revision) || !config.lastSyncAt) {
-    applyRemoteData(data);
-  }
-
+  // 正常启动拉取以Google Sheet为准；只有明确dirty的本地修改才可推送。
+  applyRemoteData(data);
   config.revision = Number(data.revision) || 0;
   config.lastSyncAt = new Date().toISOString();
   saveCloudConfig(config);
@@ -268,7 +277,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     action: "push",
     force: false,
     baseRevision: Number(config.revision) || 0,
-    updatedBy: "System V2.52 Fast Sync",
+    updatedBy: "System V2.61 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
@@ -343,15 +352,21 @@ function getItemTime(item) {
 }
 
 function applyRemoteData(data) {
+  if (!Array.isArray(data.products) || !Array.isArray(data.imports) || !Array.isArray(data.batches)) {
+    throw new Error("云端资料不完整，已停止覆盖本机资料");
+  }
+
   cloudApplyingRemote = true;
   try {
     localStorage.setItem("importSystemSettings", JSON.stringify(data.settings || {}));
-    localStorage.setItem("importSystemProducts", JSON.stringify(data.products || []));
-    localStorage.setItem("importSystemImports", JSON.stringify(data.imports || []));
-    localStorage.setItem("importSystemBatches", JSON.stringify(data.batches || []));
+    localStorage.setItem("importSystemProducts", JSON.stringify(data.products));
+    localStorage.setItem("importSystemImports", JSON.stringify(data.imports));
+    localStorage.setItem("importSystemBatches", JSON.stringify(data.batches));
   } finally {
     cloudApplyingRemote = false;
   }
+
+  // 云端拉取后只刷新画面，不自动重建或上传，避免同步循环与Restore后反向覆盖。
   refreshSystemViewsAfterSync();
 }
 

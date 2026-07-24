@@ -1571,7 +1571,7 @@ input::placeholder {
 }
 
 
-/* Formal V2.52 — category summary and read-only import history */
+/* Formal V2.5 — category summary and read-only import history */
 #productCount {
   white-space: pre-line;
   line-height: 1.35;
@@ -1702,98 +1702,5 @@ input::placeholder {
 
   .history-related-batch span {
     text-align: left;
-  }
-}
-
-
-/* V2.52 product-name import history search */
-.history-product-group {
-  display: grid;
-  gap: 14px;
-  margin-top: 14px;
-}
-
-.history-product-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 12px 14px;
-  border: 1px solid #a9d4b7;
-  border-radius: 12px;
-  background: #edf8f0;
-}
-
-.history-product-summary > div:first-child {
-  display: grid;
-  gap: 3px;
-}
-
-.history-product-summary strong {
-  color: #075f34;
-  font-size: 18px;
-}
-
-.history-product-summary span {
-  font-weight: 700;
-}
-
-.history-product-totals {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px 16px;
-  color: #b91c1c;
-}
-
-@media (max-width: 680px) {
-  .history-product-summary {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .history-product-totals {
-    justify-content: flex-start;
-  }
-}
-
-
-/* V2.52 — inventory verification and repair */
-.inventory-repair-actions {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.danger-tool-btn {
-  border-color: #b3261e;
-  color: #9f1f18;
-}
-
-.inventory-repair-status {
-  margin-top: 12px;
-  line-height: 1.65;
-  white-space: normal;
-}
-
-.inventory-repair-status:empty {
-  display: none;
-}
-
-.inventory-repair-differences {
-  margin-top: 8px;
-  padding: 9px 11px;
-  border: 1px solid #d9e5d7;
-  border-radius: 9px;
-  background: #f7faf6;
-  font-size: 13px;
-}
-
-.success-status {
-  color: #176b32;
-  font-weight: 700;
-}
-
-@media (max-width: 520px) {
-  .inventory-repair-actions {
-    grid-template-columns: 1fr;
   }
 }
