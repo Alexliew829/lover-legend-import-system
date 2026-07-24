@@ -3051,12 +3051,20 @@ function renderInventoryManagementList() {
         const averageCost = Number(product.averageCost) || 0;
         return sum + (stock * averageCost);
       }, 0);
-
+  
+ const filteredTotalStock = products.reduce((sum, product) => {
+  return sum + (Number(product.stock) || 0);
+}, 0);
+  
   const filteredValueField = document.getElementById("inventoryFilteredValue");
   if (filteredValueField) {
     filteredValueField.textContent = formatMoney(filteredInventoryValue, "RM ");
   }
-
+const filteredStockField = document.getElementById("inventoryFilteredStock");
+if (filteredStockField) {
+  filteredStockField.textContent = formatNumber(filteredTotalStock);
+}
+  
   const list = document.getElementById("inventoryManagementList");
   if (!products.length) {
     list.innerHTML = '<div class="empty-state">暂无符合的库存资料</div>';
