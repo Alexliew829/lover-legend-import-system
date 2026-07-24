@@ -1567,115 +1567,68 @@ function setupImportHistory() {
   }
 }
 
-function renderImportHistory() {
-  const input = document.getElementById("historyLookupInput");
-  const output = document.getElementById("historyResult");
-  if (!input || !output) return;
-
-  const importNumber = input.value.trim();
-  if (!importNumber) {
-    output.innerHTML = '<div class="empty-state">Paste 进口编号后查看原始进口历史</div>';
-    return;
-  }
-
-  const batch = getBatches().find(item =>
-    String(item.importNumber || "").toLowerCase() === importNumber.toLowerCase()
+function getHistoryItemQuantities(item) {
+  const originalQuantity = Math.max(
+    0,
+    Number(item.originalQuantity ?? item.quantity) || 0
   );
+  const storedRemainingQuantity = Number(
+    item.remainingQuantity ?? item.quantity
+  );
+  const remainingQuantity = Number.isFinite(storedRemainingQuantity)
+    ? Math.min(
+        originalQuantity,
+        Math.max(0, Math.floor(storedRemainingQuantity))
+      )
+    : originalQuantity;
 
-  if (!batch) {
-    output.innerHTML = '<div class="empty-state">找不到这个进口编号</div>';
-    return;
-  }
+  return {
+    originalQuantity,
+    remainingQuantity
+  };
+}
 
-  const items = getBatchItemsForDisplay(batch);
-  const currency = escapeHTML(batch.currency || items[0]?.currency || "-");
-  const shippingRate = getBatchShippingRate(batch);
-
+function buildRelatedBatchNotices(batch, items) {
   const allBatches = getBatches();
-  const allImports = getImports();
 
-  const rows = items.map(item => {
-    const originalQuantity = Math.max(
-      0,
-      Number(item.originalQuantity ?? item.quantity) || 0
-    );
-    const storedRemainingQuantity = Number(
-      item.remainingQuantity ?? item.quantity
-    );
-    const remainingQuantity = Number.isFinite(storedRemainingQuantity)
-      ? Math.min(
-          originalQuantity,
-          Math.max(0, Math.floor(storedRemainingQuantity))
-        )
-      : originalQuantity;
-    return `
-      <tr>
-        <td>${escapeHTML(item.productName || "-")}</td>
-        <td>${escapeHTML(item.category || "-")}</td>
-        <td>${formatNumber(originalQuantity)}</td>
-        <td>${formatNumber(remainingQuantity)}</td>
-        <td>${formatMoney(Number(item.unitPrice) || 0)} ${currency}</td>
-        <td>${formatMoney(Number(item.unitCost) || 0, "RM ")}</td>
-      </tr>`;
-  }).join("");
-
-  const relatedBatchNotices = items.map(item => {
+  return items.map(item => {
     const productId = String(item.productId || "").trim();
     const productName = String(item.productName || "").trim();
     const productNameLower = productName.toLowerCase();
-
-    const relatedRecords = allImports.filter(record => {
-      const sameProductId =
-        productId && record.productId && String(record.productId) === productId;
-      const sameProductName =
-        String(record.productName || "").trim().toLowerCase() === productNameLower;
-
-      return (sameProductId || sameProductName) &&
-        String(record.importNumber || "").trim() !== String(batch.importNumber || "").trim();
-    });
-
+    const currentNumber = String(batch.importNumber || "").trim();
     const uniqueRelated = [];
-    const seenNumbers = new Set();
 
-    relatedRecords.forEach(record => {
-      const number = String(record.importNumber || "").trim();
-      if (!number || seenNumbers.has(number)) return;
-      seenNumbers.add(number);
+    allBatches.forEach(otherBatch => {
+      const otherNumber = String(otherBatch.importNumber || "").trim();
+      if (!otherNumber || otherNumber === currentNumber) return;
 
-      const original = Math.max(
-        0,
-        Number(record.originalQuantity ?? record.quantity) || 0
-      );
-      const remainingRaw = Number(
-        record.remainingQuantity ?? record.quantity
-      );
-      const remaining = Number.isFinite(remainingRaw)
-        ? Math.max(0, Math.floor(remainingRaw))
-        : original;
+      const matchingItems = getBatchItemsForDisplay(otherBatch).filter(otherItem => {
+        const sameProductId =
+          productId &&
+          otherItem.productId &&
+          String(otherItem.productId).trim() === productId;
+        const sameProductName =
+          String(otherItem.productName || "").trim().toLowerCase() ===
+          productNameLower;
 
-      uniqueRelated.push({
-        importNumber: number,
-        originalQuantity: original,
-        remainingQuantity: remaining
+        return sameProductId || sameProductName;
+      });
+
+      matchingItems.forEach(otherItem => {
+        const quantities = getHistoryItemQuantities(otherItem);
+        uniqueRelated.push({
+          importNumber: otherNumber,
+          ...quantities
+        });
       });
     });
 
     if (!uniqueRelated.length) return "";
 
-    const currentBatchOriginal = Math.max(
-      0,
-      Number(item.originalQuantity ?? item.quantity) || 0
-    );
-    const currentBatchRemainingRaw = Number(
-      item.remainingQuantity ?? item.quantity
-    );
-    const currentBatchRemaining = Number.isFinite(currentBatchRemainingRaw)
-      ? Math.max(0, Math.floor(currentBatchRemainingRaw))
-      : currentBatchOriginal;
-
+    const currentQuantities = getHistoryItemQuantities(item);
     const totalRemaining = uniqueRelated.reduce(
       (sum, related) => sum + related.remainingQuantity,
-      currentBatchRemaining
+      currentQuantities.remainingQuantity
     );
 
     const relatedRows = uniqueRelated.map(related => `
@@ -1695,8 +1648,37 @@ function renderImportHistory() {
       </div>
     `;
   }).filter(Boolean).join("");
+}
 
-  output.innerHTML = `
+function buildImportHistoryCard(batch, items, options = {}) {
+  const {
+    showRelatedBatches = true
+  } = options;
+  const currency = escapeHTML(batch.currency || items[0]?.currency || "-");
+  const shippingRate = getBatchShippingRate(batch);
+
+  const rows = items.map(item => {
+    const {
+      originalQuantity,
+      remainingQuantity
+    } = getHistoryItemQuantities(item);
+
+    return `
+      <tr>
+        <td>${escapeHTML(item.productName || "-")}</td>
+        <td>${escapeHTML(item.category || "-")}</td>
+        <td>${formatNumber(originalQuantity)}</td>
+        <td>${formatNumber(remainingQuantity)}</td>
+        <td>${formatMoney(Number(item.unitPrice) || 0)} ${currency}</td>
+        <td>${formatMoney(Number(item.unitCost) || 0, "RM ")}</td>
+      </tr>`;
+  }).join("");
+
+  const relatedBatchNotices = showRelatedBatches
+    ? buildRelatedBatchNotices(batch, items)
+    : "";
+
+  return `
     <article class="history-card">
       <div class="history-number">${escapeHTML(batch.importNumber || "-")}</div>
       <div class="history-meta-grid">
@@ -1718,6 +1700,101 @@ function renderImportHistory() {
       </div>
       ${relatedBatchNotices}
     </article>`;
+}
+
+function renderImportHistory() {
+  const input = document.getElementById("historyLookupInput");
+  const output = document.getElementById("historyResult");
+  if (!input || !output) return;
+
+  const keyword = input.value.trim();
+  if (!keyword) {
+    output.innerHTML = '<div class="empty-state">输入进口编号或产品名称后查看原始进口历史</div>';
+    return;
+  }
+
+  const normalizedKeyword = keyword.toLowerCase();
+  const batches = getBatches();
+  const exactBatch = batches.find(item =>
+    String(item.importNumber || "").trim().toLowerCase() === normalizedKeyword
+  );
+
+  if (exactBatch) {
+    output.innerHTML = buildImportHistoryCard(
+      exactBatch,
+      getBatchItemsForDisplay(exactBatch),
+      { showRelatedBatches: true }
+    );
+    return;
+  }
+
+  const productMatches = batches.map(batch => {
+    const matchingItems = getBatchItemsForDisplay(batch).filter(item => {
+      const searchable = [
+        item.productName,
+        item.productId,
+        item.category
+      ].map(value => String(value || "").toLowerCase()).join(" ");
+
+      return searchable.includes(normalizedKeyword);
+    });
+
+    return {
+      batch,
+      matchingItems
+    };
+  }).filter(match => match.matchingItems.length > 0)
+    .sort((a, b) => {
+      const dateDifference =
+        parseDDMMYYYY(b.batch.containerDate) -
+        parseDDMMYYYY(a.batch.containerDate);
+
+      if (dateDifference !== 0) return dateDifference;
+      return String(b.batch.createdAt || "").localeCompare(
+        String(a.batch.createdAt || "")
+      );
+    });
+
+  if (!productMatches.length) {
+    output.innerHTML = '<div class="empty-state">找不到这个进口编号或产品名称</div>';
+    return;
+  }
+
+  const summary = productMatches.reduce((result, match) => {
+    match.matchingItems.forEach(item => {
+      const quantities = getHistoryItemQuantities(item);
+      result.originalQuantity += quantities.originalQuantity;
+      result.remainingQuantity += quantities.remainingQuantity;
+      result.productNames.add(String(item.productName || "未命名产品"));
+    });
+    return result;
+  }, {
+    originalQuantity: 0,
+    remainingQuantity: 0,
+    productNames: new Set()
+  });
+
+  const productTitle = Array.from(summary.productNames)
+    .map(name => escapeHTML(name))
+    .join("、");
+
+  const summaryBox = `
+    <div class="history-related-notice">
+      <div class="history-related-title">${productTitle}</div>
+      <div class="history-related-batch">
+        <strong>进口批次：${formatNumber(productMatches.length)}</strong>
+        <span>累计原进口 ${formatNumber(summary.originalQuantity)} · 目前总剩余 ${formatNumber(summary.remainingQuantity)}</span>
+      </div>
+    </div>
+  `;
+
+  output.innerHTML = summaryBox + productMatches.map(match =>
+    buildImportHistoryCard(
+      match.batch,
+      match.matchingItems,
+      { showRelatedBatches: false }
+    )
+  ).join("");
 }
 
 function getImports(){return loadJSON("importSystemImports",[]);}
@@ -3185,7 +3262,7 @@ function exportSystemExcel() {
 function backupSystemData() {
   const backup = {
     app: "Lover Legend Import Cost & Inventory System",
-    version: "2.61",
+    version: "2.62",
     exportedAt: new Date().toISOString(),
     settings: loadJSON("importSystemSettings", {}),
     products: getProducts(),
