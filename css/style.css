@@ -1704,3 +1704,23 @@ input::placeholder {
     text-align: left;
   }
 }
+
+/* V2.63: 库存搜索结果摘要 */
+.inventory-title-summary {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.inventory-filter-stock,
+.inventory-filter-value {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.inventory-filter-stock {
+  color: #1f5d3a;
+}
+

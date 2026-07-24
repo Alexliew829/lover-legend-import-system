@@ -3044,6 +3044,29 @@ function renderInventoryManagementList() {
       )
     : null;
 
+  const filteredTotalStock = matchedBatch
+    ? getBatchItemsForDisplay(matchedBatch).reduce((sum, item) => {
+        const originalQuantity = Math.max(
+          0,
+          Number(item.originalQuantity ?? item.quantity) || 0
+        );
+        const remainingRaw = Number(
+          item.remainingQuantity ?? item.quantity
+        );
+        const remainingQuantity = Number.isFinite(remainingRaw)
+          ? Math.min(
+              originalQuantity,
+              Math.max(0, Math.floor(remainingRaw))
+            )
+          : originalQuantity;
+
+        return sum + remainingQuantity;
+      }, 0)
+    : products.reduce(
+        (sum, product) => sum + (Number(product.stock) || 0),
+        0
+      );
+
   const filteredInventoryValue = matchedBatch
     ? Number(matchedBatch.grandTotal) || 0
     : products.reduce((sum, product) => {
@@ -3051,20 +3074,17 @@ function renderInventoryManagementList() {
         const averageCost = Number(product.averageCost) || 0;
         return sum + (stock * averageCost);
       }, 0);
-  
- const filteredTotalStock = products.reduce((sum, product) => {
-  return sum + (Number(product.stock) || 0);
-}, 0);
-  
+
+  const filteredStockField = document.getElementById("inventoryFilteredStock");
+  if (filteredStockField) {
+    filteredStockField.textContent = formatNumber(filteredTotalStock);
+  }
+
   const filteredValueField = document.getElementById("inventoryFilteredValue");
   if (filteredValueField) {
     filteredValueField.textContent = formatMoney(filteredInventoryValue, "RM ");
   }
-const filteredStockField = document.getElementById("inventoryFilteredStock");
-if (filteredStockField) {
-  filteredStockField.textContent = formatNumber(filteredTotalStock);
-}
-  
+
   const list = document.getElementById("inventoryManagementList");
   if (!products.length) {
     list.innerHTML = '<div class="empty-state">暂无符合的库存资料</div>';
@@ -3270,7 +3290,7 @@ function exportSystemExcel() {
 function backupSystemData() {
   const backup = {
     app: "Lover Legend Import Cost & Inventory System",
-    version: "2.62",
+    version: "2.63",
     exportedAt: new Date().toISOString(),
     settings: loadJSON("importSystemSettings", {}),
     products: getProducts(),
