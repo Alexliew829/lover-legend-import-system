@@ -3201,9 +3201,18 @@ function renderInventoryManagementList() {
           : originalQuantity;
 
         if (remainingQuantity > 0) {
+          const totalOriginalQuantity = matchingImports
+            .filter(item => String(item.importNumber || "").trim() === importNumber)
+            .reduce((sum, item) => {
+              return sum + Math.max(
+                0,
+                Number(item.originalQuantity ?? item.quantity) || 0
+              );
+            }, 0);
+
           batchStocks.push({
             importNumber,
-            remainingQuantity
+            originalQuantity: totalOriginalQuantity
           });
         }
       });
@@ -3324,7 +3333,7 @@ function renderInventoryManagementList() {
                 ${product.batchStocks.map(batchStock => `
                   <button class="inventory-import-number inventory-batch-number" type="button" data-import-number="${escapeHTML(batchStock.importNumber)}" title="点击复制进口编号">
                     ${escapeHTML(batchStock.importNumber)}
-                    <span>${formatNumber(batchStock.remainingQuantity)}</span>
+                    <span>${formatNumber(batchStock.originalQuantity)}</span>
                   </button>
                 `).join("")}
               </div>
