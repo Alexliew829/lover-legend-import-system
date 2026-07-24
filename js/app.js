@@ -782,9 +782,9 @@ function moveBatchField(currentField, key) {
   return true;
 }
 
-function generateImportNumber(currency, containerDate, batches) {
+function generateImportNumber(currency, arrivalDate, batches) {
   const code = String(currency || "IMP").toUpperCase();
-  const digits = String(containerDate || "").replace(/\D/g, "");
+  const digits = String(arrivalDate || "").replace(/\D/g, "");
   const dateCode = digits.length === 8
     ? digits
     : formatDateDDMMYYYY(new Date()).replace(/\D/g, "");
