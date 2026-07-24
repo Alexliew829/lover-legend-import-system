@@ -3157,6 +3157,51 @@ function renderInventoryManagementList() {
   const keyword = document.getElementById("inventorySearch").value.trim().toLowerCase();
   const sortMode = document.getElementById("inventorySort").value;
   const imports = getImports();
+  const batches = getBatches();
+
+  const batchByImportNumber = new Map(
+    batches
+      .filter(batch => String(batch.importNumber || "").trim())
+      .map(batch => [
+        String(batch.importNumber || "").trim().toLowerCase(),
+        batch
+      ])
+  );
+
+  const getBatchOriginalTotalQuantity = importNumber => {
+    const normalizedNumber = String(importNumber || "").trim().toLowerCase();
+    if (!normalizedNumber) return 0;
+
+    const batch = batchByImportNumber.get(normalizedNumber);
+
+    const storedTotal = Number(batch?.totalQuantity);
+    if (Number.isFinite(storedTotal) && storedTotal >= 0) {
+      return storedTotal;
+    }
+
+    const batchItems = batch ? getBatchItemsForDisplay(batch) : [];
+    if (batchItems.length) {
+      return batchItems.reduce((sum, item) => {
+        return sum + Math.max(
+          0,
+          Number(item.originalQuantity ?? item.quantity) || 0
+        );
+      }, 0);
+    }
+
+    return imports
+      .filter(
+        record =>
+          String(record.importNumber || "").trim().toLowerCase() ===
+          normalizedNumber
+      )
+      .reduce((sum, record) => {
+        return sum + Math.max(
+          0,
+          Number(record.originalQuantity ?? record.quantity) || 0
+        );
+      }, 0);
+  };
 
   const products = getProducts()
     // 首页以实际库存为准；避免旧的 inventoryArchived 标记
@@ -3201,18 +3246,9 @@ function renderInventoryManagementList() {
           : originalQuantity;
 
         if (remainingQuantity > 0) {
-          const totalOriginalQuantity = matchingImports
-            .filter(item => String(item.importNumber || "").trim() === importNumber)
-            .reduce((sum, item) => {
-              return sum + Math.max(
-                0,
-                Number(item.originalQuantity ?? item.quantity) || 0
-              );
-            }, 0);
-
           batchStocks.push({
             importNumber,
-            originalQuantity: totalOriginalQuantity
+            originalQuantity: getBatchOriginalTotalQuantity(importNumber)
           });
         }
       });
