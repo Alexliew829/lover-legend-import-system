@@ -2873,7 +2873,93 @@ function setupInventoryModule() {
   document.getElementById("inventorySearch").addEventListener("input", renderInventoryManagementList);
   document.getElementById("inventorySort").addEventListener("change", renderInventoryManagementList);
 
-  document.getElementById("inventoryManagementList").addEventListener("click", event => {
+  const inventoryList = document.getElementById("inventoryManagementList");
+  let longPressTimer = null;
+  let longPressTriggered = false;
+  let longPressCard = null;
+  let startX = 0;
+  let startY = 0;
+
+  const cancelLongPress = () => {
+    if (longPressTimer) {
+      window.clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+
+    longPressCard?.classList.remove("long-press-active");
+    longPressCard = null;
+  };
+
+  const startLongPress = event => {
+    if (
+      event.target.closest(
+        "button, input, select, textarea, a, .inventory-import-number"
+      )
+    ) {
+      return;
+    }
+
+    const card = event.target.closest(".inventory-manage-card");
+    if (!card) return;
+
+    const point = event.touches?.[0] || event;
+    startX = Number(point.clientX) || 0;
+    startY = Number(point.clientY) || 0;
+    longPressTriggered = false;
+    longPressCard = card;
+    card.classList.add("long-press-active");
+
+    longPressTimer = window.setTimeout(() => {
+      longPressTimer = null;
+      longPressTriggered = true;
+      card.classList.remove("long-press-active");
+      renameInventoryProduct(card.dataset.productId);
+    }, 700);
+  };
+
+  const moveLongPress = event => {
+    if (!longPressTimer) return;
+
+    const point = event.touches?.[0] || event;
+    const movedX = Math.abs((Number(point.clientX) || 0) - startX);
+    const movedY = Math.abs((Number(point.clientY) || 0) - startY);
+
+    if (movedX > 12 || movedY > 12) {
+      cancelLongPress();
+    }
+  };
+
+  inventoryList.addEventListener("touchstart", startLongPress, {
+    passive: true
+  });
+  inventoryList.addEventListener("touchmove", moveLongPress, {
+    passive: true
+  });
+  inventoryList.addEventListener("touchend", cancelLongPress);
+  inventoryList.addEventListener("touchcancel", cancelLongPress);
+
+  inventoryList.addEventListener("mousedown", event => {
+    if (event.button !== 0) return;
+    startLongPress(event);
+  });
+  inventoryList.addEventListener("mousemove", moveLongPress);
+  inventoryList.addEventListener("mouseup", cancelLongPress);
+  inventoryList.addEventListener("mouseleave", cancelLongPress);
+
+  inventoryList.addEventListener("contextmenu", event => {
+    if (event.target.closest(".inventory-manage-card")) {
+      event.preventDefault();
+    }
+  });
+
+  inventoryList.addEventListener("click", event => {
+    if (longPressTriggered) {
+      longPressTriggered = false;
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     const button = event.target.closest(".inventory-import-number");
     if (!button) return;
 
@@ -2881,6 +2967,134 @@ function setupInventoryModule() {
   });
 
   renderInventoryManagementList();
+}
+
+function renameInventoryProduct(productId) {
+  const id = String(productId || "").trim();
+  if (!id) return;
+
+  const products = getProducts();
+  const productIndex = products.findIndex(
+    product => String(product.id || "") === id
+  );
+
+  if (productIndex === -1) {
+    alert("找不到这个产品。");
+    return;
+  }
+
+  const product = products[productIndex];
+  const oldName = String(product.name || "").trim();
+  const enteredName = window.prompt("修改产品名称", oldName);
+
+  if (enteredName === null) return;
+
+  const newName = String(enteredName).trim();
+
+  if (!newName) {
+    alert("产品名称不能为空。");
+    return;
+  }
+
+  if (Array.from(newName).length > 15) {
+    alert("产品名称最多15个字。");
+    return;
+  }
+
+  if (newName === oldName) {
+    showProductRenameMessage("名称没有改变");
+    return;
+  }
+
+  const duplicate = products.find(
+    item =>
+      String(item.id || "") !== id &&
+      String(item.name || "").trim().toLowerCase() === newName.toLowerCase()
+  );
+
+  if (duplicate) {
+    alert("已有相同名称的产品。");
+    return;
+  }
+
+  const now = new Date().toISOString();
+
+  products[productIndex] = {
+    ...product,
+    name: newName,
+    updatedAt: now
+  };
+
+  const imports = getImports().map(record => {
+    const sameProductId =
+      record.productId && String(record.productId) === id;
+    const sameLegacyName =
+      !record.productId &&
+      String(record.productName || "").trim().toLowerCase() ===
+        oldName.toLowerCase();
+
+    if (!sameProductId && !sameLegacyName) return record;
+
+    return {
+      ...record,
+      productName: newName,
+      updatedAt: now
+    };
+  });
+
+  const batches = getBatches().map(batch => ({
+    ...batch,
+    items: (Array.isArray(batch.items) ? batch.items : []).map(item => {
+      const sameProductId =
+        item.productId && String(item.productId) === id;
+      const sameLegacyName =
+        !item.productId &&
+        String(item.productName || "").trim().toLowerCase() ===
+          oldName.toLowerCase();
+
+      if (!sameProductId && !sameLegacyName) return item;
+
+      return {
+        ...item,
+        productName: newName,
+        updatedAt: now
+      };
+    }),
+    updatedAt: now
+  }));
+
+  saveProducts(products);
+  saveImports(imports);
+  saveBatches(batches);
+
+  renderInventoryManagementList();
+  renderDashboard();
+  renderBatchSuggestions();
+  renderBatchList();
+
+  showProductRenameMessage(`已编辑：${newName}`);
+}
+
+function showProductRenameMessage(message) {
+  const element = document.getElementById("googleSyncStatus");
+  if (!element) {
+    alert(message);
+    return;
+  }
+
+  const icon = element.querySelector(".dashboard-sync-icon");
+  const text = element.querySelector(".dashboard-sync-text");
+
+  element.classList.remove("syncing", "failed");
+  element.classList.add("synced");
+
+  if (icon) icon.textContent = "✓";
+  if (text) text.textContent = message;
+
+  window.clearTimeout(window.productRenameStatusTimer);
+  window.productRenameStatusTimer = window.setTimeout(() => {
+    setCloudState("synced");
+  }, 2200);
 }
 
 async function copyInventoryImportNumber(button) {
@@ -3097,7 +3311,9 @@ function renderInventoryManagementList() {
     const inventoryValue = stock * averageCost;
 
     return `
-      <article class="inventory-manage-card">
+      <article class="inventory-manage-card"
+               data-product-id="${escapeHTML(product.id)}"
+               title="长按可修改产品名称">
         <div class="inventory-manage-head">
           <div>
             <div class="inventory-product-title-row">

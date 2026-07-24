@@ -1724,3 +1724,19 @@ input::placeholder {
   color: #1f5d3a;
 }
 
+/* V2.64：首页库存产品长按更名 */
+.inventory-manage-card {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.inventory-manage-card.long-press-active {
+  transform: scale(0.992);
+  box-shadow: 0 0 0 2px rgba(31, 93, 58, 0.18);
+}
+
+.inventory-product-title-row h4 {
+  cursor: default;
+}
+
