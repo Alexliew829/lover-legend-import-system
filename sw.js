@@ -1,12 +1,12 @@
-const CACHE = "lover-legend-import-cost-formal-v2.51";
+const CACHE = "lover-legend-import-cost-formal-v2.52";
 const CORE = [
   "./",
   "./index.html",
-  "./css/style.css?v=2.51",
-  "./js/common.js?v=2.51",
-  "./js/sync.js?v=2.51",
-  "./js/app.js?v=2.51",
-  "./manifest.json?v=2.51",
+  "./css/style.css?v=2.52",
+  "./js/common.js?v=2.52",
+  "./js/sync.js?v=2.52",
+  "./js/app.js?v=2.52",
+  "./manifest.json?v=2.52",
   "./assets/images/logo-green.jpg",
   "./assets/images/logo-red.jpg",
   "./assets/icons/favicon.ico",

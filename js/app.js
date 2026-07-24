@@ -123,8 +123,8 @@ function repairLegacyImportDates() {
   });
 
   if (changed) {
-    saveProducts(products);
     saveImports(imports);
+    saveProducts(reconciledProducts);
     saveBatches(batches);
   }
 }
@@ -2178,6 +2178,183 @@ function clearBatchAfterSuccessfulAction() {
   setBatchEditMode("");
 }
 
+
+function getImportRemainingQuantity(record) {
+  const remaining = Number(record?.remainingQuantity);
+
+  if (Number.isFinite(remaining)) {
+    return Math.max(0, Math.floor(remaining));
+  }
+
+  const original = Number(record?.originalQuantity ?? record?.quantity);
+  return Number.isFinite(original)
+    ? Math.max(0, Math.floor(original))
+    : 0;
+}
+
+function getInventoryProductKey(item) {
+  const productId = String(item?.productId || item?.id || "").trim();
+  if (productId) return `id:${productId}`;
+
+  return [
+    "name",
+    String(item?.productName || item?.name || "").trim().toLowerCase(),
+    String(item?.category || "盆栽").trim().toLowerCase()
+  ].join(":");
+}
+
+function buildCanonicalStockMap(imports) {
+  const stockMap = new Map();
+
+  (imports || []).forEach(record => {
+    const key = getInventoryProductKey(record);
+    if (!key || key === "name::盆栽") return;
+
+    stockMap.set(
+      key,
+      (stockMap.get(key) || 0) + getImportRemainingQuantity(record)
+    );
+  });
+
+  return stockMap;
+}
+
+function reconcileProductsStockFromImports(products, imports) {
+  const stockMap = buildCanonicalStockMap(imports);
+  const now = new Date().toISOString();
+
+  return (products || []).map(product => {
+    const key = getInventoryProductKey(product);
+    const stock = Math.max(0, Math.floor(stockMap.get(key) || 0));
+
+    return {
+      ...product,
+      stock,
+      // 修复库存时只重建当前数量，Average Cost 完全保留。
+      averageCost: Number(product.averageCost) || 0,
+      inventoryArchived: stock > 0 ? false : Boolean(product.inventoryArchived),
+      updatedAt: stock !== (Number(product.stock) || 0)
+        ? now
+        : product.updatedAt
+    };
+  });
+}
+
+function getInventoryRepairSummary() {
+  const products = getProducts();
+  const imports = getImports();
+  const repairedProducts = reconcileProductsStockFromImports(products, imports);
+
+  const currentStock = products.reduce(
+    (sum, product) => sum + Math.max(0, Number(product.stock) || 0),
+    0
+  );
+  const repairedStock = repairedProducts.reduce(
+    (sum, product) => sum + Math.max(0, Number(product.stock) || 0),
+    0
+  );
+  const currentValue = products.reduce(
+    (sum, product) =>
+      sum +
+      (Math.max(0, Number(product.stock) || 0) *
+        Math.max(0, Number(product.averageCost) || 0)),
+    0
+  );
+  const repairedValue = repairedProducts.reduce(
+    (sum, product) =>
+      sum +
+      (Math.max(0, Number(product.stock) || 0) *
+        Math.max(0, Number(product.averageCost) || 0)),
+    0
+  );
+
+  const differences = repairedProducts
+    .map((product, index) => ({
+      id: product.id || "",
+      name: product.name || "未命名产品",
+      before: Math.max(0, Number(products[index]?.stock) || 0),
+      after: Math.max(0, Number(product.stock) || 0)
+    }))
+    .filter(item => item.before !== item.after);
+
+  return {
+    products,
+    repairedProducts,
+    currentStock,
+    repairedStock,
+    currentValue,
+    repairedValue,
+    differences
+  };
+}
+
+function renderInventoryRepairPreview() {
+  const output = document.getElementById("inventoryRepairStatus");
+  if (!output) return;
+
+  const summary = getInventoryRepairSummary();
+  const topDifferences = summary.differences.slice(0, 8);
+
+  output.classList.remove("error-status", "success-status");
+  output.innerHTML = `
+    <strong>检查结果</strong><br>
+    目前库存：${formatNumber(summary.currentStock)} →
+    按进口明细应为：${formatNumber(summary.repairedStock)}<br>
+    目前库存成本总值：${formatMoney(summary.currentValue, "RM ")} →
+    修复后：${formatMoney(summary.repairedValue, "RM ")}<br>
+    数量不同的产品：${formatNumber(summary.differences.length)} 项
+    ${topDifferences.length ? `
+      <div class="inventory-repair-differences">
+        ${topDifferences.map(item => `
+          <div>${escapeHTML(item.id)} · ${escapeHTML(item.name)}：${formatNumber(item.before)} → ${formatNumber(item.after)}</div>
+        `).join("")}
+        ${summary.differences.length > topDifferences.length
+          ? `<div>另有 ${formatNumber(summary.differences.length - topDifferences.length)} 项……</div>`
+          : ""}
+      </div>
+    ` : ""}
+  `;
+}
+
+function repairInventoryFromImports() {
+  const output = document.getElementById("inventoryRepairStatus");
+  const summary = getInventoryRepairSummary();
+
+  if (!summary.differences.length) {
+    if (output) {
+      output.classList.add("success-status");
+      output.textContent = "库存数量已经与进口明细一致，不需要修复。";
+    }
+    return;
+  }
+
+  const confirmed = confirm(
+    `库存修复只会重建当前库存数量，不会修改 Average Cost、进口历史、海外运费比例或成本。\n\n` +
+    `目前库存：${formatNumber(summary.currentStock)}\n` +
+    `修复后库存：${formatNumber(summary.repairedStock)}\n` +
+    `目前库存成本总值：${formatMoney(summary.currentValue, "RM ")}\n` +
+    `修复后库存成本总值：${formatMoney(summary.repairedValue, "RM ")}\n\n` +
+    `确定执行？`
+  );
+
+  if (!confirmed) return;
+
+  saveProducts(summary.repairedProducts);
+  renderDashboard();
+  renderInventoryManagementList();
+  renderProductList();
+
+  if (output) {
+    output.classList.remove("error-status");
+    output.classList.add("success-status");
+    output.innerHTML =
+      `<strong>库存修复完成</strong><br>` +
+      `当前库存：${formatNumber(summary.repairedStock)}<br>` +
+      `库存成本总值：${formatMoney(summary.repairedValue, "RM ")}<br>` +
+      `资料正在同步到 Google Sheet。`;
+  }
+}
+
 function saveBatchImport() {
   const status = document.getElementById("batchStatusText");
   const result = calculateBatch();
@@ -2250,35 +2427,6 @@ function saveBatchImport() {
         return;
       }
 
-      const productIndex = products.findIndex(product =>
-        product.id === oldItem.productId ||
-        (String(product.name || "").trim().toLowerCase() === String(oldItem.productName || "").trim().toLowerCase() &&
-         product.category === oldItem.category)
-      );
-      if (productIndex !== -1) {
-        const currentTotalStock = Math.max(
-          0,
-          Number(products[productIndex].stock) || 0
-        );
-        const stockDifference = newRemaining - oldRemaining;
-        const updatedTotalStock = Math.max(
-          0,
-          currentTotalStock + stockDifference
-        );
-
-        products[productIndex] = {
-          ...products[productIndex],
-          stock: updatedTotalStock,
-          // 编辑某进口编号只调整该批次剩余数量；产品总库存按差额加减。
-          // 销售、退货及盘点不会改变 Average Cost。
-          averageCost: Number(products[productIndex].averageCost) || 0,
-          inventoryArchived: updatedTotalStock <= 0
-            ? products[productIndex].inventoryArchived
-            : false,
-          updatedAt: new Date().toISOString()
-        };
-      }
-
       updatedItems.push({
         ...oldItem,
         originalQuantity,
@@ -2294,6 +2442,11 @@ function saveBatchImport() {
       if (imports[i].batchId === oldBatch.id) imports.splice(i, 1);
     }
     imports.push(...updatedItems);
+
+    const reconciledProducts = reconcileProductsStockFromImports(
+      products,
+      imports
+    );
 
     batches[batchIndex] = {
       ...oldBatch,
@@ -2320,7 +2473,7 @@ function saveBatchImport() {
 
     clearBatchAfterSuccessfulAction();
     document.getElementById("batchStatusText").textContent =
-      `已更新 ${currentEditingImportNumber || oldBatch.importNumber} 的批次剩余数量；每项允许范围为 0 至该进口编号的原进口数量。产品总库存已按差额同步调整，原进口历史、原成本、Average Cost及海外运费比例保持不变。`;
+      `已更新 ${currentEditingImportNumber || oldBatch.importNumber} 的批次剩余数量；每项允许范围为 0 至该进口编号的原进口数量。产品总库存已按全部进口明细的当前剩余数量重新核对，原进口历史、原成本、Average Cost及海外运费比例保持不变。`;
     return;
   }
 
@@ -2376,7 +2529,11 @@ function saveBatchImport() {
     }
 
     const product = products[productIndex];
-    const oldStock = Number(product.stock) || 0;
+    const canonicalStockMap = buildCanonicalStockMap(imports);
+    const oldStock = Math.max(
+      0,
+      Number(canonicalStockMap.get(getInventoryProductKey(product))) || 0
+    );
     const oldAverage = Number(product.averageCost) || 0;
     const newStock = oldStock + item.stockAdded;
     const newAverage = newStock > 0
@@ -2409,7 +2566,8 @@ function saveBatchImport() {
   });
 
   batches.unshift(batch);
-  saveProducts(products);
+  const reconciledProducts = reconcileProductsStockFromImports(products, imports);
+  saveProducts(reconciledProducts);
   saveImports(imports);
   saveBatches(batches);
   renderBatchSuggestions();
@@ -2868,11 +3026,15 @@ function setupDataTools() {
   const exportButton = document.getElementById("exportExcelBtn");
   const backupButton = document.getElementById("backupDataBtn");
   const restoreButton = document.getElementById("restoreDataBtn");
+  const inventoryCheckButton = document.getElementById("inventoryCheckBtn");
+  const inventoryRepairButton = document.getElementById("inventoryRepairBtn");
   const restoreInput = document.getElementById("restoreFileInput");
 
   exportButton?.addEventListener("click", exportSystemExcel);
   backupButton?.addEventListener("click", backupSystemData);
   restoreButton?.addEventListener("click", () => restoreInput?.click());
+  inventoryCheckButton?.addEventListener("click", renderInventoryRepairPreview);
+  inventoryRepairButton?.addEventListener("click", repairInventoryFromImports);
   restoreInput?.addEventListener("change", restoreSystemData);
 }
 
@@ -3007,7 +3169,7 @@ function exportSystemExcel() {
 function backupSystemData() {
   const backup = {
     app: "Lover Legend Import Cost & Inventory System",
-    version: "2.51",
+    version: "2.52",
     exportedAt: new Date().toISOString(),
     settings: loadJSON("importSystemSettings", {}),
     products: getProducts(),

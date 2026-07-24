@@ -1571,7 +1571,7 @@ input::placeholder {
 }
 
 
-/* Formal V2.51 — category summary and read-only import history */
+/* Formal V2.52 — category summary and read-only import history */
 #productCount {
   white-space: pre-line;
   line-height: 1.35;
@@ -1706,7 +1706,7 @@ input::placeholder {
 }
 
 
-/* V2.51 product-name import history search */
+/* V2.52 product-name import history search */
 .history-product-group {
   display: grid;
   gap: 14px;
@@ -1754,5 +1754,46 @@ input::placeholder {
 
   .history-product-totals {
     justify-content: flex-start;
+  }
+}
+
+
+/* V2.52 — inventory verification and repair */
+.inventory-repair-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.danger-tool-btn {
+  border-color: #b3261e;
+  color: #9f1f18;
+}
+
+.inventory-repair-status {
+  margin-top: 12px;
+  line-height: 1.65;
+  white-space: normal;
+}
+
+.inventory-repair-status:empty {
+  display: none;
+}
+
+.inventory-repair-differences {
+  margin-top: 8px;
+  padding: 9px 11px;
+  border: 1px solid #d9e5d7;
+  border-radius: 9px;
+  background: #f7faf6;
+  font-size: 13px;
+}
+
+.success-status {
+  color: #176b32;
+  font-weight: 700;
+}
+
+@media (max-width: 520px) {
+  .inventory-repair-actions {
+    grid-template-columns: 1fr;
   }
 }
