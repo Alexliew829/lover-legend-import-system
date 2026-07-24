@@ -79,10 +79,17 @@
         <section class="panel">
           <div class="section-title-row inventory-title-row">
             <h3>库存管理</h3>
-            <div class="inventory-title-summary">
-              <span class="inventory-filter-value">库存成本：<strong id="inventoryFilteredValue">RM 0.00</strong></span>
-              <span class="muted" id="inventoryPageCount">0 项</span>
-            </div>
+           <div class="inventory-title-summary">
+  <span class="inventory-filter-stock">
+    当前库存：<strong id="inventoryFilteredStock">0</strong>
+  </span>
+
+  <span class="inventory-filter-value">
+    库存成本：<strong id="inventoryFilteredValue">RM 0.00</strong>
+  </span>
+
+  <span class="muted" id="inventoryPageCount">0 项</span>
+</div>
           </div>
           <div class="inventory-toolbar">
             <input id="inventorySearch" class="search-input text-left-input" placeholder="搜索产品名称、编号、类别或进口编号" />
