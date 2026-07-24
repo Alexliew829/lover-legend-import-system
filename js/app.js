@@ -3174,33 +3174,66 @@ function renderInventoryManagementList() {
 
     const batch = batchByImportNumber.get(normalizedNumber);
 
-    const storedTotal = Number(batch?.totalQuantity);
-    if (Number.isFinite(storedTotal) && storedTotal >= 0) {
-      return storedTotal;
-    }
-
+    // 优先从该批次的产品明细加总原进口数量。
+    // 旧版本的 batch.totalQuantity 可能因栏位变动而误存成单价，
+    // 因此不能再把 totalQuantity 放在第一优先。
     const batchItems = batch ? getBatchItemsForDisplay(batch) : [];
     if (batchItems.length) {
-      return batchItems.reduce((sum, item) => {
-        return sum + Math.max(
-          0,
-          Number(item.originalQuantity ?? item.quantity) || 0
-        );
+      const itemsTotal = batchItems.reduce((sum, item) => {
+        const originalQuantity = Number(item.originalQuantity);
+        const legacyQuantity = Number(item.quantity);
+
+        const quantity =
+          Number.isFinite(originalQuantity) && originalQuantity >= 0
+            ? originalQuantity
+            : (
+                Number.isFinite(legacyQuantity) && legacyQuantity >= 0
+                  ? legacyQuantity
+                  : 0
+              );
+
+        return sum + quantity;
       }, 0);
+
+      if (itemsTotal > 0) {
+        return itemsTotal;
+      }
     }
 
-    return imports
-      .filter(
-        record =>
-          String(record.importNumber || "").trim().toLowerCase() ===
-          normalizedNumber
-      )
-      .reduce((sum, record) => {
-        return sum + Math.max(
-          0,
-          Number(record.originalQuantity ?? record.quantity) || 0
-        );
+    // 没有批次产品明细时，才使用 Imports 作为旧资料备用来源。
+    const importRecords = imports.filter(
+      record =>
+        String(record.importNumber || "").trim().toLowerCase() ===
+        normalizedNumber
+    );
+
+    if (importRecords.length) {
+      const importsTotal = importRecords.reduce((sum, record) => {
+        const originalQuantity = Number(record.originalQuantity);
+        const legacyQuantity = Number(record.quantity);
+
+        const quantity =
+          Number.isFinite(originalQuantity) && originalQuantity >= 0
+            ? originalQuantity
+            : (
+                Number.isFinite(legacyQuantity) && legacyQuantity >= 0
+                  ? legacyQuantity
+                  : 0
+              );
+
+        return sum + quantity;
       }, 0);
+
+      if (importsTotal > 0) {
+        return importsTotal;
+      }
+    }
+
+    // 最后才使用批次储存的总数量，避免旧版本单价错位。
+    const storedTotal = Number(batch?.totalQuantity);
+    return Number.isFinite(storedTotal) && storedTotal >= 0
+      ? storedTotal
+      : 0;
   };
 
   const products = getProducts()
