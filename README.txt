@@ -1,4 +1,4 @@
-Lover Legend 进口成本与库存系统 — 正式版 V2.5
+Lover Legend 进口成本与库存系统 — 正式版 V2.51
 
 本版更新：
 - Dashboard 产品种类按盆栽、花盆、周边产品分类显示。
@@ -12,3 +12,11 @@ Lover Legend 进口成本与库存系统 — 正式版 V2.5
 部署：
 - 只需上传 Frontend 文件夹内全部内容到 GitHub Repository 根目录并覆盖旧文件。
 - Apps Script / Code.gs 没有修改，不需要重新部署 Apps Script。
+
+
+V2.51 重点：
+- Imports 云端表新增「原进口数量」与「当前剩余数量」。
+- 产品总库存仍保存在 Products；每张进口编号保留自己的原进口与剩余数量。
+- 进口历史可输入进口编号或产品名称查询。
+- 输入产品名称时，显示该产品所有进口批次、累计原进口及目前总剩余。
+- 本版修改 Code.gs，必须重新部署 Apps Script。

@@ -1,0 +1,18 @@
+Lover Legend Import Cost & Inventory System V2.51 — 部署说明
+
+一、GitHub Pages
+- 上传并覆盖整个 Frontend 文件夹。
+- sw.js 缓存已更新为 V2.51。
+
+二、Apps Script（必须更新）
+- 本版修改了 Apps Script/Code.gs。
+- Imports 表新增「原进口数量」和「当前剩余数量」字段。
+- 操作：Deploy → Manage deployments → Edit → New version → Deploy。
+- Web App URL 保持原本地址，不需要更换前端 URL。
+
+三、上线后检查
+1. 等待同步完成。
+2. 打开 Imports 工作表，确认出现原进口数量、当前剩余数量两栏。
+3. 新建一个测试进口编号，确认两栏都有数量。
+4. 编辑批次剩余数量后，确认原进口数量不变、当前剩余数量改变。
+5. 进口历史输入产品名称，确认可显示所有相关进口批次。
