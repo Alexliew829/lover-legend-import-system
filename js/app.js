@@ -146,8 +146,41 @@ function setupNavigation() {
       document.getElementById(target)?.classList.add("active");
 
       if (target === "importPage") {
+        const batchSearch = document.getElementById("batchSearch");
+        const productSearch =
+          document.getElementById("batchProductStockSearch");
+        const batchList = document.getElementById("batchList");
+        const productResults =
+          document.getElementById("batchProductStockResults");
+        const productStatus =
+          document.getElementById("batchProductStockStatus");
+        const recentBatchArea =
+          document.getElementById("recentBatchResultsArea");
+        const countElement =
+          document.getElementById("batchListCount");
+        const toggleButton =
+          document.getElementById("toggleBatchListBtn");
+
+        if (batchSearch) batchSearch.value = "";
+        if (productSearch) productSearch.value = "";
+
+        batchListExpanded = false;
+
+        if (batchList) batchList.innerHTML = "";
+        if (productResults) {
+          productResults.hidden = true;
+          productResults.innerHTML = "";
+        }
+        if (productStatus) productStatus.textContent = "";
+        if (recentBatchArea) recentBatchArea.hidden = false;
+        if (countElement) countElement.textContent = "0 / 0 批";
+        if (toggleButton) {
+          toggleButton.hidden = false;
+          toggleButton.textContent = "显示全部";
+          toggleButton.setAttribute("aria-expanded", "false");
+        }
+
         renderBatchSuggestions();
-        renderBatchList();
       }
 
       if (target === "dashboardPage") {
@@ -924,30 +957,56 @@ function getBatchItemsForDisplay(batch) {
 
 function getSafeDisplayOriginalQuantity(item) {
   const explicitOriginal = Number(item?.originalQuantity);
-  if (Number.isFinite(explicitOriginal) && explicitOriginal >= 0) {
-    return explicitOriginal;
-  }
-
   const stockAdded = Number(item?.stockAdded);
-  if (Number.isFinite(stockAdded) && stockAdded >= 0) {
-    return stockAdded;
-  }
-
   const legacyQuantity = Number(item?.quantity);
   const unitPrice = Number(item?.unitPrice);
 
-  // 旧资料曾发生 quantity 与 unitPrice 栏位错位。
-  // 若两者相同，不把单价误当成数量。
+  const validNonNegative = value =>
+    Number.isFinite(value) && value >= 0;
+
+  const alternateCandidates = [stockAdded, legacyQuantity]
+    .filter(validNonNegative)
+    .map(value => Math.floor(value));
+
+  const preferredAlternate = alternateCandidates.find(value => {
+    if (!Number.isFinite(unitPrice) || unitPrice <= 0) return true;
+    return Math.abs(value - unitPrice) > 0.000001;
+  });
+
+  if (validNonNegative(explicitOriginal)) {
+    const explicitLooksLikeUnitPrice =
+      Number.isFinite(unitPrice) &&
+      unitPrice > 0 &&
+      Math.abs(explicitOriginal - unitPrice) < 0.000001;
+
+    const explicitLooksPolluted =
+      preferredAlternate !== undefined &&
+      preferredAlternate > 0 &&
+      explicitOriginal > preferredAlternate * 10;
+
+    if (
+      (explicitLooksLikeUnitPrice || explicitLooksPolluted) &&
+      preferredAlternate !== undefined
+    ) {
+      return preferredAlternate;
+    }
+
+    return Math.floor(explicitOriginal);
+  }
+
+  if (validNonNegative(stockAdded)) {
+    return Math.floor(stockAdded);
+  }
+
   if (
-    Number.isFinite(legacyQuantity) &&
-    legacyQuantity >= 0 &&
+    validNonNegative(legacyQuantity) &&
     !(
       Number.isFinite(unitPrice) &&
       unitPrice > 0 &&
       Math.abs(legacyQuantity - unitPrice) < 0.000001
     )
   ) {
-    return legacyQuantity;
+    return Math.floor(legacyQuantity);
   }
 
   return 0;
@@ -2961,6 +3020,19 @@ function renderBatchList() {
   const listElement = document.getElementById("batchList");
   const keyword = String(searchInput?.value || "").trim().toLowerCase();
 
+  if (!keyword && !batchListExpanded) {
+    if (countElement) countElement.textContent = `0 / ${allBatches.length} 批`;
+
+    if (toggleButton) {
+      toggleButton.hidden = !allBatches.length;
+      toggleButton.textContent = "显示全部";
+      toggleButton.setAttribute("aria-expanded", "false");
+    }
+
+    if (listElement) listElement.innerHTML = "";
+    return;
+  }
+
   const recentBatchArea =
     document.getElementById("recentBatchResultsArea");
   const productResults =
@@ -3265,22 +3337,8 @@ function allocateProductRemainingFIFO(productId, productName, targetStock) {
     return sameProductId || sameLegacyName;
   };
 
-  const originalOf = item => {
-    const explicitOriginal = Number(item?.originalQuantity);
-    if (Number.isFinite(explicitOriginal) && explicitOriginal >= 0) {
-      return Math.floor(explicitOriginal);
-    }
-
-    const stockAdded = Number(item?.stockAdded);
-    if (Number.isFinite(stockAdded) && stockAdded >= 0) {
-      return Math.floor(stockAdded);
-    }
-
-    const quantity = Number(item?.quantity);
-    return Number.isFinite(quantity) && quantity >= 0
-      ? Math.floor(quantity)
-      : 0;
-  };
+  const originalOf = item =>
+    getSafeDisplayOriginalQuantity(item);
 
   const imports = getImports();
   const batches = getBatches();
@@ -4262,22 +4320,8 @@ function rebuildAllImportHistoryRemainingFIFO() {
     ])
   );
 
-  const originalOf = item => {
-    const explicitOriginal = Number(item?.originalQuantity);
-    if (Number.isFinite(explicitOriginal) && explicitOriginal >= 0) {
-      return Math.floor(explicitOriginal);
-    }
-
-    const stockAdded = Number(item?.stockAdded);
-    if (Number.isFinite(stockAdded) && stockAdded >= 0) {
-      return Math.floor(stockAdded);
-    }
-
-    const quantity = Number(item?.quantity);
-    return Number.isFinite(quantity) && quantity >= 0
-      ? Math.floor(quantity)
-      : 0;
-  };
+  const originalOf = item =>
+    getSafeDisplayOriginalQuantity(item);
 
   let repairedProducts = 0;
   let repairedRecords = 0;

@@ -1724,7 +1724,7 @@ input::placeholder {
   color: #1f5d3a;
 }
 
-/* V2.72：首页库存产品长按更名 */
+/* V2.73：首页库存产品长按更名 */
 .inventory-manage-card {
   -webkit-user-select: none;
   user-select: none;
@@ -1740,7 +1740,7 @@ input::placeholder {
   cursor: default;
 }
 
-/* V2.72：手机优先显示产品与数量，类别移到入库前 */
+/* V2.73：手机优先显示产品与数量，类别移到入库前 */
 .batch-table th:nth-child(2),
 .batch-table td:nth-child(2) {
   width: 86px;
@@ -1772,7 +1772,7 @@ input::placeholder {
 
 
 
-/* V2.72：双搜索、产品库存编辑及全页面下拉清空 */
+/* V2.73：双搜索、产品库存编辑及全页面下拉清空 */
 .batch-search-fields {
   display: grid;
   grid-template-columns: minmax(230px, 0.9fr) minmax(260px, 1.1fr);
@@ -1889,7 +1889,7 @@ input::placeholder {
 }
 
 
-/* V2.72：产品名称搜索时只显示产品结果 */
+/* V2.73：产品名称搜索时只显示产品结果 */
 #recentBatchResultsArea[hidden],
 #batchProductStockResults[hidden],
 #toggleBatchListBtn[hidden],
@@ -1897,7 +1897,7 @@ input::placeholder {
   display: none !important;
 }
 
-/* V2.72：产品名称及库存仅长按编辑，禁止 iPhone 文字选择菜单 */
+/* V2.73：产品名称及库存仅长按编辑，禁止 iPhone 文字选择菜单 */
 .product-stock-name-btn,
 .product-stock-qty-btn,
 .product-stock-name-btn *,
@@ -1914,7 +1914,7 @@ input::placeholder {
   box-shadow: 0 0 0 2px rgba(31, 93, 58, 0.2);
 }
 
-/* V2.72：最近批次搜索与产品搜索互斥显示 */
+/* V2.73：最近批次搜索与产品搜索互斥显示 */
 #recentBatchResultsArea[hidden],
 #batchProductStockResults[hidden],
 #toggleBatchListBtn[hidden],
@@ -1922,7 +1922,7 @@ input::placeholder {
   display: none !important;
 }
 
-/* V2.72：历史库存重建工具 */
+/* V2.73：历史库存重建工具 */
 .repair-history-btn {
   border-color: #c98b21;
   background: #fff8e8;
