@@ -3021,13 +3021,30 @@ function renderBatchProductStockResults() {
   if (!input || !output) return;
 
   const keyword = String(input.value || "").trim().toLowerCase();
+  const recentBatchArea =
+    document.getElementById("recentBatchResultsArea");
+  const toggleButton =
+    document.getElementById("toggleBatchListBtn");
+  const countElement =
+    document.getElementById("batchListCount");
+
   if (status) status.textContent = "";
 
   if (!keyword) {
     output.hidden = true;
     output.innerHTML = "";
+
+    if (recentBatchArea) recentBatchArea.hidden = false;
+    if (toggleButton) toggleButton.hidden = false;
+    if (countElement) countElement.hidden = false;
+
+    renderBatchList();
     return;
   }
+
+  if (recentBatchArea) recentBatchArea.hidden = true;
+  if (toggleButton) toggleButton.hidden = true;
+  if (countElement) countElement.hidden = true;
 
   const products = getProducts()
     .filter(product =>
@@ -3041,7 +3058,7 @@ function renderBatchProductStockResults() {
 
   if (!products.length) {
     output.innerHTML =
-      '<div class="empty-state">找不到这个产品名称</div>';
+      '<div class="empty-state">找不到该产品</div>';
     return;
   }
 
@@ -3112,6 +3129,12 @@ function editProductStockFromImportPage(productId) {
     if (status) status.textContent = "库存数量没有改变";
     return;
   }
+
+  const confirmed = window.confirm(
+    `确认修改？\n\n产品：${product.name}\n目前库存：${formatNumber(currentStock)}\n修改为：${formatNumber(nextStock)}`
+  );
+
+  if (!confirmed) return;
 
   products[productIndex] = {
     ...product,
@@ -3432,6 +3455,12 @@ function renameInventoryProduct(productId) {
     alert("已有相同名称的产品。");
     return "";
   }
+
+  const confirmed = window.confirm(
+    `确认修改？\n\n原名称：${oldName}\n新名称：${newName}`
+  );
+
+  if (!confirmed) return "";
 
   const now = new Date().toISOString();
 
