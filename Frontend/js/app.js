@@ -2937,16 +2937,10 @@ function renderBatchList() {
   const filteredBatches = allBatches.filter(batch => {
     if (!keyword) return true;
 
-    const items = getBatchItemsForDisplay(batch);
-    const productText = items
-      .map(item => `${item?.productName || item?.name || ""} ${item?.productId || ""} ${item?.category || ""}`)
-      .join(" ");
-
     const searchableText = [
       batch.importNumber,
       batch.trackingNumber,
-      batch.overseasTrackingNumber,
-      productText
+      batch.overseasTrackingNumber
     ]
       .filter(Boolean)
       .join(" ")
@@ -3021,30 +3015,13 @@ function renderBatchProductStockResults() {
   if (!input || !output) return;
 
   const keyword = String(input.value || "").trim().toLowerCase();
-  const recentBatchArea =
-    document.getElementById("recentBatchResultsArea");
-  const toggleButton =
-    document.getElementById("toggleBatchListBtn");
-  const countElement =
-    document.getElementById("batchListCount");
-
   if (status) status.textContent = "";
 
   if (!keyword) {
     output.hidden = true;
     output.innerHTML = "";
-
-    if (recentBatchArea) recentBatchArea.hidden = false;
-    if (toggleButton) toggleButton.hidden = false;
-    if (countElement) countElement.hidden = false;
-
-    renderBatchList();
     return;
   }
-
-  if (recentBatchArea) recentBatchArea.hidden = true;
-  if (toggleButton) toggleButton.hidden = true;
-  if (countElement) countElement.hidden = true;
 
   const products = getProducts()
     .filter(product =>
@@ -3058,7 +3035,7 @@ function renderBatchProductStockResults() {
 
   if (!products.length) {
     output.innerHTML =
-      '<div class="empty-state">找不到该产品</div>';
+      '<div class="empty-state">找不到这个产品名称</div>';
     return;
   }
 
@@ -3129,12 +3106,6 @@ function editProductStockFromImportPage(productId) {
     if (status) status.textContent = "库存数量没有改变";
     return;
   }
-
-  const confirmed = window.confirm(
-    `确认修改？\n\n产品：${product.name}\n目前库存：${formatNumber(currentStock)}\n修改为：${formatNumber(nextStock)}`
-  );
-
-  if (!confirmed) return;
 
   products[productIndex] = {
     ...product,
@@ -3277,7 +3248,7 @@ function setupGlobalMobilePullDownClear() {
 
   let startY = 0;
   let tracking = false;
-  let readyToClear = false;
+  let timer = null;
   let indicator = null;
 
   const getIndicator = () => {
@@ -3285,20 +3256,20 @@ function setupGlobalMobilePullDownClear() {
 
     indicator = document.createElement("div");
     indicator.className = "pull-clear-indicator";
-    indicator.textContent = "继续下拉，松开即可清空当前页面";
+    indicator.textContent = "继续下拉并停留2秒，清空当前页面";
     document.body.appendChild(indicator);
     return indicator;
   };
 
-  const resetGesture = () => {
+  const cancel = () => {
     tracking = false;
-    readyToClear = false;
-  };
 
-  const hideIndicator = () => {
-    const box = getIndicator();
-    box.classList.remove("show", "ready");
-    box.textContent = "继续下拉，松开即可清空当前页面";
+    if (timer) {
+      window.clearTimeout(timer);
+      timer = null;
+    }
+
+    getIndicator().classList.remove("show", "ready");
   };
 
   document.addEventListener(
@@ -3309,7 +3280,6 @@ function setupGlobalMobilePullDownClear() {
 
       startY = Number(event.touches?.[0]?.clientY) || 0;
       tracking = true;
-      readyToClear = false;
     },
     { passive: true }
   );
@@ -3321,57 +3291,43 @@ function setupGlobalMobilePullDownClear() {
 
       const currentY = Number(event.touches?.[0]?.clientY) || 0;
       const distance = currentY - startY;
-      const box = getIndicator();
 
-      readyToClear = distance >= 75;
-
-      if (!readyToClear) {
-        box.classList.remove("show", "ready");
-        box.textContent = "继续下拉，松开即可清空当前页面";
+      if (distance < 75) {
+        if (timer) {
+          window.clearTimeout(timer);
+          timer = null;
+        }
+        getIndicator().classList.remove("show", "ready");
         return;
       }
 
       event.preventDefault();
-      box.textContent = "松开即可清空当前页面";
-      box.classList.add("show", "ready");
+
+      const box = getIndicator();
+      box.classList.add("show");
+
+      if (!timer) {
+        timer = window.setTimeout(() => {
+          timer = null;
+          const message = clearCurrentPageUnsavedInputs();
+
+          box.textContent = message;
+          box.classList.add("ready");
+          tracking = false;
+
+          window.setTimeout(() => {
+            box.classList.remove("show", "ready");
+            box.textContent =
+              "继续下拉并停留2秒，清空当前页面";
+          }, 1400);
+        }, 2000);
+      }
     },
     { passive: false }
   );
 
-  document.addEventListener(
-    "touchend",
-    () => {
-      if (!tracking) return;
-
-      const shouldClear = readyToClear;
-      resetGesture();
-
-      if (!shouldClear) {
-        hideIndicator();
-        return;
-      }
-
-      const box = getIndicator();
-      const message = clearCurrentPageUnsavedInputs();
-
-      box.textContent = message;
-      box.classList.add("show", "ready");
-
-      window.setTimeout(() => {
-        hideIndicator();
-      }, 1200);
-    },
-    { passive: true }
-  );
-
-  document.addEventListener(
-    "touchcancel",
-    () => {
-      resetGesture();
-      hideIndicator();
-    },
-    { passive: true }
-  );
+  document.addEventListener("touchend", cancel, { passive: true });
+  document.addEventListener("touchcancel", cancel, { passive: true });
 }
 
 function formatDateDDMMYYYY(d){return `${String(d.getDate()).padStart(2,"0")}-${String(d.getMonth()+1).padStart(2,"0")}-${d.getFullYear()}`;}
@@ -3455,12 +3411,6 @@ function renameInventoryProduct(productId) {
     alert("已有相同名称的产品。");
     return "";
   }
-
-  const confirmed = window.confirm(
-    `确认修改？\n\n原名称：${oldName}\n新名称：${newName}`
-  );
-
-  if (!confirmed) return "";
 
   const now = new Date().toISOString();
 
