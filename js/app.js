@@ -675,16 +675,43 @@ function setupImportModule(){
 
   if (batchSearch) {
     batchSearch.addEventListener("input", () => {
+      const keyword = String(batchSearch.value || "").trim();
+
+      if (keyword && productStockSearch) {
+        productStockSearch.value = "";
+      }
+
+      const productResults =
+        document.getElementById("batchProductStockResults");
+      const productStatus =
+        document.getElementById("batchProductStockStatus");
+      const recentBatchArea =
+        document.getElementById("recentBatchResultsArea");
+
+      if (productResults) {
+        productResults.hidden = true;
+        productResults.innerHTML = "";
+      }
+
+      if (productStatus) productStatus.textContent = "";
+      if (recentBatchArea) recentBatchArea.hidden = false;
+
       batchListExpanded = false;
       renderBatchList();
     });
   }
 
   if (productStockSearch) {
-    productStockSearch.addEventListener(
-      "input",
-      renderBatchProductStockResults
-    );
+    productStockSearch.addEventListener("input", () => {
+      const keyword = String(productStockSearch.value || "").trim();
+
+      if (keyword && batchSearch) {
+        batchSearch.value = "";
+      }
+
+      batchListExpanded = false;
+      renderBatchProductStockResults();
+    });
   }
 
   if (toggleBatchListBtn) {
@@ -2934,6 +2961,24 @@ function renderBatchList() {
   const listElement = document.getElementById("batchList");
   const keyword = String(searchInput?.value || "").trim().toLowerCase();
 
+  const recentBatchArea =
+    document.getElementById("recentBatchResultsArea");
+  const productResults =
+    document.getElementById("batchProductStockResults");
+  const productStatus =
+    document.getElementById("batchProductStockStatus");
+
+  if (recentBatchArea) recentBatchArea.hidden = false;
+
+  if (keyword) {
+    if (productResults) {
+      productResults.hidden = true;
+      productResults.innerHTML = "";
+    }
+
+    if (productStatus) productStatus.textContent = "";
+  }
+
   const filteredBatches = allBatches.filter(batch => {
     if (!keyword) return true;
 
@@ -3024,13 +3069,30 @@ function renderBatchProductStockResults() {
   if (!input || !output) return;
 
   const keyword = String(input.value || "").trim().toLowerCase();
+  const recentBatchArea =
+    document.getElementById("recentBatchResultsArea");
+  const toggleButton =
+    document.getElementById("toggleBatchListBtn");
+  const countElement =
+    document.getElementById("batchListCount");
+
   if (status) status.textContent = "";
 
   if (!keyword) {
     output.hidden = true;
     output.innerHTML = "";
+
+    if (recentBatchArea) recentBatchArea.hidden = false;
+    if (toggleButton) toggleButton.hidden = false;
+    if (countElement) countElement.hidden = false;
+
+    renderBatchList();
     return;
   }
+
+  if (recentBatchArea) recentBatchArea.hidden = true;
+  if (toggleButton) toggleButton.hidden = true;
+  if (countElement) countElement.hidden = true;
 
   const products = getProducts()
     .filter(product =>
