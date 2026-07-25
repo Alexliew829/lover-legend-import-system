@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupImportModule();
   setupImportHistory();
   setupInventoryModule();
+  setupGlobalMobilePullDownClear();
   registerServiceWorker();
   setupCloudSync();
 });
@@ -669,12 +670,21 @@ function setupImportModule(){
 
   const batchSearch = document.getElementById("batchSearch");
   const toggleBatchListBtn = document.getElementById("toggleBatchListBtn");
+  const productStockSearch =
+    document.getElementById("batchProductStockSearch");
 
   if (batchSearch) {
     batchSearch.addEventListener("input", () => {
       batchListExpanded = false;
       renderBatchList();
     });
+  }
+
+  if (productStockSearch) {
+    productStockSearch.addEventListener(
+      "input",
+      renderBatchProductStockResults
+    );
   }
 
   if (toggleBatchListBtn) {
@@ -684,7 +694,10 @@ function setupImportModule(){
     });
   }
 
-  renderBatchSuggestions(); renderBatchList(); resetBatchForm();
+  renderBatchSuggestions();
+  renderBatchList();
+  renderBatchProductStockResults();
+  resetBatchForm();
 }
 
 function moveToNextBatchField(currentField) {
@@ -1484,20 +1497,43 @@ function getCurrentProductStock(productId, productName, category, products = get
 
 function loadBatchByNumber() {
   const input = document.getElementById("batchLookupInput");
-  const importNumber = input.value.trim();
+  const query = input.value.trim();
 
-  if (!importNumber) {
-    alert("请先 Paste 进口编号。");
+  if (!query) {
+    alert("请输入进口编号或海外运输单号。");
     input.focus();
     return;
   }
 
-  const batch = getBatches().find(
-    item => String(item.importNumber || "").toLowerCase() === importNumber.toLowerCase()
+  const normalizedQuery = query.toLowerCase();
+  const batches = getBatches();
+
+  let batch = batches.find(
+    item =>
+      String(item.importNumber || "").trim().toLowerCase() ===
+        normalizedQuery ||
+      String(item.overseasTrackingNumber || "").trim().toLowerCase() ===
+        normalizedQuery
   );
 
   if (!batch) {
-    alert("找不到这个进口编号。");
+    const partialMatches = batches.filter(item =>
+      String(item.importNumber || "").trim().toLowerCase().includes(normalizedQuery) ||
+      String(item.overseasTrackingNumber || "").trim().toLowerCase().includes(normalizedQuery)
+    );
+
+    if (partialMatches.length === 1) {
+      batch = partialMatches[0];
+    } else if (partialMatches.length > 1) {
+      alert("找到多个符合的批次，请输入更完整的进口编号或海外运输单号。");
+      input.focus();
+      input.select();
+      return;
+    }
+  }
+
+  if (!batch) {
+    alert("找不到这个进口编号或海外运输单号。");
     input.focus();
     input.select();
     return;
@@ -2901,20 +2937,10 @@ function renderBatchList() {
   const filteredBatches = allBatches.filter(batch => {
     if (!keyword) return true;
 
-    const items = getBatchItemsForDisplay(batch);
-    const productText = items
-      .map(item => `${item?.productName || item?.name || ""} ${item?.productId || ""} ${item?.category || ""}`)
-      .join(" ");
-
     const searchableText = [
       batch.importNumber,
-      batch.containerDate,
-      batch.arrivalDate,
-      batch.date,
       batch.trackingNumber,
-      batch.overseasTrackingNumber,
-      batch.currency,
-      productText
+      batch.overseasTrackingNumber
     ]
       .filter(Boolean)
       .join(" ")
@@ -2980,6 +3006,330 @@ function renderBatchList() {
     </article>`;
   }).join("");
 }
+
+function renderBatchProductStockResults() {
+  const input = document.getElementById("batchProductStockSearch");
+  const output = document.getElementById("batchProductStockResults");
+  const status = document.getElementById("batchProductStockStatus");
+
+  if (!input || !output) return;
+
+  const keyword = String(input.value || "").trim().toLowerCase();
+  if (status) status.textContent = "";
+
+  if (!keyword) {
+    output.hidden = true;
+    output.innerHTML = "";
+    return;
+  }
+
+  const products = getProducts()
+    .filter(product =>
+      String(product.name || "").toLowerCase().includes(keyword)
+    )
+    .sort((a, b) =>
+      String(a.name || "").localeCompare(String(b.name || ""), "zh")
+    );
+
+  output.hidden = false;
+
+  if (!products.length) {
+    output.innerHTML =
+      '<div class="empty-state">找不到这个产品名称</div>';
+    return;
+  }
+
+  output.innerHTML = products.map(product => `
+    <div class="product-stock-result-row">
+      <button
+        class="product-stock-name-btn"
+        type="button"
+        onclick="editProductNameFromImportPage('${escapeHTML(product.id || "")}')">
+        ${escapeHTML(product.name || "未命名产品")}
+      </button>
+
+      <button
+        class="product-stock-qty-btn"
+        type="button"
+        onclick="editProductStockFromImportPage('${escapeHTML(product.id || "")}')">
+        当前库存：<strong>${formatNumber(Number(product.stock) || 0)}</strong>
+      </button>
+    </div>
+  `).join("");
+}
+
+function editProductNameFromImportPage(productId) {
+  const newName = renameInventoryProduct(productId);
+  if (!newName) return;
+
+  const status = document.getElementById("batchProductStockStatus");
+  if (status) status.textContent = `已更新产品名称：${newName}`;
+}
+
+function editProductStockFromImportPage(productId) {
+  const id = String(productId || "").trim();
+  const products = getProducts();
+  const productIndex = products.findIndex(
+    product => String(product.id || "") === id
+  );
+
+  if (productIndex === -1) {
+    alert("找不到这个产品。");
+    return;
+  }
+
+  const product = products[productIndex];
+  const currentStock = Math.max(0, Number(product.stock) || 0);
+  const entered = window.prompt(
+    `修改当前库存：${product.name}\n\n请输入新的当前库存数量`,
+    String(currentStock)
+  );
+
+  if (entered === null) return;
+
+  const normalized = String(entered).replace(/,/g, "").trim();
+
+  if (!/^\d+$/.test(normalized)) {
+    alert("库存数量必须是0或正整数。");
+    return;
+  }
+
+  const nextStock = Number(normalized);
+
+  if (!Number.isSafeInteger(nextStock) || nextStock < 0) {
+    alert("库存数量不正确。");
+    return;
+  }
+
+  if (nextStock === currentStock) {
+    const status = document.getElementById("batchProductStockStatus");
+    if (status) status.textContent = "库存数量没有改变";
+    return;
+  }
+
+  products[productIndex] = {
+    ...product,
+    stock: nextStock,
+    inventoryArchived:
+      nextStock > 0 ? false : product.inventoryArchived,
+    updatedAt: new Date().toISOString()
+  };
+
+  saveProducts(products);
+  renderBatchProductStockResults();
+  renderInventoryManagementList();
+  renderDashboard();
+
+  const status = document.getElementById("batchProductStockStatus");
+  if (status) {
+    status.textContent =
+      `已更新：${product.name} 当前库存 ${formatNumber(nextStock)}`;
+  }
+}
+
+async function copyInventoryProductName(button) {
+  const productName =
+    String(button?.dataset?.productName || button?.textContent || "").trim();
+
+  if (!productName) return;
+
+  const showCopied = () => {
+    const original = productName;
+    button.textContent = "✓ 已复制";
+    button.classList.add("copied");
+
+    window.clearTimeout(button._copyNameTimer);
+    button._copyNameTimer = window.setTimeout(() => {
+      button.textContent = original;
+      button.classList.remove("copied");
+    }, 1200);
+
+    showCopiedSyncMessage(productName);
+  };
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(productName);
+      showCopied();
+      return;
+    }
+  } catch (error) {
+    console.warn("Clipboard unavailable:", error);
+  }
+
+  const temp = document.createElement("textarea");
+  temp.value = productName;
+  temp.setAttribute("readonly", "");
+  temp.style.position = "fixed";
+  temp.style.opacity = "0";
+  document.body.appendChild(temp);
+  temp.select();
+  document.execCommand("copy");
+  temp.remove();
+  showCopied();
+}
+
+function clearCurrentPageUnsavedInputs() {
+  const activePage = document.querySelector(".page.active");
+  const pageId = activePage?.id || "";
+
+  if (pageId === "dashboardPage") {
+    const search = document.getElementById("inventorySearch");
+    const sort = document.getElementById("inventorySort");
+    if (search) search.value = "";
+    if (sort) sort.value = "latest";
+    renderInventoryManagementList();
+    return "已清空首页搜索";
+  }
+
+  if (pageId === "importPage") {
+    resetBatchForm({ clearLookup: true, clearStatus: true });
+
+    const batchSearch = document.getElementById("batchSearch");
+    const productSearch =
+      document.getElementById("batchProductStockSearch");
+
+    if (batchSearch) batchSearch.value = "";
+    if (productSearch) productSearch.value = "";
+
+    batchListExpanded = false;
+    renderBatchList();
+    renderBatchProductStockResults();
+    return "已清空产品/进口页未保存输入";
+  }
+
+  if (pageId === "historyPage") {
+    const input = document.getElementById("historyLookupInput");
+    const output = document.getElementById("historyResult");
+    if (input) input.value = "";
+    if (output) {
+      output.innerHTML =
+        '<div class="empty-state">输入进口编号或产品名称后查看原始进口历史</div>';
+    }
+    return "已清空进口历史查询";
+  }
+
+  if (pageId === "settingsPage") {
+    const defaults = {
+      CNY: 1.60,
+      NTD: 7.69,
+      VND: 6300.00,
+      IDR: 3571.00
+    };
+    const saved = loadJSON("importSystemSettings", defaults);
+
+    ["CNY", "NTD", "VND", "IDR"].forEach(currency => {
+      const field = document.getElementById(`rate${currency}`);
+      if (field) {
+        field.value = formatMoney(
+          saved[currency] ?? defaults[currency]
+        );
+      }
+    });
+
+    const settingsStatus = document.getElementById("settingsStatus");
+    const toolsStatus = document.getElementById("dataToolsStatus");
+    const restoreInput = document.getElementById("restoreFileInput");
+
+    if (settingsStatus) settingsStatus.textContent = "";
+    if (toolsStatus) toolsStatus.textContent = "";
+    if (restoreInput) restoreInput.value = "";
+
+    return "已恢复设置页未保存输入";
+  }
+
+  return "当前页面没有需要清空的输入";
+}
+
+function setupGlobalMobilePullDownClear() {
+  if (!("ontouchstart" in window)) return;
+  if (window.globalPullDownClearBound) return;
+  window.globalPullDownClearBound = true;
+
+  let startY = 0;
+  let tracking = false;
+  let timer = null;
+  let indicator = null;
+
+  const getIndicator = () => {
+    if (indicator) return indicator;
+
+    indicator = document.createElement("div");
+    indicator.className = "pull-clear-indicator";
+    indicator.textContent = "继续下拉并停留2秒，清空当前页面";
+    document.body.appendChild(indicator);
+    return indicator;
+  };
+
+  const cancel = () => {
+    tracking = false;
+
+    if (timer) {
+      window.clearTimeout(timer);
+      timer = null;
+    }
+
+    getIndicator().classList.remove("show", "ready");
+  };
+
+  document.addEventListener(
+    "touchstart",
+    event => {
+      if (window.scrollY > 2) return;
+      if (event.target.closest("input, select, textarea, button, a")) return;
+
+      startY = Number(event.touches?.[0]?.clientY) || 0;
+      tracking = true;
+    },
+    { passive: true }
+  );
+
+  document.addEventListener(
+    "touchmove",
+    event => {
+      if (!tracking) return;
+
+      const currentY = Number(event.touches?.[0]?.clientY) || 0;
+      const distance = currentY - startY;
+
+      if (distance < 75) {
+        if (timer) {
+          window.clearTimeout(timer);
+          timer = null;
+        }
+        getIndicator().classList.remove("show", "ready");
+        return;
+      }
+
+      event.preventDefault();
+
+      const box = getIndicator();
+      box.classList.add("show");
+
+      if (!timer) {
+        timer = window.setTimeout(() => {
+          timer = null;
+          const message = clearCurrentPageUnsavedInputs();
+
+          box.textContent = message;
+          box.classList.add("ready");
+          tracking = false;
+
+          window.setTimeout(() => {
+            box.classList.remove("show", "ready");
+            box.textContent =
+              "继续下拉并停留2秒，清空当前页面";
+          }, 1400);
+        }, 2000);
+      }
+    },
+    { passive: false }
+  );
+
+  document.addEventListener("touchend", cancel, { passive: true });
+  document.addEventListener("touchcancel", cancel, { passive: true });
+}
+
 function formatDateDDMMYYYY(d){return `${String(d.getDate()).padStart(2,"0")}-${String(d.getMonth()+1).padStart(2,"0")}-${d.getFullYear()}`;}
 function formatDateFromInput(v){if(!v)return"";const[y,m,d]=v.split("-");return`${d}-${m}-${y}`;}
 
@@ -2993,100 +3343,22 @@ function getLatestContainerDateByProduct(productId) {
 }
 
 function setupInventoryModule() {
-  document.getElementById("inventorySearch").addEventListener("input", renderInventoryManagementList);
-  document.getElementById("inventorySort").addEventListener("change", renderInventoryManagementList);
+  document
+    .getElementById("inventorySearch")
+    .addEventListener("input", renderInventoryManagementList);
+  document
+    .getElementById("inventorySort")
+    .addEventListener("change", renderInventoryManagementList);
 
   const inventoryList = document.getElementById("inventoryManagementList");
-  let longPressTimer = null;
-  let longPressTriggered = false;
-  let longPressCard = null;
-  let startX = 0;
-  let startY = 0;
-
-  const cancelLongPress = () => {
-    if (longPressTimer) {
-      window.clearTimeout(longPressTimer);
-      longPressTimer = null;
-    }
-
-    longPressCard?.classList.remove("long-press-active");
-    longPressCard = null;
-  };
-
-  const startLongPress = event => {
-    if (
-      event.target.closest(
-        "button, input, select, textarea, a, .inventory-import-number"
-      )
-    ) {
-      return;
-    }
-
-    const card = event.target.closest(".inventory-manage-card");
-    if (!card) return;
-
-    const point = event.touches?.[0] || event;
-    startX = Number(point.clientX) || 0;
-    startY = Number(point.clientY) || 0;
-    longPressTriggered = false;
-    longPressCard = card;
-    card.classList.add("long-press-active");
-
-    longPressTimer = window.setTimeout(() => {
-      longPressTimer = null;
-      longPressTriggered = true;
-      card.classList.remove("long-press-active");
-      renameInventoryProduct(card.dataset.productId);
-    }, 700);
-  };
-
-  const moveLongPress = event => {
-    if (!longPressTimer) return;
-
-    const point = event.touches?.[0] || event;
-    const movedX = Math.abs((Number(point.clientX) || 0) - startX);
-    const movedY = Math.abs((Number(point.clientY) || 0) - startY);
-
-    if (movedX > 12 || movedY > 12) {
-      cancelLongPress();
-    }
-  };
-
-  inventoryList.addEventListener("touchstart", startLongPress, {
-    passive: true
-  });
-  inventoryList.addEventListener("touchmove", moveLongPress, {
-    passive: true
-  });
-  inventoryList.addEventListener("touchend", cancelLongPress);
-  inventoryList.addEventListener("touchcancel", cancelLongPress);
-
-  inventoryList.addEventListener("mousedown", event => {
-    if (event.button !== 0) return;
-    startLongPress(event);
-  });
-  inventoryList.addEventListener("mousemove", moveLongPress);
-  inventoryList.addEventListener("mouseup", cancelLongPress);
-  inventoryList.addEventListener("mouseleave", cancelLongPress);
-
-  inventoryList.addEventListener("contextmenu", event => {
-    if (event.target.closest(".inventory-manage-card")) {
-      event.preventDefault();
-    }
-  });
 
   inventoryList.addEventListener("click", event => {
-    if (longPressTriggered) {
-      longPressTriggered = false;
-      event.preventDefault();
-      event.stopPropagation();
-      return;
+    const importButton =
+      event.target.closest(".inventory-import-number");
+
+    if (importButton) {
+      copyInventoryImportNumber(importButton);
     }
-
-    const button = event.target.closest(".inventory-import-number");
-    if (!button) return;
-
-    copyInventoryImportNumber(button);
   });
 
   renderInventoryManagementList();
@@ -3094,7 +3366,7 @@ function setupInventoryModule() {
 
 function renameInventoryProduct(productId) {
   const id = String(productId || "").trim();
-  if (!id) return;
+  if (!id) return "";
 
   const products = getProducts();
   const productIndex = products.findIndex(
@@ -3103,7 +3375,7 @@ function renameInventoryProduct(productId) {
 
   if (productIndex === -1) {
     alert("找不到这个产品。");
-    return;
+    return "";
   }
 
   const product = products[productIndex];
@@ -3116,17 +3388,17 @@ function renameInventoryProduct(productId) {
 
   if (!newName) {
     alert("产品名称不能为空。");
-    return;
+    return "";
   }
 
   if (Array.from(newName).length > 15) {
     alert("产品名称最多15个字。");
-    return;
+    return "";
   }
 
   if (newName === oldName) {
     showProductRenameMessage("名称没有改变");
-    return;
+    return "";
   }
 
   const duplicate = products.find(
@@ -3137,7 +3409,7 @@ function renameInventoryProduct(productId) {
 
   if (duplicate) {
     alert("已有相同名称的产品。");
-    return;
+    return "";
   }
 
   const now = new Date().toISOString();
@@ -3194,8 +3466,10 @@ function renameInventoryProduct(productId) {
   renderDashboard();
   renderBatchSuggestions();
   renderBatchList();
+  renderBatchProductStockResults();
 
   showProductRenameMessage(`已编辑：${newName}`);
+  return newName;
 }
 
 function showProductRenameMessage(message) {
@@ -3453,7 +3727,14 @@ function renderInventoryManagementList() {
         <div class="inventory-manage-head">
           <div>
             <div class="inventory-product-title-row">
-              <h4>${escapeHTML(product.name)}</h4>
+              <button
+                class="inventory-product-name-copy"
+                type="button"
+                data-product-name="${escapeHTML(product.name)}"
+                onclick="copyInventoryProductName(this)"
+                title="点击复制产品名称">
+                ${escapeHTML(product.name)}
+              </button>
             </div>
             ${product.batchStocks?.length ? `
               <div class="inventory-batch-list">
