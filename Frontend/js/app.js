@@ -2937,10 +2937,19 @@ function renderBatchList() {
   const filteredBatches = allBatches.filter(batch => {
     if (!keyword) return true;
 
+    const items = getBatchItemsForDisplay(batch);
+    const productText = items
+      .map(item =>
+        `${item?.productName || item?.name || ""} ` +
+        `${item?.productId || ""} ${item?.category || ""}`
+      )
+      .join(" ");
+
     const searchableText = [
       batch.importNumber,
       batch.trackingNumber,
-      batch.overseasTrackingNumber
+      batch.overseasTrackingNumber,
+      productText
     ]
       .filter(Boolean)
       .join(" ")
@@ -3106,6 +3115,12 @@ function editProductStockFromImportPage(productId) {
     if (status) status.textContent = "库存数量没有改变";
     return;
   }
+
+  const confirmed = window.confirm(
+    `确认修改？\n\n产品：${product.name}\n目前库存：${formatNumber(currentStock)}\n修改为：${formatNumber(nextStock)}`
+  );
+
+  if (!confirmed) return;
 
   products[productIndex] = {
     ...product,
@@ -3411,6 +3426,12 @@ function renameInventoryProduct(productId) {
     alert("已有相同名称的产品。");
     return "";
   }
+
+  const confirmed = window.confirm(
+    `确认修改？\n\n原名称：${oldName}\n修改为：${newName}`
+  );
+
+  if (!confirmed) return "";
 
   const now = new Date().toISOString();
 
