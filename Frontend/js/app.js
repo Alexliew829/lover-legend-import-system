@@ -3254,7 +3254,7 @@ function setupGlobalMobilePullDownClear() {
 
   let startY = 0;
   let tracking = false;
-  let timer = null;
+  let readyToClear = false;
   let indicator = null;
 
   const getIndicator = () => {
@@ -3262,20 +3262,20 @@ function setupGlobalMobilePullDownClear() {
 
     indicator = document.createElement("div");
     indicator.className = "pull-clear-indicator";
-    indicator.textContent = "继续下拉并停留2秒，清空当前页面";
+    indicator.textContent = "继续下拉，松开即可清空当前页面";
     document.body.appendChild(indicator);
     return indicator;
   };
 
-  const cancel = () => {
+  const resetGesture = () => {
     tracking = false;
+    readyToClear = false;
+  };
 
-    if (timer) {
-      window.clearTimeout(timer);
-      timer = null;
-    }
-
-    getIndicator().classList.remove("show", "ready");
+  const hideIndicator = () => {
+    const box = getIndicator();
+    box.classList.remove("show", "ready");
+    box.textContent = "继续下拉，松开即可清空当前页面";
   };
 
   document.addEventListener(
@@ -3286,6 +3286,7 @@ function setupGlobalMobilePullDownClear() {
 
       startY = Number(event.touches?.[0]?.clientY) || 0;
       tracking = true;
+      readyToClear = false;
     },
     { passive: true }
   );
@@ -3297,43 +3298,57 @@ function setupGlobalMobilePullDownClear() {
 
       const currentY = Number(event.touches?.[0]?.clientY) || 0;
       const distance = currentY - startY;
+      const box = getIndicator();
 
-      if (distance < 75) {
-        if (timer) {
-          window.clearTimeout(timer);
-          timer = null;
-        }
-        getIndicator().classList.remove("show", "ready");
+      readyToClear = distance >= 75;
+
+      if (!readyToClear) {
+        box.classList.remove("show", "ready");
+        box.textContent = "继续下拉，松开即可清空当前页面";
         return;
       }
 
       event.preventDefault();
-
-      const box = getIndicator();
-      box.classList.add("show");
-
-      if (!timer) {
-        timer = window.setTimeout(() => {
-          timer = null;
-          const message = clearCurrentPageUnsavedInputs();
-
-          box.textContent = message;
-          box.classList.add("ready");
-          tracking = false;
-
-          window.setTimeout(() => {
-            box.classList.remove("show", "ready");
-            box.textContent =
-              "继续下拉并停留2秒，清空当前页面";
-          }, 1400);
-        }, 2000);
-      }
+      box.textContent = "松开即可清空当前页面";
+      box.classList.add("show", "ready");
     },
     { passive: false }
   );
 
-  document.addEventListener("touchend", cancel, { passive: true });
-  document.addEventListener("touchcancel", cancel, { passive: true });
+  document.addEventListener(
+    "touchend",
+    () => {
+      if (!tracking) return;
+
+      const shouldClear = readyToClear;
+      resetGesture();
+
+      if (!shouldClear) {
+        hideIndicator();
+        return;
+      }
+
+      const box = getIndicator();
+      const message = clearCurrentPageUnsavedInputs();
+
+      box.textContent = message;
+      box.classList.add("show", "ready");
+
+      window.setTimeout(() => {
+        hideIndicator();
+      }, 1200);
+    },
+    { passive: true }
+  );
+
+  document.addEventListener(
+    "touchcancel",
+    () => {
+      resetGesture();
+      hideIndicator();
+    },
+    { passive: true }
+  );
 }
 
 function formatDateDDMMYYYY(d){return `${String(d.getDate()).padStart(2,"0")}-${String(d.getMonth()+1).padStart(2,"0")}-${d.getFullYear()}`;}
