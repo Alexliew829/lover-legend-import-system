@@ -3243,6 +3243,215 @@ function editProductNameFromImportPage(productId) {
   if (status) status.textContent = `已更新产品名称：${newName}`;
 }
 
+
+function allocateProductRemainingFIFO(productId, productName, targetStock) {
+  const normalizedProductId = String(productId || "").trim();
+  const normalizedProductName =
+    String(productName || "").trim().toLowerCase();
+
+  const isSameProduct = item => {
+    const sameProductId =
+      normalizedProductId &&
+      item?.productId &&
+      String(item.productId).trim() === normalizedProductId;
+
+    const sameLegacyName =
+      !sameProductId &&
+      normalizedProductName &&
+      String(item?.productName || item?.name || "")
+        .trim()
+        .toLowerCase() === normalizedProductName;
+
+    return sameProductId || sameLegacyName;
+  };
+
+  const originalOf = item => {
+    const explicitOriginal = Number(item?.originalQuantity);
+    if (Number.isFinite(explicitOriginal) && explicitOriginal >= 0) {
+      return Math.floor(explicitOriginal);
+    }
+
+    const stockAdded = Number(item?.stockAdded);
+    if (Number.isFinite(stockAdded) && stockAdded >= 0) {
+      return Math.floor(stockAdded);
+    }
+
+    const quantity = Number(item?.quantity);
+    return Number.isFinite(quantity) && quantity >= 0
+      ? Math.floor(quantity)
+      : 0;
+  };
+
+  const imports = getImports();
+  const batches = getBatches();
+
+  const matchingIndexes = imports
+    .map((record, index) => ({ record, index }))
+    .filter(entry => isSameProduct(entry.record));
+
+  const cumulativeOriginal = matchingIndexes.reduce(
+    (sum, entry) => sum + originalOf(entry.record),
+    0
+  );
+
+  if (targetStock > cumulativeOriginal) {
+    return {
+      ok: false,
+      message:
+        `当前库存不能超过累计原进口数量 ${formatNumber(cumulativeOriginal)}。`
+    };
+  }
+
+  const batchById = new Map(
+    batches.map(batch => [String(batch.id || ""), batch])
+  );
+  const batchByImportNumber = new Map(
+    batches.map(batch => [
+      String(batch.importNumber || "").trim().toLowerCase(),
+      batch
+    ])
+  );
+
+  const datedEntries = matchingIndexes.map(entry => {
+    const record = entry.record;
+    const batch =
+      batchById.get(String(record.batchId || "")) ||
+      batchByImportNumber.get(
+        String(record.importNumber || "").trim().toLowerCase()
+      ) ||
+      {};
+
+    const arrivalDate =
+      record.arrivalDate ||
+      batch.arrivalDate ||
+      "";
+    const containerDate =
+      record.containerDate ||
+      batch.containerDate ||
+      "";
+
+    const arrivalTime = parseDDMMYYYY(arrivalDate);
+    const containerTime = parseDDMMYYYY(containerDate);
+    const createdTime = Date.parse(
+      record.createdAt ||
+      batch.createdAt ||
+      ""
+    );
+
+    return {
+      ...entry,
+      batch,
+      originalQuantity: originalOf(record),
+      sortTime:
+        arrivalTime ||
+        containerTime ||
+        (Number.isFinite(createdTime) ? createdTime : 0),
+      importNumber:
+        String(
+          record.importNumber ||
+          batch.importNumber ||
+          ""
+        ).trim()
+    };
+  }).sort((a, b) => {
+    if (a.sortTime !== b.sortTime) return a.sortTime - b.sortTime;
+
+    const createdA = String(
+      a.record.createdAt || a.batch.createdAt || ""
+    );
+    const createdB = String(
+      b.record.createdAt || b.batch.createdAt || ""
+    );
+    const createdCompare = createdA.localeCompare(createdB);
+    if (createdCompare) return createdCompare;
+
+    return a.importNumber.localeCompare(b.importNumber);
+  });
+
+  let quantityToDeduct = Math.max(
+    0,
+    cumulativeOriginal - targetStock
+  );
+  const now = new Date().toISOString();
+  const nextImports = imports.slice();
+  const remainingByRecord = new Map();
+
+  datedEntries.forEach(entry => {
+    const deducted = Math.min(
+      entry.originalQuantity,
+      quantityToDeduct
+    );
+    const remainingQuantity =
+      entry.originalQuantity - deducted;
+
+    quantityToDeduct -= deducted;
+    remainingByRecord.set(entry.index, remainingQuantity);
+
+    nextImports[entry.index] = {
+      ...entry.record,
+      originalQuantity: entry.originalQuantity,
+      remainingQuantity,
+      updatedAt: now
+    };
+  });
+
+  const nextBatches = batches.map(batch => {
+    let changed = false;
+
+    const nextItems = (Array.isArray(batch.items) ? batch.items : [])
+      .map(item => {
+        if (!isSameProduct(item)) return item;
+
+        const matchingEntry = datedEntries.find(entry => {
+          const sameBatchId =
+            batch.id &&
+            entry.record.batchId &&
+            String(entry.record.batchId) === String(batch.id);
+
+          const sameImportNumber =
+            batch.importNumber &&
+            String(
+              entry.record.importNumber || ""
+            ).trim().toLowerCase() ===
+            String(batch.importNumber)
+              .trim()
+              .toLowerCase();
+
+          return sameBatchId || sameImportNumber;
+        });
+
+        if (!matchingEntry) return item;
+
+        changed = true;
+
+        return {
+          ...item,
+          originalQuantity:
+            matchingEntry.originalQuantity,
+          remainingQuantity:
+            remainingByRecord.get(matchingEntry.index),
+          updatedAt: now
+        };
+      });
+
+    return changed
+      ? {
+          ...batch,
+          items: nextItems,
+          updatedAt: now
+        }
+      : batch;
+  });
+
+  saveImports(nextImports);
+  saveBatches(nextBatches);
+
+  return {
+    ok: true,
+    cumulativeOriginal
+  };
+}
+
 function editProductStockFromImportPage(productId) {
   const id = String(productId || "").trim();
   const products = getProducts();
@@ -3290,6 +3499,17 @@ function editProductStockFromImportPage(productId) {
 
   if (!confirmed) return;
 
+  const allocation = allocateProductRemainingFIFO(
+    product.id,
+    product.name,
+    nextStock
+  );
+
+  if (!allocation.ok) {
+    alert(allocation.message);
+    return;
+  }
+
   products[productIndex] = {
     ...product,
     stock: nextStock,
@@ -3302,6 +3522,7 @@ function editProductStockFromImportPage(productId) {
   renderBatchProductStockResults();
   renderInventoryManagementList();
   renderDashboard();
+  renderBatchList();
 
   const status = document.getElementById("batchProductStockStatus");
   if (status) {
