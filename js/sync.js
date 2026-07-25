@@ -51,9 +51,9 @@ function setupCloudSync() {
   renderCloudMeta(getCloudConfig());
   setCloudState("syncing");
 
-  window.addEventListener("online", () => scheduleGoogleSync(20));
+  window.addEventListener("online", () => scheduleGoogleSync(10));
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && getCloudQueue().dirty) scheduleGoogleSync(20);
+    if (!document.hidden && getCloudQueue().dirty) scheduleGoogleSync(10);
   });
 
   // Pending local work is pushed first; otherwise pull once.
@@ -87,7 +87,7 @@ async function callGoogleApi(payload, attempt = 0) {
       (error?.name === "AbortError" || error instanceof TypeError || /connection failed/i.test(String(error?.message || error)));
 
     if (retryable) {
-      await new Promise(resolve => window.setTimeout(resolve, attempt === 0 ? 300 : 900));
+      await new Promise(resolve => window.setTimeout(resolve, attempt === 0 ? 150 : 450));
       return callGoogleApi(payload, attempt + 1);
     }
 
@@ -127,7 +127,7 @@ function markCloudCollectionSaved(collection, previousItems, nextItems) {
   queue.dirty = true;
   queue.changedAt = new Date().toISOString();
   saveCloudQueue(queue);
-  scheduleGoogleSync(80);
+  scheduleGoogleSync(25);
 }
 
 function markCloudSettingsSaved() {
@@ -136,10 +136,10 @@ function markCloudSettingsSaved() {
   queue.dirty = true;
   queue.changedAt = new Date().toISOString();
   saveCloudQueue(queue);
-  scheduleGoogleSync(80);
+  scheduleGoogleSync(25);
 }
 
-function scheduleGoogleSync(delay = 80) {
+function scheduleGoogleSync(delay = 25) {
   if (cloudApplyingRemote) return;
 
   const queue = getCloudQueue();
@@ -198,7 +198,7 @@ async function runCloudSync() {
   } finally {
     cloudSyncBusy = false;
     if (cloudSyncRequestedWhileBusy || getCloudQueue().dirty) {
-      cloudSyncTimer = window.setTimeout(() => runCloudSync(), 100);
+      cloudSyncTimer = window.setTimeout(() => runCloudSync(), 40);
     }
   }
 }
@@ -277,7 +277,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     action: "push",
     force: false,
     baseRevision: Number(config.revision) || 0,
-    updatedBy: "System V2.64 Stable",
+    updatedBy: "System V2.65 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,

@@ -1724,7 +1724,7 @@ input::placeholder {
   color: #1f5d3a;
 }
 
-/* V2.64：首页库存产品长按更名 */
+/* V2.65：首页库存产品长按更名 */
 .inventory-manage-card {
   -webkit-user-select: none;
   user-select: none;
@@ -1738,5 +1738,35 @@ input::placeholder {
 
 .inventory-product-title-row h4 {
   cursor: default;
+}
+
+/* V2.65：手机优先显示产品与数量，类别移到入库前 */
+.batch-table th:nth-child(2),
+.batch-table td:nth-child(2) {
+  width: 86px;
+  min-width: 86px;
+}
+
+.batch-table th:nth-child(5),
+.batch-table td:nth-child(5) {
+  width: 112px;
+  min-width: 112px;
+}
+
+@media (max-width: 640px) {
+  .batch-table {
+    min-width: 1040px;
+  }
+
+  .batch-table .batch-name {
+    min-width: 250px;
+  }
+
+  .batch-table th:nth-child(2),
+  .batch-table td:nth-child(2),
+  .batch-table td:nth-child(2) input {
+    width: 90px;
+    min-width: 90px;
+  }
 }
 

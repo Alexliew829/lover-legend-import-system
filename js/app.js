@@ -881,6 +881,129 @@ function getBatchItemsForDisplay(batch) {
   return importItems.slice().reverse();
 }
 
+
+function getSafeDisplayOriginalQuantity(item) {
+  const explicitOriginal = Number(item?.originalQuantity);
+  if (Number.isFinite(explicitOriginal) && explicitOriginal >= 0) {
+    return explicitOriginal;
+  }
+
+  const stockAdded = Number(item?.stockAdded);
+  if (Number.isFinite(stockAdded) && stockAdded >= 0) {
+    return stockAdded;
+  }
+
+  const legacyQuantity = Number(item?.quantity);
+  const unitPrice = Number(item?.unitPrice);
+
+  // 旧资料曾发生 quantity 与 unitPrice 栏位错位。
+  // 若两者相同，不把单价误当成数量。
+  if (
+    Number.isFinite(legacyQuantity) &&
+    legacyQuantity >= 0 &&
+    !(
+      Number.isFinite(unitPrice) &&
+      unitPrice > 0 &&
+      Math.abs(legacyQuantity - unitPrice) < 0.000001
+    )
+  ) {
+    return legacyQuantity;
+  }
+
+  return 0;
+}
+
+function getBatchDisplayTotalQuantity(
+  importNumber,
+  batches = getBatches(),
+  imports = getImports()
+) {
+  const normalizedNumber =
+    String(importNumber || "").trim().toLowerCase();
+
+  if (!normalizedNumber) return 0;
+
+  const batch = (batches || []).find(
+    item =>
+      String(item.importNumber || "").trim().toLowerCase() ===
+      normalizedNumber
+  );
+
+  const batchItems = batch ? getBatchItemsForDisplay(batch) : [];
+  const explicitBatchQuantities = batchItems
+    .map(item => {
+      const original = Number(item?.originalQuantity);
+      const stockAdded = Number(item?.stockAdded);
+
+      if (Number.isFinite(original) && original >= 0) return original;
+      if (Number.isFinite(stockAdded) && stockAdded >= 0) return stockAdded;
+      return null;
+    })
+    .filter(value => value !== null);
+
+  if (
+    batchItems.length &&
+    explicitBatchQuantities.length === batchItems.length
+  ) {
+    return explicitBatchQuantities.reduce((sum, value) => sum + value, 0);
+  }
+
+  const storedTotal = Number(batch?.totalQuantity);
+  const storedTotalLooksLikeUnitPrice =
+    batchItems.some(item => {
+      const unitPrice = Number(item?.unitPrice);
+      return (
+        Number.isFinite(unitPrice) &&
+        unitPrice > 0 &&
+        Math.abs(unitPrice - storedTotal) < 0.000001
+      );
+    });
+
+  if (
+    Number.isFinite(storedTotal) &&
+    storedTotal >= 0 &&
+    !storedTotalLooksLikeUnitPrice
+  ) {
+    return storedTotal;
+  }
+
+  const matchingImports = (imports || []).filter(
+    record =>
+      String(record.importNumber || "").trim().toLowerCase() ===
+      normalizedNumber
+  );
+
+  const explicitImportQuantities = matchingImports
+    .map(record => {
+      const original = Number(record?.originalQuantity);
+      const stockAdded = Number(record?.stockAdded);
+
+      if (Number.isFinite(original) && original >= 0) return original;
+      if (Number.isFinite(stockAdded) && stockAdded >= 0) return stockAdded;
+      return null;
+    })
+    .filter(value => value !== null);
+
+  if (
+    matchingImports.length &&
+    explicitImportQuantities.length === matchingImports.length
+  ) {
+    return explicitImportQuantities.reduce((sum, value) => sum + value, 0);
+  }
+
+  const batchItemsTotal = batchItems.reduce(
+    (sum, item) => sum + getSafeDisplayOriginalQuantity(item),
+    0
+  );
+
+  if (batchItemsTotal > 0) return batchItemsTotal;
+
+  return matchingImports.reduce(
+    (sum, record) => sum + getSafeDisplayOriginalQuantity(record),
+    0
+  );
+}
+
 function restoreStoredBatchRMDisplay(batch, items) {
   const foreignRM = document.getElementById("batchPurchaseTotalRM");
   const shippingRate = document.getElementById("batchShippingRate");
@@ -1570,7 +1693,7 @@ function setupImportHistory() {
 function getHistoryItemQuantities(item) {
   const originalQuantity = Math.max(
     0,
-    Number(item.originalQuantity ?? item.quantity) || 0
+    getSafeDisplayOriginalQuantity(item)
   );
   const storedRemainingQuantity = Number(
     item.remainingQuantity ?? item.quantity
@@ -2097,14 +2220,14 @@ function addBatchRow(prefill = {}){
   }
 
   tr.innerHTML=`<td><input id="batchName-${id}" class="batch-name" list="batchProductSuggestions" placeholder="输入或选择产品" value="${escapeHTML(prefill.name || "")}"><input id="batchProductId-${id}" type="hidden" value="${escapeHTML(prefill.productId || "")}"></td>
+  <td><input id="batchQty-${id}" inputmode="numeric" placeholder="0"></td>
+  <td><input id="batchPrice-${id}" inputmode="decimal" placeholder="0.00"></td>
+  <td><input id="batchPurchaseForeign-${id}" value="0.00" disabled></td>
   <td><select id="batchCategory-${id}">
     <option value="盆栽">盆栽</option>
     <option value="花盆">花盆</option>
     <option value="周边产品">周边产品</option>
   </select></td>
-  <td><input id="batchQty-${id}" inputmode="numeric" placeholder="0"></td>
-  <td><input id="batchPrice-${id}" inputmode="decimal" placeholder="0.00"></td>
-  <td><input id="batchPurchaseForeign-${id}" value="0.00" disabled></td>
   <td><input id="batchStock-${id}" inputmode="numeric" placeholder="0" disabled></td>
   <td><input id="batchUnitCost-${id}" value="0.00" disabled></td>
   <td><button type="button" class="remove-item-btn" onclick="removeBatchRow(${id})">删除</button></td>`;
@@ -3168,73 +3291,8 @@ function renderInventoryManagementList() {
       ])
   );
 
-  const getBatchOriginalTotalQuantity = importNumber => {
-    const normalizedNumber = String(importNumber || "").trim().toLowerCase();
-    if (!normalizedNumber) return 0;
-
-    const batch = batchByImportNumber.get(normalizedNumber);
-
-    // 优先从该批次的产品明细加总原进口数量。
-    // 旧版本的 batch.totalQuantity 可能因栏位变动而误存成单价，
-    // 因此不能再把 totalQuantity 放在第一优先。
-    const batchItems = batch ? getBatchItemsForDisplay(batch) : [];
-    if (batchItems.length) {
-      const itemsTotal = batchItems.reduce((sum, item) => {
-        const originalQuantity = Number(item.originalQuantity);
-        const legacyQuantity = Number(item.quantity);
-
-        const quantity =
-          Number.isFinite(originalQuantity) && originalQuantity >= 0
-            ? originalQuantity
-            : (
-                Number.isFinite(legacyQuantity) && legacyQuantity >= 0
-                  ? legacyQuantity
-                  : 0
-              );
-
-        return sum + quantity;
-      }, 0);
-
-      if (itemsTotal > 0) {
-        return itemsTotal;
-      }
-    }
-
-    // 没有批次产品明细时，才使用 Imports 作为旧资料备用来源。
-    const importRecords = imports.filter(
-      record =>
-        String(record.importNumber || "").trim().toLowerCase() ===
-        normalizedNumber
-    );
-
-    if (importRecords.length) {
-      const importsTotal = importRecords.reduce((sum, record) => {
-        const originalQuantity = Number(record.originalQuantity);
-        const legacyQuantity = Number(record.quantity);
-
-        const quantity =
-          Number.isFinite(originalQuantity) && originalQuantity >= 0
-            ? originalQuantity
-            : (
-                Number.isFinite(legacyQuantity) && legacyQuantity >= 0
-                  ? legacyQuantity
-                  : 0
-              );
-
-        return sum + quantity;
-      }, 0);
-
-      if (importsTotal > 0) {
-        return importsTotal;
-      }
-    }
-
-    // 最后才使用批次储存的总数量，避免旧版本单价错位。
-    const storedTotal = Number(batch?.totalQuantity);
-    return Number.isFinite(storedTotal) && storedTotal >= 0
-      ? storedTotal
-      : 0;
-  };
+  const getBatchOriginalTotalQuantity = importNumber =>
+    getBatchDisplayTotalQuantity(importNumber, batches, imports);
 
   const products = getProducts()
     // 首页以实际库存为准；避免旧的 inventoryArchived 标记
