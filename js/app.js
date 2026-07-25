@@ -4210,11 +4210,292 @@ function setupDataTools() {
   const backupButton = document.getElementById("backupDataBtn");
   const restoreButton = document.getElementById("restoreDataBtn");
   const restoreInput = document.getElementById("restoreFileInput");
+  const rebuildHistoryButton =
+    document.getElementById("rebuildHistoryStockBtn");
 
   exportButton?.addEventListener("click", exportSystemExcel);
   backupButton?.addEventListener("click", backupSystemData);
   restoreButton?.addEventListener("click", () => restoreInput?.click());
   restoreInput?.addEventListener("change", restoreSystemData);
+  rebuildHistoryButton?.addEventListener(
+    "click",
+    rebuildAllImportHistoryRemainingFIFO
+  );
+}
+
+
+function rebuildAllImportHistoryRemainingFIFO() {
+  const products = getProducts();
+  const imports = getImports();
+  const batches = getBatches();
+
+  if (!products.length || !imports.length) {
+    showDataToolsStatus("没有可重建的产品或进口历史。");
+    return;
+  }
+
+  const confirmed = window.confirm(
+    "确认重建历史库存？\n\n" +
+    "系统会依据每个产品目前的总库存，按最早进口优先（FIFO）重新分配各进口编号的当前剩余。\n\n" +
+    "不会修改：原进口数量、Average Cost、原单价、原每棵成本和批次成本。\n\n" +
+    "建议已经完成 Backup 后再继续。"
+  );
+
+  if (!confirmed) return;
+
+  const now = new Date().toISOString();
+  const nextImports = imports.map(record => ({ ...record }));
+  const nextBatches = batches.map(batch => ({
+    ...batch,
+    items: Array.isArray(batch.items)
+      ? batch.items.map(item => ({ ...item }))
+      : []
+  }));
+
+  const batchById = new Map(
+    nextBatches.map(batch => [String(batch.id || ""), batch])
+  );
+  const batchByImportNumber = new Map(
+    nextBatches.map(batch => [
+      String(batch.importNumber || "").trim().toLowerCase(),
+      batch
+    ])
+  );
+
+  const originalOf = item => {
+    const explicitOriginal = Number(item?.originalQuantity);
+    if (Number.isFinite(explicitOriginal) && explicitOriginal >= 0) {
+      return Math.floor(explicitOriginal);
+    }
+
+    const stockAdded = Number(item?.stockAdded);
+    if (Number.isFinite(stockAdded) && stockAdded >= 0) {
+      return Math.floor(stockAdded);
+    }
+
+    const quantity = Number(item?.quantity);
+    return Number.isFinite(quantity) && quantity >= 0
+      ? Math.floor(quantity)
+      : 0;
+  };
+
+  let repairedProducts = 0;
+  let repairedRecords = 0;
+  const skippedProducts = [];
+
+  products.forEach(product => {
+    const productId = String(product.id || "").trim();
+    const productName = String(product.name || "").trim().toLowerCase();
+    const targetStock = Math.max(0, Math.floor(Number(product.stock) || 0));
+
+    const isSameProduct = item => {
+      const sameProductId =
+        productId &&
+        item?.productId &&
+        String(item.productId).trim() === productId;
+
+      const sameLegacyName =
+        !sameProductId &&
+        productName &&
+        String(item?.productName || item?.name || "")
+          .trim()
+          .toLowerCase() === productName;
+
+      return sameProductId || sameLegacyName;
+    };
+
+    const entries = nextImports
+      .map((record, index) => ({ record, index }))
+      .filter(entry => isSameProduct(entry.record))
+      .map(entry => {
+        const record = entry.record;
+        const batch =
+          batchById.get(String(record.batchId || "")) ||
+          batchByImportNumber.get(
+            String(record.importNumber || "").trim().toLowerCase()
+          ) ||
+          {};
+
+        const arrivalTime = parseDDMMYYYY(
+          record.arrivalDate || batch.arrivalDate || ""
+        );
+        const containerTime = parseDDMMYYYY(
+          record.containerDate || batch.containerDate || ""
+        );
+        const createdTime = Date.parse(
+          record.createdAt || batch.createdAt || ""
+        );
+
+        return {
+          ...entry,
+          batch,
+          originalQuantity: originalOf(record),
+          sortTime:
+            arrivalTime ||
+            containerTime ||
+            (Number.isFinite(createdTime) ? createdTime : 0),
+          importNumber: String(
+            record.importNumber || batch.importNumber || ""
+          ).trim()
+        };
+      })
+      .sort((a, b) => {
+        if (a.sortTime !== b.sortTime) return a.sortTime - b.sortTime;
+
+        const createdA = String(
+          a.record.createdAt || a.batch.createdAt || ""
+        );
+        const createdB = String(
+          b.record.createdAt || b.batch.createdAt || ""
+        );
+        const createdCompare = createdA.localeCompare(createdB);
+        if (createdCompare) return createdCompare;
+
+        return a.importNumber.localeCompare(b.importNumber);
+      });
+
+    if (!entries.length) return;
+
+    const cumulativeOriginal = entries.reduce(
+      (sum, entry) => sum + entry.originalQuantity,
+      0
+    );
+
+    if (targetStock > cumulativeOriginal) {
+      skippedProducts.push(
+        `${product.name}：库存 ${formatNumber(targetStock)} > 原进口 ${formatNumber(cumulativeOriginal)}`
+      );
+      return;
+    }
+
+    let quantityToDeduct = cumulativeOriginal - targetStock;
+    const remainingByImportIndex = new Map();
+
+    entries.forEach(entry => {
+      const deducted = Math.min(
+        entry.originalQuantity,
+        quantityToDeduct
+      );
+      const remainingQuantity =
+        entry.originalQuantity - deducted;
+
+      quantityToDeduct -= deducted;
+      remainingByImportIndex.set(entry.index, remainingQuantity);
+
+      const previousRemaining = Number(
+        nextImports[entry.index].remainingQuantity
+      );
+
+      if (
+        !Number.isFinite(previousRemaining) ||
+        previousRemaining !== remainingQuantity ||
+        Number(nextImports[entry.index].originalQuantity) !==
+          entry.originalQuantity
+      ) {
+        repairedRecords += 1;
+      }
+
+      nextImports[entry.index] = {
+        ...nextImports[entry.index],
+        originalQuantity: entry.originalQuantity,
+        remainingQuantity,
+        updatedAt: now
+      };
+    });
+
+    nextBatches.forEach(batch => {
+      const matchingEntries = entries.filter(entry => {
+        const sameBatchId =
+          batch.id &&
+          entry.record.batchId &&
+          String(entry.record.batchId) === String(batch.id);
+
+        const sameImportNumber =
+          batch.importNumber &&
+          String(entry.record.importNumber || "")
+            .trim()
+            .toLowerCase() ===
+          String(batch.importNumber)
+            .trim()
+            .toLowerCase();
+
+        return sameBatchId || sameImportNumber;
+      });
+
+      if (!matchingEntries.length || !Array.isArray(batch.items)) return;
+
+      const unusedEntries = matchingEntries.map(entry => ({
+        entry,
+        used: false
+      }));
+
+      batch.items = batch.items.map(item => {
+        if (!isSameProduct(item)) return item;
+
+        const itemProductId = String(item.productId || "").trim();
+        const itemName = String(
+          item.productName || item.name || ""
+        ).trim().toLowerCase();
+        const itemCategory = String(item.category || "盆栽");
+
+        const matched = unusedEntries.find(wrapper => {
+          if (wrapper.used) return false;
+          const record = wrapper.entry.record;
+
+          const sameProductId =
+            itemProductId &&
+            record.productId &&
+            String(record.productId).trim() === itemProductId;
+
+          const sameLegacyIdentity =
+            !sameProductId &&
+            itemName &&
+            String(record.productName || record.name || "")
+              .trim()
+              .toLowerCase() === itemName &&
+            String(record.category || "盆栽") === itemCategory;
+
+          return sameProductId || sameLegacyIdentity;
+        });
+
+        if (!matched) return item;
+
+        matched.used = true;
+
+        return {
+          ...item,
+          originalQuantity: matched.entry.originalQuantity,
+          remainingQuantity:
+            remainingByImportIndex.get(matched.entry.index),
+          updatedAt: now
+        };
+      });
+
+      batch.updatedAt = now;
+    });
+
+    repairedProducts += 1;
+  });
+
+  saveImports(nextImports);
+  saveBatches(nextBatches);
+
+  renderBatchList();
+  renderImportHistory();
+  renderInventoryManagementList();
+  renderDashboard();
+
+  let message =
+    `历史库存重建完成：${formatNumber(repairedProducts)} 个产品，` +
+    `${formatNumber(repairedRecords)} 条进口记录已检查或更新。`;
+
+  if (skippedProducts.length) {
+    message +=
+      ` 有 ${formatNumber(skippedProducts.length)} 个产品未处理，因为当前库存超过累计原进口数量。`;
+    console.warn("未重建产品：", skippedProducts);
+  }
+
+  showDataToolsStatus(message);
 }
 
 function downloadTextFile(filename, content, mimeType) {
