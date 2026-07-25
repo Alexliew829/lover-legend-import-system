@@ -2937,10 +2937,19 @@ function renderBatchList() {
   const filteredBatches = allBatches.filter(batch => {
     if (!keyword) return true;
 
+    const items = getBatchItemsForDisplay(batch);
+    const productText = items
+      .map(item =>
+        `${item?.productName || item?.name || ""} ` +
+        `${item?.productId || ""} ${item?.category || ""}`
+      )
+      .join(" ");
+
     const searchableText = [
       batch.importNumber,
       batch.trackingNumber,
-      batch.overseasTrackingNumber
+      batch.overseasTrackingNumber,
+      productText
     ]
       .filter(Boolean)
       .join(" ")
@@ -3044,18 +3053,124 @@ function renderBatchProductStockResults() {
       <button
         class="product-stock-name-btn"
         type="button"
-        onclick="editProductNameFromImportPage('${escapeHTML(product.id || "")}')">
+        data-product-id="${escapeHTML(product.id || "")}"
+        data-edit-type="name"
+        aria-label="长按修改产品名称">
         ${escapeHTML(product.name || "未命名产品")}
       </button>
 
       <button
         class="product-stock-qty-btn"
         type="button"
-        onclick="editProductStockFromImportPage('${escapeHTML(product.id || "")}')">
+        data-product-id="${escapeHTML(product.id || "")}"
+        data-edit-type="stock"
+        aria-label="长按修改当前库存">
         当前库存：<strong>${formatNumber(Number(product.stock) || 0)}</strong>
       </button>
     </div>
   `).join("");
+
+  bindProductStockLongPress();
+}
+
+
+function bindProductStockLongPress() {
+  const output = document.getElementById("batchProductStockResults");
+  if (!output || output.dataset.longPressBound === "1") return;
+
+  output.dataset.longPressBound = "1";
+
+  let timer = null;
+  let activeButton = null;
+  let startX = 0;
+  let startY = 0;
+  let triggered = false;
+
+  const cancel = () => {
+    if (timer) {
+      window.clearTimeout(timer);
+      timer = null;
+    }
+
+    activeButton?.classList.remove("long-press-active");
+    activeButton = null;
+  };
+
+  const start = event => {
+    const button = event.target.closest(
+      ".product-stock-name-btn, .product-stock-qty-btn"
+    );
+    if (!button) return;
+
+    const point = event.touches?.[0] || event;
+    startX = Number(point.clientX) || 0;
+    startY = Number(point.clientY) || 0;
+    triggered = false;
+    activeButton = button;
+    button.classList.add("long-press-active");
+
+    timer = window.setTimeout(() => {
+      timer = null;
+      triggered = true;
+      button.classList.remove("long-press-active");
+
+      const productId = String(button.dataset.productId || "");
+      const editType = String(button.dataset.editType || "");
+
+      if (editType === "name") {
+        editProductNameFromImportPage(productId);
+      } else if (editType === "stock") {
+        editProductStockFromImportPage(productId);
+      }
+    }, 650);
+  };
+
+  const move = event => {
+    if (!timer) return;
+
+    const point = event.touches?.[0] || event;
+    const movedX = Math.abs((Number(point.clientX) || 0) - startX);
+    const movedY = Math.abs((Number(point.clientY) || 0) - startY);
+
+    if (movedX > 12 || movedY > 12) cancel();
+  };
+
+  output.addEventListener("touchstart", start, { passive: true });
+  output.addEventListener("touchmove", move, { passive: true });
+  output.addEventListener("touchend", cancel, { passive: true });
+  output.addEventListener("touchcancel", cancel, { passive: true });
+
+  output.addEventListener("mousedown", event => {
+    if (event.button !== 0) return;
+    start(event);
+  });
+  output.addEventListener("mousemove", move);
+  output.addEventListener("mouseup", cancel);
+  output.addEventListener("mouseleave", cancel);
+
+  output.addEventListener("contextmenu", event => {
+    if (
+      event.target.closest(
+        ".product-stock-name-btn, .product-stock-qty-btn"
+      )
+    ) {
+      event.preventDefault();
+    }
+  });
+
+  output.addEventListener("click", event => {
+    const button = event.target.closest(
+      ".product-stock-name-btn, .product-stock-qty-btn"
+    );
+    if (!button) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (triggered) {
+      triggered = false;
+    }
+  });
 }
 
 function editProductNameFromImportPage(productId) {
@@ -3106,6 +3221,12 @@ function editProductStockFromImportPage(productId) {
     if (status) status.textContent = "库存数量没有改变";
     return;
   }
+
+  const confirmed = window.confirm(
+    `确认修改？\n\n产品：${product.name}\n目前库存：${formatNumber(currentStock)}\n修改为：${formatNumber(nextStock)}`
+  );
+
+  if (!confirmed) return;
 
   products[productIndex] = {
     ...product,
@@ -3248,7 +3369,7 @@ function setupGlobalMobilePullDownClear() {
 
   let startY = 0;
   let tracking = false;
-  let timer = null;
+  let readyToClear = false;
   let indicator = null;
 
   const getIndicator = () => {
@@ -3256,20 +3377,20 @@ function setupGlobalMobilePullDownClear() {
 
     indicator = document.createElement("div");
     indicator.className = "pull-clear-indicator";
-    indicator.textContent = "继续下拉并停留2秒，清空当前页面";
+    indicator.textContent = "松开即可清空当前页面";
     document.body.appendChild(indicator);
     return indicator;
   };
 
-  const cancel = () => {
+  const resetGesture = () => {
     tracking = false;
+    readyToClear = false;
+  };
 
-    if (timer) {
-      window.clearTimeout(timer);
-      timer = null;
-    }
-
-    getIndicator().classList.remove("show", "ready");
+  const hideIndicator = () => {
+    const box = getIndicator();
+    box.classList.remove("show", "ready");
+    box.textContent = "松开即可清空当前页面";
   };
 
   document.addEventListener(
@@ -3280,6 +3401,7 @@ function setupGlobalMobilePullDownClear() {
 
       startY = Number(event.touches?.[0]?.clientY) || 0;
       tracking = true;
+      readyToClear = false;
     },
     { passive: true }
   );
@@ -3291,43 +3413,56 @@ function setupGlobalMobilePullDownClear() {
 
       const currentY = Number(event.touches?.[0]?.clientY) || 0;
       const distance = currentY - startY;
+      const box = getIndicator();
 
-      if (distance < 75) {
-        if (timer) {
-          window.clearTimeout(timer);
-          timer = null;
-        }
-        getIndicator().classList.remove("show", "ready");
+      readyToClear = distance >= 10;
+
+      if (!readyToClear) {
+        box.classList.remove("show", "ready");
         return;
       }
 
       event.preventDefault();
-
-      const box = getIndicator();
-      box.classList.add("show");
-
-      if (!timer) {
-        timer = window.setTimeout(() => {
-          timer = null;
-          const message = clearCurrentPageUnsavedInputs();
-
-          box.textContent = message;
-          box.classList.add("ready");
-          tracking = false;
-
-          window.setTimeout(() => {
-            box.classList.remove("show", "ready");
-            box.textContent =
-              "继续下拉并停留2秒，清空当前页面";
-          }, 1400);
-        }, 2000);
-      }
+      box.textContent = "松开即可清空当前页面";
+      box.classList.add("show", "ready");
     },
     { passive: false }
   );
 
-  document.addEventListener("touchend", cancel, { passive: true });
-  document.addEventListener("touchcancel", cancel, { passive: true });
+  document.addEventListener(
+    "touchend",
+    () => {
+      if (!tracking) return;
+
+      const shouldClear = readyToClear;
+      resetGesture();
+
+      if (!shouldClear) {
+        hideIndicator();
+        return;
+      }
+
+      const box = getIndicator();
+      const message = clearCurrentPageUnsavedInputs();
+
+      box.textContent = message;
+      box.classList.add("show", "ready");
+
+      window.setTimeout(() => {
+        hideIndicator();
+      }, 1100);
+    },
+    { passive: true }
+  );
+
+  document.addEventListener(
+    "touchcancel",
+    () => {
+      resetGesture();
+      hideIndicator();
+    },
+    { passive: true }
+  );
 }
 
 function formatDateDDMMYYYY(d){return `${String(d.getDate()).padStart(2,"0")}-${String(d.getMonth()+1).padStart(2,"0")}-${d.getFullYear()}`;}
@@ -3411,6 +3546,12 @@ function renameInventoryProduct(productId) {
     alert("已有相同名称的产品。");
     return "";
   }
+
+  const confirmed = window.confirm(
+    `确认修改？\n\n原名称：${oldName}\n修改为：${newName}`
+  );
+
+  if (!confirmed) return "";
 
   const now = new Date().toISOString();
 
