@@ -3053,18 +3053,124 @@ function renderBatchProductStockResults() {
       <button
         class="product-stock-name-btn"
         type="button"
-        onclick="editProductNameFromImportPage('${escapeHTML(product.id || "")}')">
+        data-product-id="${escapeHTML(product.id || "")}"
+        data-edit-type="name"
+        aria-label="长按修改产品名称">
         ${escapeHTML(product.name || "未命名产品")}
       </button>
 
       <button
         class="product-stock-qty-btn"
         type="button"
-        onclick="editProductStockFromImportPage('${escapeHTML(product.id || "")}')">
+        data-product-id="${escapeHTML(product.id || "")}"
+        data-edit-type="stock"
+        aria-label="长按修改当前库存">
         当前库存：<strong>${formatNumber(Number(product.stock) || 0)}</strong>
       </button>
     </div>
   `).join("");
+
+  bindProductStockLongPress();
+}
+
+
+function bindProductStockLongPress() {
+  const output = document.getElementById("batchProductStockResults");
+  if (!output || output.dataset.longPressBound === "1") return;
+
+  output.dataset.longPressBound = "1";
+
+  let timer = null;
+  let activeButton = null;
+  let startX = 0;
+  let startY = 0;
+  let triggered = false;
+
+  const cancel = () => {
+    if (timer) {
+      window.clearTimeout(timer);
+      timer = null;
+    }
+
+    activeButton?.classList.remove("long-press-active");
+    activeButton = null;
+  };
+
+  const start = event => {
+    const button = event.target.closest(
+      ".product-stock-name-btn, .product-stock-qty-btn"
+    );
+    if (!button) return;
+
+    const point = event.touches?.[0] || event;
+    startX = Number(point.clientX) || 0;
+    startY = Number(point.clientY) || 0;
+    triggered = false;
+    activeButton = button;
+    button.classList.add("long-press-active");
+
+    timer = window.setTimeout(() => {
+      timer = null;
+      triggered = true;
+      button.classList.remove("long-press-active");
+
+      const productId = String(button.dataset.productId || "");
+      const editType = String(button.dataset.editType || "");
+
+      if (editType === "name") {
+        editProductNameFromImportPage(productId);
+      } else if (editType === "stock") {
+        editProductStockFromImportPage(productId);
+      }
+    }, 650);
+  };
+
+  const move = event => {
+    if (!timer) return;
+
+    const point = event.touches?.[0] || event;
+    const movedX = Math.abs((Number(point.clientX) || 0) - startX);
+    const movedY = Math.abs((Number(point.clientY) || 0) - startY);
+
+    if (movedX > 12 || movedY > 12) cancel();
+  };
+
+  output.addEventListener("touchstart", start, { passive: true });
+  output.addEventListener("touchmove", move, { passive: true });
+  output.addEventListener("touchend", cancel, { passive: true });
+  output.addEventListener("touchcancel", cancel, { passive: true });
+
+  output.addEventListener("mousedown", event => {
+    if (event.button !== 0) return;
+    start(event);
+  });
+  output.addEventListener("mousemove", move);
+  output.addEventListener("mouseup", cancel);
+  output.addEventListener("mouseleave", cancel);
+
+  output.addEventListener("contextmenu", event => {
+    if (
+      event.target.closest(
+        ".product-stock-name-btn, .product-stock-qty-btn"
+      )
+    ) {
+      event.preventDefault();
+    }
+  });
+
+  output.addEventListener("click", event => {
+    const button = event.target.closest(
+      ".product-stock-name-btn, .product-stock-qty-btn"
+    );
+    if (!button) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (triggered) {
+      triggered = false;
+    }
+  });
 }
 
 function editProductNameFromImportPage(productId) {
