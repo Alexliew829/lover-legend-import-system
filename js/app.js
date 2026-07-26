@@ -614,10 +614,90 @@ function setupImportModule(){
   setupDatePickers();
 
   document.getElementById("addBatchRowBtn").addEventListener("click",()=>addBatchRow());
-  document.getElementById("batchLookupInput").addEventListener("keydown", event => {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
+
+  const batchLookupInput =
+    document.getElementById("batchLookupInput");
+  let lastCompletedBatchLookup = "";
+  let batchLookupTimer = 0;
+
+  const runBatchLookupFromKeyboard = ({
+    exactOnly = false,
+    blurAfter = false
+  } = {}) => {
+    window.clearTimeout(batchLookupTimer);
+
+    const value = String(batchLookupInput?.value || "").trim();
+    if (!value) return false;
+
+    const normalizedValue = value.toLowerCase();
+
+    if (exactOnly) {
+      const exactMatch = getBatches().some(batch => {
+        return [
+          batch.importNumber,
+          batch.overseasTrackingNumber
+        ].some(candidate =>
+          String(candidate || "").trim().toLowerCase() ===
+            normalizedValue
+        );
+      });
+
+      if (!exactMatch) return false;
+    }
+
+    if (
+      normalizedValue === lastCompletedBatchLookup &&
+      document.activeElement !== batchLookupInput
+    ) {
+      return false;
+    }
+
+    lastCompletedBatchLookup = normalizedValue;
     loadBatchByNumber();
+
+    if (blurAfter && document.activeElement === batchLookupInput) {
+      batchLookupInput.blur();
+    }
+
+    return true;
+  };
+
+  batchLookupInput?.addEventListener("keydown", event => {
+    if (event.key !== "Enter") return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    runBatchLookupFromKeyboard({ blurAfter: true });
+  });
+
+  // iPhone 键盘工具栏的 ✓ / Done 会先结束输入或令输入框失焦。
+  // change 与 blur 都接入同一函数，并以值去重，确保只载入一次。
+  batchLookupInput?.addEventListener("change", () => {
+    runBatchLookupFromKeyboard();
+  });
+
+  batchLookupInput?.addEventListener("blur", () => {
+    batchLookupTimer = window.setTimeout(() => {
+      runBatchLookupFromKeyboard();
+    }, 0);
+  });
+
+  // 中文/第三方输入法按 ✓ 完成候选字时，若已经是完整编号，
+  // 不必再按第二次 Enter。
+  batchLookupInput?.addEventListener("compositionend", () => {
+    batchLookupTimer = window.setTimeout(() => {
+      runBatchLookupFromKeyboard({ exactOnly: true });
+    }, 60);
+  });
+
+  batchLookupInput?.addEventListener("input", () => {
+    const normalizedValue =
+      String(batchLookupInput.value || "").trim().toLowerCase();
+
+    if (normalizedValue !== lastCompletedBatchLookup) {
+      lastCompletedBatchLookup = "";
+    }
   });
   document.getElementById("resetBatchBtn").addEventListener("click",()=>{
     if(confirm("确定清空本次尚未保存的输入？已保存的资料不会被删除。")) resetBatchForm({ clearLookup: true });
@@ -1801,13 +1881,74 @@ function loadBatchByNumber() {
 function setupImportHistory() {
   const input = document.getElementById("historyLookupInput");
   const button = document.getElementById("historyLookupBtn");
+  let lastCompletedHistoryLookup = "";
+  let historyLookupTimer = 0;
 
-  if (button) button.addEventListener("click", renderImportHistory);
+  const runHistoryLookupFromKeyboard = ({ blurAfter = false } = {}) => {
+    window.clearTimeout(historyLookupTimer);
+
+    const value = String(input?.value || "").trim();
+    if (!value) return false;
+
+    const normalizedValue = value.toLowerCase();
+
+    if (
+      normalizedValue === lastCompletedHistoryLookup &&
+      document.activeElement !== input
+    ) {
+      return false;
+    }
+
+    lastCompletedHistoryLookup = normalizedValue;
+    renderImportHistory();
+
+    if (blurAfter && document.activeElement === input) {
+      input.blur();
+    }
+
+    return true;
+  };
+
+  if (button) {
+    button.addEventListener("click", () => {
+      lastCompletedHistoryLookup = "";
+      runHistoryLookupFromKeyboard();
+    });
+  }
+
   if (input) {
     input.addEventListener("keydown", event => {
       if (event.key !== "Enter") return;
+
       event.preventDefault();
-      renderImportHistory();
+      event.stopPropagation();
+
+      runHistoryLookupFromKeyboard({ blurAfter: true });
+    });
+
+    input.addEventListener("change", () => {
+      runHistoryLookupFromKeyboard();
+    });
+
+    input.addEventListener("blur", () => {
+      historyLookupTimer = window.setTimeout(() => {
+        runHistoryLookupFromKeyboard();
+      }, 0);
+    });
+
+    input.addEventListener("compositionend", () => {
+      historyLookupTimer = window.setTimeout(() => {
+        runHistoryLookupFromKeyboard();
+      }, 60);
+    });
+
+    input.addEventListener("input", () => {
+      const normalizedValue =
+        String(input.value || "").trim().toLowerCase();
+
+      if (normalizedValue !== lastCompletedHistoryLookup) {
+        lastCompletedHistoryLookup = "";
+      }
     });
   }
 }
