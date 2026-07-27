@@ -107,6 +107,31 @@ function showLatestDataSyncedToast() {
   }, 1100);
 }
 
+async function refreshLatestCloudData() {
+  const beforeRevision = Number(getCloudConfig().revision) || 0;
+
+  if (!navigator.onLine) {
+    setCloudState("failed");
+    return {
+      ok: false,
+      updated: false,
+      offline: true
+    };
+  }
+
+  await runCloudSync();
+
+  const afterRevision = Number(getCloudConfig().revision) || 0;
+
+  return {
+    ok: true,
+    updated: afterRevision > beforeRevision,
+    revision: afterRevision
+  };
+}
+
+window.refreshLatestCloudData = refreshLatestCloudData;
+
 async function callGoogleApi(payload, attempt = 0) {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), 25000);
@@ -335,7 +360,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     action: "push",
     force: false,
     baseRevision: Number(config.revision) || 0,
-    updatedBy: "System V2.82 Stable",
+    updatedBy: "System V2.83 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,

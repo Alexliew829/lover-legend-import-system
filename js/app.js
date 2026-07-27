@@ -4311,26 +4311,44 @@ function setupGlobalMobilePullDownClear() {
 
   document.addEventListener(
     "touchend",
-    () => {
+    async () => {
       if (!tracking) return;
 
-      const shouldClear = readyToClear && verticalGesture;
+      const shouldRefresh = readyToClear && verticalGesture;
       resetGesture();
 
-      if (!shouldClear) {
+      if (!shouldRefresh) {
         hideIndicator();
         return;
       }
 
       const box = getIndicator();
-      const message = clearCurrentPageUnsavedInputs();
+      clearCurrentPageUnsavedInputs();
 
-      box.textContent = message;
+      box.textContent = "正在刷新并检查最新资料...";
       box.classList.add("show", "ready");
+
+      try {
+        const result =
+          typeof window.refreshLatestCloudData === "function"
+            ? await window.refreshLatestCloudData()
+            : null;
+
+        if (result?.offline) {
+          box.textContent = "已清空当前页面 · 当前离线";
+        } else if (result?.updated) {
+          box.textContent = "✓ 已同步最新资料";
+        } else {
+          box.textContent = "✓ 页面已刷新";
+        }
+      } catch (error) {
+        console.error("Pull refresh failed:", error);
+        box.textContent = "页面已清空 · 同步检查失败";
+      }
 
       window.setTimeout(() => {
         hideIndicator();
-      }, 900);
+      }, 1000);
     },
     { passive: true }
   );
@@ -4680,9 +4698,30 @@ function renderInventoryManagementList() {
         .map(item => item.importNumber)
         .join(" ");
 
+      const overseasTrackingNumbers = Array.from(
+        new Set(
+          matchingImports
+            .map(record => {
+              const relatedBatch = batchByImportNumber.get(
+                String(record.importNumber || "")
+                  .trim()
+                  .toLowerCase()
+              );
+
+              return String(
+                record.overseasTrackingNumber ||
+                relatedBatch?.overseasTrackingNumber ||
+                ""
+              ).trim();
+            })
+            .filter(Boolean)
+        )
+      ).join(" ");
+
       return {
         ...product,
         importNumbers,
+        overseasTrackingNumbers,
         batchStocks,
         latestImportNumber:
           String(batchStocks[0]?.importNumber || matchingImports[0]?.importNumber || "").trim(),
@@ -4716,7 +4755,17 @@ function renderInventoryManagementList() {
       const importNumberMatch =
         sequentialSearchMatches(product.importNumbers, keyword);
 
-      return productMatch || importNumberMatch;
+      const overseasTrackingMatch =
+        sequentialSearchMatches(
+          product.overseasTrackingNumbers,
+          keyword
+        );
+
+      return (
+        productMatch ||
+        importNumberMatch ||
+        overseasTrackingMatch
+      );
     });
 
   products.sort((a, b) => {
