@@ -8,6 +8,9 @@ let cloudApplyingRemote = false;
 let cloudInitialSyncComplete = false;
 let cloudSyncTimer = null;
 let cloudSyncRequestedWhileBusy = false;
+let cloudLastForegroundCheckAt = 0;
+let cloudForegroundCheckTimer = null;
+const CLOUD_FOREGROUND_CHECK_GAP = 1500;
 
 function getCloudConfig() {
   const saved = loadJSON(CLOUD_CONFIG_KEY, {});
@@ -51,13 +54,57 @@ function setupCloudSync() {
   renderCloudMeta(getCloudConfig());
   setCloudState("syncing");
 
-  window.addEventListener("online", () => scheduleGoogleSync(10));
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && getCloudQueue().dirty) scheduleGoogleSync(10);
+  window.addEventListener("online", () => {
+    scheduleForegroundCloudCheck(10);
   });
 
-  // Pending local work is pushed first; otherwise pull once.
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      scheduleForegroundCloudCheck(10);
+    }
+  });
+
+  window.addEventListener("pageshow", event => {
+    scheduleForegroundCloudCheck(event.persisted ? 10 : 80);
+  });
+
+  // 首次开启仍按原逻辑：有本地待同步就推送，否则只检查 Revision。
   window.setTimeout(() => runCloudSync(), 0);
+}
+
+function scheduleForegroundCloudCheck(delay = 10) {
+  if (!navigator.onLine || cloudApplyingRemote) return;
+
+  const now = Date.now();
+  const elapsed = now - cloudLastForegroundCheckAt;
+
+  window.clearTimeout(cloudForegroundCheckTimer);
+
+  cloudForegroundCheckTimer = window.setTimeout(() => {
+    cloudLastForegroundCheckAt = Date.now();
+    runCloudSync();
+  }, Math.max(delay, elapsed >= CLOUD_FOREGROUND_CHECK_GAP
+    ? 0
+    : CLOUD_FOREGROUND_CHECK_GAP - elapsed));
+}
+
+function showLatestDataSyncedToast() {
+  let toast = document.getElementById("latestDataSyncedToast");
+
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "latestDataSyncedToast";
+    toast.className = "latest-data-synced-toast";
+    document.body.appendChild(toast);
+  }
+
+  toast.textContent = "✓ 已同步最新资料";
+  toast.classList.add("show");
+
+  window.clearTimeout(toast._hideTimer);
+  toast._hideTimer = window.setTimeout(() => {
+    toast.classList.remove("show");
+  }, 1100);
 }
 
 async function callGoogleApi(payload, attempt = 0) {
@@ -178,18 +225,28 @@ async function runCloudSync() {
       (snapshot.batches || []).length > 0;
 
     // 浏览器资料为空时，绝不能把空阵列推回Google Sheet。
+    let remoteUpdated = false;
+
     if (queue.dirty && !localHasCoreData) {
       saveCloudQueue({
         dirty: false,
         changedAt: "",
         deleted: { products: [], imports: [], batches: [] }
       });
-      await pullLatestSnapshot();
+      remoteUpdated = await pullLatestSnapshot();
     } else if (queue.dirty) {
+      // push 本身会以 baseRevision 做服务器端检查；
+      // 若电脑已经更新，服务器返回 conflict 后自动合并再重试，
+      // 不额外增加一次网络请求。
       await pushPendingSnapshot(queue);
     } else {
-      await pullLatestSnapshot();
+      remoteUpdated = await pullLatestSnapshot();
     }
+
+    if (remoteUpdated) {
+      showLatestDataSyncedToast();
+    }
+
     cloudInitialSyncComplete = true;
   } catch (error) {
     cloudInitialSyncComplete = true;
@@ -227,7 +284,7 @@ async function pullLatestSnapshot() {
     saveCloudConfig(config);
     renderCloudMeta(config);
     setCloudState("synced");
-    return;
+    return false;
   }
 
   if (!Array.isArray(data.products) || !Array.isArray(data.imports) || !Array.isArray(data.batches)) {
@@ -241,6 +298,7 @@ async function pullLatestSnapshot() {
   saveCloudConfig(config);
   renderCloudMeta(config);
   setCloudState("synced");
+  return true;
 }
 
 function hasUnsyncedLocalChanges(local, remote, config) {
@@ -277,7 +335,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     action: "push",
     force: false,
     baseRevision: Number(config.revision) || 0,
-    updatedBy: "System V2.80 Stable",
+    updatedBy: "System V2.81 Smart Sync",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
