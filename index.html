@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=2.83.0" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=2.83.0" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=2.83.0" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=2.83.0" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=2.83.0" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=2.83.0" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=2.83.0" />
+  <link rel="manifest" href="./manifest.json?v=2.84.0" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=2.84.0" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=2.84.0" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=2.84.0" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=2.84.0" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=2.84.0" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=2.84.0" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=2.83.0" />
-  <link rel="stylesheet" href="./css/style.css?v=2.83.0" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=2.84.0" />
+  <link rel="stylesheet" href="./css/style.css?v=2.84.0" />
 </head>
 <body>
   <div class="app-shell">
@@ -31,7 +31,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 2.83 Stable</div>
+          <div class="app-header-version">正式版 2.84 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -354,10 +354,41 @@
               <span>Restore</span>
             </button>
 
-            <button id="rebuildHistoryStockBtn" class="tool-action-btn repair-history-btn" type="button">
+            <button id="rebuildHistoryStockBtn"
+                    class="tool-action-btn repair-history-btn"
+                    type="button"
+                    disabled
+                    aria-disabled="true"
+                    title="暂时停用，需要时再开启">
               <span class="tool-action-icon">🔄</span>
-              <span>重建历史库存</span>
+              <span>重建历史库存（暂时停用）</span>
             </button>
+
+            <button id="findStaleZeroStockBtn"
+                    class="tool-action-btn cleanup-stock-btn"
+                    type="button">
+              <span class="tool-action-icon">🧹</span>
+              <span>清理零库存产品</span>
+            </button>
+          </div>
+
+          <div id="staleZeroStockPanel"
+               class="stale-zero-stock-panel"
+               hidden>
+            <div class="stale-zero-stock-head">
+              <div>
+                <strong>零库存超过3个月</strong>
+                <span id="staleZeroStockCount">0 项</span>
+              </div>
+              <button id="deleteSelectedStaleProductsBtn"
+                      class="danger-action-btn"
+                      type="button"
+                      disabled>
+                删除已选择
+              </button>
+            </div>
+            <div id="staleZeroStockList"
+                 class="stale-zero-stock-list"></div>
           </div>
 
           <input id="restoreFileInput"
@@ -367,7 +398,7 @@
 
           <p class="settings-help">
             Backup 会保存产品、库存、进口批次和汇率。Restore 会覆盖当前资料。<br>
-            重建历史库存会按产品当前库存，以最早进口优先（FIFO）重新分配各进口编号的当前剩余；不会修改原进口数量、Average Cost、单价或批次成本。
+            “重建历史库存”暂时停用。清理工具只列出当前库存为0，并且超过3个月没有进口或库存增减记录的产品。删除时必须输入 DELETE，系统会移除该产品及相关进口记录。
           </p>
 
           <div id="dataToolsStatus" class="status-text"></div>
@@ -375,7 +406,7 @@
 
         <section class="panel">
           <h3>系统资料</h3>
-          <div class="info-row"><span>版本</span><strong>正式版 2.83 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong>正式版 2.84 Stable</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
           <div class="info-row"><span>Google Sheet</span><strong>已连接 Google Web App</strong></div>
         </section>
@@ -398,8 +429,8 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=2.83.0"></script>
-  <script src="./js/sync.js?v=2.83.0"></script>
-  <script src="./js/app.js?v=2.83.0"></script>
+  <script src="./js/common.js?v=2.84.0"></script>
+  <script src="./js/sync.js?v=2.84.0"></script>
+  <script src="./js/app.js?v=2.84.0"></script>
 </body>
 </html>

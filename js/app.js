@@ -4914,17 +4914,349 @@ function setupDataTools() {
   const restoreInput = document.getElementById("restoreFileInput");
   const rebuildHistoryButton =
     document.getElementById("rebuildHistoryStockBtn");
+  const findStaleButton =
+    document.getElementById("findStaleZeroStockBtn");
+  const deleteSelectedButton =
+    document.getElementById("deleteSelectedStaleProductsBtn");
+  const staleList =
+    document.getElementById("staleZeroStockList");
 
   exportButton?.addEventListener("click", exportSystemExcel);
   backupButton?.addEventListener("click", backupSystemData);
   restoreButton?.addEventListener("click", () => restoreInput?.click());
   restoreInput?.addEventListener("change", restoreSystemData);
-  rebuildHistoryButton?.addEventListener(
+
+  // 暂时停用，保留原函数以便以后重新开启。
+  if (rebuildHistoryButton) {
+    rebuildHistoryButton.disabled = true;
+  }
+
+  findStaleButton?.addEventListener(
     "click",
-    rebuildAllImportHistoryRemainingFIFO
+    renderStaleZeroStockProducts
+  );
+
+  staleList?.addEventListener("change", () => {
+    updateStaleDeleteButtonState();
+  });
+
+  deleteSelectedButton?.addEventListener(
+    "click",
+    deleteSelectedStaleZeroStockProducts
   );
 }
 
+
+
+function getStaleProductActivityTime(product, imports, batches) {
+  const productId = String(product?.id || "").trim();
+  const productName =
+    String(product?.name || "").trim().toLowerCase();
+
+  const batchByImportNumber = new Map(
+    (batches || []).map(batch => [
+      String(batch?.importNumber || "").trim().toLowerCase(),
+      batch
+    ])
+  );
+
+  const times = [];
+
+  (imports || []).forEach(record => {
+    const sameProductId =
+      productId &&
+      record?.productId &&
+      String(record.productId).trim() === productId;
+
+    const sameLegacyName =
+      !sameProductId &&
+      productName &&
+      String(record?.productName || "")
+        .trim()
+        .toLowerCase() === productName;
+
+    if (!sameProductId && !sameLegacyName) return;
+
+    const batch = batchByImportNumber.get(
+      String(record?.importNumber || "").trim().toLowerCase()
+    );
+
+    [
+      record?.arrivalDate,
+      batch?.arrivalDate,
+      record?.containerDate,
+      batch?.containerDate
+    ].forEach(value => {
+      const time = parseDDMMYYYY(value);
+      if (time > 0) times.push(time);
+    });
+
+    [record?.updatedAt, record?.createdAt].forEach(value => {
+      const time = Date.parse(String(value || ""));
+      if (Number.isFinite(time)) times.push(time);
+    });
+  });
+
+  getProductStockAdjustments(product).forEach(adjustment => {
+    const createdTime = Date.parse(
+      String(adjustment?.createdAt || "")
+    );
+    if (Number.isFinite(createdTime)) {
+      times.push(createdTime);
+      return;
+    }
+
+    const dateTime = parseDDMMYYYY(adjustment?.date);
+    if (dateTime > 0) times.push(dateTime);
+  });
+
+  // 没有任何进出记录的产品，以建立日期为起点，
+  // 避免刚建立的零库存产品立即被列入清理。
+  if (!times.length) {
+    const createdTime = Date.parse(
+      String(product?.createdAt || "")
+    );
+    if (Number.isFinite(createdTime)) times.push(createdTime);
+  }
+
+  return times.length ? Math.max(...times) : 0;
+}
+
+function getThreeMonthsAgoTime() {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  date.setMonth(date.getMonth() - 3);
+  return date.getTime();
+}
+
+function getStaleZeroStockProducts() {
+  const imports = getImports();
+  const batches = getBatches();
+  const threshold = getThreeMonthsAgoTime();
+
+  return getProducts()
+    .filter(product => (Number(product?.stock) || 0) === 0)
+    .map(product => ({
+      product,
+      lastActivityTime:
+        getStaleProductActivityTime(product, imports, batches)
+    }))
+    .filter(item =>
+      item.lastActivityTime > 0 &&
+      item.lastActivityTime < threshold
+    )
+    .sort((a, b) =>
+      a.lastActivityTime - b.lastActivityTime
+    );
+}
+
+function formatActivityDate(time) {
+  if (!Number.isFinite(Number(time)) || Number(time) <= 0) {
+    return "-";
+  }
+
+  const date = new Date(Number(time));
+  return [
+    String(date.getDate()).padStart(2, "0"),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    date.getFullYear()
+  ].join("-");
+}
+
+function renderStaleZeroStockProducts() {
+  const panel =
+    document.getElementById("staleZeroStockPanel");
+  const list =
+    document.getElementById("staleZeroStockList");
+  const count =
+    document.getElementById("staleZeroStockCount");
+
+  if (!panel || !list || !count) return;
+
+  const staleProducts = getStaleZeroStockProducts();
+  panel.hidden = false;
+  count.textContent = `${formatNumber(staleProducts.length)} 项`;
+
+  if (!staleProducts.length) {
+    list.innerHTML =
+      '<div class="empty-state">没有符合条件的零库存产品</div>';
+    updateStaleDeleteButtonState();
+    showDataToolsStatus("没有超过3个月未进出的零库存产品");
+    return;
+  }
+
+  list.innerHTML = staleProducts.map(item => {
+    const product = item.product;
+
+    return `
+      <label class="stale-zero-stock-item">
+        <input type="checkbox"
+               class="stale-zero-stock-checkbox"
+               value="${escapeHTML(product.id)}" />
+        <span class="stale-zero-stock-main">
+          <strong>${escapeHTML(product.name || "未命名产品")}</strong>
+          <small>
+            ${escapeHTML(product.id || "-")} ·
+            ${escapeHTML(product.category || "-")} ·
+            最后进出 ${formatActivityDate(item.lastActivityTime)}
+          </small>
+        </span>
+        <span class="stale-zero-stock-value">库存 0</span>
+      </label>
+    `;
+  }).join("");
+
+  updateStaleDeleteButtonState();
+  showDataToolsStatus(
+    `已找到 ${formatNumber(staleProducts.length)} 个可清理产品`
+  );
+}
+
+function updateStaleDeleteButtonState() {
+  const button =
+    document.getElementById("deleteSelectedStaleProductsBtn");
+  if (!button) return;
+
+  const selected = document.querySelectorAll(
+    ".stale-zero-stock-checkbox:checked"
+  );
+
+  button.disabled = selected.length === 0;
+  button.textContent = selected.length
+    ? `删除已选择（${selected.length}）`
+    : "删除已选择";
+}
+
+function isSameCleanupProduct(item, product) {
+  const productId = String(product?.id || "").trim();
+  const productName =
+    String(product?.name || "").trim().toLowerCase();
+
+  const sameId =
+    productId &&
+    item?.productId &&
+    String(item.productId).trim() === productId;
+
+  const sameLegacyName =
+    !sameId &&
+    productName &&
+    String(item?.productName || item?.name || "")
+      .trim()
+      .toLowerCase() === productName;
+
+  return sameId || sameLegacyName;
+}
+
+function deleteSelectedStaleZeroStockProducts() {
+  const selectedIds = Array.from(
+    document.querySelectorAll(
+      ".stale-zero-stock-checkbox:checked"
+    )
+  ).map(input => String(input.value || "").trim());
+
+  if (!selectedIds.length) return;
+
+  const staleById = new Map(
+    getStaleZeroStockProducts().map(item => [
+      String(item.product.id || "").trim(),
+      item.product
+    ])
+  );
+
+  const selectedProducts = selectedIds
+    .map(id => staleById.get(id))
+    .filter(Boolean);
+
+  if (!selectedProducts.length) {
+    alert("这些产品已不符合删除条件，请重新检查。");
+    renderStaleZeroStockProducts();
+    return;
+  }
+
+  const typed = window.prompt(
+    `危险操作：将永久删除 ${selectedProducts.length} 个产品及所有相关进口资料。\n\n此操作无法还原。请先完成 Backup。\n\n请输入 DELETE 确认：`
+  );
+
+  if (typed === null) return;
+
+  if (String(typed).trim() !== "DELETE") {
+    alert("输入不正确，已取消删除。");
+    return;
+  }
+
+  const selectedIdSet = new Set(
+    selectedProducts.map(product =>
+      String(product.id || "").trim()
+    )
+  );
+
+  const products = getProducts();
+  const imports = getImports();
+  const batches = getBatches();
+  const now = new Date().toISOString();
+
+  const nextProducts = products.filter(product =>
+    !selectedIdSet.has(String(product.id || "").trim())
+  );
+
+  const nextImports = imports.filter(record =>
+    !selectedProducts.some(product =>
+      isSameCleanupProduct(record, product)
+    )
+  );
+
+  const nextBatches = batches
+    .map(batch => {
+      const currentItems =
+        Array.isArray(batch.items) ? batch.items : [];
+
+      const nextItems = currentItems.filter(item =>
+        !selectedProducts.some(product =>
+          isSameCleanupProduct(item, product)
+        )
+      );
+
+      if (!nextItems.length) return null;
+
+      if (nextItems.length === currentItems.length) {
+        return batch;
+      }
+
+      return {
+        ...batch,
+        items: nextItems,
+        productTypeCount: new Set(
+          nextItems.map(item =>
+            String(item.productId || item.productName || "")
+          )
+        ).size,
+        totalQuantity: nextItems.reduce(
+          (sum, item) =>
+            sum + (Number(item.quantity) || 0),
+          0
+        ),
+        updatedAt: now
+      };
+    })
+    .filter(Boolean);
+
+  saveProducts(nextProducts);
+  saveImports(nextImports);
+  saveBatches(nextBatches);
+
+  renderProductList();
+  renderDashboard();
+  renderInventoryManagementList();
+  renderBatchSuggestions();
+  renderBatchList();
+  renderBatchProductStockResults();
+  renderImportHistory();
+  renderStaleZeroStockProducts();
+
+  showDataToolsStatus(
+    `已永久删除 ${formatNumber(selectedProducts.length)} 个零库存产品及相关资料`
+  );
+}
 
 function rebuildAllImportHistoryRemainingFIFO() {
   const products = getProducts();
