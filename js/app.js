@@ -290,13 +290,19 @@ function renderDashboard() {
   document.getElementById("stockCount").textContent = formatNumber(stockCount);
   document.getElementById("inventoryValue").textContent = formatMoney(inventoryValue, "RM ");
   const batches = getBatches();
-  const latestBatchContainerDate = batches
-    .map(batch => batch.containerDate)
+  const latestBatchImportDate = batches
+    .map(batch =>
+      normalizeDateToDDMMYYYY(
+        batch.arrivalDate || batch.containerDate
+      )
+    )
     .filter(value => parseDDMMYYYY(value) > 0)
     .sort((a, b) => parseDDMMYYYY(b) - parseDDMMYYYY(a))[0];
 
   document.getElementById("lastImport").textContent =
-    latestBatchContainerDate || dates[0] || "-";
+    latestBatchImportDate ||
+    normalizeDateToDDMMYYYY(dates[0]) ||
+    "-";
 
 }
 
@@ -2553,15 +2559,36 @@ function setupDatePickers() {
 }
 
 function parseDateDDMMYYYY(value) {
-  const match = String(value || "")
-    .trim()
-    .match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return new Date(Date.UTC(
+      value.getFullYear(),
+      value.getMonth(),
+      value.getDate()
+    ));
+  }
 
-  if (!match) return null;
+  const text = String(value ?? "").trim();
+  if (!text) return null;
 
-  const day = Number(match[1]);
-  const month = Number(match[2]);
-  const year = Number(match[3]);
+  let day;
+  let month;
+  let year;
+
+  const dmy = text.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})$/);
+  const iso = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s].*)?$/);
+
+  if (dmy) {
+    day = Number(dmy[1]);
+    month = Number(dmy[2]);
+    year = Number(dmy[3]);
+    if (year < 100) year += 2000;
+  } else if (iso) {
+    year = Number(iso[1]);
+    month = Number(iso[2]);
+    day = Number(iso[3]);
+  } else {
+    return null;
+  }
 
   const date = new Date(Date.UTC(year, month - 1, day));
 
@@ -2574,6 +2601,33 @@ function parseDateDDMMYYYY(value) {
   }
 
   return date;
+}
+
+function normalizeDateToDDMMYYYY(value) {
+  const date = parseDateDDMMYYYY(value);
+  if (!date) return "";
+
+  return [
+    String(date.getUTCDate()).padStart(2, "0"),
+    String(date.getUTCMonth() + 1).padStart(2, "0"),
+    date.getUTCFullYear()
+  ].join("-");
+}
+
+function getImportDisplayDate(record, batch = null) {
+  const candidates = [
+    record?.arrivalDate,
+    batch?.arrivalDate,
+    record?.containerDate,
+    batch?.containerDate
+  ];
+
+  for (const value of candidates) {
+    const normalized = normalizeDateToDDMMYYYY(value);
+    if (normalized) return normalized;
+  }
+
+  return "";
 }
 function normalizeDateInput(input) {
   const date=parseDateDDMMYYYY(input.value);
@@ -4291,16 +4345,41 @@ function setupGlobalMobilePullDownClear() {
   );
 }
 
-function formatDateDDMMYYYY(d){return `${String(d.getDate()).padStart(2,"0")}-${String(d.getMonth()+1).padStart(2,"0")}-${d.getFullYear()}`;}
+function formatDateDDMMYYYY(d){
+  const date = parseDateDDMMYYYY(d);
+  return date ? normalizeDateToDDMMYYYY(date) : "";
+}
 function formatDateFromInput(v){if(!v)return"";const[y,m,d]=v.split("-");return`${d}-${m}-${y}`;}
 
 
-function getLatestContainerDateByProduct(productId) {
-  const imports = getImports()
-    .filter(record => record.productId === productId && record.containerDate)
-    .sort((a, b) => parseDDMMYYYY(b.containerDate) - parseDDMMYYYY(a.containerDate));
+function getLatestImportDateByProduct(productId) {
+  const batches = getBatches();
+  const batchByImportNumber = new Map(
+    batches.map(batch => [
+      String(batch.importNumber || "").trim().toLowerCase(),
+      batch
+    ])
+  );
 
-  return imports[0]?.containerDate || "";
+  const imports = getImports()
+    .filter(record => record.productId === productId)
+    .map(record => {
+      const batch = batchByImportNumber.get(
+        String(record.importNumber || "").trim().toLowerCase()
+      );
+
+      return {
+        record,
+        displayDate: getImportDisplayDate(record, batch)
+      };
+    })
+    .filter(item => parseDDMMYYYY(item.displayDate) > 0)
+    .sort((a, b) =>
+      parseDDMMYYYY(b.displayDate) -
+      parseDDMMYYYY(a.displayDate)
+    );
+
+  return imports[0]?.displayDate || "";
 }
 
 function setupInventoryModule() {
@@ -4548,9 +4627,18 @@ function renderInventoryManagementList() {
           return sameProductId || sameProductName;
         })
         .sort((a, b) => {
-          const containerDateDiff =
-            parseDDMMYYYY(b.containerDate) - parseDDMMYYYY(a.containerDate);
-          if (containerDateDiff) return containerDateDiff;
+          const batchA = batchByImportNumber.get(
+            String(a.importNumber || "").trim().toLowerCase()
+          );
+          const batchB = batchByImportNumber.get(
+            String(b.importNumber || "").trim().toLowerCase()
+          );
+          const dateA = getImportDisplayDate(a, batchA);
+          const dateB = getImportDisplayDate(b, batchB);
+          const dateDiff =
+            parseDDMMYYYY(dateB) - parseDDMMYYYY(dateA);
+
+          if (dateDiff) return dateDiff;
 
           return String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
         });
@@ -4599,10 +4687,23 @@ function renderInventoryManagementList() {
         latestImportNumber:
           String(batchStocks[0]?.importNumber || matchingImports[0]?.importNumber || "").trim(),
         displayLastImport:
-          matchingImports[0]?.containerDate ||
-          getLatestContainerDateByProduct(product.id) ||
-          product.lastImport ||
-          ""
+          (() => {
+            const latestRecord = matchingImports[0];
+            const latestBatch = latestRecord
+              ? batchByImportNumber.get(
+                  String(latestRecord.importNumber || "")
+                    .trim()
+                    .toLowerCase()
+                )
+              : null;
+
+            return (
+              getImportDisplayDate(latestRecord, latestBatch) ||
+              getLatestImportDateByProduct(product.id) ||
+              normalizeDateToDDMMYYYY(product.lastImport) ||
+              ""
+            );
+          })()
       };
     })
     .filter(product => {
@@ -4730,7 +4831,7 @@ function renderInventoryManagementList() {
           <div><span>当前库存</span><strong>${formatNumber(stock)}</strong></div>
           <div><span>平均成本</span><strong>${formatMoney(averageCost, "RM ")}</strong></div>
           <div><span>库存成本总值</span><strong>${formatMoney(inventoryValue, "RM ")}</strong></div>
-          <div><span>最后进口</span><strong>${escapeHTML(product.displayLastImport || "-")}</strong></div>
+          <div><span>最后进口</span><strong>${escapeHTML(normalizeDateToDDMMYYYY(product.displayLastImport) || "-")}</strong></div>
         </div>
       </article>
     `;

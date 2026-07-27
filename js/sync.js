@@ -335,7 +335,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     action: "push",
     force: false,
     baseRevision: Number(config.revision) || 0,
-    updatedBy: "System V2.81 Smart Sync",
+    updatedBy: "System V2.82 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
