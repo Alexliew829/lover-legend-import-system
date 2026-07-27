@@ -177,11 +177,7 @@ function makeLocalSnapshot() {
     settings: loadJSON("importSystemSettings", {}),
     products: getProducts(),
     imports: getImports(),
-    batches: getBatches(),
-    premiumItems:
-      typeof getPremiumItems === "function"
-        ? getPremiumItems()
-        : loadJSON("importSystemPremiumLibrary", [])
+    batches: getBatches()
   };
 }
 
@@ -251,8 +247,7 @@ async function runCloudSync() {
     const localHasCoreData =
       (snapshot.products || []).length > 0 ||
       (snapshot.imports || []).length > 0 ||
-      (snapshot.batches || []).length > 0 ||
-      (snapshot.premiumItems || []).length > 0;
+      (snapshot.batches || []).length > 0;
 
     // 浏览器资料为空时，绝不能把空阵列推回Google Sheet。
     let remoteUpdated = false;
@@ -261,7 +256,7 @@ async function runCloudSync() {
       saveCloudQueue({
         dirty: false,
         changedAt: "",
-        deleted: { products: [], imports: [], batches: [], premiumItems: [] }
+        deleted: { products: [], imports: [], batches: [] }
       });
       remoteUpdated = await pullLatestSnapshot();
     } else if (queue.dirty) {
@@ -296,8 +291,7 @@ async function pullLatestSnapshot() {
   const localHasCoreData =
     (local.products || []).length > 0 ||
     (local.imports || []).length > 0 ||
-    (local.batches || []).length > 0 ||
-    (local.premiumItems || []).length > 0;
+    (local.batches || []).length > 0;
 
   const data = await callGoogleApi({
     action: "pull",
@@ -318,12 +312,7 @@ async function pullLatestSnapshot() {
     return false;
   }
 
-  if (
-    !Array.isArray(data.products) ||
-    !Array.isArray(data.imports) ||
-    !Array.isArray(data.batches) ||
-    !Array.isArray(data.premiumItems)
-  ) {
+  if (!Array.isArray(data.products) || !Array.isArray(data.imports) || !Array.isArray(data.batches)) {
     throw new Error("Google Sheet返回资料不完整");
   }
 
@@ -371,12 +360,11 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     action: "push",
     force: false,
     baseRevision: Number(config.revision) || 0,
-    updatedBy: "System V2.85 Stable",
+    updatedBy: "System V2.84 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
-    batches: snapshot.batches,
-    premiumItems: snapshot.premiumItems
+    batches: snapshot.batches
   });
 
   if (data.conflict) {
@@ -401,7 +389,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     saveCloudQueue({
       dirty: false,
       changedAt: "",
-      deleted: { products: [], imports: [], batches: [], premiumItems: [] }
+      deleted: { products: [], imports: [], batches: [] }
     });
   }
 
@@ -414,12 +402,7 @@ function mergeSnapshots(remote, local, queue) {
     settings: { ...(remote.settings || {}), ...(local.settings || {}) },
     products: mergeCollection(remote.products, local.products, queue.deleted.products),
     imports: mergeCollection(remote.imports, local.imports, queue.deleted.imports),
-    batches: mergeCollection(remote.batches, local.batches, queue.deleted.batches),
-    premiumItems: mergeCollection(
-      remote.premiumItems,
-      local.premiumItems,
-      queue.deleted.premiumItems
-    )
+    batches: mergeCollection(remote.batches, local.batches, queue.deleted.batches)
   };
 }
 
@@ -452,12 +435,7 @@ function getItemTime(item) {
 }
 
 function applyRemoteData(data) {
-  if (
-    !Array.isArray(data.products) ||
-    !Array.isArray(data.imports) ||
-    !Array.isArray(data.batches) ||
-    !Array.isArray(data.premiumItems)
-  ) {
+  if (!Array.isArray(data.products) || !Array.isArray(data.imports) || !Array.isArray(data.batches)) {
     throw new Error("云端资料不完整，已停止覆盖本机资料");
   }
 
@@ -467,10 +445,6 @@ function applyRemoteData(data) {
     localStorage.setItem("importSystemProducts", JSON.stringify(data.products));
     localStorage.setItem("importSystemImports", JSON.stringify(data.imports));
     localStorage.setItem("importSystemBatches", JSON.stringify(data.batches));
-    localStorage.setItem(
-      "importSystemPremiumLibrary",
-      JSON.stringify(data.premiumItems)
-    );
   } finally {
     cloudApplyingRemote = false;
   }
@@ -485,8 +459,7 @@ function refreshSystemViewsAfterSync() {
     "renderProductList",
     "renderBatchSuggestions",
     "renderBatchList",
-    "renderInventoryManagementList",
-    "renderPremiumLibrary"
+    "renderInventoryManagementList"
   ].forEach(name => {
     try {
       if (typeof window[name] === "function") window[name]();
