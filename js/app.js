@@ -4070,8 +4070,10 @@ function setupGlobalMobilePullDownClear() {
   if (window.globalPullDownClearBound) return;
   window.globalPullDownClearBound = true;
 
+  let startX = 0;
   let startY = 0;
   let tracking = false;
+  let verticalGesture = false;
   let readyToClear = false;
   let indicator = null;
 
@@ -4080,20 +4082,21 @@ function setupGlobalMobilePullDownClear() {
 
     indicator = document.createElement("div");
     indicator.className = "pull-clear-indicator";
-    indicator.textContent = "松开即可清空当前页面";
+    indicator.textContent = "松开即可刷新当前页面";
     document.body.appendChild(indicator);
     return indicator;
   };
 
   const resetGesture = () => {
     tracking = false;
+    verticalGesture = false;
     readyToClear = false;
   };
 
   const hideIndicator = () => {
     const box = getIndicator();
     box.classList.remove("show", "ready");
-    box.textContent = "松开即可清空当前页面";
+    box.textContent = "松开即可刷新当前页面";
   };
 
   document.addEventListener(
@@ -4102,8 +4105,11 @@ function setupGlobalMobilePullDownClear() {
       if (window.scrollY > 2) return;
       if (event.target.closest("input, select, textarea, button, a")) return;
 
-      startY = Number(event.touches?.[0]?.clientY) || 0;
+      const point = event.touches?.[0];
+      startX = Number(point?.clientX) || 0;
+      startY = Number(point?.clientY) || 0;
       tracking = true;
+      verticalGesture = false;
       readyToClear = false;
     },
     { passive: true }
@@ -4114,11 +4120,32 @@ function setupGlobalMobilePullDownClear() {
     event => {
       if (!tracking) return;
 
-      const currentY = Number(event.touches?.[0]?.clientY) || 0;
-      const distance = currentY - startY;
+      const point = event.touches?.[0];
+      const currentX = Number(point?.clientX) || 0;
+      const currentY = Number(point?.clientY) || 0;
+      const distanceX = currentX - startX;
+      const distanceY = currentY - startY;
+      const horizontalDistance = Math.abs(distanceX);
       const box = getIndicator();
 
-      readyToClear = distance >= 10;
+      // 只接受明显向下的手势。
+      // 向左、向右或斜向滑动不会触发刷新。
+      if (!verticalGesture) {
+        if (horizontalDistance >= 8 && horizontalDistance >= Math.abs(distanceY)) {
+          resetGesture();
+          hideIndicator();
+          return;
+        }
+
+        verticalGesture =
+          distanceY > 0 &&
+          distanceY > horizontalDistance;
+      }
+
+      readyToClear =
+        verticalGesture &&
+        distanceY >= 10 &&
+        distanceY > horizontalDistance;
 
       if (!readyToClear) {
         box.classList.remove("show", "ready");
@@ -4126,7 +4153,7 @@ function setupGlobalMobilePullDownClear() {
       }
 
       event.preventDefault();
-      box.textContent = "松开即可清空当前页面";
+      box.textContent = "松开即可刷新当前页面";
       box.classList.add("show", "ready");
     },
     { passive: false }
@@ -4137,7 +4164,7 @@ function setupGlobalMobilePullDownClear() {
     () => {
       if (!tracking) return;
 
-      const shouldClear = readyToClear;
+      const shouldClear = readyToClear && verticalGesture;
       resetGesture();
 
       if (!shouldClear) {
@@ -4153,7 +4180,7 @@ function setupGlobalMobilePullDownClear() {
 
       window.setTimeout(() => {
         hideIndicator();
-      }, 1100);
+      }, 900);
     },
     { passive: true }
   );
