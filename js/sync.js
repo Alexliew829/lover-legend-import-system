@@ -55,20 +55,36 @@ function setupCloudSync() {
   setCloudState("syncing");
 
   window.addEventListener("online", () => {
+    // 如果首次打开时处于离线状态，恢复网络后执行首次同步；
+    // 否则才使用前景检查，避免重复同步。
+    if (!cloudInitialSyncComplete) {
+      runCloudSync();
+      return;
+    }
+
     scheduleForegroundCloudCheck(10);
   });
 
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) {
+    if (
+      !document.hidden &&
+      cloudInitialSyncComplete
+    ) {
       scheduleForegroundCloudCheck(10);
     }
   });
 
   window.addEventListener("pageshow", event => {
-    scheduleForegroundCloudCheck(event.persisted ? 10 : 80);
+    // 首次载入页面时 pageshow 会自动触发。
+    // 初次同步未完成前忽略，避免打开 App 后同步两次。
+    if (!cloudInitialSyncComplete) return;
+
+    scheduleForegroundCloudCheck(
+      event.persisted ? 10 : 80
+    );
   });
 
-  // 首次开启仍按原逻辑：有本地待同步就推送，否则只检查 Revision。
+  // 首次开启只由这里执行一次同步。
   window.setTimeout(() => runCloudSync(), 0);
 }
 
@@ -360,7 +376,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     action: "push",
     force: false,
     baseRevision: Number(config.revision) || 0,
-    updatedBy: "System V2.84 Stable",
+    updatedBy: "System V2.84.1.1 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
