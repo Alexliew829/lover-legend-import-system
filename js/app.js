@@ -484,12 +484,83 @@ function saveProduct() {
   }, 1800);
 }
 
+
+function normalizeSmartSearchText(value) {
+  return String(value || "")
+    .normalize("NFKC")
+    .toLocaleLowerCase()
+    .replace(/[\s\u3000\-_./\\,，、:：;；()（）[\]【】{}"'`~!！?？@#$%^&*+=|<>]+/g, "");
+}
+
+function smartSearchMatches(searchableValue, queryValue) {
+  const sourceRaw = String(searchableValue || "").normalize("NFKC");
+  const queryRaw = String(queryValue || "").normalize("NFKC").trim();
+
+  if (!queryRaw) return true;
+
+  const source = normalizeSmartSearchText(sourceRaw);
+  const query = normalizeSmartSearchText(queryRaw);
+
+  if (!query) return true;
+  if (source.includes(query)) return true;
+
+  const tokens = queryRaw
+    .toLocaleLowerCase()
+    .split(/[\s\u3000\-_./\\,，、:：;；()（）[\]【】{}"'`~!！?？@#$%^&*+=|<>]+/)
+    .map(normalizeSmartSearchText)
+    .filter(Boolean);
+
+  if (
+    tokens.length > 1 &&
+    tokens.every(token => source.includes(token))
+  ) {
+    return true;
+  }
+
+  if (/[\u3400-\u9fff]/.test(query)) {
+    const sourceCounts = new Map();
+
+    Array.from(source).forEach(character => {
+      sourceCounts.set(
+        character,
+        (sourceCounts.get(character) || 0) + 1
+      );
+    });
+
+    return Array.from(query).every(character => {
+      const count = sourceCounts.get(character) || 0;
+      if (count < 1) return false;
+      sourceCounts.set(character, count - 1);
+      return true;
+    });
+  }
+
+  return false;
+}
+
+
+function normalizeSequentialSearchText(value) {
+  return String(value || "")
+    .normalize("NFKC")
+    .toLocaleLowerCase()
+    .replace(/[\s\u3000]+/g, "");
+}
+
+function sequentialSearchMatches(searchableValue, queryValue) {
+  const source = normalizeSequentialSearchText(searchableValue);
+  const query = normalizeSequentialSearchText(queryValue);
+
+  if (!query) return true;
+  return source.includes(query);
+}
+
 function renderProductList() {
   const products = getProducts();
   const keyword = document.getElementById("productSearch").value.trim().toLowerCase();
   const filtered = products.filter(product => {
-    const target = `${product.id} ${product.name} ${product.category}`.toLowerCase();
-    return target.includes(keyword);
+    const target =
+      `${product.id} ${product.name} ${product.category}`;
+    return smartSearchMatches(target, keyword);
   });
 
   document.getElementById("productListCount").textContent = `${filtered.length} 项`;
@@ -1684,8 +1755,8 @@ function loadBatchByNumber() {
 
   if (!batch) {
     const partialMatches = batches.filter(item =>
-      String(item.importNumber || "").trim().toLowerCase().includes(normalizedQuery) ||
-      String(item.overseasTrackingNumber || "").trim().toLowerCase().includes(normalizedQuery)
+      sequentialSearchMatches(item.importNumber, normalizedQuery) ||
+      sequentialSearchMatches(item.overseasTrackingNumber, normalizedQuery)
     );
 
     if (partialMatches.length === 1) {
@@ -2174,6 +2245,27 @@ function renderImportHistory() {
     return;
   }
 
+  const partialBatchMatches = batches.filter(batch =>
+    sequentialSearchMatches(batch.importNumber, keyword)
+  );
+
+  if (partialBatchMatches.length === 1) {
+    const matchedBatch = partialBatchMatches[0];
+
+    output.innerHTML = buildImportHistoryCard(
+      matchedBatch,
+      getBatchItemsForDisplay(matchedBatch),
+      { showRelatedBatches: false }
+    );
+    return;
+  }
+
+  if (partialBatchMatches.length > 1) {
+    output.innerHTML =
+      '<div class="empty-state">找到多个符合的进口编号，请输入更完整的编号</div>';
+    return;
+  }
+
   const productMatches = batches.map(batch => {
     const matchingItems = getBatchItemsForDisplay(batch).filter(item => {
       const searchable = [
@@ -2182,7 +2274,7 @@ function renderImportHistory() {
         item.category
       ].map(value => String(value || "").toLowerCase()).join(" ");
 
-      return searchable.includes(normalizedKeyword);
+      return smartSearchMatches(searchable, normalizedKeyword);
     });
 
     return {
@@ -3341,17 +3433,18 @@ function renderBatchList() {
       )
       .join(" ");
 
-    const searchableText = [
+    const numberOrTransportMatch = [
       batch.importNumber,
       batch.trackingNumber,
-      batch.overseasTrackingNumber,
-      productText
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
+      batch.overseasTrackingNumber
+    ].some(value =>
+      sequentialSearchMatches(value, keyword)
+    );
 
-    return searchableText.includes(keyword);
+    const productMatch =
+      smartSearchMatches(productText, keyword);
+
+    return numberOrTransportMatch || productMatch;
   });
 
   const displayLimit = 10;
@@ -3447,7 +3540,10 @@ function renderBatchProductStockResults() {
 
   const products = getProducts()
     .filter(product =>
-      String(product.name || "").toLowerCase().includes(keyword)
+      smartSearchMatches(
+        `${product.id || ""} ${product.name || ""} ${product.category || ""}`,
+        keyword
+      )
     )
     .sort((a, b) =>
       String(a.name || "").localeCompare(String(b.name || ""), "zh")
@@ -4510,10 +4606,16 @@ function renderInventoryManagementList() {
       };
     })
     .filter(product => {
-      const target =
-        `${product.id} ${product.name} ${product.category} ${product.importNumbers}`
-          .toLowerCase();
-      return target.includes(keyword);
+      const productTarget =
+        `${product.id} ${product.name} ${product.category}`;
+
+      const productMatch =
+        smartSearchMatches(productTarget, keyword);
+
+      const importNumberMatch =
+        sequentialSearchMatches(product.importNumbers, keyword);
+
+      return productMatch || importNumberMatch;
     });
 
   products.sort((a, b) => {
