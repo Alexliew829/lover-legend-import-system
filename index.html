@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=2.84.0" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=2.84.0" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=2.84.0" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=2.84.0" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=2.84.0" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=2.84.0" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=2.84.0" />
+  <link rel="manifest" href="./manifest.json?v=2.85.0" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=2.85.0" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=2.85.0" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=2.85.0" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=2.85.0" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=2.85.0" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=2.85.0" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=2.84.0" />
-  <link rel="stylesheet" href="./css/style.css?v=2.84.0" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=2.85.0" />
+  <link rel="stylesheet" href="./css/style.css?v=2.85.0" />
 </head>
 <body>
   <div class="app-shell">
@@ -31,7 +31,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 2.84 Stable</div>
+          <div class="app-header-version">正式版 2.85 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -307,6 +307,144 @@
         </section>
       </section>
 
+      <section id="premiumPage" class="page">
+        <section class="panel premium-library-panel">
+          <div class="section-title-row">
+            <div>
+              <h2>精品库</h2>
+              <p>独立的顾客展示资料，不影响产品、库存或进口记录。</p>
+            </div>
+            <button id="premiumNewBtn"
+                    class="secondary-btn"
+                    type="button">新增精品</button>
+          </div>
+
+          <form id="premiumForm" class="premium-form" autocomplete="off">
+            <input id="premiumEditingId" type="hidden" />
+
+            <label class="premium-name-field">
+              <span>产品名称</span>
+              <div class="premium-name-wrap">
+                <input id="premiumName"
+                       type="text"
+                       maxlength="12"
+                       placeholder="输入展示给顾客看的名称" />
+                <small id="premiumNameCounter">0 / 12</small>
+              </div>
+            </label>
+
+            <div class="premium-description-title">产品描述</div>
+
+            <div class="premium-field-grid">
+              <label>
+                <span>冠幅 Crown Spread</span>
+                <div class="premium-unit-input">
+                  <input id="premiumCrownSpread"
+                         inputmode="decimal"
+                         placeholder="" />
+                  <em>CM</em>
+                </div>
+              </label>
+
+              <label>
+                <span>宽度 Width</span>
+                <div class="premium-unit-input">
+                  <input id="premiumWidth"
+                         inputmode="decimal"
+                         placeholder="" />
+                  <em>CM</em>
+                </div>
+              </label>
+
+              <label>
+                <span>含盆高度 Height incl. Pot</span>
+                <div class="premium-unit-input">
+                  <input id="premiumHeightWithPot"
+                         inputmode="decimal"
+                         placeholder="" />
+                  <em>CM</em>
+                </div>
+              </label>
+
+              <label>
+                <span>主干直径 Trunk Diameter</span>
+                <div class="premium-unit-input">
+                  <input id="premiumTrunkDiameter"
+                         inputmode="decimal"
+                         placeholder="" />
+                  <em>CM</em>
+                </div>
+              </label>
+
+              <label>
+                <span>根盘 Root Base</span>
+                <div class="premium-unit-input">
+                  <input id="premiumRootBase"
+                         inputmode="decimal"
+                         placeholder="" />
+                  <em>CM</em>
+                </div>
+              </label>
+
+              <label>
+                <span>花盆外径 Pot Diameter</span>
+                <div class="premium-unit-input">
+                  <input id="premiumPotDiameter"
+                         inputmode="decimal"
+                         placeholder="" />
+                  <em>CM</em>
+                </div>
+              </label>
+
+              <label class="premium-price-field">
+                <span>售价 Price</span>
+                <div class="premium-unit-input premium-price-input">
+                  <em>RM</em>
+                  <input id="premiumPrice"
+                         inputmode="decimal"
+                         placeholder="" />
+                </div>
+              </label>
+            </div>
+
+            <label class="premium-video-field">
+              <span>视频连接</span>
+              <input id="premiumVideoUrl"
+                     type="url"
+                     inputmode="url"
+                     placeholder="https://..." />
+            </label>
+
+            <div class="premium-form-actions">
+              <button id="premiumSaveBtn"
+                      class="primary-btn"
+                      type="submit">保存精品资料</button>
+              <button id="premiumResetBtn"
+                      class="secondary-btn"
+                      type="button">清空本次输入</button>
+            </div>
+
+            <div id="premiumFormStatus" class="status-text"></div>
+          </form>
+        </section>
+
+        <section class="panel">
+          <div class="section-title-row">
+            <div>
+              <h3>精品资料</h3>
+              <p id="premiumCount">0 项</p>
+            </div>
+          </div>
+
+          <input id="premiumSearch"
+                 class="search-input"
+                 placeholder="输入产品名称"
+                 autocomplete="off" />
+
+          <div id="premiumList" class="premium-list"></div>
+        </section>
+      </section>
+
       <section id="settingsPage" class="page">
         <h2>Settings / 设置</h2>
 
@@ -406,7 +544,7 @@
 
         <section class="panel">
           <h3>系统资料</h3>
-          <div class="info-row"><span>版本</span><strong>正式版 2.84 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong>正式版 2.85 Stable</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
           <div class="info-row"><span>Google Sheet</span><strong>已连接 Google Web App</strong></div>
         </section>
@@ -423,14 +561,17 @@
       <button class="nav-btn" data-page="historyPage" type="button">
         <span>📜</span><small>进口历史</small>
       </button>
+      <button class="nav-btn" data-page="premiumPage" type="button">
+        <span>🌳</span><small>精品库</small>
+      </button>
       <button class="nav-btn" data-page="settingsPage" type="button">
         <span>⚙️</span><small>设置</small>
       </button>
     </nav>
   </div>
 
-  <script src="./js/common.js?v=2.84.0"></script>
-  <script src="./js/sync.js?v=2.84.0"></script>
-  <script src="./js/app.js?v=2.84.0"></script>
+  <script src="./js/common.js?v=2.85.0"></script>
+  <script src="./js/sync.js?v=2.85.0"></script>
+  <script src="./js/app.js?v=2.85.0"></script>
 </body>
 </html>
