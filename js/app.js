@@ -142,7 +142,27 @@ function isBiometricCredentialStored() {
   return Boolean(getStoredBiometricCredentialId());
 }
 
+function isMobileOrTabletDevice() {
+  const userAgent = String(navigator.userAgent || "");
+
+  const mobileUserAgent =
+    /Android|iPhone|iPad|iPod|Mobile/i.test(userAgent);
+
+  const touchAppleDevice =
+    /Macintosh/i.test(userAgent) &&
+    Number(navigator.maxTouchPoints || 0) > 1;
+
+  return mobileUserAgent || touchAppleDevice;
+}
+
 async function isPlatformBiometricAvailable() {
+  // 电脑端不启用 WebAuthn / Passkey，避免 Chrome 或
+  // Google Password Manager 弹出 Windows PIN 验证。
+  // Face ID / Touch ID / Android 指纹只在手机和平板使用。
+  if (!isMobileOrTabletDevice()) {
+    return false;
+  }
+
   if (
     !window.PublicKeyCredential ||
     !navigator.credentials ||
@@ -269,24 +289,32 @@ async function updateDeviceBiometricStatus() {
   const registered =
     isBiometricCredentialStored();
 
+  const isMobileDevice =
+    isMobileOrTabletDevice();
+
   if (status) {
-    status.textContent = !available
-      ? "此设备不支持"
-      : registered
-        ? "已启用"
-        : "尚未启用";
+    status.textContent = !isMobileDevice
+      ? "电脑使用已储存密码登录"
+      : !available
+        ? "此手机不支持"
+        : registered
+          ? "已启用"
+          : "尚未启用";
   }
 
   if (setupButton) {
+    setupButton.hidden = !isMobileDevice;
     setupButton.disabled = !available;
   }
 
   if (removeButton) {
+    removeButton.hidden = !isMobileDevice;
     removeButton.disabled = !registered;
   }
 
   if (loginButton) {
-    loginButton.hidden = !(available && registered);
+    loginButton.hidden =
+      !(isMobileDevice && available && registered);
   }
 }
 
@@ -2544,29 +2572,72 @@ function loadBatchByNumber() {
 function setupImportHistory() {
   const input = document.getElementById("historyLookupInput");
   const button = document.getElementById("historyLookupBtn");
-  const dateInput = document.getElementById("historyDateInput");
-  const datePicker = document.getElementById("historyDatePicker");
+  const startInput =
+    document.getElementById("historyStartDateInput");
+  const startPicker =
+    document.getElementById("historyStartDatePicker");
+  const endInput =
+    document.getElementById("historyEndDateInput");
+  const endPicker =
+    document.getElementById("historyEndDatePicker");
   const dateClearButton =
     document.getElementById("historyDateClearBtn");
 
   let lastCompletedHistoryLookup = "";
   let historyLookupTimer = 0;
 
-  const runHistoryLookupFromKeyboard = ({
+  const normalizeHistoryDateField = (
+    textInput,
+    picker
+  ) => {
+    if (!textInput) return "";
+
+    const raw = String(textInput.value || "").trim();
+
+    if (!raw) {
+      if (picker) picker.value = "";
+      textInput.classList.remove("date-error");
+      return "";
+    }
+
+    const normalized =
+      normalizeFlexibleDateInput(textInput);
+
+    if (!normalized) return "";
+
+    textInput.value = normalized;
+
+    if (picker) {
+      picker.value =
+        formatDDMMYYYYToNative(normalized);
+    }
+
+    return normalized;
+  };
+
+  const runHistoryLookup = ({
     blurAfter = false
   } = {}) => {
     window.clearTimeout(historyLookupTimer);
 
-    const value = String(input?.value || "").trim();
-    const selectedDate = String(dateInput?.value || "").trim();
+    const keyword = String(input?.value || "").trim();
+    const startDate = String(
+      startInput?.value || ""
+    ).trim();
+    const endDate = String(
+      endInput?.value || ""
+    ).trim();
 
-    if (!value && !selectedDate) {
+    if (!keyword && !startDate && !endDate) {
       renderImportHistory();
       return false;
     }
 
-    const lookupKey =
-      `${value.toLowerCase()}::${selectedDate}`;
+    const lookupKey = [
+      keyword.toLowerCase(),
+      startDate,
+      endDate
+    ].join("::");
 
     if (
       lookupKey === lastCompletedHistoryLookup &&
@@ -2585,31 +2656,21 @@ function setupImportHistory() {
     return true;
   };
 
-  const runDateLookup = () => {
-    if (!dateInput) return;
-
-    const raw = String(dateInput.value || "").trim();
-
-    if (!raw) {
-      if (datePicker) datePicker.value = "";
-      lastCompletedHistoryLookup = "";
-      renderImportHistory();
-      return;
-    }
-
+  const runDateLookup = (
+    textInput,
+    picker,
+    { copyStartToEnd = false } = {}
+  ) => {
     const normalized =
-      normalizeFlexibleDateInput(dateInput);
+      normalizeHistoryDateField(textInput, picker);
 
-    if (!normalized) {
-      renderImportHistory();
-      return;
-    }
-
-    dateInput.value = normalized;
-
-    if (datePicker) {
-      datePicker.value =
-        formatDDMMYYYYToNative(normalized);
+    if (
+      normalized &&
+      copyStartToEnd &&
+      endInput &&
+      !String(endInput.value || "").trim()
+    ) {
+      // 只选第一个日期时，查询当天，不强制在画面填入结束日期。
     }
 
     lastCompletedHistoryLookup = "";
@@ -2618,7 +2679,7 @@ function setupImportHistory() {
 
   button?.addEventListener("click", () => {
     lastCompletedHistoryLookup = "";
-    runHistoryLookupFromKeyboard();
+    runHistoryLookup();
   });
 
   input?.addEventListener("input", () => {
@@ -2631,50 +2692,67 @@ function setupImportHistory() {
     event.preventDefault();
     event.stopPropagation();
 
-    runHistoryLookupFromKeyboard({
+    runHistoryLookup({
       blurAfter: true
     });
   });
 
   input?.addEventListener("change", () => {
-    runHistoryLookupFromKeyboard();
+    runHistoryLookup();
   });
 
   input?.addEventListener("blur", () => {
     historyLookupTimer = window.setTimeout(() => {
-      runHistoryLookupFromKeyboard();
+      runHistoryLookup();
     }, 0);
   });
 
-  datePicker?.addEventListener("change", () => {
-    dateInput.value =
-      formatNativeDateToDDMMYYYY(datePicker.value);
-
+  startPicker?.addEventListener("change", () => {
+    startInput.value =
+      formatNativeDateToDDMMYYYY(startPicker.value);
+    startInput.classList.remove("date-error");
     lastCompletedHistoryLookup = "";
     renderImportHistory();
   });
 
-  dateInput?.addEventListener("input", () => {
+  endPicker?.addEventListener("change", () => {
+    endInput.value =
+      formatNativeDateToDDMMYYYY(endPicker.value);
+    endInput.classList.remove("date-error");
     lastCompletedHistoryLookup = "";
+    renderImportHistory();
   });
 
-  dateInput?.addEventListener("keydown", event => {
-    if (event.key !== "Enter") return;
+  [
+    [startInput, startPicker],
+    [endInput, endPicker]
+  ].forEach(([textInput, picker]) => {
+    textInput?.addEventListener("input", () => {
+      lastCompletedHistoryLookup = "";
+    });
 
-    event.preventDefault();
-    runDateLookup();
-    dateInput.blur();
+    textInput?.addEventListener("keydown", event => {
+      if (event.key !== "Enter") return;
+
+      event.preventDefault();
+      runDateLookup(textInput, picker);
+      textInput.blur();
+    });
+
+    textInput?.addEventListener("blur", () => {
+      runDateLookup(textInput, picker);
+    });
   });
-
-  dateInput?.addEventListener("blur", runDateLookup);
 
   dateClearButton?.addEventListener("click", () => {
-    if (dateInput) {
-      dateInput.value = "";
-      dateInput.classList.remove("date-error");
-    }
+    [startInput, endInput].forEach(field => {
+      if (!field) return;
+      field.value = "";
+      field.classList.remove("date-error");
+    });
 
-    if (datePicker) datePicker.value = "";
+    if (startPicker) startPicker.value = "";
+    if (endPicker) endPicker.value = "";
 
     lastCompletedHistoryLookup = "";
     renderImportHistory();
@@ -2959,27 +3037,83 @@ function buildDailyStockAdjustmentHtml(adjustments) {
   }).join("");
 }
 
-function renderImportHistoryByDate(
-  selectedDate,
-  output,
-  keyword = ""
-) {
-  const normalizedDate =
-    normalizeDateToDDMMYYYY(selectedDate);
+function getHistoryDateRange(startValue, endValue) {
+  const startDate =
+    normalizeDateToDDMMYYYY(startValue);
+  const endDate =
+    normalizeDateToDDMMYYYY(endValue);
 
-  if (!normalizedDate) {
-    output.innerHTML =
-      '<div class="empty-state">请选择正确的日期</div>';
-    return;
+  if (!startDate && !endDate) {
+    return null;
   }
 
+  // 只填写一个日期时，就查询该日期。
+  const effectiveStart = startDate || endDate;
+  const effectiveEnd = endDate || startDate;
+
+  const startTime = parseDDMMYYYY(effectiveStart);
+  const endTime = parseDDMMYYYY(effectiveEnd);
+
+  if (!startTime || !endTime) {
+    return {
+      error: "请选择正确的日期"
+    };
+  }
+
+  if (startTime > endTime) {
+    return {
+      error: "开始日期不能迟于结束日期"
+    };
+  }
+
+  return {
+    startDate: effectiveStart,
+    endDate: effectiveEnd,
+    startTime,
+    endTime,
+    isSingleDay: startTime === endTime
+  };
+}
+
+function isDateWithinHistoryRange(
+  value,
+  range
+) {
+  const time = parseDDMMYYYY(
+    normalizeDateToDDMMYYYY(value)
+  );
+
+  return Boolean(
+    time &&
+    time >= range.startTime &&
+    time <= range.endTime
+  );
+}
+
+function getHistoryRangeDates(range) {
+  const dates = [];
+  const current = new Date(range.startTime);
+  const end = range.endTime;
+
+  while (current.getTime() <= end) {
+    dates.push(formatDateDDMMYYYY(current));
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+
+  return dates.reverse();
+}
+
+function renderHistorySingleDateSection(
+  selectedDate,
+  keyword = ""
+) {
   const normalizedKeyword = String(keyword || "").trim();
 
   const incomingMatches = getBatches()
     .map(batch => {
       if (
         normalizeDateToDDMMYYYY(batch.arrivalDate) !==
-        normalizedDate
+        selectedDate
       ) {
         return null;
       }
@@ -3001,11 +3135,7 @@ function renderImportHistoryByDate(
 
       const matchingItems = allItems.filter(item =>
         historyProductMatchesKeyword(
-          {
-            ...item,
-            productName: item.productName,
-            productId: item.productId
-          },
+          item,
           normalizedKeyword
         )
       );
@@ -3016,7 +3146,9 @@ function renderImportHistoryByDate(
 
       return {
         batch,
-        items: importNumberMatch ? allItems : matchingItems
+        items: importNumberMatch
+          ? allItems
+          : matchingItems
       };
     })
     .filter(Boolean)
@@ -3028,9 +3160,13 @@ function renderImportHistoryByDate(
 
   const adjustments =
     getDailyStockAdjustments(
-      normalizedDate,
+      selectedDate,
       normalizedKeyword
     );
+
+  if (!incomingMatches.length && !adjustments.length) {
+    return "";
+  }
 
   const incomingTotals = incomingMatches.reduce(
     (summary, match) => {
@@ -3070,75 +3206,137 @@ function renderImportHistoryByDate(
     }
   );
 
-  const filterText = normalizedKeyword
-    ? ` · 产品筛选：${escapeHTML(normalizedKeyword)}`
-    : "";
-
-  const summaryHtml = `
-    <div class="history-date-summary">
-      <strong>${escapeHTML(normalizedDate)}</strong>
-      <span>
-        进 ${formatNumber(incomingTotals.quantity)} 件 ·
-        出 ${formatNumber(adjustmentTotals.outQuantity)} 件 ·
-        修改增加 ${formatNumber(adjustmentTotals.increaseQuantity)} 件
-        ${filterText}
-      </span>
-    </div>
-  `;
-
-  const incomingHtml = `
-    <section class="history-day-section">
-      <div class="history-day-section-title">
-        <strong>进｜抵达进口</strong>
+  return `
+    <section class="history-range-day">
+      <div class="history-range-day-header">
+        <strong>${escapeHTML(selectedDate)}</strong>
         <span>
-          ${formatNumber(incomingTotals.batchCount)} 批 ·
-          ${formatNumber(incomingTotals.itemCount)} 种产品
+          进 ${formatNumber(incomingTotals.quantity)} ·
+          出 ${formatNumber(adjustmentTotals.outQuantity)} ·
+          修改增加 ${formatNumber(adjustmentTotals.increaseQuantity)}
         </span>
       </div>
 
       ${
         incomingMatches.length
-          ? incomingMatches.map(match =>
-              buildImportHistoryCard(
-                match.batch,
-                match.items,
-                { showRelatedBatches: false }
-              )
-            ).join("")
-          : '<div class="history-day-empty">当天没有符合的抵达进口记录</div>'
+          ? `
+            <section class="history-day-section">
+              <div class="history-day-section-title">
+                <strong>进｜抵达进口</strong>
+                <span>
+                  ${formatNumber(incomingTotals.batchCount)} 批 ·
+                  ${formatNumber(incomingTotals.itemCount)} 种产品
+                </span>
+              </div>
+
+              ${incomingMatches.map(match =>
+                buildImportHistoryCard(
+                  match.batch,
+                  match.items,
+                  { showRelatedBatches: false }
+                )
+              ).join("")}
+            </section>
+          `
+          : ""
+      }
+
+      ${
+        adjustments.length
+          ? `
+            <section class="history-day-section">
+              <div class="history-day-section-title">
+                <strong>出／修改｜库存异动</strong>
+                <span>${formatNumber(adjustments.length)} 笔</span>
+              </div>
+
+              ${buildDailyStockAdjustmentHtml(adjustments)}
+            </section>
+          `
+          : ""
       }
     </section>
   `;
+}
 
-  const adjustmentHtml = `
-    <section class="history-day-section">
-      <div class="history-day-section-title">
-        <strong>出／修改｜库存异动</strong>
-        <span>${formatNumber(adjustments.length)} 笔</span>
+function renderImportHistoryByRange(
+  startValue,
+  endValue,
+  output,
+  keyword = ""
+) {
+  const range =
+    getHistoryDateRange(startValue, endValue);
+
+  if (!range || range.error) {
+    output.innerHTML = `
+      <div class="empty-state">
+        ${escapeHTML(range?.error || "请选择正确的日期")}
       </div>
+    `;
+    return;
+  }
 
-      ${buildDailyStockAdjustmentHtml(adjustments)}
-    </section>
+  const dateLabel = range.isSingleDay
+    ? range.startDate
+    : `${range.startDate} 至 ${range.endDate}`;
+
+  const sections = getHistoryRangeDates(range)
+    .map(date =>
+      renderHistorySingleDateSection(
+        date,
+        keyword
+      )
+    )
+    .filter(Boolean);
+
+  const filterText = String(keyword || "").trim()
+    ? ` · 产品筛选：${escapeHTML(String(keyword).trim())}`
+    : "";
+
+  if (!sections.length) {
+    output.innerHTML = `
+      <div class="history-date-summary">
+        <strong>${escapeHTML(dateLabel)}</strong>
+        <span>没有符合的历史资料${filterText}</span>
+      </div>
+    `;
+    return;
+  }
+
+  output.innerHTML = `
+    <div class="history-date-summary">
+      <strong>${escapeHTML(dateLabel)}</strong>
+      <span>
+        共 ${formatNumber(sections.length)} 个有记录日期
+        ${filterText}
+      </span>
+    </div>
+    ${sections.join("")}
   `;
-
-  output.innerHTML =
-    summaryHtml + incomingHtml + adjustmentHtml;
 }
 
 
 function renderImportHistory() {
   const input = document.getElementById("historyLookupInput");
-  const dateInput = document.getElementById("historyDateInput");
+  const startInput =
+    document.getElementById("historyStartDateInput");
+  const endInput =
+    document.getElementById("historyEndDateInput");
   const output = document.getElementById("historyResult");
   if (!input || !output) return;
 
-  const selectedDate = String(
-    dateInput?.value || ""
+  const startDate = String(
+    startInput?.value || ""
+  ).trim();
+  const endDate = String(
+    endInput?.value || ""
   ).trim();
 
-  if (selectedDate) {
-    renderImportHistoryByDate(
-      selectedDate,
+  if (startDate || endDate) {
+    renderImportHistoryByRange(
+      startDate,
+      endDate,
       output,
       input.value.trim()
     );
@@ -3147,7 +3345,7 @@ function renderImportHistory() {
 
   const keyword = input.value.trim();
   if (!keyword) {
-    output.innerHTML = '<div class="empty-state">输入进口编号、产品名称，或选择日期查看当天进出历史</div>';
+    output.innerHTML = '<div class="empty-state">输入进口编号、产品名称，或选择日期范围查看历史资料</div>';
     return;
   }
 
@@ -5089,24 +5287,33 @@ function clearCurrentPageUnsavedInputs() {
 
   if (pageId === "historyPage") {
     const input = document.getElementById("historyLookupInput");
-    const dateInput =
-      document.getElementById("historyDateInput");
-    const datePicker =
-      document.getElementById("historyDatePicker");
+    const startInput =
+      document.getElementById("historyStartDateInput");
+    const endInput =
+      document.getElementById("historyEndDateInput");
+    const startPicker =
+      document.getElementById("historyStartDatePicker");
+    const endPicker =
+      document.getElementById("historyEndDatePicker");
     const output = document.getElementById("historyResult");
 
     if (input) input.value = "";
-    if (dateInput) {
-      dateInput.value = "";
-      dateInput.classList.remove("date-error");
-    }
-    if (datePicker) datePicker.value = "";
+
+    [startInput, endInput].forEach(field => {
+      if (!field) return;
+      field.value = "";
+      field.classList.remove("date-error");
+    });
+
+    if (startPicker) startPicker.value = "";
+    if (endPicker) endPicker.value = "";
 
     if (output) {
       output.innerHTML =
-        '<div class="empty-state">输入进口编号、产品名称，或选择日期查看当天进出历史</div>';
+        '<div class="empty-state">输入进口编号、产品名称，或选择日期范围查看历史资料</div>';
     }
-    return "已清空进口历史查询";
+
+    return "已清空历史查询";
   }
 
   if (pageId === "settingsPage") {
