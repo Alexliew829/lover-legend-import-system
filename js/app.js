@@ -3270,13 +3270,9 @@ function renderCompactProductHistoryByRange(
 
   if (!normalizedKeyword) return false;
 
+  const allProducts = getProducts();
+
   const productMatches = getBatches()
-    .filter(batch =>
-      isDateWithinHistoryRange(
-        batch.arrivalDate,
-        range
-      )
-    )
     .map(batch => {
       const matchingItems =
         getBatchItemsForDisplay(batch).filter(item => {
@@ -3294,25 +3290,115 @@ function renderCompactProductHistoryByRange(
           );
         });
 
+      if (!matchingItems.length) return null;
+
+      const itemEntries = matchingItems.map(item => {
+        const productId =
+          String(item.productId || "").trim();
+        const productName =
+          String(
+            item.productName ||
+            item.name ||
+            ""
+          ).trim().toLowerCase();
+
+        const product = allProducts.find(candidate => {
+          const sameId =
+            productId &&
+            candidate.id &&
+            String(candidate.id).trim() === productId;
+
+          const sameName =
+            !sameId &&
+            productName &&
+            String(candidate.name || "")
+              .trim()
+              .toLowerCase() === productName;
+
+          return sameId || sameName;
+        });
+
+        const importNumber = String(
+          batch.importNumber ||
+          item.importNumber ||
+          ""
+        ).trim();
+
+        const adjustments =
+          getProductStockAdjustments(product)
+            .filter(adjustment => {
+              const sameImportNumber =
+                String(
+                  adjustment.importNumber || ""
+                ).trim().toLowerCase() ===
+                importNumber.toLowerCase();
+
+              return (
+                sameImportNumber &&
+                isDateWithinHistoryRange(
+                  adjustment.date,
+                  range
+                )
+              );
+            })
+            .sort((a, b) =>
+              parseDDMMYYYY(a.date) -
+              parseDDMMYYYY(b.date)
+            );
+
+        const arrivalInRange =
+          isDateWithinHistoryRange(
+            item.arrivalDate ||
+            batch.arrivalDate,
+            range
+          );
+
+        return {
+          item,
+          product,
+          importNumber,
+          adjustments,
+          arrivalInRange
+        };
+      }).filter(entry =>
+        entry.arrivalInRange ||
+        entry.adjustments.length > 0
+      );
+
+      if (!itemEntries.length) return null;
+
       return {
         batch,
-        matchingItems
+        itemEntries
       };
     })
-    .filter(match => match.matchingItems.length > 0)
+    .filter(Boolean)
     .sort((a, b) => {
-      const arrivalDifference =
-        parseDDMMYYYY(b.batch.arrivalDate) -
-        parseDDMMYYYY(a.batch.arrivalDate);
+      const aLatestAdjustment = Math.max(
+        0,
+        ...a.itemEntries.flatMap(entry =>
+          entry.adjustments.map(adjustment =>
+            parseDDMMYYYY(adjustment.date) || 0
+          )
+        )
+      );
 
-      if (arrivalDifference !== 0) {
-        return arrivalDifference;
-      }
+      const bLatestAdjustment = Math.max(
+        0,
+        ...b.itemEntries.flatMap(entry =>
+          entry.adjustments.map(adjustment =>
+            parseDDMMYYYY(adjustment.date) || 0
+          )
+        )
+      );
 
-      return String(b.batch.createdAt || "")
-        .localeCompare(
-          String(a.batch.createdAt || "")
-        );
+      const aArrival =
+        parseDDMMYYYY(a.batch.arrivalDate) || 0;
+      const bArrival =
+        parseDDMMYYYY(b.batch.arrivalDate) || 0;
+
+      return Math.max(bLatestAdjustment, bArrival) -
+        Math.max(aLatestAdjustment, aArrival);
     });
 
   if (!productMatches.length) {
@@ -3321,9 +3407,9 @@ function renderCompactProductHistoryByRange(
 
   const summary = productMatches.reduce(
     (result, match) => {
-      match.matchingItems.forEach(item => {
+      match.itemEntries.forEach(entry => {
         const quantities =
-          getHistoryItemQuantities(item);
+          getHistoryItemQuantities(entry.item);
 
         result.originalQuantity +=
           quantities.originalQuantity;
@@ -3331,10 +3417,12 @@ function renderCompactProductHistoryByRange(
           quantities.remainingQuantity;
         result.productNames.add(
           String(
-            item.productName ||
+            entry.item.productName ||
             "未命名产品"
           )
         );
+        result.adjustmentCount +=
+          entry.adjustments.length;
       });
 
       return result;
@@ -3342,6 +3430,7 @@ function renderCompactProductHistoryByRange(
     {
       originalQuantity: 0,
       remainingQuantity: 0,
+      adjustmentCount: 0,
       productNames: new Set()
     }
   );
@@ -3363,28 +3452,34 @@ function renderCompactProductHistoryByRange(
       <div class="history-related-batch">
         <strong>
           ${escapeHTML(dateLabel)} ·
-          进口批次：${formatNumber(productMatches.length)}
+          相关批次：${formatNumber(productMatches.length)}
         </strong>
         <span>
-          累计原进口
-          ${formatNumber(summary.originalQuantity)}
-          · 目前总剩余
-          ${formatNumber(summary.remainingQuantity)}
+          进口／卖出记录：
+          ${formatNumber(
+            productMatches.reduce(
+              (total, match) =>
+                total +
+                match.itemEntries.reduce(
+                  (subtotal, entry) =>
+                    subtotal +
+                    (entry.arrivalInRange ? 1 : 0) +
+                    entry.adjustments.length,
+                  0
+                ),
+              0
+            )
+          )}
         </span>
       </div>
     </div>
   `;
 
   const compactRows = productMatches.flatMap(match =>
-    match.matchingItems.map(item => {
+    match.itemEntries.map(entry => {
+      const item = entry.item;
       const quantities =
         getHistoryItemQuantities(item);
-
-      const importNumber = String(
-        match.batch.importNumber ||
-        item.importNumber ||
-        ""
-      ).trim();
 
       const arrivalDate =
         normalizeDateToDDMMYYYY(
@@ -3393,13 +3488,50 @@ function renderCompactProductHistoryByRange(
           ""
         ) || "-";
 
+      const adjustmentRows = entry.adjustments.length
+        ? `
+          <div class="product-history-adjustments">
+            ${entry.adjustments.map(adjustment => {
+              const delta = Math.trunc(
+                Number(adjustment.delta) || 0
+              );
+              const signedDelta = delta > 0
+                ? `+${formatNumber(delta)}`
+                : formatNumber(delta);
+              const actionLabel =
+                delta < 0 ? "卖出" : "修改";
+
+              return `
+                <div class="product-history-adjustment ${
+                  delta >= 0 ? "increase" : "decrease"
+                }">
+                  <strong class="product-history-adjustment-date">
+                    ${escapeHTML(
+                      normalizeDateToDDMMYYYY(
+                        adjustment.date
+                      ) || "-"
+                    )}
+                  </strong>
+                  <span class="product-history-adjustment-action">
+                    ${actionLabel}
+                  </span>
+                  <strong class="product-history-adjustment-quantity">
+                    ${signedDelta}
+                  </strong>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        `
+        : "";
+
       return `
         <article class="product-history-compact-card">
           <div class="product-history-compact-grid">
             <div class="product-history-import-number">
               <span>进口编号</span>
               <strong>
-                ${escapeHTML(importNumber || "-")}
+                ${escapeHTML(entry.importNumber || "-")}
               </strong>
             </div>
 
@@ -3429,6 +3561,8 @@ function renderCompactProductHistoryByRange(
               </strong>
             </div>
           </div>
+
+          ${adjustmentRows}
         </article>
       `;
     })
@@ -3437,6 +3571,7 @@ function renderCompactProductHistoryByRange(
   output.innerHTML = summaryBox + compactRows;
   return true;
 }
+
 
 function renderImportHistoryByRange(
   startValue,
