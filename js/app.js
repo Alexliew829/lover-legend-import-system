@@ -3452,24 +3452,13 @@ function renderCompactProductHistoryByRange(
       <div class="history-related-batch">
         <strong>
           ${escapeHTML(dateLabel)} ·
-          相关批次：${formatNumber(productMatches.length)}
+          进口批次：${formatNumber(productMatches.length)}
         </strong>
         <span>
-          进口／卖出记录：
-          ${formatNumber(
-            productMatches.reduce(
-              (total, match) =>
-                total +
-                match.itemEntries.reduce(
-                  (subtotal, entry) =>
-                    subtotal +
-                    (entry.arrivalInRange ? 1 : 0) +
-                    entry.adjustments.length,
-                  0
-                ),
-              0
-            )
-          )}
+          累计原进口
+          ${formatNumber(summary.originalQuantity)}
+          · 目前总剩余
+          ${formatNumber(summary.remainingQuantity)}
         </span>
       </div>
     </div>
@@ -3488,42 +3477,6 @@ function renderCompactProductHistoryByRange(
           ""
         ) || "-";
 
-      const adjustmentRows = entry.adjustments.length
-        ? `
-          <div class="product-history-adjustments">
-            ${entry.adjustments.map(adjustment => {
-              const delta = Math.trunc(
-                Number(adjustment.delta) || 0
-              );
-              const signedDelta = delta > 0
-                ? `+${formatNumber(delta)}`
-                : formatNumber(delta);
-              const actionLabel =
-                delta < 0 ? "卖出" : "修改";
-
-              return `
-                <div class="product-history-adjustment ${
-                  delta >= 0 ? "increase" : "decrease"
-                }">
-                  <strong class="product-history-adjustment-date">
-                    ${escapeHTML(
-                      normalizeDateToDDMMYYYY(
-                        adjustment.date
-                      ) || "-"
-                    )}
-                  </strong>
-                  <span class="product-history-adjustment-action">
-                    ${actionLabel}
-                  </span>
-                  <strong class="product-history-adjustment-quantity">
-                    ${signedDelta}
-                  </strong>
-                </div>
-              `;
-            }).join("")}
-          </div>
-        `
-        : "";
 
       return `
         <article class="product-history-compact-card">
@@ -3561,8 +3514,6 @@ function renderCompactProductHistoryByRange(
               </strong>
             </div>
           </div>
-
-          ${adjustmentRows}
         </article>
       `;
     })
