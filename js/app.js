@@ -94,6 +94,271 @@ function updatePasswordHintDisplays() {
   }
 }
 
+
+const BIOMETRIC_CREDENTIAL_KEY =
+  "loverLegendBiometricCredentialId";
+const BIOMETRIC_USER_ID_KEY =
+  "loverLegendBiometricUserId";
+
+function bytesToBase64Url(bytes) {
+  const binary = Array.from(bytes)
+    .map(byte => String.fromCharCode(byte))
+    .join("");
+
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function base64UrlToBytes(value) {
+  const normalized = String(value || "")
+    .replace(/-/g, "+")
+    .replace(/_/g, "/");
+
+  const padded =
+    normalized + "=".repeat((4 - normalized.length % 4) % 4);
+
+  const binary = atob(padded);
+  return Uint8Array.from(
+    binary,
+    character => character.charCodeAt(0)
+  );
+}
+
+function randomBytes(length = 32) {
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  return bytes;
+}
+
+function getStoredBiometricCredentialId() {
+  return String(
+    localStorage.getItem(BIOMETRIC_CREDENTIAL_KEY) || ""
+  );
+}
+
+function isBiometricCredentialStored() {
+  return Boolean(getStoredBiometricCredentialId());
+}
+
+async function isPlatformBiometricAvailable() {
+  if (
+    !window.PublicKeyCredential ||
+    !navigator.credentials ||
+    !window.isSecureContext
+  ) {
+    return false;
+  }
+
+  try {
+    return await PublicKeyCredential
+      .isUserVerifyingPlatformAuthenticatorAvailable();
+  } catch (error) {
+    return false;
+  }
+}
+
+async function registerDeviceBiometric() {
+  if (!(await isPlatformBiometricAvailable())) {
+    throw new Error(
+      "此设备或浏览器不支持 Face ID / 生物辨识"
+    );
+  }
+
+  let userId = localStorage.getItem(
+    BIOMETRIC_USER_ID_KEY
+  );
+
+  if (!userId) {
+    userId = bytesToBase64Url(randomBytes(16));
+    localStorage.setItem(BIOMETRIC_USER_ID_KEY, userId);
+  }
+
+  const credential = await navigator.credentials.create({
+    publicKey: {
+      challenge: randomBytes(32),
+      rp: {
+        name: "Lover Legend Import System"
+      },
+      user: {
+        id: base64UrlToBytes(userId),
+        name: "lover-legend-user",
+        displayName: "Lover Legend"
+      },
+      pubKeyCredParams: [
+        { type: "public-key", alg: -7 },
+        { type: "public-key", alg: -257 }
+      ],
+      authenticatorSelection: {
+        authenticatorAttachment: "platform",
+        residentKey: "discouraged",
+        requireResidentKey: false,
+        userVerification: "required"
+      },
+      timeout: 60000,
+      attestation: "none"
+    }
+  });
+
+  if (!credential?.rawId) {
+    throw new Error("无法建立生物辨识凭证");
+  }
+
+  const credentialId = bytesToBase64Url(
+    new Uint8Array(credential.rawId)
+  );
+
+  localStorage.setItem(
+    BIOMETRIC_CREDENTIAL_KEY,
+    credentialId
+  );
+
+  updateDeviceBiometricStatus();
+  return true;
+}
+
+async function authenticateDeviceBiometric() {
+  const credentialId =
+    getStoredBiometricCredentialId();
+
+  if (!credentialId) return false;
+
+  if (!(await isPlatformBiometricAvailable())) {
+    return false;
+  }
+
+  try {
+    const assertion = await navigator.credentials.get({
+      publicKey: {
+        challenge: randomBytes(32),
+        allowCredentials: [{
+          type: "public-key",
+          id: base64UrlToBytes(credentialId),
+          transports: ["internal"]
+        }],
+        userVerification: "required",
+        timeout: 60000
+      }
+    });
+
+    return Boolean(assertion);
+  } catch (error) {
+    return false;
+  }
+}
+
+function clearDeviceBiometric() {
+  localStorage.removeItem(BIOMETRIC_CREDENTIAL_KEY);
+  localStorage.removeItem(BIOMETRIC_USER_ID_KEY);
+  updateDeviceBiometricStatus();
+}
+
+async function updateDeviceBiometricStatus() {
+  const status =
+    document.getElementById("deviceBiometricStatus");
+  const setupButton =
+    document.getElementById("setupBiometricBtn");
+  const removeButton =
+    document.getElementById("removeBiometricBtn");
+  const loginButton =
+    document.getElementById("biometricLoginBtn");
+
+  const available =
+    await isPlatformBiometricAvailable();
+  const registered =
+    isBiometricCredentialStored();
+
+  if (status) {
+    status.textContent = !available
+      ? "此设备不支持"
+      : registered
+        ? "已启用"
+        : "尚未启用";
+  }
+
+  if (setupButton) {
+    setupButton.disabled = !available;
+  }
+
+  if (removeButton) {
+    removeButton.disabled = !registered;
+  }
+
+  if (loginButton) {
+    loginButton.hidden = !(available && registered);
+  }
+}
+
+function unlockAccessLock(lock, input, status) {
+  sessionStorage.setItem(
+    ACCESS_UNLOCK_SESSION_KEY,
+    "1"
+  );
+
+  if (status) status.textContent = "";
+  if (input) input.value = "";
+  if (lock) lock.hidden = true;
+
+  document.body.classList.remove("access-locked");
+}
+
+function setupDeviceBiometricSettings() {
+  const setupButton =
+    document.getElementById("setupBiometricBtn");
+  const removeButton =
+    document.getElementById("removeBiometricBtn");
+
+  setupButton?.addEventListener("click", async () => {
+    const status =
+      document.getElementById("passwordChangeStatus");
+
+    try {
+      if (status) {
+        status.textContent =
+          "请使用 Face ID / 生物辨识确认...";
+        status.classList.remove("error-status");
+      }
+
+      await registerDeviceBiometric();
+
+      if (status) {
+        status.textContent =
+          "此设备已启用 Face ID / 生物辨识";
+      }
+    } catch (error) {
+      if (status) {
+        status.textContent =
+          error?.name === "NotAllowedError"
+            ? "已取消设置生物辨识"
+            : String(error?.message || "设置失败");
+        status.classList.add("error-status");
+      }
+    }
+  });
+
+  removeButton?.addEventListener("click", () => {
+    const confirmed = window.confirm(
+      "确认关闭此设备的 Face ID / 生物辨识登录？"
+    );
+
+    if (!confirmed) return;
+
+    clearDeviceBiometric();
+
+    const status =
+      document.getElementById("passwordChangeStatus");
+
+    if (status) {
+      status.textContent =
+        "此设备已关闭生物辨识登录";
+      status.classList.remove("error-status");
+    }
+  });
+
+  updateDeviceBiometricStatus();
+}
+
 function setupAccessLock() {
   const lock = document.getElementById("accessLock");
   const form = document.getElementById("accessLockForm");
@@ -103,10 +368,15 @@ function setupAccessLock() {
     document.getElementById("showPasswordHintBtn");
   const hintBox =
     document.getElementById("accessPasswordHint");
+  const biometricButton =
+    document.getElementById("biometricLoginBtn");
+  const biometricStatus =
+    document.getElementById("biometricLoginStatus");
 
   if (!lock || !form || !input || !status) return;
 
   updatePasswordHintDisplays();
+  updateDeviceBiometricStatus();
 
   hintButton?.addEventListener("click", () => {
     updatePasswordHintDisplays();
@@ -123,8 +393,57 @@ function setupAccessLock() {
     }
   });
 
+  const tryBiometricLogin = async ({
+    automatic = false
+  } = {}) => {
+    if (
+      !isBiometricCredentialStored() ||
+      !(await isPlatformBiometricAvailable())
+    ) {
+      return false;
+    }
+
+    if (biometricStatus) {
+      biometricStatus.hidden = false;
+      biometricStatus.textContent =
+        "请使用 Face ID / 生物辨识确认...";
+    }
+
+    const verified =
+      await authenticateDeviceBiometric();
+
+    if (verified) {
+      unlockAccessLock(lock, input, status);
+
+      if (biometricStatus) {
+        biometricStatus.textContent = "";
+        biometricStatus.hidden = true;
+      }
+
+      return true;
+    }
+
+    if (biometricStatus) {
+      biometricStatus.hidden = false;
+      biometricStatus.textContent =
+        automatic
+          ? "可输入密码进入系统"
+          : "生物辨识未完成，请输入密码";
+    }
+
+    input.focus();
+    return false;
+  };
+
+  biometricButton?.addEventListener(
+    "click",
+    () => tryBiometricLogin()
+  );
+
   const alreadyUnlocked =
-    sessionStorage.getItem(ACCESS_UNLOCK_SESSION_KEY) === "1";
+    sessionStorage.getItem(
+      ACCESS_UNLOCK_SESSION_KEY
+    ) === "1";
 
   if (alreadyUnlocked) {
     lock.hidden = true;
@@ -133,9 +452,16 @@ function setupAccessLock() {
     lock.hidden = false;
     document.body.classList.add("access-locked");
 
-    window.setTimeout(() => {
-      input.focus();
-    }, 120);
+    window.setTimeout(async () => {
+      const biometricUsed =
+        await tryBiometricLogin({
+          automatic: true
+        });
+
+      if (!biometricUsed) {
+        input.focus();
+      }
+    }, 220);
   }
 
   form.addEventListener("submit", async event => {
@@ -157,11 +483,24 @@ function setupAccessLock() {
       return;
     }
 
-    sessionStorage.setItem(ACCESS_UNLOCK_SESSION_KEY, "1");
-    status.textContent = "";
-    input.value = "";
-    lock.hidden = true;
-    document.body.classList.remove("access-locked");
+    unlockAccessLock(lock, input, status);
+
+    // 此设备首次使用正确密码进入后，自动邀请建立
+    // Face ID / Touch ID / Android 指纹 / Windows Hello。
+    if (
+      !isBiometricCredentialStored() &&
+      await isPlatformBiometricAvailable()
+    ) {
+      try {
+        await registerDeviceBiometric();
+      } catch (error) {
+        // 用户取消或设备不允许时保持密码登录，不阻止进入。
+        console.info(
+          "Biometric enrollment skipped:",
+          error?.name || error
+        );
+      }
+    }
   });
 }
 
@@ -485,6 +824,7 @@ function setupSettings() {
   });
 
   setupPasswordChange();
+  setupDeviceBiometricSettings();
   setupDataTools();
 }
 

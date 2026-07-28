@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=2.84.5" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=2.84.5" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=2.84.5" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=2.84.5" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=2.84.5" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=2.84.5" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=2.84.5" />
+  <link rel="manifest" href="./manifest.json?v=2.84.6" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=2.84.6" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=2.84.6" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=2.84.6" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=2.84.6" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=2.84.6" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=2.84.6" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=2.84.5" />
-  <link rel="stylesheet" href="./css/style.css?v=2.84.5" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=2.84.6" />
+  <link rel="stylesheet" href="./css/style.css?v=2.84.6" />
 </head>
 <body>
   <div id="accessLock"
@@ -42,6 +42,15 @@
                 type="submit">进入系统</button>
       </form>
 
+      <button id="biometricLoginBtn"
+              class="biometric-login-btn"
+              type="button"
+              hidden>使用 Face ID / 生物辨识</button>
+
+      <div id="biometricLoginStatus"
+           class="biometric-login-status"
+           hidden></div>
+
       <button id="showPasswordHintBtn"
               class="password-hint-btn"
               type="button">忘记密码？查看提示</button>
@@ -65,7 +74,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 2.84.5 Stable</div>
+          <div class="app-header-version">正式版 2.84.6 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -222,16 +231,16 @@
          placeholder="例如：XX-A00336 / XX-A7691">
 </label>
 <label class="field-container-date bottom-row">装柜日期
-  <div class="date-field-wrap">
+  <div class="date-field-wrap mobile-native-date-wrap">
     <input id="batchContainerDate" class="date-input" inputmode="numeric" placeholder="dd-mm-yyyy" maxlength="10">
-    <input id="batchContainerDatePicker" class="native-date-picker" type="date" aria-label="选择装柜日期">
+    <input id="batchContainerDatePicker" class="native-date-picker mobile-native-date-picker" type="date" aria-label="选择装柜日期">
     <button class="calendar-btn" type="button" data-date-target="batchContainerDatePicker">📅</button>
   </div>
 </label>
 <label class="field-arrival-date bottom-row">抵达日期
-  <div class="date-field-wrap">
+  <div class="date-field-wrap mobile-native-date-wrap">
     <input id="batchArrivalDate" class="date-input" inputmode="numeric" placeholder="dd-mm-yyyy" maxlength="10">
-    <input id="batchArrivalDatePicker" class="native-date-picker" type="date" aria-label="选择日期">
+    <input id="batchArrivalDatePicker" class="native-date-picker mobile-native-date-picker" type="date" aria-label="选择日期">
     <button class="calendar-btn" type="button" data-date-target="batchArrivalDatePicker">📅</button>
   </div>
 </label>
@@ -434,6 +443,19 @@
 
           <div id="passwordChangeStatus"
                class="status-text"></div>
+
+          <div class="device-biometric-settings">
+            <div>
+              <strong>此设备 Face ID / 生物辨识</strong>
+              <span id="deviceBiometricStatus">检查中...</span>
+            </div>
+            <button id="setupBiometricBtn"
+                    class="secondary-btn"
+                    type="button">启用 / 重新设置</button>
+            <button id="removeBiometricBtn"
+                    class="ghost-btn"
+                    type="button">关闭此设备</button>
+          </div>
         </section>
 
         <section class="panel">
@@ -507,7 +529,7 @@
 
         <section class="panel">
           <h3>系统资料</h3>
-          <div class="info-row"><span>版本</span><strong>正式版 2.84.5 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong>正式版 2.84.6 Stable</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
           <div class="info-row"><span>Google Sheet</span><strong>已连接 Google Web App</strong></div>
         </section>
@@ -530,8 +552,8 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=2.84.5"></script>
-  <script src="./js/sync.js?v=2.84.5"></script>
-  <script src="./js/app.js?v=2.84.5"></script>
+  <script src="./js/common.js?v=2.84.6"></script>
+  <script src="./js/sync.js?v=2.84.6"></script>
+  <script src="./js/app.js?v=2.84.6"></script>
 </body>
 </html>
