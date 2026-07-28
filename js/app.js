@@ -1154,6 +1154,40 @@ function smartSearchMatches(searchableValue, queryValue) {
   const query = normalizeSmartSearchText(queryRaw);
 
   if (!query) return true;
+
+  const normalizedQueryName =
+    queryRaw.toLocaleLowerCase();
+
+  const isCompleteStoredProductName =
+    typeof getProducts === "function" &&
+    getProducts().some(product =>
+      String(product?.name || "")
+        .normalize("NFKC")
+        .trim()
+        .toLocaleLowerCase() === normalizedQueryName
+    );
+
+  if (isCompleteStoredProductName) {
+    const normalizedSourceRaw =
+      sourceRaw.toLocaleLowerCase();
+
+    if (normalizedSourceRaw === normalizedQueryName) {
+      return true;
+    }
+
+    const escapedQuery = normalizedQueryName.replace(
+      /[.*+?^${}()|[\]\\]/g,
+      "\\$&"
+    );
+
+    const exactFieldPattern = new RegExp(
+      `(?:^|\\s)${escapedQuery}(?:\\s|$)`,
+      "u"
+    );
+
+    return exactFieldPattern.test(normalizedSourceRaw);
+  }
+
   if (source.includes(query)) return true;
 
   const tokens = queryRaw
@@ -2712,7 +2746,10 @@ function clearHistoryPageView() {
   const output =
     document.getElementById("historyResult");
 
-  if (input) input.value = "";
+  if (input) {
+    input.value = "";
+    delete input.dataset.exactHistoryProduct;
+  }
 
   [startInput, endInput].forEach(field => {
     if (!field) return;
@@ -2850,6 +2887,7 @@ function setupImportHistory() {
 
   input?.addEventListener("input", () => {
     lastCompletedHistoryLookup = "";
+    delete input.dataset.exactHistoryProduct;
   });
 
   input?.addEventListener("keydown", event => {
@@ -2946,6 +2984,7 @@ function setupImportHistory() {
       );
 
       input.value = productName;
+      input.dataset.exactHistoryProduct = productName;
       lastCompletedHistoryLookup = "";
       renderImportHistory();
       return;
@@ -3494,6 +3533,21 @@ function renderCompactProductHistoryByRange(
     .flatMap(batch =>
       getBatchItemsForDisplay(batch)
         .filter(item => {
+          const historyInput =
+            document.getElementById("historyLookupInput");
+          const exactHistoryProduct =
+            String(
+              historyInput?.dataset?.exactHistoryProduct || ""
+            ).trim().toLowerCase();
+          const itemName =
+            String(item.productName || "")
+              .trim()
+              .toLowerCase();
+
+          if (exactHistoryProduct) {
+            return itemName === exactHistoryProduct;
+          }
+
           const searchable = [
             item.productName,
             item.productId,
@@ -3944,14 +3998,33 @@ function renderImportHistory() {
   }
 
   const productMatches = batches.map(batch => {
+    const exactHistoryProduct =
+      String(
+        input.dataset.exactHistoryProduct || ""
+      ).trim().toLowerCase();
+
     const matchingItems = getBatchItemsForDisplay(batch).filter(item => {
+      const itemName =
+        String(item.productName || "")
+          .trim()
+          .toLowerCase();
+
+      if (exactHistoryProduct) {
+        return itemName === exactHistoryProduct;
+      }
+
       const searchable = [
         item.productName,
         item.productId,
         item.category
-      ].map(value => String(value || "").toLowerCase()).join(" ");
+      ].map(value =>
+        String(value || "").toLowerCase()
+      ).join(" ");
 
-      return smartSearchMatches(searchable, normalizedKeyword);
+      return smartSearchMatches(
+        searchable,
+        normalizedKeyword
+      );
     });
 
     return {
@@ -4071,7 +4144,11 @@ function renderImportHistory() {
           <div class="product-history-compact-grid">
             <div class="product-history-import-number">
               <span>进口编号</span>
-              <strong>${escapeHTML(importNumber || "-")}</strong>
+              <strong>
+                ${buildHistoryImportNumberButton(
+                  importNumber
+                )}
+              </strong>
             </div>
             <div class="product-history-arrival-date">
               <span>抵达日期</span>
@@ -4478,7 +4555,19 @@ function addBatchRow(prefill = {}){
     tr.dataset.originalQuantity = String(Math.floor(editableMaximum));
   }
 
-  tr.innerHTML=`<td><input id="batchName-${id}" class="batch-name" list="batchProductSuggestions" placeholder="输入或选择产品" value="${escapeHTML(prefill.name || "")}"><input id="batchProductId-${id}" type="hidden" value="${escapeHTML(prefill.productId || "")}"></td>
+  tr.innerHTML=`<td class="batch-product-cell">
+    <input id="batchName-${id}"
+           class="batch-name"
+           placeholder="输入或选择产品"
+           autocomplete="off"
+           value="${escapeHTML(prefill.name || "")}">
+    <div id="batchSuggestionBox-${id}"
+         class="batch-product-suggestion-box"
+         hidden></div>
+    <input id="batchProductId-${id}"
+           type="hidden"
+           value="${escapeHTML(prefill.productId || "")}">
+  </td>
   <td><input id="batchQty-${id}" inputmode="numeric" placeholder="0"></td>
   <td><input id="batchPrice-${id}" inputmode="decimal" placeholder="0.00"></td>
   <td><input id="batchPurchaseForeign-${id}" value="0.00" disabled></td>
@@ -4524,16 +4613,95 @@ function addBatchRow(prefill = {}){
     }
   }
 }
+
+function renderBatchRowSuggestionBox(id) {
+  const input =
+    document.getElementById(`batchName-${id}`);
+  const box =
+    document.getElementById(`batchSuggestionBox-${id}`);
+
+  if (!input || !box) return;
+
+  const value = String(input.value || "").trim();
+
+  let suggestions = [];
+
+  if (!value) {
+    suggestions = getProducts()
+      .slice()
+      .sort((a, b) =>
+        String(a.id || "").localeCompare(
+          String(b.id || "")
+        )
+      )
+      .map(product => ({
+        value: product.name,
+        detail:
+          `${product.id || "-"} · ${product.category || "盆栽"}`
+      }));
+  } else {
+    // 输入任何名称后，只保留当前输入内容供选择。
+    suggestions = [{
+      value,
+      detail: "使用当前输入名称"
+    }];
+  }
+
+  box.innerHTML = suggestions.map(item => `
+    <button type="button"
+            class="batch-product-suggestion-item"
+            data-batch-suggestion="${escapeHTML(item.value)}">
+      <strong>${escapeHTML(item.value)}</strong>
+      <small>${escapeHTML(item.detail)}</small>
+    </button>
+  `).join("");
+
+  box.hidden = suggestions.length === 0;
+}
+
+function hideBatchRowSuggestionBox(id) {
+  const box =
+    document.getElementById(`batchSuggestionBox-${id}`);
+
+  if (box) box.hidden = true;
+}
+
 function attachBatchRowEvents(id){
-  const n=document.getElementById(`batchName-${id}`);
+  const n = document.getElementById(`batchName-${id}`);
+  const box =
+    document.getElementById(`batchSuggestionBox-${id}`);
+
+  const applySelectedProduct = value => {
+    n.value = String(value || "").trim();
+
+    const product = getProducts().find(item =>
+      String(item.name || "").toLowerCase() ===
+      n.value.toLowerCase()
+    );
+
+    document.getElementById(
+      `batchProductId-${id}`
+    ).value = product?.id || "";
+
+    document.getElementById(
+      `batchCategory-${id}`
+    ).value =
+      product?.category ||
+      document.getElementById(
+        `batchCategory-${id}`
+      ).value ||
+      "盆栽";
+
+    hideBatchRowSuggestionBox(id);
+    calculateBatch();
+  };
+
   n.addEventListener("input", () => {
     let chars = Array.from(n.value);
 
     if (chars.length > 15) {
       n.value = chars.slice(0, 15).join("");
     }
-
-    renderBatchSuggestions(n.value);
 
     const product = getProducts().find(item =>
       String(item.name || "").toLowerCase() ===
@@ -4553,27 +4721,38 @@ function attachBatchRowEvents(id){
       ).value ||
       "盆栽";
 
+    renderBatchRowSuggestionBox(id);
     calculateBatch();
   });
 
   n.addEventListener("focus", () => {
-    renderBatchSuggestions(n.value);
+    renderBatchRowSuggestionBox(id);
   });
 
   n.addEventListener("click", () => {
-    renderBatchSuggestions(n.value);
+    renderBatchRowSuggestionBox(id);
+  });
+
+  box?.addEventListener("mousedown", event => {
+    event.preventDefault();
+  });
+
+  box?.addEventListener("click", event => {
+    const button = event.target.closest(
+      ".batch-product-suggestion-item"
+    );
+
+    if (!button) return;
+
+    applySelectedProduct(
+      button.dataset.batchSuggestion
+    );
   });
 
   n.addEventListener("blur", () => {
     window.setTimeout(() => {
-      if (
-        !document.activeElement?.classList?.contains(
-          "batch-name"
-        )
-      ) {
-        renderBatchSuggestions("");
-      }
-    }, 150);
+      hideBatchRowSuggestionBox(id);
+    }, 250);
   });
   n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();n.value=Array.from(t).slice(0,15).join("");n.dispatchEvent(new Event("input",{bubbles:true}));});
   [`batchQty-${id}`,`batchPrice-${id}`].forEach(k=>{const x=document.getElementById(k);x.addEventListener("focus",()=>x.select());x.addEventListener("input",calculateBatch);x.addEventListener("blur",()=>{if(!k.includes("Qty")&&!k.includes("Stock"))formatInputAmount(x);calculateBatch();});});
