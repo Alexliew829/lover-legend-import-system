@@ -2601,6 +2601,136 @@ function loadBatchByNumber() {
 }
 
 
+
+function showHistoryCopyToast(message) {
+  let toast =
+    document.getElementById("historyCopyToast");
+
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "historyCopyToast";
+    toast.className = "history-copy-toast";
+    document.body.appendChild(toast);
+  }
+
+  toast.textContent = message;
+  toast.classList.add("show");
+
+  window.clearTimeout(
+    window.historyCopyToastTimer
+  );
+
+  window.historyCopyToastTimer =
+    window.setTimeout(() => {
+      toast.classList.remove("show");
+    }, 1800);
+}
+
+async function copyHistoryText(text, successMessage) {
+  const value = String(text || "").trim();
+  if (!value) return false;
+
+  try {
+    if (
+      navigator.clipboard?.writeText &&
+      window.isSecureContext
+    ) {
+      await navigator.clipboard.writeText(value);
+    } else {
+      const textarea =
+        document.createElement("textarea");
+      textarea.value = value;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+
+      const copied =
+        document.execCommand("copy");
+      textarea.remove();
+
+      if (!copied) {
+        throw new Error("Copy command failed");
+      }
+    }
+
+    showHistoryCopyToast(successMessage);
+    return true;
+  } catch (error) {
+    console.error("History copy failed:", error);
+    showHistoryCopyToast("复制失败，请再试一次");
+    return false;
+  }
+}
+
+function buildHistoryProductNameButtons(productNames) {
+  return Array.from(productNames || [])
+    .map(name => {
+      const value = String(name || "").trim();
+      if (!value) return "";
+
+      return `
+        <button type="button"
+                class="history-copy-product"
+                data-history-product="${escapeHTML(value)}"
+                title="点击复制并查询此产品">
+          ${escapeHTML(value)}
+        </button>
+      `;
+    })
+    .filter(Boolean)
+    .join("");
+}
+
+function buildHistoryImportNumberButton(importNumber) {
+  const value = String(importNumber || "").trim();
+
+  if (!value) return "-";
+
+  return `
+    <button type="button"
+            class="history-copy-import-number"
+            data-history-import-number="${escapeHTML(value)}"
+            title="点击复制进口编号">
+      ${escapeHTML(value)}
+    </button>
+  `;
+}
+
+function clearHistoryPageView() {
+  const input =
+    document.getElementById("historyLookupInput");
+  const startInput =
+    document.getElementById("historyStartDateInput");
+  const endInput =
+    document.getElementById("historyEndDateInput");
+  const startPicker =
+    document.getElementById("historyStartDatePicker");
+  const endPicker =
+    document.getElementById("historyEndDatePicker");
+  const output =
+    document.getElementById("historyResult");
+
+  if (input) input.value = "";
+
+  [startInput, endInput].forEach(field => {
+    if (!field) return;
+    field.value = "";
+    field.classList.remove("date-error");
+  });
+
+  if (startPicker) startPicker.value = "";
+  if (endPicker) endPicker.value = "";
+
+  if (output) {
+    output.innerHTML =
+      '<div class="empty-state">输入进口编号、产品名称，或选择日期范围查看历史资料</div>';
+  }
+
+  showHistoryCopyToast("已清空本页");
+}
+
 function setupImportHistory() {
   const input = document.getElementById("historyLookupInput");
   const button = document.getElementById("historyLookupBtn");
@@ -2614,6 +2744,10 @@ function setupImportHistory() {
     document.getElementById("historyEndDatePicker");
   const dateClearButton =
     document.getElementById("historyDateClearBtn");
+  const clearPageButton =
+    document.getElementById("historyClearPageBtn");
+  const historyResult =
+    document.getElementById("historyResult");
 
   let lastCompletedHistoryLookup = "";
   let historyLookupTimer = 0;
@@ -2789,6 +2923,50 @@ function setupImportHistory() {
     lastCompletedHistoryLookup = "";
     renderImportHistory();
   });
+
+  clearPageButton?.addEventListener("click", () => {
+    lastCompletedHistoryLookup = "";
+    clearHistoryPageView();
+  });
+
+  historyResult?.addEventListener("click", async event => {
+    const productButton =
+      event.target.closest(".history-copy-product");
+
+    if (productButton) {
+      const productName = String(
+        productButton.dataset.historyProduct || ""
+      ).trim();
+
+      if (!productName) return;
+
+      await copyHistoryText(
+        productName,
+        "✓ 已复制产品名称"
+      );
+
+      input.value = productName;
+      lastCompletedHistoryLookup = "";
+      renderImportHistory();
+      return;
+    }
+
+    const importButton =
+      event.target.closest(
+        ".history-copy-import-number"
+      );
+
+    if (importButton) {
+      const importNumber = String(
+        importButton.dataset.historyImportNumber || ""
+      ).trim();
+
+      await copyHistoryText(
+        importNumber,
+        "✓ 已复制进口编号"
+      );
+    }
+  });
 }
 
 function getHistoryItemQuantities(item) {
@@ -2857,7 +3035,11 @@ function buildRelatedBatchNotices(batch, items) {
 
     const relatedRows = uniqueRelated.map(related => `
       <div class="history-related-batch">
-        <strong>${escapeHTML(related.importNumber)}</strong>
+        <strong>
+          ${buildHistoryImportNumberButton(
+            related.importNumber
+          )}
+        </strong>
         <span>原进口 ${formatNumber(related.originalQuantity)} · 当前剩余 ${formatNumber(related.remainingQuantity)}</span>
       </div>
     `).join("");
@@ -2964,7 +3146,11 @@ function buildImportHistoryCard(batch, items, options = {}) {
 
   return `
     <article class="history-card">
-      <div class="history-number">${escapeHTML(batch.importNumber || "-")}</div>
+      <div class="history-number">
+        ${buildHistoryImportNumberButton(
+          batch.importNumber
+        )}
+      </div>
       <div class="history-meta-grid">
         <div><span>装柜日期</span><strong>${escapeHTML(batch.containerDate || "-")}</strong></div>
         <div><span>抵达日期</span><strong>${escapeHTML(batch.arrivalDate || "-")}</strong></div>
@@ -3492,9 +3678,9 @@ function renderCompactProductHistoryByRange(
   );
 
   const productTitle =
-    Array.from(summary.productNames)
-      .map(name => escapeHTML(name))
-      .join("、");
+    buildHistoryProductNameButtons(
+      summary.productNames
+    );
 
   const dateLabel = range.isSingleDay
     ? range.startDate
@@ -3576,7 +3762,9 @@ function renderCompactProductHistoryByRange(
             <div class="product-history-import-number">
               <span>进口编号</span>
               <strong>
-                ${escapeHTML(entry.importNumber || "-")}
+                ${buildHistoryImportNumberButton(
+                  entry.importNumber
+                )}
               </strong>
             </div>
 
@@ -3801,9 +3989,10 @@ function renderImportHistory() {
     productNames: new Set()
   });
 
-  const productTitle = Array.from(summary.productNames)
-    .map(name => escapeHTML(name))
-    .join("、");
+  const productTitle =
+    buildHistoryProductNameButtons(
+      summary.productNames
+    );
 
   const summaryBox = `
     <div class="history-related-notice">
@@ -3928,8 +4117,38 @@ function saveBatches(v) {
     markCloudCollectionSaved("batches", previous, v);
   }
 }
-function renderBatchSuggestions(){
-  document.getElementById("batchProductSuggestions").innerHTML=getProducts().sort((a,b)=>a.id.localeCompare(b.id)).map(p=>`<option value="${escapeHTML(p.name)}">${escapeHTML(p.id)} · ${escapeHTML(p.category)}</option>`).join("");
+function renderBatchSuggestions(keyword = ""){
+  const list =
+    document.getElementById("batchProductSuggestions");
+
+  if (!list) return;
+
+  const value = String(keyword || "").trim();
+
+  // 没有输入名称时，显示全部已建立产品。
+  if (!value) {
+    list.innerHTML = getProducts()
+      .slice()
+      .sort((a, b) =>
+        String(a.id || "").localeCompare(
+          String(b.id || "")
+        )
+      )
+      .map(product => `
+        <option value="${escapeHTML(product.name)}">
+          ${escapeHTML(product.id)} ·
+          ${escapeHTML(product.category)}
+        </option>
+      `)
+      .join("");
+    return;
+  }
+
+  // 已输入名称时，只显示当前输入内容，
+  // 不再混入其他产品建议。
+  list.innerHTML = `
+    <option value="${escapeHTML(value)}"></option>
+  `;
 }
 function applyBatchRate(){
   const defaults = {
@@ -4307,7 +4526,55 @@ function addBatchRow(prefill = {}){
 }
 function attachBatchRowEvents(id){
   const n=document.getElementById(`batchName-${id}`);
-  n.addEventListener("input",()=>{let c=Array.from(n.value);if(c.length>15)n.value=c.slice(0,15).join("");const p=getProducts().find(x=>x.name.toLowerCase()===n.value.trim().toLowerCase());document.getElementById(`batchProductId-${id}`).value=p?.id||"";document.getElementById(`batchCategory-${id}`).value=p?.category||document.getElementById(`batchCategory-${id}`).value||"盆栽";calculateBatch();});
+  n.addEventListener("input", () => {
+    let chars = Array.from(n.value);
+
+    if (chars.length > 15) {
+      n.value = chars.slice(0, 15).join("");
+    }
+
+    renderBatchSuggestions(n.value);
+
+    const product = getProducts().find(item =>
+      String(item.name || "").toLowerCase() ===
+      n.value.trim().toLowerCase()
+    );
+
+    document.getElementById(
+      `batchProductId-${id}`
+    ).value = product?.id || "";
+
+    document.getElementById(
+      `batchCategory-${id}`
+    ).value =
+      product?.category ||
+      document.getElementById(
+        `batchCategory-${id}`
+      ).value ||
+      "盆栽";
+
+    calculateBatch();
+  });
+
+  n.addEventListener("focus", () => {
+    renderBatchSuggestions(n.value);
+  });
+
+  n.addEventListener("click", () => {
+    renderBatchSuggestions(n.value);
+  });
+
+  n.addEventListener("blur", () => {
+    window.setTimeout(() => {
+      if (
+        !document.activeElement?.classList?.contains(
+          "batch-name"
+        )
+      ) {
+        renderBatchSuggestions("");
+      }
+    }, 150);
+  });
   n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();n.value=Array.from(t).slice(0,15).join("");n.dispatchEvent(new Event("input",{bubbles:true}));});
   [`batchQty-${id}`,`batchPrice-${id}`].forEach(k=>{const x=document.getElementById(k);x.addEventListener("focus",()=>x.select());x.addEventListener("input",calculateBatch);x.addEventListener("blur",()=>{if(!k.includes("Qty")&&!k.includes("Stock"))formatInputAmount(x);calculateBatch();});});
   document.getElementById(`batchPrice-${id}`).addEventListener("input", () => {
