@@ -4614,6 +4614,35 @@ function addBatchRow(prefill = {}){
   }
 }
 
+function positionBatchRowSuggestionBox(id) {
+  const input =
+    document.getElementById(`batchName-${id}`);
+  const box =
+    document.getElementById(`batchSuggestionBox-${id}`);
+
+  if (!input || !box || box.hidden) return;
+
+  const rect = input.getBoundingClientRect();
+  const viewportWidth =
+    document.documentElement.clientWidth ||
+    window.innerWidth ||
+    0;
+
+  const preferredWidth = Math.max(
+    rect.width,
+    Math.min(360, viewportWidth - 24)
+  );
+
+  const left = Math.min(
+    Math.max(8, rect.left),
+    Math.max(8, viewportWidth - preferredWidth - 8)
+  );
+
+  box.style.left = `${left}px`;
+  box.style.top = `${rect.bottom + 4}px`;
+  box.style.width = `${preferredWidth}px`;
+}
+
 function renderBatchRowSuggestionBox(id) {
   const input =
     document.getElementById(`batchName-${id}`);
@@ -4624,46 +4653,63 @@ function renderBatchRowSuggestionBox(id) {
 
   const value = String(input.value || "").trim();
 
-  let suggestions = [];
+  const suggestions = getProducts()
+    .slice()
+    .filter(product => {
+      if (!value) return true;
 
-  if (!value) {
-    suggestions = getProducts()
-      .slice()
-      .sort((a, b) =>
-        String(a.id || "").localeCompare(
-          String(b.id || "")
-        )
+      const searchable = [
+        product.name,
+        product.id,
+        product.category
+      ].join(" ");
+
+      return smartSearchMatches(
+        searchable,
+        value
+      );
+    })
+    .sort((a, b) =>
+      String(a.id || "").localeCompare(
+        String(b.id || "")
       )
-      .map(product => ({
-        value: product.name,
-        detail:
-          `${product.id || "-"} · ${product.category || "盆栽"}`
-      }));
+    );
+
+  if (!suggestions.length) {
+    box.innerHTML = `
+      <div class="batch-product-suggestion-empty">
+        找不到符合“${escapeHTML(value)}”的产品
+      </div>
+    `;
   } else {
-    // 输入任何名称后，只保留当前输入内容供选择。
-    suggestions = [{
-      value,
-      detail: "使用当前输入名称"
-    }];
+    box.innerHTML = suggestions.map(product => `
+      <button type="button"
+              class="batch-product-suggestion-item"
+              data-batch-suggestion="${escapeHTML(product.name)}">
+        <strong>${escapeHTML(product.name)}</strong>
+        <small>
+          ${escapeHTML(product.id || "-")} ·
+          ${escapeHTML(product.category || "盆栽")}
+        </small>
+      </button>
+    `).join("");
   }
 
-  box.innerHTML = suggestions.map(item => `
-    <button type="button"
-            class="batch-product-suggestion-item"
-            data-batch-suggestion="${escapeHTML(item.value)}">
-      <strong>${escapeHTML(item.value)}</strong>
-      <small>${escapeHTML(item.detail)}</small>
-    </button>
-  `).join("");
-
-  box.hidden = suggestions.length === 0;
+  box.hidden = false;
+  positionBatchRowSuggestionBox(id);
 }
+
 
 function hideBatchRowSuggestionBox(id) {
   const box =
     document.getElementById(`batchSuggestionBox-${id}`);
 
-  if (box) box.hidden = true;
+  if (!box) return;
+
+  box.hidden = true;
+  box.style.left = "";
+  box.style.top = "";
+  box.style.width = "";
 }
 
 function attachBatchRowEvents(id){
@@ -4733,6 +4779,23 @@ function attachBatchRowEvents(id){
     renderBatchRowSuggestionBox(id);
   });
 
+  const repositionSuggestion = () => {
+    if (document.activeElement === n) {
+      positionBatchRowSuggestionBox(id);
+    }
+  };
+
+  window.addEventListener(
+    "resize",
+    repositionSuggestion
+  );
+
+  window.addEventListener(
+    "scroll",
+    repositionSuggestion,
+    true
+  );
+
   box?.addEventListener("mousedown", event => {
     event.preventDefault();
   });
@@ -4751,8 +4814,13 @@ function attachBatchRowEvents(id){
 
   n.addEventListener("blur", () => {
     window.setTimeout(() => {
-      hideBatchRowSuggestionBox(id);
-    }, 250);
+      if (
+        !box?.matches(":hover") &&
+        !box?.contains(document.activeElement)
+      ) {
+        hideBatchRowSuggestionBox(id);
+      }
+    }, 320);
   });
   n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();n.value=Array.from(t).slice(0,15).join("");n.dispatchEvent(new Event("input",{bubbles:true}));});
   [`batchQty-${id}`,`batchPrice-${id}`].forEach(k=>{const x=document.getElementById(k);x.addEventListener("focus",()=>x.select());x.addEventListener("input",calculateBatch);x.addEventListener("blur",()=>{if(!k.includes("Qty")&&!k.includes("Stock"))formatInputAmount(x);calculateBatch();});});
