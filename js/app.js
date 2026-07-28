@@ -19,6 +19,8 @@ const DEFAULT_ACCESS_PASSWORD_HASH =
 const DEFAULT_ACCESS_PASSWORD_HINT = "6个数字";
 const ACCESS_UNLOCK_SESSION_KEY =
   "loverLegendImportSystemUnlocked";
+const DESKTOP_TRUSTED_ACCESS_KEY =
+  "loverLegendDesktopTrustedAccess";
 
 async function hashAccessPassword(value) {
   const bytes = new TextEncoder().encode(String(value || ""));
@@ -324,6 +326,15 @@ function unlockAccessLock(lock, input, status) {
     "1"
   );
 
+  // 电脑第一次正确输入密码后，将此浏览器记为可信设备。
+  // 下次重新打开网页直接进入，不调用 Passkey / Windows PIN。
+  if (!isMobileOrTabletDevice()) {
+    localStorage.setItem(
+      DESKTOP_TRUSTED_ACCESS_KEY,
+      "1"
+    );
+  }
+
   if (status) status.textContent = "";
   if (input) input.value = "";
   if (lock) lock.hidden = true;
@@ -473,7 +484,13 @@ function setupAccessLock() {
       ACCESS_UNLOCK_SESSION_KEY
     ) === "1";
 
-  if (alreadyUnlocked) {
+  const trustedDesktop =
+    !isMobileOrTabletDevice() &&
+    localStorage.getItem(
+      DESKTOP_TRUSTED_ACCESS_KEY
+    ) === "1";
+
+  if (alreadyUnlocked || trustedDesktop) {
     lock.hidden = true;
     document.body.classList.remove("access-locked");
   } else {
@@ -3272,6 +3289,33 @@ function renderCompactProductHistoryByRange(
 
   const allProducts = getProducts();
 
+  const allMatchingEntries = getBatches()
+    .flatMap(batch =>
+      getBatchItemsForDisplay(batch)
+        .filter(item => {
+          const searchable = [
+            item.productName,
+            item.productId,
+            item.category
+          ].map(value =>
+            String(value || "").toLowerCase()
+          ).join(" ");
+
+          return smartSearchMatches(
+            searchable,
+            normalizedKeyword.toLowerCase()
+          );
+        })
+        .map(item => ({
+          batch,
+          item
+        }))
+    );
+
+  if (!allMatchingEntries.length) {
+    return false;
+  }
+
   const productMatches = getBatches()
     .map(batch => {
       const matchingItems =
@@ -3405,32 +3449,29 @@ function renderCompactProductHistoryByRange(
     return false;
   }
 
-  const summary = productMatches.reduce(
-    (result, match) => {
-      match.itemEntries.forEach(entry => {
-        const quantities =
-          getHistoryItemQuantities(entry.item);
+  // 摘要始终使用该产品全部批次的累计资料，
+  // 不会因为日期范围而变成局部数量。
+  const summary = allMatchingEntries.reduce(
+    (result, entry) => {
+      const quantities =
+        getHistoryItemQuantities(entry.item);
 
-        result.originalQuantity +=
-          quantities.originalQuantity;
-        result.remainingQuantity +=
-          quantities.remainingQuantity;
-        result.productNames.add(
-          String(
-            entry.item.productName ||
-            "未命名产品"
-          )
-        );
-        result.adjustmentCount +=
-          entry.adjustments.length;
-      });
+      result.originalQuantity +=
+        quantities.originalQuantity;
+      result.remainingQuantity +=
+        quantities.remainingQuantity;
+      result.productNames.add(
+        String(
+          entry.item.productName ||
+          "未命名产品"
+        )
+      );
 
       return result;
     },
     {
       originalQuantity: 0,
       remainingQuantity: 0,
-      adjustmentCount: 0,
       productNames: new Set()
     }
   );
@@ -3452,7 +3493,7 @@ function renderCompactProductHistoryByRange(
       <div class="history-related-batch">
         <strong>
           ${escapeHTML(dateLabel)} ·
-          进口批次：${formatNumber(productMatches.length)}
+          相关批次：${formatNumber(productMatches.length)}
         </strong>
         <span>
           累计原进口
@@ -3477,6 +3518,42 @@ function renderCompactProductHistoryByRange(
           ""
         ) || "-";
 
+      const adjustmentRows = entry.adjustments.length
+        ? `
+          <div class="product-history-adjustments">
+            ${entry.adjustments.map(adjustment => {
+              const delta = Math.trunc(
+                Number(adjustment.delta) || 0
+              );
+              const signedDelta = delta > 0
+                ? `+${formatNumber(delta)}`
+                : formatNumber(delta);
+              const actionLabel =
+                delta < 0 ? "卖出" : "修改";
+
+              return `
+                <div class="product-history-adjustment ${
+                  delta >= 0 ? "increase" : "decrease"
+                }">
+                  <strong class="product-history-adjustment-date">
+                    ${escapeHTML(
+                      normalizeDateToDDMMYYYY(
+                        adjustment.date
+                      ) || "-"
+                    )}
+                  </strong>
+                  <span class="product-history-adjustment-action">
+                    ${actionLabel}
+                  </span>
+                  <strong class="product-history-adjustment-quantity">
+                    ${signedDelta}
+                  </strong>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        `
+        : "";
 
       return `
         <article class="product-history-compact-card">
@@ -3514,6 +3591,8 @@ function renderCompactProductHistoryByRange(
               </strong>
             </div>
           </div>
+
+          ${adjustmentRows}
         </article>
       `;
     })
