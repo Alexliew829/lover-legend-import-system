@@ -3040,12 +3040,7 @@ function buildDailyStockAdjustmentHtml(adjustments) {
 
   return adjustments.map(adjustment => {
     const delta = Math.trunc(Number(adjustment.delta) || 0);
-    const action =
-      adjustment.reason === "historyQuantityRepair"
-        ? "库存修正"
-        : delta < 0
-          ? "卖出"
-          : "修改";
+    const action = delta < 0 ? "卖出" : "修改";
     const deltaText = delta > 0 ? `+${delta}` : String(delta);
 
     return `
@@ -3549,11 +3544,7 @@ function renderCompactProductHistoryByRange(
                 ? `+${formatNumber(delta)}`
                 : formatNumber(delta);
               const actionLabel =
-                adjustment.reason === "historyQuantityRepair"
-                  ? "库存修正"
-                  : delta < 0
-                    ? "卖出"
-                    : "修改";
+                delta < 0 ? "卖出" : "修改";
 
               return `
                 <div class="product-history-adjustment ${
@@ -3872,11 +3863,7 @@ function renderImportHistory() {
                 : formatNumber(delta);
 
               const actionLabel =
-                adjustment.reason === "historyQuantityRepair"
-                  ? "库存修正"
-                  : delta < 0
-                    ? "卖出"
-                    : "修改";
+                delta < 0 ? "卖出" : "修改";
 
               return `
                 <div class="product-history-adjustment ${delta >= 0 ? "increase" : "decrease"}">
@@ -6433,312 +6420,13 @@ function escapeHTML(value) {
 }
 
 
-
-const HISTORY_QUANTITY_REPAIR_SETTING =
-  "historyQuantityRepairCompleted";
-
-function isSameHistoryRepairProduct(record, product) {
-  const productId = String(product?.id || "").trim();
-  const productName =
-    String(product?.name || "").trim().toLowerCase();
-
-  const sameId =
-    productId &&
-    record?.productId &&
-    String(record.productId).trim() === productId;
-
-  const sameLegacyName =
-    !sameId &&
-    productName &&
-    String(record?.productName || record?.name || "")
-      .trim()
-      .toLowerCase() === productName;
-
-  return sameId || sameLegacyName;
-}
-
-function getHistoryRepairImportNumber(product, imports, batches) {
-  const batchById = new Map(
-    batches.map(batch => [
-      String(batch?.id || "").trim(),
-      batch
-    ])
-  );
-
-  const batchByNumber = new Map(
-    batches.map(batch => [
-      String(batch?.importNumber || "").trim().toLowerCase(),
-      batch
-    ])
-  );
-
-  const candidates = imports
-    .filter(record =>
-      isSameHistoryRepairProduct(record, product)
-    )
-    .map(record => {
-      const batch =
-        batchById.get(
-          String(record?.batchId || "").trim()
-        ) ||
-        batchByNumber.get(
-          String(record?.importNumber || "")
-            .trim()
-            .toLowerCase()
-        ) ||
-        {};
-
-      const importNumber = String(
-        record?.importNumber ||
-        batch?.importNumber ||
-        ""
-      ).trim();
-
-      const arrivalTime = parseDDMMYYYY(
-        record?.arrivalDate ||
-        batch?.arrivalDate ||
-        ""
-      );
-
-      const containerTime = parseDDMMYYYY(
-        record?.containerDate ||
-        batch?.containerDate ||
-        ""
-      );
-
-      const createdTime = Date.parse(
-        String(
-          record?.createdAt ||
-          batch?.createdAt ||
-          ""
-        )
-      );
-
-      return {
-        importNumber,
-        sortTime:
-          arrivalTime ||
-          containerTime ||
-          (
-            Number.isFinite(createdTime)
-              ? createdTime
-              : Number.MAX_SAFE_INTEGER
-          )
-      };
-    })
-    .filter(item => item.importNumber)
-    .sort((a, b) => a.sortTime - b.sortTime);
-
-  return candidates[0]?.importNumber || "";
-}
-
-function calculateProductHistoryQuantityGap(
-  product,
-  imports
-) {
-  const matchingImports = imports.filter(record =>
-    isSameHistoryRepairProduct(record, product)
-  );
-
-  const totalOriginal = matchingImports.reduce(
-    (sum, record) =>
-      sum + getSafeDisplayOriginalQuantity(record),
-    0
-  );
-
-  const recordedDelta =
-    getProductStockAdjustments(product).reduce(
-      (sum, adjustment) =>
-        sum + Math.trunc(
-          Number(adjustment?.delta) || 0
-        ),
-      0
-    );
-
-  const currentStock = Math.max(
-    0,
-    Math.trunc(Number(product?.stock) || 0)
-  );
-
-  const theoreticalStock =
-    totalOriginal + recordedDelta;
-
-  return {
-    totalOriginal,
-    recordedDelta,
-    currentStock,
-    theoreticalStock,
-    gap: currentStock - theoreticalStock
-  };
-}
-
-function updateHistoryQuantityRepairButton() {
-  const button =
-    document.getElementById("repairHistoryQuantityBtn");
-  const label =
-    document.getElementById("repairHistoryQuantityLabel");
-
-  if (!button || !label) return;
-
-  const settings =
-    loadJSON("importSystemSettings", {});
-  const completed =
-    settings[HISTORY_QUANTITY_REPAIR_SETTING] === true;
-
-  button.disabled = completed;
-  button.setAttribute(
-    "aria-disabled",
-    completed ? "true" : "false"
-  );
-
-  label.textContent = completed
-    ? "历史数量修复已完成（已暂停）"
-    : "一键修复历史数量";
-
-  button.title = completed
-    ? "已经完成一次修复，需要时再重新开启"
-    : "检查全部产品，并补回缺少的历史进出数量";
-}
-
-function runOneTimeHistoryQuantityRepair() {
-  const settings =
-    loadJSON("importSystemSettings", {});
-
-  if (
-    settings[HISTORY_QUANTITY_REPAIR_SETTING] === true
-  ) {
-    showDataToolsStatus(
-      "历史数量修复已经完成，按钮目前已暂停"
-    );
-    updateHistoryQuantityRepairButton();
-    return;
-  }
-
-  const confirmed = window.confirm(
-    "确认一键修复历史数量？\n\n" +
-    "系统只会补回缺少的进出记录，使历史数量与当前库存一致。\n" +
-    "不会修改当前库存、FIFO 或 Average Cost。\n\n" +
-    "完成后按钮会自动暂停。"
-  );
-
-  if (!confirmed) return;
-
-  const products = getProducts();
-  const imports = getImports();
-  const batches = getBatches();
-  const now = new Date().toISOString();
-  const date = formatDateDDMMYYYY(new Date(now));
-
-  let repairedProducts = 0;
-  let repairedQuantity = 0;
-
-  const nextProducts = products.map(product => {
-    const result =
-      calculateProductHistoryQuantityGap(
-        product,
-        imports
-      );
-
-    const gap = Math.trunc(result.gap || 0);
-
-    if (gap === 0) return product;
-
-    const importNumber =
-      getHistoryRepairImportNumber(
-        product,
-        imports,
-        batches
-      );
-
-    const existing =
-      getProductStockAdjustments(product);
-
-    const repairRecord = {
-      id:
-        `ADJREPAIR${Date.now()}${Math.random()
-          .toString(36)
-          .slice(2, 7)}`,
-      date,
-      createdAt: now,
-      importNumber,
-      delta: gap,
-      before: Math.max(
-        0,
-        Math.trunc(result.theoreticalStock)
-      ),
-      after: Math.max(
-        0,
-        Math.trunc(result.currentStock)
-      ),
-      reason: "historyQuantityRepair",
-      note: "System Auto Repair"
-    };
-
-    const nextAdjustments = [
-      ...existing,
-      repairRecord
-    ];
-
-    repairedProducts += 1;
-    repairedQuantity += Math.abs(gap);
-
-    return {
-      ...product,
-      stockAdjustments: nextAdjustments,
-      stockAdjustmentsJson:
-        JSON.stringify(nextAdjustments),
-      updatedAt: now
-    };
-  });
-
-  if (repairedProducts > 0) {
-    saveProducts(nextProducts);
-  }
-
-  saveJSON("importSystemSettings", {
-    ...settings,
-    [HISTORY_QUANTITY_REPAIR_SETTING]: true,
-    historyQuantityRepairCompletedAt: now,
-    historyQuantityRepairProductCount:
-      repairedProducts,
-    historyQuantityRepairTotalQuantity:
-      repairedQuantity
-  });
-
-  if (
-    typeof markCloudSettingsSaved === "function"
-  ) {
-    markCloudSettingsSaved();
-  }
-
-  updateHistoryQuantityRepairButton();
-
-  if (
-    typeof renderDashboard === "function"
-  ) {
-    renderDashboard();
-  }
-
-  if (
-    typeof renderImportHistory === "function"
-  ) {
-    renderImportHistory();
-  }
-
-  showDataToolsStatus(
-    repairedProducts > 0
-      ? `历史数量修复完成：${formatNumber(repairedProducts)} 个产品，共补回 ${formatNumber(repairedQuantity)} 件。按钮已暂停。`
-      : "检查完成：所有产品历史数量已经与当前库存一致。按钮已暂停。"
-  );
-}
-
 function setupDataTools() {
   const exportButton = document.getElementById("exportExcelBtn");
   const backupButton = document.getElementById("backupDataBtn");
   const restoreButton = document.getElementById("restoreDataBtn");
   const restoreInput = document.getElementById("restoreFileInput");
-  const repairHistoryQuantityButton =
-    document.getElementById("repairHistoryQuantityBtn");
+  const rebuildHistoryButton =
+    document.getElementById("rebuildHistoryStockBtn");
   const findStaleButton =
     document.getElementById("findStaleZeroStockBtn");
   const deleteSelectedButton =
@@ -6751,12 +6439,10 @@ function setupDataTools() {
   restoreButton?.addEventListener("click", () => restoreInput?.click());
   restoreInput?.addEventListener("change", restoreSystemData);
 
-  repairHistoryQuantityButton?.addEventListener(
-    "click",
-    runOneTimeHistoryQuantityRepair
-  );
-
-  updateHistoryQuantityRepairButton();
+  // 暂时停用，保留原函数以便以后重新开启。
+  if (rebuildHistoryButton) {
+    rebuildHistoryButton.disabled = true;
+  }
 
   findStaleButton?.addEventListener(
     "click",
