@@ -3510,15 +3510,25 @@ function renderImportHistory() {
       return `
         <article class="product-history-compact-card">
           <div class="product-history-compact-grid">
-            <div>
+            <div class="product-history-import-number">
               <span>进口编号</span>
               <strong>${escapeHTML(importNumber || "-")}</strong>
             </div>
-            <div>
+            <div class="product-history-arrival-date">
+              <span>抵达日期</span>
+              <strong>${escapeHTML(
+                normalizeDateToDDMMYYYY(
+                  item.arrivalDate ||
+                  match.batch.arrivalDate ||
+                  ""
+                ) || "-"
+              )}</strong>
+            </div>
+            <div class="product-history-original-qty">
               <span>原进口数量</span>
               <strong>${formatNumber(quantities.originalQuantity)}</strong>
             </div>
-            <div>
+            <div class="product-history-unit-cost">
               <span>原每棵成本</span>
               <strong>${formatMoney(Number(item.unitCost) || 0, "RM ")}</strong>
             </div>
