@@ -2204,14 +2204,36 @@ function loadBatchByNumber() {
 function setupImportHistory() {
   const input = document.getElementById("historyLookupInput");
   const button = document.getElementById("historyLookupBtn");
+  const dateInput = document.getElementById("historyDateInput");
+  const datePicker = document.getElementById("historyDatePicker");
+  const dateClearButton =
+    document.getElementById("historyDateClearBtn");
+
   let lastCompletedHistoryLookup = "";
   let historyLookupTimer = 0;
 
-  const runHistoryLookupFromKeyboard = ({ blurAfter = false } = {}) => {
+  const clearDateFilter = () => {
+    if (dateInput) {
+      dateInput.value = "";
+      dateInput.classList.remove("date-error");
+    }
+    if (datePicker) datePicker.value = "";
+  };
+
+  const clearTextFilter = () => {
+    if (input) input.value = "";
+    lastCompletedHistoryLookup = "";
+  };
+
+  const runHistoryLookupFromKeyboard = ({
+    blurAfter = false
+  } = {}) => {
     window.clearTimeout(historyLookupTimer);
 
     const value = String(input?.value || "").trim();
     if (!value) return false;
+
+    clearDateFilter();
 
     const normalizedValue = value.toLowerCase();
 
@@ -2232,48 +2254,90 @@ function setupImportHistory() {
     return true;
   };
 
-  if (button) {
-    button.addEventListener("click", () => {
-      lastCompletedHistoryLookup = "";
+  const runDateLookup = () => {
+    if (!dateInput) return;
+
+    const normalized =
+      normalizeFlexibleDateInput(dateInput);
+
+    if (!normalized) {
+      renderImportHistory();
+      return;
+    }
+
+    dateInput.value = normalized;
+    if (datePicker) {
+      datePicker.value =
+        formatDDMMYYYYToNative(normalized);
+    }
+
+    clearTextFilter();
+    renderImportHistory();
+  };
+
+  button?.addEventListener("click", () => {
+    lastCompletedHistoryLookup = "";
+    runHistoryLookupFromKeyboard();
+  });
+
+  input?.addEventListener("input", () => {
+    if (String(input.value || "").trim()) {
+      clearDateFilter();
+    }
+  });
+
+  input?.addEventListener("keydown", event => {
+    if (event.key !== "Enter") return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    runHistoryLookupFromKeyboard({
+      blurAfter: true
+    });
+  });
+
+  input?.addEventListener("change", () => {
+    runHistoryLookupFromKeyboard();
+  });
+
+  input?.addEventListener("blur", () => {
+    historyLookupTimer = window.setTimeout(() => {
       runHistoryLookupFromKeyboard();
-    });
-  }
+    }, 0);
+  });
 
-  if (input) {
-    input.addEventListener("keydown", event => {
-      if (event.key !== "Enter") return;
+  datePicker?.addEventListener("change", () => {
+    dateInput.value =
+      formatNativeDateToDDMMYYYY(datePicker.value);
 
-      event.preventDefault();
-      event.stopPropagation();
+    if (dateInput.value) {
+      clearTextFilter();
+    }
 
-      runHistoryLookupFromKeyboard({ blurAfter: true });
-    });
+    renderImportHistory();
+  });
 
-    input.addEventListener("change", () => {
-      runHistoryLookupFromKeyboard();
-    });
+  dateInput?.addEventListener("input", () => {
+    if (String(dateInput.value || "").trim()) {
+      clearTextFilter();
+    }
+  });
 
-    input.addEventListener("blur", () => {
-      historyLookupTimer = window.setTimeout(() => {
-        runHistoryLookupFromKeyboard();
-      }, 0);
-    });
+  dateInput?.addEventListener("keydown", event => {
+    if (event.key !== "Enter") return;
 
-    input.addEventListener("compositionend", () => {
-      historyLookupTimer = window.setTimeout(() => {
-        runHistoryLookupFromKeyboard();
-      }, 60);
-    });
+    event.preventDefault();
+    runDateLookup();
+    dateInput.blur();
+  });
 
-    input.addEventListener("input", () => {
-      const normalizedValue =
-        String(input.value || "").trim().toLowerCase();
+  dateInput?.addEventListener("blur", runDateLookup);
 
-      if (normalizedValue !== lastCompletedHistoryLookup) {
-        lastCompletedHistoryLookup = "";
-      }
-    });
-  }
+  dateClearButton?.addEventListener("click", () => {
+    clearDateFilter();
+    renderImportHistory();
+  });
 }
 
 function getHistoryItemQuantities(item) {
@@ -2471,14 +2535,105 @@ function buildImportHistoryCard(batch, items, options = {}) {
     </article>`;
 }
 
+
+function renderImportHistoryByArrivalDate(selectedDate, output) {
+  const normalizedDate =
+    normalizeDateToDDMMYYYY(selectedDate);
+
+  if (!normalizedDate) {
+    output.innerHTML =
+      '<div class="empty-state">请选择正确的日期</div>';
+    return;
+  }
+
+  const matches = getBatches()
+    .filter(batch =>
+      normalizeDateToDDMMYYYY(batch.arrivalDate) ===
+      normalizedDate
+    )
+    .sort((a, b) =>
+      String(b.createdAt || "").localeCompare(
+        String(a.createdAt || "")
+      )
+    );
+
+  if (!matches.length) {
+    output.innerHTML = `
+      <div class="history-date-summary">
+        <strong>${escapeHTML(normalizedDate)}</strong>
+        <span>当天没有抵达的进口记录</span>
+      </div>
+    `;
+    return;
+  }
+
+  const totals = matches.reduce(
+    (summary, batch) => {
+      const items = getBatchItemsForDisplay(batch);
+      summary.batchCount += 1;
+      summary.itemCount += items.length;
+      summary.quantity += items.reduce(
+        (sum, item) =>
+          sum +
+          (
+            Number(item.originalQuantity) ||
+            Number(item.quantity) ||
+            0
+          ),
+        0
+      );
+      return summary;
+    },
+    {
+      batchCount: 0,
+      itemCount: 0,
+      quantity: 0
+    }
+  );
+
+  const summaryHtml = `
+    <div class="history-date-summary">
+      <strong>${escapeHTML(normalizedDate)}</strong>
+      <span>
+        ${formatNumber(totals.batchCount)} 个进口批次 ·
+        ${formatNumber(totals.itemCount)} 种产品 ·
+        ${formatNumber(totals.quantity)} 件
+      </span>
+    </div>
+  `;
+
+  const cards = matches.map(batch =>
+    buildImportHistoryCard(
+      batch,
+      getBatchItemsForDisplay(batch),
+      { showRelatedBatches: false }
+    )
+  ).join("");
+
+  output.innerHTML = summaryHtml + cards;
+}
+
 function renderImportHistory() {
   const input = document.getElementById("historyLookupInput");
+  const dateInput = document.getElementById("historyDateInput");
   const output = document.getElementById("historyResult");
   if (!input || !output) return;
 
+  const selectedDate = String(
+    dateInput?.value || ""
+  ).trim();
+
+  if (selectedDate) {
+    renderImportHistoryByArrivalDate(
+      selectedDate,
+      output
+    );
+    return;
+  }
+
   const keyword = input.value.trim();
   if (!keyword) {
-    output.innerHTML = '<div class="empty-state">输入进口编号或产品名称后查看原始进口历史</div>';
+    output.innerHTML = '<div class="empty-state">输入进口编号、产品名称或选择抵达日期后查看原始进口历史</div>';
     return;
   }
 
@@ -4420,11 +4575,22 @@ function clearCurrentPageUnsavedInputs() {
 
   if (pageId === "historyPage") {
     const input = document.getElementById("historyLookupInput");
+    const dateInput =
+      document.getElementById("historyDateInput");
+    const datePicker =
+      document.getElementById("historyDatePicker");
     const output = document.getElementById("historyResult");
+
     if (input) input.value = "";
+    if (dateInput) {
+      dateInput.value = "";
+      dateInput.classList.remove("date-error");
+    }
+    if (datePicker) datePicker.value = "";
+
     if (output) {
       output.innerHTML =
-        '<div class="empty-state">输入进口编号或产品名称后查看原始进口历史</div>';
+        '<div class="empty-state">输入进口编号、产品名称或选择抵达日期后查看原始进口历史</div>';
     }
     return "已清空进口历史查询";
   }
