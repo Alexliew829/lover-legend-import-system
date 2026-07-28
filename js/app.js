@@ -2212,39 +2212,30 @@ function setupImportHistory() {
   let lastCompletedHistoryLookup = "";
   let historyLookupTimer = 0;
 
-  const clearDateFilter = () => {
-    if (dateInput) {
-      dateInput.value = "";
-      dateInput.classList.remove("date-error");
-    }
-    if (datePicker) datePicker.value = "";
-  };
-
-  const clearTextFilter = () => {
-    if (input) input.value = "";
-    lastCompletedHistoryLookup = "";
-  };
-
   const runHistoryLookupFromKeyboard = ({
     blurAfter = false
   } = {}) => {
     window.clearTimeout(historyLookupTimer);
 
     const value = String(input?.value || "").trim();
-    if (!value) return false;
+    const selectedDate = String(dateInput?.value || "").trim();
 
-    clearDateFilter();
+    if (!value && !selectedDate) {
+      renderImportHistory();
+      return false;
+    }
 
-    const normalizedValue = value.toLowerCase();
+    const lookupKey =
+      `${value.toLowerCase()}::${selectedDate}`;
 
     if (
-      normalizedValue === lastCompletedHistoryLookup &&
+      lookupKey === lastCompletedHistoryLookup &&
       document.activeElement !== input
     ) {
       return false;
     }
 
-    lastCompletedHistoryLookup = normalizedValue;
+    lastCompletedHistoryLookup = lookupKey;
     renderImportHistory();
 
     if (blurAfter && document.activeElement === input) {
@@ -2257,6 +2248,15 @@ function setupImportHistory() {
   const runDateLookup = () => {
     if (!dateInput) return;
 
+    const raw = String(dateInput.value || "").trim();
+
+    if (!raw) {
+      if (datePicker) datePicker.value = "";
+      lastCompletedHistoryLookup = "";
+      renderImportHistory();
+      return;
+    }
+
     const normalized =
       normalizeFlexibleDateInput(dateInput);
 
@@ -2266,12 +2266,13 @@ function setupImportHistory() {
     }
 
     dateInput.value = normalized;
+
     if (datePicker) {
       datePicker.value =
         formatDDMMYYYYToNative(normalized);
     }
 
-    clearTextFilter();
+    lastCompletedHistoryLookup = "";
     renderImportHistory();
   };
 
@@ -2281,9 +2282,7 @@ function setupImportHistory() {
   });
 
   input?.addEventListener("input", () => {
-    if (String(input.value || "").trim()) {
-      clearDateFilter();
-    }
+    lastCompletedHistoryLookup = "";
   });
 
   input?.addEventListener("keydown", event => {
@@ -2311,17 +2310,12 @@ function setupImportHistory() {
     dateInput.value =
       formatNativeDateToDDMMYYYY(datePicker.value);
 
-    if (dateInput.value) {
-      clearTextFilter();
-    }
-
+    lastCompletedHistoryLookup = "";
     renderImportHistory();
   });
 
   dateInput?.addEventListener("input", () => {
-    if (String(dateInput.value || "").trim()) {
-      clearTextFilter();
-    }
+    lastCompletedHistoryLookup = "";
   });
 
   dateInput?.addEventListener("keydown", event => {
@@ -2335,7 +2329,14 @@ function setupImportHistory() {
   dateInput?.addEventListener("blur", runDateLookup);
 
   dateClearButton?.addEventListener("click", () => {
-    clearDateFilter();
+    if (dateInput) {
+      dateInput.value = "";
+      dateInput.classList.remove("date-error");
+    }
+
+    if (datePicker) datePicker.value = "";
+
+    lastCompletedHistoryLookup = "";
     renderImportHistory();
   });
 }
@@ -2536,7 +2537,93 @@ function buildImportHistoryCard(batch, items, options = {}) {
 }
 
 
-function renderImportHistoryByArrivalDate(selectedDate, output) {
+function historyProductMatchesKeyword(product, keyword) {
+  if (!keyword) return true;
+
+  const searchable = [
+    product?.name,
+    product?.productName,
+    product?.id,
+    product?.productId,
+    product?.category
+  ].map(value => String(value || "")).join(" ");
+
+  return smartSearchMatches(searchable, keyword);
+}
+
+function getDailyStockAdjustments(selectedDate, keyword = "") {
+  const normalizedDate =
+    normalizeDateToDDMMYYYY(selectedDate);
+
+  return getProducts()
+    .flatMap(product =>
+      getProductStockAdjustments(product)
+        .filter(adjustment =>
+          normalizeDateToDDMMYYYY(adjustment.date) ===
+          normalizedDate
+        )
+        .map(adjustment => ({
+          ...adjustment,
+          productId: product.id || "",
+          productName: product.name || "未命名产品",
+          category: product.category || "盆栽"
+        }))
+    )
+    .filter(adjustment =>
+      historyProductMatchesKeyword(adjustment, keyword)
+    )
+    .sort((a, b) =>
+      String(a.createdAt || "").localeCompare(
+        String(b.createdAt || "")
+      )
+    );
+}
+
+function buildDailyStockAdjustmentHtml(adjustments) {
+  if (!adjustments.length) {
+    return `
+      <div class="history-day-empty">
+        当天没有符合的库存进出记录
+      </div>
+    `;
+  }
+
+  return adjustments.map(adjustment => {
+    const delta = Math.trunc(Number(adjustment.delta) || 0);
+    const action = delta < 0 ? "卖出" : "修改";
+    const deltaText = delta > 0 ? `+${delta}` : String(delta);
+
+    return `
+      <article class="history-adjustment-card ${delta < 0 ? "out" : "in"}">
+        <div class="history-adjustment-product">
+          <strong>${escapeHTML(adjustment.productName || "未命名产品")}</strong>
+          <small>${escapeHTML(adjustment.productId || "")}</small>
+        </div>
+
+        <div class="history-adjustment-detail">
+          <span>${escapeHTML(action)}</span>
+          <strong>${escapeHTML(deltaText)}</strong>
+        </div>
+
+        <div class="history-adjustment-meta">
+          <span>修改前 ${formatNumber(Number(adjustment.before) || 0)}</span>
+          <span>修改后 ${formatNumber(Number(adjustment.after) || 0)}</span>
+          ${
+            adjustment.importNumber
+              ? `<span>进口编号 ${escapeHTML(adjustment.importNumber)}</span>`
+              : ""
+          }
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+function renderImportHistoryByDate(
+  selectedDate,
+  output,
+  keyword = ""
+) {
   const normalizedDate =
     normalizeDateToDDMMYYYY(selectedDate);
 
@@ -2546,40 +2633,72 @@ function renderImportHistoryByArrivalDate(selectedDate, output) {
     return;
   }
 
-  const matches = getBatches()
-    .filter(batch =>
-      normalizeDateToDDMMYYYY(batch.arrivalDate) ===
-      normalizedDate
-    )
+  const normalizedKeyword = String(keyword || "").trim();
+
+  const incomingMatches = getBatches()
+    .map(batch => {
+      if (
+        normalizeDateToDDMMYYYY(batch.arrivalDate) !==
+        normalizedDate
+      ) {
+        return null;
+      }
+
+      const allItems = getBatchItemsForDisplay(batch);
+
+      if (!normalizedKeyword) {
+        return {
+          batch,
+          items: allItems
+        };
+      }
+
+      const importNumberMatch =
+        sequentialSearchMatches(
+          batch.importNumber,
+          normalizedKeyword
+        );
+
+      const matchingItems = allItems.filter(item =>
+        historyProductMatchesKeyword(
+          {
+            ...item,
+            productName: item.productName,
+            productId: item.productId
+          },
+          normalizedKeyword
+        )
+      );
+
+      if (!importNumberMatch && !matchingItems.length) {
+        return null;
+      }
+
+      return {
+        batch,
+        items: importNumberMatch ? allItems : matchingItems
+      };
+    })
+    .filter(Boolean)
     .sort((a, b) =>
-      String(b.createdAt || "").localeCompare(
-        String(a.createdAt || "")
+      String(b.batch.createdAt || "").localeCompare(
+        String(a.batch.createdAt || "")
       )
     );
 
-  if (!matches.length) {
-    output.innerHTML = `
-      <div class="history-date-summary">
-        <strong>${escapeHTML(normalizedDate)}</strong>
-        <span>当天没有抵达的进口记录</span>
-      </div>
-    `;
-    return;
-  }
+  const adjustments =
+    getDailyStockAdjustments(
+      normalizedDate,
+      normalizedKeyword
+    );
 
-  const totals = matches.reduce(
-    (summary, batch) => {
-      const items = getBatchItemsForDisplay(batch);
+  const incomingTotals = incomingMatches.reduce(
+    (summary, match) => {
       summary.batchCount += 1;
-      summary.itemCount += items.length;
-      summary.quantity += items.reduce(
+      summary.itemCount += match.items.length;
+      summary.quantity += match.items.reduce(
         (sum, item) =>
-          sum +
-          (
-            Number(item.originalQuantity) ||
-            Number(item.quantity) ||
-            0
-          ),
+          sum + getSafeDisplayOriginalQuantity(item),
         0
       );
       return summary;
@@ -2591,27 +2710,81 @@ function renderImportHistoryByArrivalDate(selectedDate, output) {
     }
   );
 
+  const adjustmentTotals = adjustments.reduce(
+    (summary, adjustment) => {
+      const delta = Math.trunc(
+        Number(adjustment.delta) || 0
+      );
+
+      if (delta < 0) {
+        summary.outQuantity += Math.abs(delta);
+      } else if (delta > 0) {
+        summary.increaseQuantity += delta;
+      }
+
+      return summary;
+    },
+    {
+      outQuantity: 0,
+      increaseQuantity: 0
+    }
+  );
+
+  const filterText = normalizedKeyword
+    ? ` · 产品筛选：${escapeHTML(normalizedKeyword)}`
+    : "";
+
   const summaryHtml = `
     <div class="history-date-summary">
       <strong>${escapeHTML(normalizedDate)}</strong>
       <span>
-        ${formatNumber(totals.batchCount)} 个进口批次 ·
-        ${formatNumber(totals.itemCount)} 种产品 ·
-        ${formatNumber(totals.quantity)} 件
+        进 ${formatNumber(incomingTotals.quantity)} 件 ·
+        出 ${formatNumber(adjustmentTotals.outQuantity)} 件 ·
+        修改增加 ${formatNumber(adjustmentTotals.increaseQuantity)} 件
+        ${filterText}
       </span>
     </div>
   `;
 
-  const cards = matches.map(batch =>
-    buildImportHistoryCard(
-      batch,
-      getBatchItemsForDisplay(batch),
-      { showRelatedBatches: false }
-    )
-  ).join("");
+  const incomingHtml = `
+    <section class="history-day-section">
+      <div class="history-day-section-title">
+        <strong>进｜抵达进口</strong>
+        <span>
+          ${formatNumber(incomingTotals.batchCount)} 批 ·
+          ${formatNumber(incomingTotals.itemCount)} 种产品
+        </span>
+      </div>
 
-  output.innerHTML = summaryHtml + cards;
+      ${
+        incomingMatches.length
+          ? incomingMatches.map(match =>
+              buildImportHistoryCard(
+                match.batch,
+                match.items,
+                { showRelatedBatches: false }
+              )
+            ).join("")
+          : '<div class="history-day-empty">当天没有符合的抵达进口记录</div>'
+      }
+    </section>
+  `;
+
+  const adjustmentHtml = `
+    <section class="history-day-section">
+      <div class="history-day-section-title">
+        <strong>出／修改｜库存异动</strong>
+        <span>${formatNumber(adjustments.length)} 笔</span>
+      </div>
+
+      ${buildDailyStockAdjustmentHtml(adjustments)}
+    </section>
+  `;
+
+  output.innerHTML =
+    summaryHtml + incomingHtml + adjustmentHtml;
 }
+
 
 function renderImportHistory() {
   const input = document.getElementById("historyLookupInput");
@@ -2624,16 +2797,17 @@ function renderImportHistory() {
   ).trim();
 
   if (selectedDate) {
-    renderImportHistoryByArrivalDate(
+    renderImportHistoryByDate(
       selectedDate,
-      output
+      output,
+      input.value.trim()
     );
     return;
   }
 
   const keyword = input.value.trim();
   if (!keyword) {
-    output.innerHTML = '<div class="empty-state">输入进口编号、产品名称或选择抵达日期后查看原始进口历史</div>';
+    output.innerHTML = '<div class="empty-state">输入进口编号、产品名称，或选择日期查看当天进出历史</div>';
     return;
   }
 
@@ -4590,7 +4764,7 @@ function clearCurrentPageUnsavedInputs() {
 
     if (output) {
       output.innerHTML =
-        '<div class="empty-state">输入进口编号、产品名称或选择抵达日期后查看原始进口历史</div>';
+        '<div class="empty-state">输入进口编号、产品名称，或选择日期查看当天进出历史</div>';
     }
     return "已清空进口历史查询";
   }
