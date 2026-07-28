@@ -19,8 +19,8 @@ const DEFAULT_ACCESS_PASSWORD_HASH =
 const DEFAULT_ACCESS_PASSWORD_HINT = "6个数字";
 const ACCESS_UNLOCK_SESSION_KEY =
   "loverLegendImportSystemUnlocked";
-const DESKTOP_TRUSTED_ACCESS_KEY =
-  "loverLegendDesktopTrustedAccess";
+const DESKTOP_SAVED_PASSWORD_KEY =
+  "loverLegendDesktopSavedPassword";
 
 async function hashAccessPassword(value) {
   const bytes = new TextEncoder().encode(String(value || ""));
@@ -326,17 +326,7 @@ function unlockAccessLock(lock, input, status) {
     "1"
   );
 
-  // 电脑第一次正确输入密码后，将此浏览器记为可信设备。
-  // 下次重新打开网页直接进入，不调用 Passkey / Windows PIN。
-  if (!isMobileOrTabletDevice()) {
-    localStorage.setItem(
-      DESKTOP_TRUSTED_ACCESS_KEY,
-      "1"
-    );
-  }
-
   if (status) status.textContent = "";
-  if (input) input.value = "";
   if (lock) lock.hidden = true;
 
   document.body.classList.remove("access-locked");
@@ -399,6 +389,12 @@ function setupDeviceBiometricSettings() {
 }
 
 function setupAccessLock() {
+  if (!isMobileOrTabletDevice()) {
+    localStorage.removeItem(
+      "loverLegendDesktopTrustedAccess"
+    );
+  }
+
   const lock = document.getElementById("accessLock");
   const form = document.getElementById("accessLockForm");
   const input = document.getElementById("accessPasswordInput");
@@ -416,6 +412,17 @@ function setupAccessLock() {
 
   updatePasswordHintDisplays();
   updateDeviceBiometricStatus();
+
+  if (!isMobileOrTabletDevice()) {
+    const savedDesktopPassword =
+      localStorage.getItem(
+        DESKTOP_SAVED_PASSWORD_KEY
+      );
+
+    if (savedDesktopPassword) {
+      input.value = savedDesktopPassword;
+    }
+  }
 
   hintButton?.addEventListener("click", () => {
     updatePasswordHintDisplays();
@@ -484,13 +491,7 @@ function setupAccessLock() {
       ACCESS_UNLOCK_SESSION_KEY
     ) === "1";
 
-  const trustedDesktop =
-    !isMobileOrTabletDevice() &&
-    localStorage.getItem(
-      DESKTOP_TRUSTED_ACCESS_KEY
-    ) === "1";
-
-  if (alreadyUnlocked || trustedDesktop) {
+  if (alreadyUnlocked) {
     lock.hidden = true;
     document.body.classList.remove("access-locked");
   } else {
@@ -526,6 +527,13 @@ function setupAccessLock() {
       status.textContent = "密码错误，可查看密码提示";
       input.select();
       return;
+    }
+
+    if (!isMobileOrTabletDevice()) {
+      localStorage.setItem(
+        DESKTOP_SAVED_PASSWORD_KEY,
+        password
+      );
     }
 
     unlockAccessLock(lock, input, status);
@@ -609,6 +617,13 @@ function setupPasswordChange() {
       accessPasswordHash: newHash,
       accessPasswordHint: newHint
     });
+
+    if (!isMobileOrTabletDevice()) {
+      localStorage.setItem(
+        DESKTOP_SAVED_PASSWORD_KEY,
+        newPassword
+      );
+    }
 
     if (typeof markCloudSettingsSaved === "function") {
       markCloudSettingsSaved();
