@@ -1,4 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
+  setupAccessLock();
   repairLegacyImportDates();
   setupNavigation();
   setupSettings();
@@ -11,6 +12,243 @@ document.addEventListener("DOMContentLoaded", () => {
   setupCloudSync();
 });
 
+
+
+const DEFAULT_ACCESS_PASSWORD_HASH =
+  "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92";
+const DEFAULT_ACCESS_PASSWORD_HINT = "6个数字";
+const ACCESS_UNLOCK_SESSION_KEY =
+  "loverLegendImportSystemUnlocked";
+
+async function hashAccessPassword(value) {
+  const bytes = new TextEncoder().encode(String(value || ""));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+
+  return Array.from(new Uint8Array(digest))
+    .map(byte => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function buildAccessPasswordHint(password) {
+  const characters = Array.from(String(password || ""));
+  let letters = 0;
+  let digits = 0;
+  let symbols = 0;
+
+  characters.forEach(character => {
+    if (/[A-Za-z]/.test(character)) {
+      letters += 1;
+    } else if (/[0-9]/.test(character)) {
+      digits += 1;
+    } else {
+      symbols += 1;
+    }
+  });
+
+  const parts = [];
+
+  if (letters > 0) {
+    parts.push(`${letters}个英文字`);
+  }
+
+  if (symbols > 0) {
+    parts.push(`${symbols}个符号`);
+  }
+
+  if (digits > 0) {
+    parts.push(`${digits}个数字`);
+  }
+
+  return parts.join(" ") || "密码提示暂不可用";
+}
+
+function getAccessPasswordSettings() {
+  const settings = loadJSON("importSystemSettings", {});
+
+  return {
+    hash: String(
+      settings.accessPasswordHash ||
+      DEFAULT_ACCESS_PASSWORD_HASH
+    ),
+    hint: String(
+      settings.accessPasswordHint ||
+      DEFAULT_ACCESS_PASSWORD_HINT
+    )
+  };
+}
+
+function updatePasswordHintDisplays() {
+  const hint = getAccessPasswordSettings().hint;
+
+  const lockHint =
+    document.getElementById("accessPasswordHint");
+  const settingsHint =
+    document.getElementById("currentPasswordHint");
+
+  if (lockHint) {
+    lockHint.textContent = `密码提示：${hint}`;
+  }
+
+  if (settingsHint) {
+    settingsHint.textContent = hint;
+  }
+}
+
+function setupAccessLock() {
+  const lock = document.getElementById("accessLock");
+  const form = document.getElementById("accessLockForm");
+  const input = document.getElementById("accessPasswordInput");
+  const status = document.getElementById("accessLockStatus");
+  const hintButton =
+    document.getElementById("showPasswordHintBtn");
+  const hintBox =
+    document.getElementById("accessPasswordHint");
+
+  if (!lock || !form || !input || !status) return;
+
+  updatePasswordHintDisplays();
+
+  hintButton?.addEventListener("click", () => {
+    updatePasswordHintDisplays();
+
+    if (hintBox) {
+      hintBox.hidden = !hintBox.hidden;
+    }
+
+    if (hintButton) {
+      hintButton.textContent =
+        hintBox && !hintBox.hidden
+          ? "隐藏密码提示"
+          : "忘记密码？查看提示";
+    }
+  });
+
+  const alreadyUnlocked =
+    sessionStorage.getItem(ACCESS_UNLOCK_SESSION_KEY) === "1";
+
+  if (alreadyUnlocked) {
+    lock.hidden = true;
+    document.body.classList.remove("access-locked");
+  } else {
+    lock.hidden = false;
+    document.body.classList.add("access-locked");
+
+    window.setTimeout(() => {
+      input.focus();
+    }, 120);
+  }
+
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+
+    const password = String(input.value || "");
+
+    if (!password) {
+      status.textContent = "请输入密码";
+      return;
+    }
+
+    const hash = await hashAccessPassword(password);
+    const correctHash = getAccessPasswordSettings().hash;
+
+    if (hash !== correctHash) {
+      status.textContent = "密码错误，可查看密码提示";
+      input.select();
+      return;
+    }
+
+    sessionStorage.setItem(ACCESS_UNLOCK_SESSION_KEY, "1");
+    status.textContent = "";
+    input.value = "";
+    lock.hidden = true;
+    document.body.classList.remove("access-locked");
+  });
+}
+
+function setupPasswordChange() {
+  const button =
+    document.getElementById("changeAccessPasswordBtn");
+
+  if (!button) return;
+
+  updatePasswordHintDisplays();
+
+  button.addEventListener("click", async () => {
+    const oldInput =
+      document.getElementById("oldAccessPassword");
+    const newInput =
+      document.getElementById("newAccessPassword");
+    const confirmInput =
+      document.getElementById("confirmAccessPassword");
+    const status =
+      document.getElementById("passwordChangeStatus");
+
+    const oldPassword = String(oldInput?.value || "");
+    const newPassword = String(newInput?.value || "");
+    const confirmPassword = String(confirmInput?.value || "");
+
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      status.textContent = "请填写旧密码、新密码和确认密码";
+      status.classList.add("error-status");
+      return;
+    }
+
+    if (
+      Array.from(newPassword).length > 12 ||
+      Array.from(confirmPassword).length > 12
+    ) {
+      status.textContent = "密码最多12个字";
+      status.classList.add("error-status");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      status.textContent = "两次输入的新密码不一致";
+      status.classList.add("error-status");
+      return;
+    }
+
+    const oldHash = await hashAccessPassword(oldPassword);
+
+    if (oldHash !== getAccessPasswordSettings().hash) {
+      status.textContent = "旧密码不正确";
+      status.classList.add("error-status");
+      return;
+    }
+
+    const newHash = await hashAccessPassword(newPassword);
+    const newHint = buildAccessPasswordHint(newPassword);
+    const settings = loadJSON("importSystemSettings", {});
+
+    saveJSON("importSystemSettings", {
+      ...settings,
+      accessPasswordHash: newHash,
+      accessPasswordHint: newHint
+    });
+
+    if (typeof markCloudSettingsSaved === "function") {
+      markCloudSettingsSaved();
+    }
+
+    oldInput.value = "";
+    newInput.value = "";
+    confirmInput.value = "";
+
+    updatePasswordHintDisplays();
+
+    status.textContent =
+      `密码已更改 · 提示：${newHint} · 正在同步`;
+    status.classList.remove("error-status");
+
+    window.clearTimeout(status._hideTimer);
+    status._hideTimer = window.setTimeout(() => {
+      status.textContent = "";
+    }, 3000);
+  });
+}
+
+window.updatePasswordHintDisplays =
+  updatePasswordHintDisplays;
 
 function repairLegacyImportDates() {
   const repair = value => {
@@ -227,7 +465,14 @@ function setupSettings() {
       data[currency] = parseAmount(document.getElementById(id).value);
     });
 
-    saveJSON("importSystemSettings", data);
+    const currentSettings =
+      loadJSON("importSystemSettings", {});
+
+    saveJSON("importSystemSettings", {
+      ...currentSettings,
+      ...data
+    });
+
     if (typeof markCloudSettingsSaved === "function") {
       markCloudSettingsSaved();
     }
@@ -239,6 +484,7 @@ function setupSettings() {
     }, 1800);
   });
 
+  setupPasswordChange();
   setupDataTools();
 }
 

@@ -1724,7 +1724,7 @@ input::placeholder {
   color: #1f5d3a;
 }
 
-/* V2.84.1：首页库存产品长按更名 */
+/* V2.84.2：首页库存产品长按更名 */
 .inventory-manage-card {
   -webkit-user-select: none;
   user-select: none;
@@ -1740,7 +1740,7 @@ input::placeholder {
   cursor: default;
 }
 
-/* V2.84.1：手机优先显示产品与数量，类别移到入库前 */
+/* V2.84.2：手机优先显示产品与数量，类别移到入库前 */
 .batch-table th:nth-child(2),
 .batch-table td:nth-child(2) {
   width: 86px;
@@ -1772,7 +1772,7 @@ input::placeholder {
 
 
 
-/* V2.84.1：双搜索、产品库存编辑及全页面下拉清空 */
+/* V2.84.2：双搜索、产品库存编辑及全页面下拉清空 */
 .batch-search-fields {
   display: grid;
   grid-template-columns: minmax(230px, 0.9fr) minmax(260px, 1.1fr);
@@ -1889,7 +1889,7 @@ input::placeholder {
 }
 
 
-/* V2.84.1：产品名称搜索时只显示产品结果 */
+/* V2.84.2：产品名称搜索时只显示产品结果 */
 #recentBatchResultsArea[hidden],
 #batchProductStockResults[hidden],
 #toggleBatchListBtn[hidden],
@@ -1897,7 +1897,7 @@ input::placeholder {
   display: none !important;
 }
 
-/* V2.84.1：产品名称及库存仅长按编辑，禁止 iPhone 文字选择菜单 */
+/* V2.84.2：产品名称及库存仅长按编辑，禁止 iPhone 文字选择菜单 */
 .product-stock-name-btn,
 .product-stock-qty-btn,
 .product-stock-name-btn *,
@@ -1914,7 +1914,7 @@ input::placeholder {
   box-shadow: 0 0 0 2px rgba(31, 93, 58, 0.2);
 }
 
-/* V2.84.1：最近批次搜索与产品搜索互斥显示 */
+/* V2.84.2：最近批次搜索与产品搜索互斥显示 */
 #recentBatchResultsArea[hidden],
 #batchProductStockResults[hidden],
 #toggleBatchListBtn[hidden],
@@ -1922,7 +1922,7 @@ input::placeholder {
   display: none !important;
 }
 
-/* V2.84.1：历史库存重建工具 */
+/* V2.84.2：历史库存重建工具 */
 .repair-history-btn {
   border-color: #c98b21;
   background: #fff8e8;
@@ -1932,7 +1932,7 @@ input::placeholder {
   background: #ffefc5;
 }
 
-/* V2.84.1：产品进出历史简洁显示 */
+/* V2.84.2：产品进出历史简洁显示 */
 .product-history-compact-card {
   margin-top: 12px;
   padding: 14px;
@@ -2028,7 +2028,7 @@ input::placeholder {
   }
 }
 
-/* V2.84.1：前景自动同步提示 */
+/* V2.84.2：前景自动同步提示 */
 .latest-data-synced-toast {
   position: fixed;
   right: 14px;
@@ -2053,7 +2053,7 @@ input::placeholder {
   transform: translateY(0);
 }
 
-/* V2.84.1：零库存产品清理 */
+/* V2.84.2：零库存产品清理 */
 .tool-action-btn:disabled,
 .tool-action-btn[aria-disabled="true"] {
   cursor: not-allowed;
@@ -2169,6 +2169,122 @@ input::placeholder {
 
   .stale-zero-stock-value {
     grid-column: 2;
+  }
+}
+
+/* V2.84.2：系统密码及密码提示 */
+.access-lock {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background:
+    linear-gradient(
+      rgba(240, 247, 242, 0.97),
+      rgba(234, 242, 236, 0.98)
+    );
+}
+
+.access-lock[hidden] {
+  display: none;
+}
+
+.access-lock-card {
+  width: min(100%, 360px);
+  padding: 28px 22px;
+  border: 1px solid #c9d8ce;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 14px 40px rgba(29, 67, 44, 0.18);
+  text-align: center;
+}
+
+.access-lock-logo {
+  margin-bottom: 8px;
+  font-size: 38px;
+}
+
+.access-lock-card h1 {
+  margin: 0 0 6px;
+  color: var(--green);
+  font-size: 24px;
+}
+
+.access-lock-card p {
+  margin: 0 0 18px;
+  color: var(--muted);
+}
+
+.access-lock-card form {
+  display: grid;
+  gap: 12px;
+}
+
+.access-lock-card input {
+  text-align: center;
+  font-size: 18px;
+  letter-spacing: 1px;
+}
+
+.password-hint-btn {
+  margin-top: 13px;
+  border: 0;
+  background: transparent;
+  color: var(--green);
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.access-password-hint {
+  margin-top: 10px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: #eef6f0;
+  color: #275d3c;
+  font-weight: 700;
+}
+
+.access-lock-status {
+  min-height: 22px;
+  margin-top: 10px;
+  color: #bf2020;
+  font-weight: 700;
+}
+
+body.access-locked {
+  overflow: hidden;
+}
+
+.password-change-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.password-change-grid label {
+  display: grid;
+  gap: 6px;
+}
+
+.current-password-hint {
+  margin-top: 11px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: #f4f7f5;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.current-password-hint strong {
+  color: var(--green);
+}
+
+@media (max-width: 620px) {
+  .password-change-grid {
+    grid-template-columns: 1fr;
   }
 }
 

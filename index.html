@@ -5,21 +5,55 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=2.84.1" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=2.84.1" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=2.84.1" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=2.84.1" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=2.84.1" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=2.84.1" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=2.84.1" />
+  <link rel="manifest" href="./manifest.json?v=2.84.2" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=2.84.2" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=2.84.2" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=2.84.2" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=2.84.2" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=2.84.2" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=2.84.2" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=2.84.1" />
-  <link rel="stylesheet" href="./css/style.css?v=2.84.1" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=2.84.2" />
+  <link rel="stylesheet" href="./css/style.css?v=2.84.2" />
 </head>
 <body>
+  <div id="accessLock"
+       class="access-lock"
+       role="dialog"
+       aria-modal="true"
+       aria-labelledby="accessLockTitle">
+    <div class="access-lock-card">
+      <div class="access-lock-logo">🔒</div>
+      <h1 id="accessLockTitle">系统密码</h1>
+      <p>请输入密码后进入系统</p>
+
+      <form id="accessLockForm" autocomplete="off">
+        <input id="accessPasswordInput"
+               type="password"
+               maxlength="12"
+               placeholder="输入密码"
+               autocomplete="current-password"
+               inputmode="text" />
+
+        <button class="primary-btn"
+                type="submit">进入系统</button>
+      </form>
+
+      <button id="showPasswordHintBtn"
+              class="password-hint-btn"
+              type="button">忘记密码？查看提示</button>
+
+      <div id="accessPasswordHint"
+           class="access-password-hint"
+           hidden></div>
+
+      <div id="accessLockStatus"
+           class="status-text access-lock-status"></div>
+    </div>
+  </div>
   <div class="app-shell">
     <header class="app-header-wrap">
       <div class="app-header-card">
@@ -31,7 +65,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 2.84.1 Stable</div>
+          <div class="app-header-version">正式版 2.84.2 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -336,6 +370,50 @@
 
 
         <section class="panel">
+          <h3>更改系统密码</h3>
+          <p class="settings-help">
+            密码可以使用英文字母、数字或任何符号，不限最少字数，最多12个字。更改时必须输入旧密码。
+          </p>
+
+          <div class="password-change-grid">
+            <label>
+              旧密码
+              <input id="oldAccessPassword"
+                     type="password"
+                     maxlength="12"
+                     autocomplete="current-password" />
+            </label>
+
+            <label>
+              新密码
+              <input id="newAccessPassword"
+                     type="password"
+                     maxlength="12"
+                     autocomplete="new-password" />
+            </label>
+
+            <label>
+              确认新密码
+              <input id="confirmAccessPassword"
+                     type="password"
+                     maxlength="12"
+                     autocomplete="new-password" />
+            </label>
+          </div>
+
+          <button id="changeAccessPasswordBtn"
+                  class="primary-btn"
+                  type="button">更改密码</button>
+
+          <div class="current-password-hint">
+            当前密码提示：<strong id="currentPasswordHint">6个数字</strong>
+          </div>
+
+          <div id="passwordChangeStatus"
+               class="status-text"></div>
+        </section>
+
+        <section class="panel">
           <h3>资料管理</h3>
 
           <div class="settings-tools-grid">
@@ -406,7 +484,7 @@
 
         <section class="panel">
           <h3>系统资料</h3>
-          <div class="info-row"><span>版本</span><strong>正式版 2.84.1 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong>正式版 2.84.2 Stable</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
           <div class="info-row"><span>Google Sheet</span><strong>已连接 Google Web App</strong></div>
         </section>
@@ -429,8 +507,8 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=2.84.1"></script>
-  <script src="./js/sync.js?v=2.84.1"></script>
-  <script src="./js/app.js?v=2.84.1"></script>
+  <script src="./js/common.js?v=2.84.2"></script>
+  <script src="./js/sync.js?v=2.84.2"></script>
+  <script src="./js/app.js?v=2.84.2"></script>
 </body>
 </html>
