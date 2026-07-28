@@ -1724,7 +1724,7 @@ input::placeholder {
   color: #1f5d3a;
 }
 
-/* V2.85.2.1：首页库存产品长按更名 */
+/* V2.85.3.1：首页库存产品长按更名 */
 .inventory-manage-card {
   -webkit-user-select: none;
   user-select: none;
@@ -1740,7 +1740,7 @@ input::placeholder {
   cursor: default;
 }
 
-/* V2.85.2.1：手机优先显示产品与数量，类别移到入库前 */
+/* V2.85.3.1：手机优先显示产品与数量，类别移到入库前 */
 .batch-table th:nth-child(2),
 .batch-table td:nth-child(2) {
   width: 86px;
@@ -1772,7 +1772,7 @@ input::placeholder {
 
 
 
-/* V2.85.2.1：双搜索、产品库存编辑及全页面下拉清空 */
+/* V2.85.3.1：双搜索、产品库存编辑及全页面下拉清空 */
 .batch-search-fields {
   display: grid;
   grid-template-columns: minmax(230px, 0.9fr) minmax(260px, 1.1fr);
@@ -1889,7 +1889,7 @@ input::placeholder {
 }
 
 
-/* V2.85.2.1：产品名称搜索时只显示产品结果 */
+/* V2.85.3.1：产品名称搜索时只显示产品结果 */
 #recentBatchResultsArea[hidden],
 #batchProductStockResults[hidden],
 #toggleBatchListBtn[hidden],
@@ -1897,7 +1897,7 @@ input::placeholder {
   display: none !important;
 }
 
-/* V2.85.2.1：产品名称及库存仅长按编辑，禁止 iPhone 文字选择菜单 */
+/* V2.85.3.1：产品名称及库存仅长按编辑，禁止 iPhone 文字选择菜单 */
 .product-stock-name-btn,
 .product-stock-qty-btn,
 .product-stock-name-btn *,
@@ -1914,7 +1914,7 @@ input::placeholder {
   box-shadow: 0 0 0 2px rgba(31, 93, 58, 0.2);
 }
 
-/* V2.85.2.1：最近批次搜索与产品搜索互斥显示 */
+/* V2.85.3.1：最近批次搜索与产品搜索互斥显示 */
 #recentBatchResultsArea[hidden],
 #batchProductStockResults[hidden],
 #toggleBatchListBtn[hidden],
@@ -1922,7 +1922,7 @@ input::placeholder {
   display: none !important;
 }
 
-/* V2.85.2.1：历史库存重建工具 */
+/* V2.85.3.1：历史库存重建工具 */
 .repair-history-btn {
   border-color: #c98b21;
   background: #fff8e8;
@@ -1932,7 +1932,7 @@ input::placeholder {
   background: #ffefc5;
 }
 
-/* V2.85.2.1：产品进出历史简洁显示 */
+/* V2.85.3.1：产品进出历史简洁显示 */
 .product-history-compact-card {
   margin-top: 12px;
   padding: 14px;
@@ -2056,7 +2056,7 @@ input::placeholder {
   }
 }
 
-/* V2.85.2.1：前景自动同步提示 */
+/* V2.85.3.1：前景自动同步提示 */
 .latest-data-synced-toast {
   position: fixed;
   right: 14px;
@@ -2081,7 +2081,7 @@ input::placeholder {
   transform: translateY(0);
 }
 
-/* V2.85.2.1：零库存产品清理 */
+/* V2.85.3.1：零库存产品清理 */
 .tool-action-btn:disabled,
 .tool-action-btn[aria-disabled="true"] {
   cursor: not-allowed;
@@ -2200,7 +2200,7 @@ input::placeholder {
   }
 }
 
-/* V2.85.2.1：系统密码及密码提示 */
+/* V2.85.3.1：系统密码及密码提示 */
 .access-lock {
   position: fixed;
   inset: 0;
@@ -2316,7 +2316,7 @@ body.access-locked {
   }
 }
 
-/* V2.85.2.1：进口历史日期筛选 */
+/* V2.85.3.1：进口历史日期筛选 */
 .history-date-filter-row {
   display: grid;
   grid-template-columns: auto minmax(220px, 360px) auto;
@@ -2382,7 +2382,7 @@ body.access-locked {
   }
 }
 
-/* V2.85.2.1：单一日期查询进出历史 */
+/* V2.85.3.1：单一日期查询进出历史 */
 .history-day-section {
   margin-top: 14px;
 }
@@ -2505,7 +2505,7 @@ body.access-locked {
   }
 }
 
-/* V2.85.2.1：手机进口历史日期选择修复 */
+/* V2.85.3.1：手机进口历史日期选择修复 */
 .history-date-field-wrap {
   position: relative;
 }
@@ -2544,7 +2544,7 @@ body.access-locked {
   }
 }
 
-/* V2.85.2.1：产品/进口手机日期选择 */
+/* V2.85.3.1：产品/进口手机日期选择 */
 .mobile-native-date-wrap {
   position: relative;
 }
@@ -2570,7 +2570,7 @@ body.access-locked {
   pointer-events: none;
 }
 
-/* V2.85.2.1：Face ID / 生物辨识 */
+/* V2.85.3.1：Face ID / 生物辨识 */
 .biometric-login-btn {
   width: 100%;
   margin-top: 12px;
@@ -2641,7 +2641,7 @@ body.access-locked {
   }
 }
 
-/* V2.85.2：历史查询日期范围 */
+/* V2.85.3：历史查询日期范围 */
 .history-date-range-row {
   display: grid;
   grid-template-columns:
@@ -2715,5 +2715,18 @@ body.access-locked {
   .history-range-day-header span {
     text-align: left;
   }
+}
+
+/* V2.85.3：取消浏览器保存密码提示 */
+.masked-access-code {
+  -webkit-text-security: disc;
+  text-security: disc;
+  font-family: Arial, sans-serif;
+  letter-spacing: 1px;
+}
+
+/* V2.85.3：产品＋日期使用简洁四栏 */
+.product-history-compact-card {
+  overflow: hidden;
 }
 

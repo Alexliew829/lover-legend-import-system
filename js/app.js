@@ -3259,6 +3259,185 @@ function renderHistorySingleDateSection(
   `;
 }
 
+
+function renderCompactProductHistoryByRange(
+  range,
+  keyword,
+  output
+) {
+  const normalizedKeyword =
+    String(keyword || "").trim();
+
+  if (!normalizedKeyword) return false;
+
+  const productMatches = getBatches()
+    .filter(batch =>
+      isDateWithinHistoryRange(
+        batch.arrivalDate,
+        range
+      )
+    )
+    .map(batch => {
+      const matchingItems =
+        getBatchItemsForDisplay(batch).filter(item => {
+          const searchable = [
+            item.productName,
+            item.productId,
+            item.category
+          ].map(value =>
+            String(value || "").toLowerCase()
+          ).join(" ");
+
+          return smartSearchMatches(
+            searchable,
+            normalizedKeyword.toLowerCase()
+          );
+        });
+
+      return {
+        batch,
+        matchingItems
+      };
+    })
+    .filter(match => match.matchingItems.length > 0)
+    .sort((a, b) => {
+      const arrivalDifference =
+        parseDDMMYYYY(b.batch.arrivalDate) -
+        parseDDMMYYYY(a.batch.arrivalDate);
+
+      if (arrivalDifference !== 0) {
+        return arrivalDifference;
+      }
+
+      return String(b.batch.createdAt || "")
+        .localeCompare(
+          String(a.batch.createdAt || "")
+        );
+    });
+
+  if (!productMatches.length) {
+    return false;
+  }
+
+  const summary = productMatches.reduce(
+    (result, match) => {
+      match.matchingItems.forEach(item => {
+        const quantities =
+          getHistoryItemQuantities(item);
+
+        result.originalQuantity +=
+          quantities.originalQuantity;
+        result.remainingQuantity +=
+          quantities.remainingQuantity;
+        result.productNames.add(
+          String(
+            item.productName ||
+            "未命名产品"
+          )
+        );
+      });
+
+      return result;
+    },
+    {
+      originalQuantity: 0,
+      remainingQuantity: 0,
+      productNames: new Set()
+    }
+  );
+
+  const productTitle =
+    Array.from(summary.productNames)
+      .map(name => escapeHTML(name))
+      .join("、");
+
+  const dateLabel = range.isSingleDay
+    ? range.startDate
+    : `${range.startDate} 至 ${range.endDate}`;
+
+  const summaryBox = `
+    <div class="history-related-notice">
+      <div class="history-related-title">
+        ${productTitle}
+      </div>
+      <div class="history-related-batch">
+        <strong>
+          ${escapeHTML(dateLabel)} ·
+          进口批次：${formatNumber(productMatches.length)}
+        </strong>
+        <span>
+          累计原进口
+          ${formatNumber(summary.originalQuantity)}
+          · 目前总剩余
+          ${formatNumber(summary.remainingQuantity)}
+        </span>
+      </div>
+    </div>
+  `;
+
+  const compactRows = productMatches.flatMap(match =>
+    match.matchingItems.map(item => {
+      const quantities =
+        getHistoryItemQuantities(item);
+
+      const importNumber = String(
+        match.batch.importNumber ||
+        item.importNumber ||
+        ""
+      ).trim();
+
+      const arrivalDate =
+        normalizeDateToDDMMYYYY(
+          item.arrivalDate ||
+          match.batch.arrivalDate ||
+          ""
+        ) || "-";
+
+      return `
+        <article class="product-history-compact-card">
+          <div class="product-history-compact-grid">
+            <div class="product-history-import-number">
+              <span>进口编号</span>
+              <strong>
+                ${escapeHTML(importNumber || "-")}
+              </strong>
+            </div>
+
+            <div class="product-history-arrival-date">
+              <span>抵达日期</span>
+              <strong>
+                ${escapeHTML(arrivalDate)}
+              </strong>
+            </div>
+
+            <div class="product-history-original-qty">
+              <span>原进口数量</span>
+              <strong>
+                ${formatNumber(
+                  quantities.originalQuantity
+                )}
+              </strong>
+            </div>
+
+            <div class="product-history-unit-cost">
+              <span>原每棵成本</span>
+              <strong>
+                ${formatMoney(
+                  Number(item.unitCost) || 0,
+                  "RM "
+                )}
+              </strong>
+            </div>
+          </div>
+        </article>
+      `;
+    })
+  ).join("");
+
+  output.innerHTML = summaryBox + compactRows;
+  return true;
+}
+
 function renderImportHistoryByRange(
   startValue,
   endValue,
@@ -3280,6 +3459,17 @@ function renderImportHistoryByRange(
   const dateLabel = range.isSingleDay
     ? range.startDate
     : `${range.startDate} 至 ${range.endDate}`;
+
+  if (
+    String(keyword || "").trim() &&
+    renderCompactProductHistoryByRange(
+      range,
+      keyword,
+      output
+    )
+  ) {
+    return;
+  }
 
   const sections = getHistoryRangeDates(range)
     .map(date =>
