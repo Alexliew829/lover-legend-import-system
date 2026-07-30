@@ -2983,6 +2983,12 @@ function setupImportHistory() {
         "✓ 已复制产品名称"
       );
 
+      if (
+        productButton.dataset.historyCopyOnly === "true"
+      ) {
+        return;
+      }
+
       input.value = productName;
       input.dataset.exactHistoryProduct = productName;
       lastCompletedHistoryLookup = "";
@@ -3170,7 +3176,17 @@ function buildImportHistoryCard(batch, items, options = {}) {
 
     return `
       <tr>
-        <td>${escapeHTML(item.productName || "-")}</td>
+        <td>
+          <button type="button"
+                  class="history-copy-product history-copy-product-inline"
+                  data-history-product="${escapeHTML(
+                    item.productName || ""
+                  )}"
+                  data-history-copy-only="true"
+                  title="点击复制产品名称">
+            ${escapeHTML(item.productName || "-")}
+          </button>
+        </td>
         <td>${escapeHTML(item.category || "-")}</td>
         <td>${formatNumber(originalQuantity)}</td>
         <td>${formatNumber(remainingQuantity)}</td>
@@ -3271,7 +3287,17 @@ function buildDailyStockAdjustmentHtml(adjustments) {
     return `
       <article class="history-adjustment-card ${delta < 0 ? "out" : "in"}">
         <div class="history-adjustment-product">
-          <strong>${escapeHTML(adjustment.productName || "未命名产品")}</strong>
+          <button type="button"
+                  class="history-copy-product history-copy-product-inline"
+                  data-history-product="${escapeHTML(
+                    adjustment.productName || "未命名产品"
+                  )}"
+                  data-history-copy-only="true"
+                  title="点击复制产品名称">
+            ${escapeHTML(
+              adjustment.productName || "未命名产品"
+            )}
+          </button>
           <small>${escapeHTML(adjustment.productId || "")}</small>
         </div>
 
