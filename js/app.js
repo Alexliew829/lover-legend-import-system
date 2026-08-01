@@ -1357,7 +1357,7 @@ function setBatchEditMode(importNumber = "") {
   if (importNumber) {
     modeBox.hidden = false;
     label.textContent = importNumber;
-    saveButton.textContent = "更新进口记录";
+    saveButton.textContent = "保存/更新进口记录";
     saveButton.classList.add("update-mode");
   } else {
     modeBox.hidden = true;
