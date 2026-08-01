@@ -3386,6 +3386,66 @@ function getHistoryRangeDates(range) {
   return dates.reverse();
 }
 
+function getHistorySingleDateEventCount(
+  selectedDate,
+  keyword = ""
+) {
+  const normalizedKeyword =
+    String(keyword || "").trim();
+
+  const hasIncoming = getBatches().some(batch => {
+    if (
+      normalizeDateToDDMMYYYY(batch.arrivalDate) !==
+      selectedDate
+    ) {
+      return false;
+    }
+
+    const allItems = getBatchItemsForDisplay(batch);
+
+    if (!normalizedKeyword) {
+      return allItems.length > 0;
+    }
+
+    const importNumberMatch =
+      sequentialSearchMatches(
+        batch.importNumber,
+        normalizedKeyword
+      );
+
+    const productMatch = allItems.some(item =>
+      historyProductMatchesKeyword(
+        item,
+        normalizedKeyword
+      )
+    );
+
+    return importNumberMatch || productMatch;
+  });
+
+  const adjustments =
+    getDailyStockAdjustments(
+      selectedDate,
+      normalizedKeyword
+    );
+
+  const hasOutgoing = adjustments.some(
+    adjustment =>
+      Math.trunc(Number(adjustment.delta) || 0) < 0
+  );
+
+  const hasIncrease = adjustments.some(
+    adjustment =>
+      Math.trunc(Number(adjustment.delta) || 0) > 0
+  );
+
+  return (
+    (hasIncoming ? 1 : 0) +
+    (hasOutgoing ? 1 : 0) +
+    (hasIncrease ? 1 : 0)
+  );
+}
+
 function renderHistorySingleDateSection(
   selectedDate,
   keyword = ""
@@ -3942,11 +4002,22 @@ function renderImportHistoryByRange(
     return;
   }
 
+  const eventCount = getHistoryRangeDates(range)
+    .reduce(
+      (total, date) =>
+        total +
+        getHistorySingleDateEventCount(
+          date,
+          keyword
+        ),
+      0
+    );
+
   output.innerHTML = `
     <div class="history-date-summary">
       <strong>${escapeHTML(dateLabel)}</strong>
       <span>
-        共 ${formatNumber(sections.length)} 个有记录日期
+        共 ${formatNumber(eventCount)} 项进出记录
         ${filterText}
       </span>
     </div>
