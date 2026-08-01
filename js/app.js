@@ -1357,12 +1357,12 @@ function setBatchEditMode(importNumber = "") {
   if (importNumber) {
     modeBox.hidden = false;
     label.textContent = importNumber;
-    saveButton.textContent = "更新此批次";
+    saveButton.textContent = "更新进口记录";
     saveButton.classList.add("update-mode");
   } else {
     modeBox.hidden = true;
     label.textContent = "";
-    saveButton.textContent = "保存新批次";
+    saveButton.textContent = "保存新进口";
     saveButton.classList.remove("update-mode");
   }
 }
@@ -1487,7 +1487,7 @@ function setupImportModule(){
     if (isArrowKey) {
       const row = target.closest("#batchRows tr");
 
-      // 方向键只控制“同批产品”表格，不影响下面的批次资料输入框。
+      // 方向键只控制“同次进口产品”表格，不影响下面的批次资料输入框。
       if (row) {
         // 产品名称属于文字输入框：
         // 左右键先正常移动文字光标，只有到达最左或最右才跳格。
@@ -2448,7 +2448,7 @@ function loadBatchByNumber() {
     if (partialMatches.length === 1) {
       batch = partialMatches[0];
     } else if (partialMatches.length > 1) {
-      alert("找到多个符合的批次，请输入更完整的进口编号或海外运输单号。");
+      alert("找到多个符合的进口记录，请输入更完整的进口编号或海外运输单号。");
       input.focus();
       input.select();
       return;
@@ -2563,7 +2563,7 @@ function loadBatchByNumber() {
     (Number(batch.grandTotal) || Number(batch.shippingRate))
   ) {
     document.getElementById("batchStatusText").textContent =
-      `提醒：此批次属于旧版本资料，无法自动恢复当时的内地运输＋打木架费用。如该栏位为空，请按原始单据补回后再更新，不会影响现有库存及Average Cost。`;
+      `提醒：这项进口记录属于旧版本资料，无法自动恢复当时的内地运输＋打木架费用。如该栏位为空，请按原始单据补回后再更新，不会影响现有库存及Average Cost。`;
   } else if (
     !(Number.isFinite(storedChinaTransportCost) && storedChinaTransportCost > 0) &&
     !(Number.isFinite(storedChinaTransportRM) && storedChinaTransportRM > 0) &&
@@ -3554,6 +3554,11 @@ function renderHistorySingleDateSection(
       <div class="history-range-day-header">
         <strong>${escapeHTML(selectedDate)}</strong>
         <span>
+          共 ${formatNumber(
+            (incomingMatches.length ? 1 : 0) +
+            (adjustmentTotals.outQuantity > 0 ? 1 : 0) +
+            (adjustmentTotals.increaseQuantity > 0 ? 1 : 0)
+          )} 项进出记录 ·
           进 ${formatNumber(incomingTotals.quantity)} ·
           出 ${formatNumber(adjustmentTotals.outQuantity)} ·
           修改增加 ${formatNumber(adjustmentTotals.increaseQuantity)}
@@ -3565,7 +3570,7 @@ function renderHistorySingleDateSection(
           ? `
             <section class="history-day-section">
               <div class="history-day-section-title">
-                <strong>进｜抵达进口</strong>
+                <strong>进口记录</strong>
                 <span>
                   ${formatNumber(incomingTotals.batchCount)} 批 ·
                   ${formatNumber(incomingTotals.itemCount)} 种产品
@@ -3834,7 +3839,7 @@ function renderCompactProductHistoryByRange(
       <div class="history-related-batch">
         <strong>
           ${escapeHTML(dateLabel)} ·
-          相关批次：${formatNumber(productMatches.length)}
+          相关进口记录：${formatNumber(productMatches.length)}
         </strong>
         <span>
           累计原进口
@@ -4013,16 +4018,18 @@ function renderImportHistoryByRange(
       0
     );
 
-  output.innerHTML = `
-    <div class="history-date-summary">
-      <strong>${escapeHTML(dateLabel)}</strong>
-      <span>
-        共 ${formatNumber(eventCount)} 项进出记录
-        ${filterText}
-      </span>
-    </div>
-    ${sections.join("")}
-  `;
+  output.innerHTML = range.isSingleDay
+    ? sections.join("")
+    : `
+      <div class="history-date-summary">
+        <strong>${escapeHTML(dateLabel)}</strong>
+        <span>
+          共 ${formatNumber(eventCount)} 项进出记录
+          ${filterText}
+        </span>
+      </div>
+      ${sections.join("")}
+    `;
 }
 
 
@@ -4168,7 +4175,7 @@ function renderImportHistory() {
     <div class="history-related-notice">
       <div class="history-related-title">${productTitle}</div>
       <div class="history-related-batch">
-        <strong>进口批次：${formatNumber(productMatches.length)}</strong>
+        <strong>进口记录：${formatNumber(productMatches.length)}</strong>
         <span>累计原进口 ${formatNumber(summary.originalQuantity)} · 目前总剩余 ${formatNumber(summary.remainingQuantity)}</span>
       </div>
     </div>
@@ -5204,7 +5211,7 @@ function saveBatchImport() {
       batch => batch.importNumber === currentEditingImportNumber
     );
     if (batchIndex === -1) {
-      status.textContent = "找不到原批次，无法更新库存。";
+      status.textContent = "找不到原进口记录，无法更新库存。";
       return;
     }
 
@@ -5219,7 +5226,7 @@ function saveBatchImport() {
     }), item]));
 
     if (oldMap.size !== editedMap.size || [...oldMap.keys()].some(key => !editedMap.has(key))) {
-      status.textContent = "库存调整只能修改原批次产品的剩余数量，不能新增、删除或更换产品。";
+      status.textContent = "库存调整只能修改原进口记录内产品的剩余数量，不能新增、删除或更换产品。";
       return;
     }
 
@@ -5280,7 +5287,7 @@ function saveBatchImport() {
 
       if (!(preservedUnitCost > 0) && originalQuantity > 0) {
         status.textContent =
-          `${oldItem.productName || edited.name || "此产品"} 的原始成本资料不完整，系统已停止保存，避免把Average Cost覆盖成0。请先从原批次费用恢复成本。`;
+          `${oldItem.productName || edited.name || "此产品"} 的原始成本资料不完整，系统已停止保存，避免把Average Cost覆盖成0。请先从原进口费用恢复成本。`;
         return;
       }
       const preservedBatchTotal = [
@@ -5352,7 +5359,7 @@ function saveBatchImport() {
 
     clearBatchAfterSuccessfulAction();
     document.getElementById("batchStatusText").textContent =
-      `已更新 ${currentEditingImportNumber || oldBatch.importNumber} 的批次剩余数量；库存只按新旧数量差额调整。Average Cost、原进口历史及海外运费比例保持不变。`;
+      `已更新 ${currentEditingImportNumber || oldBatch.importNumber} 的进口记录剩余数量；库存只按新旧数量差额调整。Average Cost、原进口历史及海外运费比例保持不变。`;
     return;
   }
 
@@ -5627,8 +5634,8 @@ function renderBatchList() {
 
   if (!filteredBatches.length) {
     listElement.innerHTML = keyword
-      ? '<div class="empty-state">暂无符合的进口批次</div>'
-      : '<div class="empty-state">暂无进口批次</div>';
+      ? '<div class="empty-state">暂无符合的进口记录</div>'
+      : '<div class="empty-state">暂无进口记录</div>';
     return;
   }
 
@@ -5656,7 +5663,7 @@ function renderBatchList() {
       <div class="import-card-meta">
         <div><span>运输天数</span><strong>${batch.transitDays ? `${batch.transitDays} 天` : "-"}</strong></div>
         <div><span>海外运费比例</span><strong>${formatMoney(getBatchShippingRate(batch))}%</strong></div>
-        <div><span>批次总成本</span><strong>${formatMoney(batch.grandTotal, "RM ")}</strong></div>
+        <div><span>进口总成本</span><strong>${formatMoney(batch.grandTotal, "RM ")}</strong></div>
         <div><span>运输单号</span><strong>${escapeHTML(batch.overseasTrackingNumber || batch.trackingNumber || "-")}</strong></div>
       </div>
     </article>`;
@@ -7395,7 +7402,7 @@ function rebuildAllImportHistoryRemainingFIFO() {
   const confirmed = window.confirm(
     "确认重建历史库存？\n\n" +
     "系统会依据每个产品目前的总库存，按最早进口优先（FIFO）重新分配各进口编号的当前剩余。\n\n" +
-    "不会修改：原进口数量、Average Cost、原单价、原每棵成本和批次成本。\n\n" +
+    "不会修改：原进口数量、Average Cost、原单价、原每棵成本和进口成本。\n\n" +
     "建议已经完成 Backup 后再继续。"
   );
 
@@ -7750,12 +7757,12 @@ function exportSystemExcel() {
     ) +
     excelWorksheet(
       "Imports",
-      ["批次编号", "装柜日期", "抵达日期", "产品编号", "产品名称", "类别", "数量", "单价", "货币", "汇率", "货款RM", "每件成本RM", "入库", "成本变化"],
+      ["进口编号", "装柜日期", "抵达日期", "产品编号", "产品名称", "类别", "数量", "单价", "货币", "汇率", "货款RM", "每件成本RM", "入库", "成本变化"],
       importRows
     ) +
     excelWorksheet(
       "Batches",
-      ["批次编号", "装柜日期", "抵达日期", "运输天数", "产品种类", "总数量", "木架总数", "运输单号", "货币", "汇率", "海外运费RM", "海外运费比例", "批次总成本RM"],
+      ["进口编号", "装柜日期", "抵达日期", "运输天数", "产品种类", "总数量", "木架总数", "运输单号", "货币", "汇率", "海外运费RM", "海外运费比例", "进口总成本RM"],
       batchRows
     ) +
     `</Workbook>`;
