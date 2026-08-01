@@ -1487,7 +1487,7 @@ function setupImportModule(){
     if (isArrowKey) {
       const row = target.closest("#batchRows tr");
 
-      // 方向键只控制“同次进口产品”表格，不影响下面的批次资料输入框。
+      // 方向键只控制“同批进口产品”表格，不影响下面的批次资料输入框。
       if (row) {
         // 产品名称属于文字输入框：
         // 左右键先正常移动文字光标，只有到达最左或最右才跳格。
