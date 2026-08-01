@@ -1362,7 +1362,7 @@ function setBatchEditMode(importNumber = "") {
   } else {
     modeBox.hidden = true;
     label.textContent = "";
-    saveButton.textContent = "保存新进口";
+    saveButton.textContent = "保存/更新进口记录";
     saveButton.classList.remove("update-mode");
   }
 }
