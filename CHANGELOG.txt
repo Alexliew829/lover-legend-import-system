@@ -1,4 +1,4 @@
-V2.97 Search Sync
+V2.98 Search Sync
 - 与 Pricing Suite V1.5 产品关键字搜索配套。
 - 保留原外币单价、货币、汇率与进口编号输出。
 - 不修改库存、成本、同步及计算公式。
