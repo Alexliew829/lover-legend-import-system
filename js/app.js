@@ -2486,7 +2486,7 @@ function refocusBatchLookupInput(input) {
 
 
 function cleanupLegacyVndChinaTransportValuesV300() {
-  // V3.03：永久停用旧版 VND 自动清零。
+  // V3.04：永久停用旧版 VND 自动清零。
   // 保留空函数只是为了兼容旧调用，不修改任何历史费用。
   return 0;
 }
@@ -2694,7 +2694,7 @@ function buildFixedImportCostSnapshot(record, batchSnapshot) {
     fixedUnitCostRM,
     fixedBatchTotalRM:
       fixedUnitCostRM * originalQuantity,
-    costSnapshotVersion: "3.03",
+    costSnapshotVersion: "3.04",
     costSnapshotLocked: true
   };
 }
@@ -2722,7 +2722,7 @@ function ensureFixedCostSnapshotsV302() {
 
       const alreadyLocked =
         item?.costSnapshotLocked === true &&
-        ["3.03", "3.03"].includes(
+        ["3.04", "3.04"].includes(
           String(item?.costSnapshotVersion || "")
         );
 
@@ -2751,7 +2751,7 @@ function ensureFixedCostSnapshotsV302() {
 
     const alreadyLocked =
       batch?.costSnapshotLocked === true &&
-      ["3.03", "3.03"].includes(
+      ["3.04", "3.04"].includes(
         String(batch?.costSnapshotVersion || "")
       );
 
@@ -2786,7 +2786,7 @@ function ensureFixedCostSnapshotsV302() {
       ...batch,
       ...snapshot,
       items: nextItems,
-      costSnapshotVersion: "3.03",
+      costSnapshotVersion: "3.04",
       costSnapshotLocked: true
     };
   });
@@ -2801,7 +2801,7 @@ function ensureFixedCostSnapshotsV302() {
   const nextImports = imports.map(record => {
     const alreadyLocked =
       record?.costSnapshotLocked === true &&
-      String(record?.costSnapshotVersion || "") === "3.03";
+      String(record?.costSnapshotVersion || "") === "3.04";
 
     if (alreadyLocked) return record;
 
@@ -4739,7 +4739,7 @@ function publishPricingSuiteImportUnitPrices() {
                   )
             );
 
-      // V3.03：Pricing Suite 优先读取进口保存时锁定的成本快照。
+      // V3.04：Pricing Suite 优先读取进口保存时锁定的成本快照。
       // 售出库存只影响 remainingQuantity，不重新分摊整批费用。
       const fixedInlandMiscPercent =
         Number(source?.fixedInlandMiscPercent);
@@ -5946,7 +5946,7 @@ function saveBatchImport() {
             ? Number(oldItem.fixedBatchTotalRM)
             : preservedBatchTotal,
         costSnapshotVersion:
-          oldItem.costSnapshotVersion || "3.03",
+          oldItem.costSnapshotVersion || "3.04",
         costSnapshotLocked: true,
         updatedAt: new Date().toISOString()
       });
@@ -6016,7 +6016,7 @@ function saveBatchImport() {
     fixedTotalForeignCostsRM: result.totalPurchaseRM,
     fixedShippingRate: result.shippingRate,
     fixedGrandTotalRM: result.grandTotal,
-    costSnapshotVersion: "3.03",
+    costSnapshotVersion: "3.04",
     costSnapshotLocked: true
   };
 
@@ -6094,7 +6094,7 @@ function saveBatchImport() {
         (1 + fixedBatchSnapshot.fixedInlandMiscPercent / 100),
       fixedUnitCostRM: item.unitCost,
       fixedBatchTotalRM: item.itemTotal,
-      costSnapshotVersion: "3.03",
+      costSnapshotVersion: "3.04",
       costSnapshotLocked: true
     };
 
@@ -8456,7 +8456,7 @@ function exportSystemExcel() {
 function backupSystemData() {
   const backup = {
     app: "Lover Legend Import Cost & Inventory System",
-    version: "3.03",
+    version: "3.04",
     exportedAt: new Date().toISOString(),
     settings: loadJSON("importSystemSettings", {}),
     products: getProducts(),
