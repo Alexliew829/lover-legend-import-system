@@ -4442,6 +4442,44 @@ function publishPricingSuiteImportUnitPrices() {
           0,
           Number(pricingUnitPrice) - Number(unitPrice)
         ),
+        inlandMiscPercent:
+          matchingBatch
+            ? (
+                (
+                  (Number(matchingBatch.chinaTransportCost) || 0) +
+                  (Number(matchingBatch.potCost) || 0)
+                ) /
+                Math.max(
+                  1,
+                  (
+                    Number(matchingBatch.foreignTotal) ||
+                    (Array.isArray(matchingBatch.items)
+                      ? matchingBatch.items.reduce((sum, item) => {
+                          const quantity = Math.max(
+                            0,
+                            Number(
+                              item?.originalQuantity ??
+                              item?.stockAdded ??
+                              item?.quantity
+                            ) || 0
+                          );
+                          const itemUnitPrice = Number(item?.unitPrice) || 0;
+                          const storedForeignTotal = Number(item?.foreignTotal);
+
+                          return sum + (
+                            Number.isFinite(storedForeignTotal) &&
+                            storedForeignTotal > 0
+                              ? storedForeignTotal
+                              : quantity * itemUnitPrice
+                          );
+                        }, 0)
+                      : 0)
+                  ) +
+                  (Number(matchingBatch.chinaTransportCost) || 0) +
+                  (Number(matchingBatch.potCost) || 0)
+                )
+              ) * 100
+            : 0,
         landedUnitCostRM,
         currency,
         rate: effectiveRate,
@@ -4491,7 +4529,7 @@ function publishPricingSuiteImportUnitPrices() {
     localStorage.setItem(
       PRICING_SUITE_IMPORT_PRICES_KEY,
       JSON.stringify({
-        version: 5,
+        version: 6,
         exportedAt: new Date().toISOString(),
         records
       })
