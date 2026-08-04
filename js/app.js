@@ -1433,6 +1433,10 @@ function setupImportModule(){
     return true;
   };
 
+  batchLookupInput?.addEventListener("input", () => {
+    showBatchLookupStatus("");
+  });
+
   batchLookupInput?.addEventListener("keydown", event => {
     if (event.key !== "Enter") return;
 
@@ -2432,13 +2436,62 @@ function getCurrentProductStock(productId, productName, category, products = get
   return Math.max(0, Number(product?.stock) || 0);
 }
 
+function showBatchLookupStatus(
+  message,
+  type = "error"
+) {
+  const status =
+    document.getElementById("batchLookupStatus");
+
+  if (!status) return;
+
+  status.textContent = String(message || "");
+  status.className =
+    `batch-lookup-status ${type}`;
+  status.hidden = !message;
+
+  window.clearTimeout(
+    window.batchLookupStatusTimer
+  );
+
+  if (message) {
+    window.batchLookupStatusTimer =
+      window.setTimeout(() => {
+        status.hidden = true;
+        status.textContent = "";
+      }, 3500);
+  }
+}
+
+function refocusBatchLookupInput(input) {
+  window.setTimeout(() => {
+    if (!input) return;
+
+    input.focus({
+      preventScroll: true
+    });
+
+    const length =
+      String(input.value || "").length;
+
+    try {
+      input.setSelectionRange(
+        length,
+        length
+      );
+    } catch (error) {}
+  }, 60);
+}
+
 function loadBatchByNumber() {
   const input = document.getElementById("batchLookupInput");
   const query = input.value.trim();
 
   if (!query) {
-    alert("请输入进口编号或海外运输单号。");
-    input.focus();
+    showBatchLookupStatus(
+      "请输入进口编号或海外运输单号。"
+    );
+    refocusBatchLookupInput(input);
     return;
   }
 
@@ -2462,19 +2515,26 @@ function loadBatchByNumber() {
     if (partialMatches.length === 1) {
       batch = partialMatches[0];
     } else if (partialMatches.length > 1) {
-      alert("找到多个符合的进口记录，请输入更完整的进口编号或海外运输单号。");
-      input.focus();
-      input.select();
+      showBatchLookupStatus(
+        "找到多个符合的进口记录，请输入更完整的进口编号或海外运输单号。"
+      );
+      refocusBatchLookupInput(input);
       return;
     }
   }
 
   if (!batch) {
-    alert("找不到这个进口编号或海外运输单号。");
-    input.focus();
-    input.select();
+    showBatchLookupStatus(
+      "找不到这个进口编号或海外运输单号。产品名称请在下方产品栏输入。"
+    );
+    refocusBatchLookupInput(input);
     return;
   }
+
+  showBatchLookupStatus(
+    `已找到进口编号 ${batch.importNumber}`,
+    "success"
+  );
 
   resetBatchForm(true);
 
@@ -8056,7 +8116,7 @@ function exportSystemExcel() {
 function backupSystemData() {
   const backup = {
     app: "Lover Legend Import Cost & Inventory System",
-    version: "2.98",
+    version: "2.99",
     exportedAt: new Date().toISOString(),
     settings: loadJSON("importSystemSettings", {}),
     products: getProducts(),
