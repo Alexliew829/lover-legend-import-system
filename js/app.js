@@ -4438,6 +4438,10 @@ function publishPricingSuiteImportUnitPrices() {
         importNumber,
         unitPrice,
         pricingUnitPrice,
+        inlandMiscUnitPrice: Math.max(
+          0,
+          Number(pricingUnitPrice) - Number(unitPrice)
+        ),
         landedUnitCostRM,
         currency,
         rate: effectiveRate,
@@ -4487,7 +4491,7 @@ function publishPricingSuiteImportUnitPrices() {
     localStorage.setItem(
       PRICING_SUITE_IMPORT_PRICES_KEY,
       JSON.stringify({
-        version: 4,
+        version: 5,
         exportedAt: new Date().toISOString(),
         records
       })
