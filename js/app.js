@@ -4290,8 +4290,27 @@ function publishPricingSuiteImportUnitPrices() {
   try {
     const imports = getImports();
     const batches = getBatches();
+    const products = getProducts();
     const records = [];
     const seen = new Set();
+
+    const productById = new Map(
+      products.map(product => [String(product?.id || ""), product])
+    );
+
+    const productByName = new Map(
+      products.map(product => [
+        String(product?.name || "").trim().toLocaleLowerCase(),
+        product
+      ])
+    );
+
+    const batchByImportNumber = new Map(
+      batches.map(batch => [
+        String(batch?.importNumber || "").trim().toLocaleLowerCase(),
+        batch
+      ])
+    );
 
     const addRecord = source => {
       const productName = String(
@@ -4302,6 +4321,17 @@ function publishPricingSuiteImportUnitPrices() {
       const currency = String(source?.currency || "").trim().toUpperCase();
       const unitPrice = Number(source?.unitPrice);
       const rate = Number(source?.rate);
+      const matchingProduct =
+        productById.get(String(source?.productId || "")) ||
+        productByName.get(productName.toLocaleLowerCase()) ||
+        null;
+      const matchingBatch =
+        batchByImportNumber.get(importNumber.toLocaleLowerCase()) ||
+        null;
+      const averageCostRM = Number(matchingProduct?.averageCost) || 0;
+      const shippingRate = matchingBatch
+        ? Number(getBatchShippingRate(matchingBatch)) || 0
+        : Number(source?.shippingRate) || 0;
 
       if (
         !productName ||
@@ -4332,6 +4362,8 @@ function publishPricingSuiteImportUnitPrices() {
         unitPrice,
         currency,
         rate: Number.isFinite(rate) && rate > 0 ? rate : 0,
+        averageCostRM,
+        shippingRate,
         date: String(
           source?.arrivalDate ||
           source?.containerDate ||
@@ -4376,7 +4408,7 @@ function publishPricingSuiteImportUnitPrices() {
     localStorage.setItem(
       PRICING_SUITE_IMPORT_PRICES_KEY,
       JSON.stringify({
-        version: 1,
+        version: 2,
         exportedAt: new Date().toISOString(),
         records
       })
