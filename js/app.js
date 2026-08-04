@@ -4332,18 +4332,83 @@ function publishPricingSuiteImportUnitPrices() {
       const shippingRate = matchingBatch
         ? Number(getBatchShippingRate(matchingBatch)) || 0
         : Number(source?.shippingRate) || 0;
-      const landedUnitCostRM =
-        Number(source?.unitCost) > 0
-          ? Number(source.unitCost)
-          : averageCostRM;
       const effectiveRate =
         Number.isFinite(rate) && rate > 0
           ? rate
           : Number(matchingBatch?.rate) || 0;
-      const pricingUnitPrice =
-        landedUnitCostRM > 0 && effectiveRate > 0
-          ? landedUnitCostRM * effectiveRate / (1 + shippingRate / 100)
-          : unitPrice;
+
+      // 供 Pricing Suite 使用的外币成本：
+      // 原购买单价 + 按货值比例分摊的内地运输与花盆费用，
+      // 不包含海外到马来西亚运费。
+      let pricingUnitPrice = unitPrice;
+
+      if (matchingBatch && Number.isFinite(unitPrice) && unitPrice > 0) {
+        const batchItems = Array.isArray(matchingBatch.items)
+          ? matchingBatch.items
+          : [];
+
+        const totalPurchaseForeign = batchItems.reduce((sum, item) => {
+          const quantity = Math.max(
+            0,
+            Number(
+              item?.originalQuantity ??
+              item?.stockAdded ??
+              item?.quantity
+            ) || 0
+          );
+          const itemUnitPrice = Number(item?.unitPrice) || 0;
+          const storedForeignTotal = Number(item?.foreignTotal);
+
+          return sum + (
+            Number.isFinite(storedForeignTotal) && storedForeignTotal > 0
+              ? storedForeignTotal
+              : quantity * itemUnitPrice
+          );
+        }, 0);
+
+        const quantity = Math.max(
+          0,
+          Number(
+            source?.originalQuantity ??
+            source?.stockAdded ??
+            source?.quantity
+          ) || 0
+        );
+
+        const foreignTotal =
+          Number(source?.foreignTotal) > 0
+            ? Number(source.foreignTotal)
+            : quantity * unitPrice;
+
+        const sharedForeign =
+          (Number(matchingBatch.chinaTransportCost) || 0) +
+          (Number(matchingBatch.potCost) || 0);
+
+        if (quantity > 0 && foreignTotal > 0 && totalPurchaseForeign > 0) {
+          const allocatedSharedForeign =
+            sharedForeign * (foreignTotal / totalPurchaseForeign);
+
+          const calculatedPricingUnitPrice =
+            (foreignTotal + allocatedSharedForeign) / quantity;
+
+          if (
+            Number.isFinite(calculatedPricingUnitPrice) &&
+            calculatedPricingUnitPrice > 0
+          ) {
+            pricingUnitPrice = calculatedPricingUnitPrice;
+          }
+        }
+      }
+
+      const landedUnitCostRM =
+        effectiveRate > 0
+          ? pricingUnitPrice / effectiveRate *
+            (1 + shippingRate / 100)
+          : (
+              Number(source?.unitCost) > 0
+                ? Number(source.unitCost)
+                : averageCostRM
+            );
 
       if (
         !productName ||
@@ -4422,7 +4487,7 @@ function publishPricingSuiteImportUnitPrices() {
     localStorage.setItem(
       PRICING_SUITE_IMPORT_PRICES_KEY,
       JSON.stringify({
-        version: 3,
+        version: 4,
         exportedAt: new Date().toISOString(),
         records
       })
