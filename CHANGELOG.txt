@@ -1,3 +1,9 @@
+V2.98 All Versions Corrected
+- APP_VERSION 已统一为 2.98。
+- 云端同步 updatedBy 已统一为 System V2.98 Stable。
+- Backup JSON version 已统一为 2.98。
+- Service Worker 缓存名称已更新，避免继续读取旧版本。
+
 V2.98 Search Sync
 - 与 Pricing Suite V1.5 产品关键字搜索配套。
 - 保留原外币单价、货币、汇率与进口编号输出。
