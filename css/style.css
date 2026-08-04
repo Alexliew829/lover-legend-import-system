@@ -3021,7 +3021,7 @@ body.access-locked {
   }
 }
 
-/* V2.99：进口编号查询采用非阻塞提示，避免 iPhone 原生 alert 卡住 */
+/* V3.00：进口编号查询采用非阻塞提示，避免 iPhone 原生 alert 卡住 */
 .batch-products-topbar {
   flex-wrap: wrap;
 }
