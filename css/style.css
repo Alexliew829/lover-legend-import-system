@@ -3021,3 +3021,38 @@ body.access-locked {
   }
 }
 
+/* V2.99：进口编号查询采用非阻塞提示，避免 iPhone 原生 alert 卡住 */
+.batch-products-topbar {
+  flex-wrap: wrap;
+}
+
+.batch-lookup-status {
+  flex: 0 0 100%;
+  margin-top: 8px;
+  padding: 9px 12px;
+  border: 1px solid #e0b3b3;
+  border-radius: 9px;
+  background: #fff3f3;
+  color: #b42318;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.batch-lookup-status.success {
+  border-color: #abd2b8;
+  background: #eef8f1;
+  color: #17613a;
+}
+
+.batch-lookup-status[hidden] {
+  display: none;
+}
+
+@media (max-width: 680px) {
+  .batch-lookup-status {
+    margin-top: 6px;
+    font-size: 12px;
+  }
+}
+
