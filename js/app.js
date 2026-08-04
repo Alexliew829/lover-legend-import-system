@@ -1,7 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
   setupAccessLock();
   repairLegacyImportDates();
-  cleanupLegacyVndChinaTransportValuesV300();
+  ensureFixedCostSnapshotsV302();
   setupNavigation();
   setupSettings();
   setupDashboard();
@@ -2486,60 +2486,295 @@ function refocusBatchLookupInput(input) {
 
 
 function cleanupLegacyVndChinaTransportValuesV300() {
+  // V3.02：永久停用旧版 VND 自动清零。
+  // 保留空函数只是为了兼容旧调用，不修改任何历史费用。
+  return 0;
+}
+
+function calculateFixedBatchCostSnapshot(batch, items = []) {
+  const batchItems = Array.isArray(items) && items.length
+    ? items
+    : (Array.isArray(batch?.items) ? batch.items : []);
+
+  const goodsTotalFromItems = batchItems.reduce((sum, item) => {
+    const quantity = Math.max(
+      0,
+      Number(
+        item?.originalQuantity ??
+        item?.stockAdded ??
+        item?.quantity
+      ) || 0
+    );
+
+    const unitPrice = Number(item?.unitPrice) || 0;
+    const storedForeignTotal = Number(item?.foreignTotal);
+
+    return sum + (
+      Number.isFinite(storedForeignTotal) &&
+      storedForeignTotal > 0
+        ? storedForeignTotal
+        : quantity * unitPrice
+    );
+  }, 0);
+
+  const originalGoodsTotalForeign =
+    Number(batch?.originalGoodsTotalForeign) > 0
+      ? Number(batch.originalGoodsTotalForeign)
+      : (
+          Number(batch?.foreignTotal) > 0
+            ? Number(batch.foreignTotal)
+            : goodsTotalFromItems
+        );
+
+  const fixedRate =
+    Number(batch?.fixedRate) > 0
+      ? Number(batch.fixedRate)
+      : (
+          Number(batch?.rate) > 0
+            ? Number(batch.rate)
+            : Number(
+                batchItems.find(item => Number(item?.rate) > 0)?.rate
+              ) || 0
+        );
+
+  const fixedChinaTransportCost = Math.max(
+    0,
+    Number(
+      batch?.fixedChinaTransportCost ??
+      batch?.chinaTransportCost
+    ) || 0
+  );
+
+  const fixedPotCost = Math.max(
+    0,
+    Number(
+      batch?.fixedPotCost ??
+      batch?.potCost
+    ) || 0
+  );
+
+  const fixedInlandMiscForeign =
+    fixedChinaTransportCost + fixedPotCost;
+
+  const fixedInlandMiscPercent =
+    originalGoodsTotalForeign > 0
+      ? fixedInlandMiscForeign / originalGoodsTotalForeign * 100
+      : 0;
+
+  const fixedShippingMY = Math.max(
+    0,
+    Number(
+      batch?.fixedShippingMY ??
+      batch?.shippingMY
+    ) || 0
+  );
+
+  const fixedForeignGrandTotal =
+    originalGoodsTotalForeign + fixedInlandMiscForeign;
+
+  const fixedTotalForeignCostsRM =
+    fixedRate > 0
+      ? fixedForeignGrandTotal / fixedRate
+      : 0;
+
+  const fixedShippingRate =
+    fixedTotalForeignCostsRM > 0
+      ? fixedShippingMY / fixedTotalForeignCostsRM * 100
+      : (
+          Number(batch?.fixedShippingRate) > 0
+            ? Number(batch.fixedShippingRate)
+            : Number(batch?.shippingRate) || 0
+        );
+
+  const fixedGrandTotalRM =
+    fixedTotalForeignCostsRM + fixedShippingMY;
+
+  return {
+    originalGoodsTotalForeign,
+    fixedRate,
+    fixedChinaTransportCost,
+    fixedPotCost,
+    fixedInlandMiscForeign,
+    fixedInlandMiscPercent,
+    fixedShippingMY,
+    fixedForeignGrandTotal,
+    fixedTotalForeignCostsRM,
+    fixedShippingRate,
+    fixedGrandTotalRM
+  };
+}
+
+function buildFixedImportCostSnapshot(record, batchSnapshot) {
+  const originalQuantity = Math.max(
+    0,
+    Number(
+      record?.originalQuantity ??
+      record?.stockAdded ??
+      record?.quantity
+    ) || 0
+  );
+
+  const originalUnitPrice = Math.max(
+    0,
+    Number(
+      record?.originalUnitPrice ??
+      record?.unitPrice
+    ) || 0
+  );
+
+  const originalForeignTotal =
+    Number(record?.originalForeignTotal) > 0
+      ? Number(record.originalForeignTotal)
+      : (
+          Number(record?.foreignTotal) > 0
+            ? Number(record.foreignTotal)
+            : originalQuantity * originalUnitPrice
+        );
+
+  const fixedRate =
+    Number(record?.fixedRate) > 0
+      ? Number(record.fixedRate)
+      : batchSnapshot.fixedRate;
+
+  const fixedInlandMiscPercent =
+    Number.isFinite(Number(record?.fixedInlandMiscPercent))
+      ? Number(record.fixedInlandMiscPercent)
+      : batchSnapshot.fixedInlandMiscPercent;
+
+  const fixedShippingRate =
+    Number.isFinite(Number(record?.fixedShippingRate))
+      ? Number(record.fixedShippingRate)
+      : batchSnapshot.fixedShippingRate;
+
+  const fixedPricingUnitPriceForeign =
+    Number(record?.fixedPricingUnitPriceForeign) > 0
+      ? Number(record.fixedPricingUnitPriceForeign)
+      : originalUnitPrice * (1 + fixedInlandMiscPercent / 100);
+
+  const fixedUnitCostRM =
+    Number(record?.fixedUnitCostRM) > 0
+      ? Number(record.fixedUnitCostRM)
+      : (
+          fixedRate > 0
+            ? fixedPricingUnitPriceForeign / fixedRate *
+              (1 + fixedShippingRate / 100)
+            : Number(record?.unitCost) || 0
+        );
+
+  return {
+    originalQuantity,
+    originalUnitPrice,
+    originalForeignTotal,
+    fixedRate,
+    fixedInlandMiscPercent,
+    fixedShippingRate,
+    fixedPricingUnitPriceForeign,
+    fixedUnitCostRM,
+    fixedBatchTotalRM:
+      fixedUnitCostRM * originalQuantity,
+    costSnapshotVersion: "3.02",
+    costSnapshotLocked: true
+  };
+}
+
+function ensureFixedCostSnapshotsV302() {
   const batches = getBatches();
-  if (!Array.isArray(batches) || !batches.length) {
-    return 0;
+  const imports = getImports();
+
+  if (!Array.isArray(batches) || !Array.isArray(imports)) {
+    return false;
   }
 
-  const now = new Date().toISOString();
-  let cleaned = 0;
+  let batchesChanged = false;
+  let importsChanged = false;
 
   const nextBatches = batches.map(batch => {
-    const currency =
-      String(batch?.currency || "").trim().toUpperCase();
+    const items = Array.isArray(batch?.items) ? batch.items : [];
+    const snapshot = calculateFixedBatchCostSnapshot(batch, items);
 
-    const alreadyHandled =
-      batch?.vndChinaTransportCleanupV300 === true ||
-      String(batch?.chinaTransportSource || "").trim() === "manual";
+    const nextItems = items.map(item => {
+      const itemSnapshot = buildFixedImportCostSnapshot(
+        item,
+        snapshot
+      );
 
-    if (currency !== "VND" || alreadyHandled) {
+      const alreadyLocked =
+        item?.costSnapshotLocked === true &&
+        String(item?.costSnapshotVersion || "") === "3.02";
+
+      if (alreadyLocked) return item;
+
+      importsChanged = true;
+      return {
+        ...item,
+        ...itemSnapshot
+      };
+    });
+
+    const alreadyLocked =
+      batch?.costSnapshotLocked === true &&
+      String(batch?.costSnapshotVersion || "") === "3.02";
+
+    if (alreadyLocked && nextItems.every(
+      (item, index) => item === items[index]
+    )) {
       return batch;
     }
 
-    const hasLegacyValue =
-      (Number(batch?.chinaTransportCost) || 0) > 0 ||
-      (Number(batch?.chinaTransportRM) || 0) > 0;
-
-    if (!hasLegacyValue) {
-      return {
-        ...batch,
-        vndChinaTransportCleanupV300: true,
-        chinaTransportSource: "empty",
-        updatedAt: batch?.updatedAt || now
-      };
-    }
-
-    cleaned += 1;
+    batchesChanged = true;
 
     return {
       ...batch,
-      chinaTransportCost: 0,
-      chinaTransportRM: 0,
-      vndChinaTransportCleanupV300: true,
-      chinaTransportSource: "cleared-legacy-recovered",
-      updatedAt: now
+      ...snapshot,
+      items: nextItems,
+      costSnapshotVersion: "3.02",
+      costSnapshotLocked: true
     };
   });
 
-  const changed = nextBatches.some(
-    (batch, index) => batch !== batches[index]
+  const batchByNumber = new Map(
+    nextBatches.map(batch => [
+      String(batch?.importNumber || "").trim().toLowerCase(),
+      batch
+    ])
   );
 
-  if (changed) {
+  const nextImports = imports.map(record => {
+    const alreadyLocked =
+      record?.costSnapshotLocked === true &&
+      String(record?.costSnapshotVersion || "") === "3.02";
+
+    if (alreadyLocked) return record;
+
+    const matchingBatch = batchByNumber.get(
+      String(record?.importNumber || "").trim().toLowerCase()
+    );
+
+    if (!matchingBatch) return record;
+
+    importsChanged = true;
+
+    return {
+      ...record,
+      ...buildFixedImportCostSnapshot(
+        record,
+        calculateFixedBatchCostSnapshot(
+          matchingBatch,
+          matchingBatch.items
+        )
+      )
+    };
+  });
+
+  if (batchesChanged) {
     saveBatches(nextBatches);
   }
 
-  return cleaned;
+  if (importsChanged) {
+    saveImports(nextImports);
+  }
+
+  return batchesChanged || importsChanged;
 }
 
 function loadBatchByNumber() {
@@ -4422,85 +4657,70 @@ function publishPricingSuiteImportUnitPrices() {
         batchByImportNumber.get(importNumber.toLocaleLowerCase()) ||
         null;
       const averageCostRM = Number(matchingProduct?.averageCost) || 0;
-      const shippingRate = matchingBatch
-        ? Number(getBatchShippingRate(matchingBatch)) || 0
-        : Number(source?.shippingRate) || 0;
+      const shippingRate =
+        Number(source?.fixedShippingRate) >= 0 &&
+        source?.fixedShippingRate !== undefined
+          ? Number(source.fixedShippingRate)
+          : (
+              matchingBatch
+                ? Number(getBatchShippingRate(matchingBatch)) || 0
+                : Number(source?.shippingRate) || 0
+            );
+
       const effectiveRate =
-        Number.isFinite(rate) && rate > 0
-          ? rate
-          : Number(matchingBatch?.rate) || 0;
+        Number(source?.fixedRate) > 0
+          ? Number(source.fixedRate)
+          : (
+              Number.isFinite(rate) && rate > 0
+                ? rate
+                : (
+                    Number(matchingBatch?.fixedRate) > 0
+                      ? Number(matchingBatch.fixedRate)
+                      : Number(matchingBatch?.rate) || 0
+                  )
+            );
 
-      // 供 Pricing Suite 使用的外币成本：
-      // 原购买单价 + 按货值比例分摊的内地运输与花盆费用，
-      // 不包含海外到马来西亚运费。
-      let pricingUnitPrice = unitPrice;
+      // V3.02：Pricing Suite 优先读取进口保存时锁定的成本快照。
+      // 售出库存只影响 remainingQuantity，不重新分摊整批费用。
+      const fixedInlandMiscPercent =
+        Number(source?.fixedInlandMiscPercent);
 
-      if (matchingBatch && Number.isFinite(unitPrice) && unitPrice > 0) {
-        const batchItems = Array.isArray(matchingBatch.items)
-          ? matchingBatch.items
-          : [];
+      let pricingUnitPrice =
+        Number(source?.fixedPricingUnitPriceForeign) > 0
+          ? Number(source.fixedPricingUnitPriceForeign)
+          : (
+              Number.isFinite(fixedInlandMiscPercent)
+                ? unitPrice * (1 + fixedInlandMiscPercent / 100)
+                : unitPrice
+            );
 
-        const totalPurchaseForeign = batchItems.reduce((sum, item) => {
-          const quantity = Math.max(
-            0,
-            Number(
-              item?.originalQuantity ??
-              item?.stockAdded ??
-              item?.quantity
-            ) || 0
-          );
-          const itemUnitPrice = Number(item?.unitPrice) || 0;
-          const storedForeignTotal = Number(item?.foreignTotal);
+      if (
+        !(pricingUnitPrice > 0) &&
+        matchingBatch &&
+        Number.isFinite(unitPrice) &&
+        unitPrice > 0
+      ) {
+        const batchInlandPercent =
+          Number(matchingBatch?.fixedInlandMiscPercent);
 
-          return sum + (
-            Number.isFinite(storedForeignTotal) && storedForeignTotal > 0
-              ? storedForeignTotal
-              : quantity * itemUnitPrice
-          );
-        }, 0);
-
-        const quantity = Math.max(
-          0,
-          Number(
-            source?.originalQuantity ??
-            source?.stockAdded ??
-            source?.quantity
-          ) || 0
-        );
-
-        const foreignTotal =
-          Number(source?.foreignTotal) > 0
-            ? Number(source.foreignTotal)
-            : quantity * unitPrice;
-
-        const sharedForeign =
-          (Number(matchingBatch.chinaTransportCost) || 0) +
-          (Number(matchingBatch.potCost) || 0);
-
-        if (quantity > 0 && foreignTotal > 0 && totalPurchaseForeign > 0) {
-          const allocatedSharedForeign =
-            sharedForeign * (foreignTotal / totalPurchaseForeign);
-
-          const calculatedPricingUnitPrice =
-            (foreignTotal + allocatedSharedForeign) / quantity;
-
-          if (
-            Number.isFinite(calculatedPricingUnitPrice) &&
-            calculatedPricingUnitPrice > 0
-          ) {
-            pricingUnitPrice = calculatedPricingUnitPrice;
-          }
-        }
+        pricingUnitPrice =
+          Number.isFinite(batchInlandPercent)
+            ? unitPrice * (1 + batchInlandPercent / 100)
+            : unitPrice;
       }
 
       const landedUnitCostRM =
-        effectiveRate > 0
-          ? pricingUnitPrice / effectiveRate *
-            (1 + shippingRate / 100)
+        Number(source?.fixedUnitCostRM) > 0
+          ? Number(source.fixedUnitCostRM)
           : (
-              Number(source?.unitCost) > 0
-                ? Number(source.unitCost)
-                : averageCostRM
+              effectiveRate > 0
+                ? pricingUnitPrice / effectiveRate *
+                  (1 + shippingRate / 100)
+                : (
+                    Number(source?.unitCost) > 0
+                      ? Number(source.unitCost)
+                      : averageCostRM
+                  )
             );
 
       if (
@@ -4536,46 +4756,23 @@ function publishPricingSuiteImportUnitPrices() {
           Number(pricingUnitPrice) - Number(unitPrice)
         ),
         inlandMiscPercent:
-          matchingBatch
-            ? (() => {
-                const batchItems = Array.isArray(matchingBatch.items)
-                  ? matchingBatch.items
-                  : [];
-
-                const totalGoodsForeign =
-                  Number(matchingBatch.foreignTotal) > 0
-                    ? Number(matchingBatch.foreignTotal)
-                    : batchItems.reduce((sum, item) => {
-                        const quantity = Math.max(
-                          0,
-                          Number(
-                            item?.originalQuantity ??
-                            item?.stockAdded ??
-                            item?.quantity
-                          ) || 0
-                        );
-                        const itemUnitPrice =
-                          Number(item?.unitPrice) || 0;
-                        const storedForeignTotal =
-                          Number(item?.foreignTotal);
-
-                        return sum + (
-                          Number.isFinite(storedForeignTotal) &&
-                          storedForeignTotal > 0
-                            ? storedForeignTotal
-                            : quantity * itemUnitPrice
-                        );
-                      }, 0);
-
-                const inlandMiscForeign =
-                  (Number(matchingBatch.chinaTransportCost) || 0) +
-                  (Number(matchingBatch.potCost) || 0);
-
-                return totalGoodsForeign > 0
-                  ? inlandMiscForeign / totalGoodsForeign * 100
-                  : 0;
-              })()
-            : 0,
+          Number.isFinite(Number(source?.fixedInlandMiscPercent))
+            ? Number(source.fixedInlandMiscPercent)
+            : (
+                Number.isFinite(
+                  Number(matchingBatch?.fixedInlandMiscPercent)
+                )
+                  ? Number(matchingBatch.fixedInlandMiscPercent)
+                  : 0
+              ),
+        fixedUnitCostRM: landedUnitCostRM,
+        costSnapshotVersion:
+          source?.costSnapshotVersion ||
+          matchingBatch?.costSnapshotVersion ||
+          "",
+        costSnapshotLocked:
+          source?.costSnapshotLocked === true ||
+          matchingBatch?.costSnapshotLocked === true,
         landedUnitCostRM,
         currency,
         rate: effectiveRate,
@@ -4625,7 +4822,7 @@ function publishPricingSuiteImportUnitPrices() {
     localStorage.setItem(
       PRICING_SUITE_IMPORT_PRICES_KEY,
       JSON.stringify({
-        version: 7,
+        version: 11,
         exportedAt: new Date().toISOString(),
         records
       })
@@ -5681,6 +5878,17 @@ function saveBatchImport() {
         stockAdded: originalQuantity,
         unitCost: preservedUnitCost,
         batchTotal: preservedBatchTotal,
+        fixedUnitCostRM:
+          Number(oldItem.fixedUnitCostRM) > 0
+            ? Number(oldItem.fixedUnitCostRM)
+            : preservedUnitCost,
+        fixedBatchTotalRM:
+          Number(oldItem.fixedBatchTotalRM) > 0
+            ? Number(oldItem.fixedBatchTotalRM)
+            : preservedBatchTotal,
+        costSnapshotVersion:
+          oldItem.costSnapshotVersion || "3.02",
+        costSnapshotLocked: true,
         updatedAt: new Date().toISOString()
       });
     }
@@ -5730,9 +5938,33 @@ function saveBatchImport() {
     batches
   );
 
+  const fixedBatchSnapshot = {
+    originalGoodsTotalForeign: result.totalPurchaseForeign,
+    fixedRate: parseAmount(document.getElementById("batchRate").value),
+    fixedChinaTransportCost: result.chinaForeign,
+    fixedPotCost: result.potForeign,
+    fixedInlandMiscForeign:
+      result.chinaForeign + result.potForeign,
+    fixedInlandMiscPercent:
+      result.totalPurchaseForeign > 0
+        ? (
+            (result.chinaForeign + result.potForeign) /
+            result.totalPurchaseForeign
+          ) * 100
+        : 0,
+    fixedShippingMY: result.shippingMY,
+    fixedForeignGrandTotal: result.foreignGrandTotal,
+    fixedTotalForeignCostsRM: result.totalPurchaseRM,
+    fixedShippingRate: result.shippingRate,
+    fixedGrandTotalRM: result.grandTotal,
+    costSnapshotVersion: "3.02",
+    costSnapshotLocked: true
+  };
+
   const batch = {
     id: batchId,
     importNumber,
+    ...fixedBatchSnapshot,
     date: today,
     rackQuantity: Math.max(0, Math.floor(parseAmount(document.getElementById("batchRackQuantity").value))),
     trackingNumber: document.getElementById("batchTrackingNumber").value.trim(),
@@ -5742,7 +5974,6 @@ function saveBatchImport() {
       ? (result.chinaForeign / result.foreignGrandTotal) * result.totalPurchaseRM : 0,
     chinaTransportSource:
       result.chinaForeign > 0 ? "manual" : "empty",
-    vndChinaTransportCleanupV300: true,
     potCost: result.potForeign,
     potRM: result.totalPurchaseRM > 0 && result.foreignGrandTotal > 0
       ? (result.potForeign / result.foreignGrandTotal) * result.totalPurchaseRM : 0,
@@ -5791,8 +6022,26 @@ function saveBatchImport() {
       updatedAt: new Date().toISOString()
     };
 
+    const fixedItemSnapshot = {
+      originalUnitPrice: item.unitPrice,
+      originalForeignTotal: item.foreignTotal,
+      fixedRate: fixedBatchSnapshot.fixedRate,
+      fixedInlandMiscPercent:
+        fixedBatchSnapshot.fixedInlandMiscPercent,
+      fixedShippingRate:
+        fixedBatchSnapshot.fixedShippingRate,
+      fixedPricingUnitPriceForeign:
+        item.unitPrice *
+        (1 + fixedBatchSnapshot.fixedInlandMiscPercent / 100),
+      fixedUnitCostRM: item.unitCost,
+      fixedBatchTotalRM: item.itemTotal,
+      costSnapshotVersion: "3.02",
+      costSnapshotLocked: true
+    };
+
     const record = {
       id: `IMP${Date.now()}${item.id}`, batchId, importNumber, date: today,
+      ...fixedItemSnapshot,
       productId: products[productIndex].id, productName: item.name,
       category: item.category, originalQuantity: item.quantity,
       quantity: item.quantity, remainingQuantity: item.quantity,
@@ -5833,6 +6082,12 @@ function openBatchForEdit(importNumber) {
 
 
 function getBatchShippingRate(batch) {
+  const fixedRate = Number(batch?.fixedShippingRate);
+
+  if (Number.isFinite(fixedRate) && fixedRate >= 0) {
+    return fixedRate;
+  }
+
   const storedRate = Number(batch?.shippingRate);
 
   if (Number.isFinite(storedRate) && storedRate > 0) {
@@ -8142,7 +8397,7 @@ function exportSystemExcel() {
 function backupSystemData() {
   const backup = {
     app: "Lover Legend Import Cost & Inventory System",
-    version: "3.01",
+    version: "3.02",
     exportedAt: new Date().toISOString(),
     settings: loadJSON("importSystemSettings", {}),
     products: getProducts(),
