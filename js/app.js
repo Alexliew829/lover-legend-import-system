@@ -2485,8 +2485,34 @@ function refocusBatchLookupInput(input) {
 }
 
 
+function isCorruptedDateValue(value) {
+  if (typeof value !== "string") return false;
+
+  const text = value.trim();
+
+  return /^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(text) ||
+    /^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(text);
+}
+
+function readStoredCostNumber(value) {
+  if (isCorruptedDateValue(value)) return 0;
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  const normalized = String(value ?? "")
+    .replace(/,/g, "")
+    .replace(/[^0-9.\-]/g, "")
+    .trim();
+
+  const number = Number(normalized);
+
+  return Number.isFinite(number) ? number : 0;
+}
+
 function cleanupLegacyVndChinaTransportValuesV300() {
-  // V3.04：永久停用旧版 VND 自动清零。
+  // V3.05：永久停用旧版 VND 自动清零。
   // 保留空函数只是为了兼容旧调用，不修改任何历史费用。
   return 0;
 }
@@ -2527,10 +2553,10 @@ function calculateFixedBatchCostSnapshot(batch, items = []) {
         );
 
   const fixedRate =
-    Number(batch?.fixedRate) > 0
+    readStoredCostNumber(batch?.fixedRate) > 0
       ? Number(batch.fixedRate)
       : (
-          Number(batch?.rate) > 0
+          readStoredCostNumber(batch?.rate) > 0
             ? Number(batch.rate)
             : Number(
                 batchItems.find(item => Number(item?.rate) > 0)?.rate
@@ -2578,13 +2604,13 @@ function calculateFixedBatchCostSnapshot(batch, items = []) {
       : 0;
 
   const historicalShippingRate = [
-    Number(batch?.shippingRate),
-    ...batchItems.map(item => Number(item?.fixedShippingRate)),
-    ...batchItems.map(item => Number(item?.shippingRate))
+    readStoredCostNumber(batch?.shippingRate),
+    ...batchItems.map(item => readStoredCostNumber(item?.fixedShippingRate)),
+    ...batchItems.map(item => readStoredCostNumber(item?.shippingRate))
   ].find(value => Number.isFinite(value) && value > 0) || 0;
 
   const existingFixedShippingRate =
-    Number(batch?.fixedShippingRate);
+    readStoredCostNumber(batch?.fixedShippingRate);
 
   const fixedShippingRate =
     fixedShippingMY > 0 && fixedTotalForeignCostsRM > 0
@@ -2694,7 +2720,7 @@ function buildFixedImportCostSnapshot(record, batchSnapshot) {
     fixedUnitCostRM,
     fixedBatchTotalRM:
       fixedUnitCostRM * originalQuantity,
-    costSnapshotVersion: "3.04",
+    costSnapshotVersion: "3.05",
     costSnapshotLocked: true
   };
 }
@@ -2722,15 +2748,15 @@ function ensureFixedCostSnapshotsV302() {
 
       const alreadyLocked =
         item?.costSnapshotLocked === true &&
-        ["3.04", "3.04"].includes(
+        ["3.05", "3.05"].includes(
           String(item?.costSnapshotVersion || "")
         );
 
       const currentFixedShippingRate =
-        Number(item?.fixedShippingRate);
+        readStoredCostNumber(item?.fixedShippingRate);
 
       const historicalShippingRate =
-        Number(item?.shippingRate);
+        readStoredCostNumber(item?.shippingRate);
 
       const needsShippingRepair =
         (
@@ -2751,16 +2777,16 @@ function ensureFixedCostSnapshotsV302() {
 
     const alreadyLocked =
       batch?.costSnapshotLocked === true &&
-      ["3.04", "3.04"].includes(
+      ["3.05", "3.05"].includes(
         String(batch?.costSnapshotVersion || "")
       );
 
     const currentFixedShippingRate =
-      Number(batch?.fixedShippingRate);
+      readStoredCostNumber(batch?.fixedShippingRate);
 
     const historicalShippingRate = [
-      Number(batch?.shippingRate),
-      ...items.map(item => Number(item?.shippingRate))
+      readStoredCostNumber(batch?.shippingRate),
+      ...items.map(item => readStoredCostNumber(item?.shippingRate))
     ].find(value => Number.isFinite(value) && value > 0) || 0;
 
     const needsShippingRepair =
@@ -2786,7 +2812,7 @@ function ensureFixedCostSnapshotsV302() {
       ...batch,
       ...snapshot,
       items: nextItems,
-      costSnapshotVersion: "3.04",
+      costSnapshotVersion: "3.05",
       costSnapshotLocked: true
     };
   });
@@ -2801,7 +2827,7 @@ function ensureFixedCostSnapshotsV302() {
   const nextImports = imports.map(record => {
     const alreadyLocked =
       record?.costSnapshotLocked === true &&
-      String(record?.costSnapshotVersion || "") === "3.04";
+      String(record?.costSnapshotVersion || "") === "3.05";
 
     if (alreadyLocked) return record;
 
@@ -4739,7 +4765,7 @@ function publishPricingSuiteImportUnitPrices() {
                   )
             );
 
-      // V3.04：Pricing Suite 优先读取进口保存时锁定的成本快照。
+      // V3.05：Pricing Suite 优先读取进口保存时锁定的成本快照。
       // 售出库存只影响 remainingQuantity，不重新分摊整批费用。
       const fixedInlandMiscPercent =
         Number(source?.fixedInlandMiscPercent);
@@ -5946,7 +5972,7 @@ function saveBatchImport() {
             ? Number(oldItem.fixedBatchTotalRM)
             : preservedBatchTotal,
         costSnapshotVersion:
-          oldItem.costSnapshotVersion || "3.04",
+          oldItem.costSnapshotVersion || "3.05",
         costSnapshotLocked: true,
         updatedAt: new Date().toISOString()
       });
@@ -6016,7 +6042,7 @@ function saveBatchImport() {
     fixedTotalForeignCostsRM: result.totalPurchaseRM,
     fixedShippingRate: result.shippingRate,
     fixedGrandTotalRM: result.grandTotal,
-    costSnapshotVersion: "3.04",
+    costSnapshotVersion: "3.05",
     costSnapshotLocked: true
   };
 
@@ -6094,7 +6120,7 @@ function saveBatchImport() {
         (1 + fixedBatchSnapshot.fixedInlandMiscPercent / 100),
       fixedUnitCostRM: item.unitCost,
       fixedBatchTotalRM: item.itemTotal,
-      costSnapshotVersion: "3.04",
+      costSnapshotVersion: "3.05",
       costSnapshotLocked: true
     };
 
@@ -6141,19 +6167,26 @@ function openBatchForEdit(importNumber) {
 
 
 function getBatchShippingRate(batch) {
-  const fixedRate = Number(batch?.fixedShippingRate);
+  const fixedRate = readStoredCostNumber(
+    batch?.fixedShippingRate
+  );
 
-  if (Number.isFinite(fixedRate) && fixedRate >= 0) {
+  if (fixedRate > 0) {
     return fixedRate;
   }
 
-  const storedRate = Number(batch?.shippingRate);
+  const storedRate = readStoredCostNumber(
+    batch?.shippingRate
+  );
 
-  if (Number.isFinite(storedRate) && storedRate > 0) {
+  if (storedRate > 0) {
     return storedRate;
   }
 
-  const shippingMY = Number(batch?.shippingMY) || 0;
+  const shippingMY = readStoredCostNumber(
+    batch?.fixedShippingMY ??
+    batch?.shippingMY
+  );
 
   if (shippingMY <= 0) {
     return 0;
@@ -6168,7 +6201,7 @@ function getBatchShippingRate(batch) {
       : [];
 
     const currencyRate =
-      Number(batch?.rate) ||
+      readStoredCostNumber(batch?.rate) ||
       Number(items.find(item => Number(item?.rate) > 0)?.rate) ||
       0;
 
@@ -8456,7 +8489,7 @@ function exportSystemExcel() {
 function backupSystemData() {
   const backup = {
     app: "Lover Legend Import Cost & Inventory System",
-    version: "3.04",
+    version: "3.05",
     exportedAt: new Date().toISOString(),
     settings: loadJSON("importSystemSettings", {}),
     products: getProducts(),
