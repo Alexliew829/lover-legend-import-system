@@ -10,7 +10,20 @@ document.addEventListener("DOMContentLoaded", () => {
   setupGlobalMobilePullDownClear();
   registerServiceWorker();
   setupCloudSync();
-  publishPricingSuiteImportUnitPrices();
+
+  const republishPricingSuiteProducts = () => {
+    publishPricingSuiteImportUnitPrices();
+    setTimeout(publishPricingSuiteImportUnitPrices, 800);
+    setTimeout(publishPricingSuiteImportUnitPrices, 2500);
+  };
+
+  republishPricingSuiteProducts();
+
+  window.addEventListener("pageshow", republishPricingSuiteProducts);
+  window.addEventListener("focus", republishPricingSuiteProducts);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) republishPricingSuiteProducts();
+  });
 });
 
 
