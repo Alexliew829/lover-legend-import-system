@@ -4332,6 +4332,18 @@ function publishPricingSuiteImportUnitPrices() {
       const shippingRate = matchingBatch
         ? Number(getBatchShippingRate(matchingBatch)) || 0
         : Number(source?.shippingRate) || 0;
+      const landedUnitCostRM =
+        Number(source?.unitCost) > 0
+          ? Number(source.unitCost)
+          : averageCostRM;
+      const effectiveRate =
+        Number.isFinite(rate) && rate > 0
+          ? rate
+          : Number(matchingBatch?.rate) || 0;
+      const pricingUnitPrice =
+        landedUnitCostRM > 0 && effectiveRate > 0
+          ? landedUnitCostRM * effectiveRate / (1 + shippingRate / 100)
+          : unitPrice;
 
       if (
         !productName ||
@@ -4360,8 +4372,10 @@ function publishPricingSuiteImportUnitPrices() {
         category,
         importNumber,
         unitPrice,
+        pricingUnitPrice,
+        landedUnitCostRM,
         currency,
-        rate: Number.isFinite(rate) && rate > 0 ? rate : 0,
+        rate: effectiveRate,
         averageCostRM,
         shippingRate,
         date: String(
@@ -4408,7 +4422,7 @@ function publishPricingSuiteImportUnitPrices() {
     localStorage.setItem(
       PRICING_SUITE_IMPORT_PRICES_KEY,
       JSON.stringify({
-        version: 2,
+        version: 3,
         exportedAt: new Date().toISOString(),
         records
       })
