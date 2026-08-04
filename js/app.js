@@ -10,6 +10,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupGlobalMobilePullDownClear();
   registerServiceWorker();
   setupCloudSync();
+  publishPricingSuiteImportUnitPrices();
 });
 
 
@@ -4282,6 +4283,114 @@ function renderImportHistory() {
   output.innerHTML = summaryBox + compactRows;
 }
 
+const PRICING_SUITE_IMPORT_PRICES_KEY =
+  "loverLegendPricingSuiteImportUnitPrices";
+
+function publishPricingSuiteImportUnitPrices() {
+  try {
+    const imports = getImports();
+    const batches = getBatches();
+    const records = [];
+    const seen = new Set();
+
+    const addRecord = source => {
+      const productName = String(
+        source?.productName || source?.name || ""
+      ).trim();
+      const category = String(source?.category || "盆栽").trim();
+      const importNumber = String(source?.importNumber || "").trim();
+      const currency = String(source?.currency || "").trim().toUpperCase();
+      const unitPrice = Number(source?.unitPrice);
+      const rate = Number(source?.rate);
+
+      if (
+        !productName ||
+        category !== "盆栽" ||
+        !currency ||
+        !Number.isFinite(unitPrice) ||
+        unitPrice <= 0
+      ) {
+        return;
+      }
+
+      const key = [
+        productName.toLocaleLowerCase(),
+        importNumber.toLocaleLowerCase(),
+        currency,
+        unitPrice
+      ].join("|");
+
+      if (seen.has(key)) return;
+      seen.add(key);
+
+      records.push({
+        id: String(source?.id || key),
+        productId: String(source?.productId || ""),
+        productName,
+        category,
+        importNumber,
+        unitPrice,
+        currency,
+        rate: Number.isFinite(rate) && rate > 0 ? rate : 0,
+        date: String(
+          source?.arrivalDate ||
+          source?.containerDate ||
+          source?.date ||
+          ""
+        ),
+        updatedAt: String(
+          source?.updatedAt || source?.createdAt || ""
+        )
+      });
+    };
+
+    imports.forEach(addRecord);
+
+    batches.forEach(batch => {
+      (Array.isArray(batch?.items) ? batch.items : []).forEach(item => {
+        addRecord({
+          ...item,
+          importNumber: item?.importNumber || batch?.importNumber || "",
+          currency: item?.currency || batch?.currency || "",
+          rate: item?.rate || batch?.rate || 0,
+          arrivalDate: item?.arrivalDate || batch?.arrivalDate || "",
+          containerDate: item?.containerDate || batch?.containerDate || ""
+        });
+      });
+    });
+
+    records.sort((a, b) => {
+      const nameCompare = a.productName.localeCompare(
+        b.productName,
+        "zh-Hans-CN",
+        { numeric: true, sensitivity: "base" }
+      );
+
+      if (nameCompare !== 0) return nameCompare;
+      return b.importNumber.localeCompare(a.importNumber, undefined, {
+        numeric: true,
+        sensitivity: "base"
+      });
+    });
+
+    localStorage.setItem(
+      PRICING_SUITE_IMPORT_PRICES_KEY,
+      JSON.stringify({
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        records
+      })
+    );
+
+    window.dispatchEvent(new CustomEvent(
+      "loverLegendImportUnitPricesUpdated",
+      { detail: { count: records.length } }
+    ));
+  } catch (error) {
+    console.warn("无法更新 Pricing Suite 原外币单价资料", error);
+  }
+}
+
 function getImports(){return loadJSON("importSystemImports",[]);}
 function saveImports(v) {
   const previous = getImports();
@@ -4289,6 +4398,7 @@ function saveImports(v) {
   if (typeof markCloudCollectionSaved === "function") {
     markCloudCollectionSaved("imports", previous, v);
   }
+  publishPricingSuiteImportUnitPrices();
 }
 function getBatches(){return loadJSON("importSystemBatches",[]);}
 function saveBatches(v) {
@@ -4297,6 +4407,7 @@ function saveBatches(v) {
   if (typeof markCloudCollectionSaved === "function") {
     markCloudCollectionSaved("batches", previous, v);
   }
+  publishPricingSuiteImportUnitPrices();
 }
 function renderBatchSuggestions(keyword = ""){
   const list =
