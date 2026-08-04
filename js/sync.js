@@ -376,7 +376,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     action: "push",
     force: false,
     baseRevision: Number(config.revision) || 0,
-    updatedBy: "System V2.99 Stable",
+    updatedBy: "System V3.01 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
@@ -465,7 +465,14 @@ function applyRemoteData(data) {
     cloudApplyingRemote = false;
   }
 
-  // 云端拉取后只刷新画面，不自动重建或上传，避免同步循环与Restore后反向覆盖。
+  // V3.01：云端旧资料载入后，清除 VND 自动倒推出来的错误运输费用。
+  // 只删除两个显示字段，不重算库存、Average Cost、Unit Cost 或历史总成本。
+  if (
+    typeof cleanupLegacyVndChinaTransportValuesV300 === "function"
+  ) {
+    cleanupLegacyVndChinaTransportValuesV300();
+  }
+
   refreshSystemViewsAfterSync();
 }
 

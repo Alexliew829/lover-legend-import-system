@@ -1,6 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
   setupAccessLock();
   repairLegacyImportDates();
+  cleanupLegacyVndChinaTransportValuesV300();
   setupNavigation();
   setupSettings();
   setupDashboard();
@@ -2483,6 +2484,64 @@ function refocusBatchLookupInput(input) {
   }, 60);
 }
 
+
+function cleanupLegacyVndChinaTransportValuesV300() {
+  const batches = getBatches();
+  if (!Array.isArray(batches) || !batches.length) {
+    return 0;
+  }
+
+  const now = new Date().toISOString();
+  let cleaned = 0;
+
+  const nextBatches = batches.map(batch => {
+    const currency =
+      String(batch?.currency || "").trim().toUpperCase();
+
+    const alreadyHandled =
+      batch?.vndChinaTransportCleanupV300 === true ||
+      String(batch?.chinaTransportSource || "").trim() === "manual";
+
+    if (currency !== "VND" || alreadyHandled) {
+      return batch;
+    }
+
+    const hasLegacyValue =
+      (Number(batch?.chinaTransportCost) || 0) > 0 ||
+      (Number(batch?.chinaTransportRM) || 0) > 0;
+
+    if (!hasLegacyValue) {
+      return {
+        ...batch,
+        vndChinaTransportCleanupV300: true,
+        chinaTransportSource: "empty",
+        updatedAt: batch?.updatedAt || now
+      };
+    }
+
+    cleaned += 1;
+
+    return {
+      ...batch,
+      chinaTransportCost: 0,
+      chinaTransportRM: 0,
+      vndChinaTransportCleanupV300: true,
+      chinaTransportSource: "cleared-legacy-recovered",
+      updatedAt: now
+    };
+  });
+
+  const changed = nextBatches.some(
+    (batch, index) => batch !== batches[index]
+  );
+
+  if (changed) {
+    saveBatches(nextBatches);
+  }
+
+  return cleaned;
+}
+
 function loadBatchByNumber() {
   const input = document.getElementById("batchLookupInput");
   const query = input.value.trim();
@@ -2575,56 +2634,23 @@ function loadBatchByNumber() {
 
   const shippingMY = Number(batch.shippingMY) || 0;
 
-  const storedChinaTransportCost = Number(batch.chinaTransportCost);
-  const storedChinaTransportRM = Number(batch.chinaTransportRM);
+  const storedChinaTransportCost =
+    Number(batch.chinaTransportCost);
 
-  const totalProductForeign = batchItems.reduce(
-    (sum, item) => {
-      const storedForeignTotal = Number(item.foreignTotal);
-
-      if (Number.isFinite(storedForeignTotal) && storedForeignTotal > 0) {
-        return sum + storedForeignTotal;
-      }
-
-      return sum +
-        ((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0));
-    },
-    0
-  );
-
-  const storedForeignCostsRM = Number(batch.totalForeignCostsRM);
-  const storedGrandTotal = Number(batch.grandTotal);
-
-  const recoverableForeignCostsRM =
-    Number.isFinite(storedForeignCostsRM) && storedForeignCostsRM > 0
-      ? storedForeignCostsRM
-      : (
-          Number.isFinite(storedGrandTotal) &&
-          storedGrandTotal > shippingMY
-            ? storedGrandTotal - shippingMY
-            : 0
-        );
-
-  const recoveredChinaTransportCost =
-    recoverableForeignCostsRM > 0 &&
-    effectiveRate > 0
-      ? Math.max(
-          0,
-          (recoverableForeignCostsRM * effectiveRate) -
-          totalProductForeign -
-          potCost
-        )
-      : 0;
+  const storedChinaTransportRM =
+    Number(batch.chinaTransportRM);
 
   const chinaTransportCost =
-    Number.isFinite(storedChinaTransportCost) && storedChinaTransportCost > 0
+    Number.isFinite(storedChinaTransportCost) &&
+    storedChinaTransportCost > 0
       ? storedChinaTransportCost
       : (
           Number.isFinite(storedChinaTransportRM) &&
           storedChinaTransportRM > 0 &&
-          effectiveRate > 0
+          effectiveRate > 0 &&
+          String(batch.chinaTransportSource || "") === "manual"
             ? storedChinaTransportRM * effectiveRate
-            : recoveredChinaTransportCost
+            : 0
         );
 
   document.getElementById("batchRackQuantity").value = rackQuantity;
@@ -2637,15 +2663,9 @@ function loadBatchByNumber() {
     (Number(batch.grandTotal) || Number(batch.shippingRate))
   ) {
     document.getElementById("batchStatusText").textContent =
-      `提醒：这项进口记录属于旧版本资料，无法自动恢复当时的内地运输＋打木架费用。如该栏位为空，请按原始单据补回后再更新，不会影响现有库存及Average Cost。`;
-  } else if (
-    !(Number.isFinite(storedChinaTransportCost) && storedChinaTransportCost > 0) &&
-    !(Number.isFinite(storedChinaTransportRM) && storedChinaTransportRM > 0) &&
-    recoveredChinaTransportCost > 0
-  ) {
-    document.getElementById("batchStatusText").textContent =
-      `已从该批原有总成本自动恢复内地运输＋打木架费用：${formatMoney(recoveredChinaTransportCost)} ${currency}`;
+      "这项旧进口记录没有真实保存内地运输＋打木架费用，系统已保持空白，不再自动倒推。原库存、Average Cost、原每棵成本和历史总成本都不会改变。";
   }
+
   document.getElementById("batchPotCost").value =
     potCost ? formatMoney(potCost) : "";
   document.getElementById("batchCurrency").value = currency;
@@ -4517,41 +4537,44 @@ function publishPricingSuiteImportUnitPrices() {
         ),
         inlandMiscPercent:
           matchingBatch
-            ? (
-                (
-                  (Number(matchingBatch.chinaTransportCost) || 0) +
-                  (Number(matchingBatch.potCost) || 0)
-                ) /
-                Math.max(
-                  1,
-                  (
-                    Number(matchingBatch.foreignTotal) ||
-                    (Array.isArray(matchingBatch.items)
-                      ? matchingBatch.items.reduce((sum, item) => {
-                          const quantity = Math.max(
-                            0,
-                            Number(
-                              item?.originalQuantity ??
-                              item?.stockAdded ??
-                              item?.quantity
-                            ) || 0
-                          );
-                          const itemUnitPrice = Number(item?.unitPrice) || 0;
-                          const storedForeignTotal = Number(item?.foreignTotal);
+            ? (() => {
+                const batchItems = Array.isArray(matchingBatch.items)
+                  ? matchingBatch.items
+                  : [];
 
-                          return sum + (
-                            Number.isFinite(storedForeignTotal) &&
-                            storedForeignTotal > 0
-                              ? storedForeignTotal
-                              : quantity * itemUnitPrice
-                          );
-                        }, 0)
-                      : 0)
-                  ) +
+                const totalGoodsForeign =
+                  Number(matchingBatch.foreignTotal) > 0
+                    ? Number(matchingBatch.foreignTotal)
+                    : batchItems.reduce((sum, item) => {
+                        const quantity = Math.max(
+                          0,
+                          Number(
+                            item?.originalQuantity ??
+                            item?.stockAdded ??
+                            item?.quantity
+                          ) || 0
+                        );
+                        const itemUnitPrice =
+                          Number(item?.unitPrice) || 0;
+                        const storedForeignTotal =
+                          Number(item?.foreignTotal);
+
+                        return sum + (
+                          Number.isFinite(storedForeignTotal) &&
+                          storedForeignTotal > 0
+                            ? storedForeignTotal
+                            : quantity * itemUnitPrice
+                        );
+                      }, 0);
+
+                const inlandMiscForeign =
                   (Number(matchingBatch.chinaTransportCost) || 0) +
-                  (Number(matchingBatch.potCost) || 0)
-                )
-              ) * 100
+                  (Number(matchingBatch.potCost) || 0);
+
+                return totalGoodsForeign > 0
+                  ? inlandMiscForeign / totalGoodsForeign * 100
+                  : 0;
+              })()
             : 0,
         landedUnitCostRM,
         currency,
@@ -4602,7 +4625,7 @@ function publishPricingSuiteImportUnitPrices() {
     localStorage.setItem(
       PRICING_SUITE_IMPORT_PRICES_KEY,
       JSON.stringify({
-        version: 6,
+        version: 7,
         exportedAt: new Date().toISOString(),
         records
       })
@@ -5717,6 +5740,9 @@ function saveBatchImport() {
     chinaTransportCost: result.chinaForeign,
     chinaTransportRM: result.totalPurchaseRM > 0 && result.foreignGrandTotal > 0
       ? (result.chinaForeign / result.foreignGrandTotal) * result.totalPurchaseRM : 0,
+    chinaTransportSource:
+      result.chinaForeign > 0 ? "manual" : "empty",
+    vndChinaTransportCleanupV300: true,
     potCost: result.potForeign,
     potRM: result.totalPurchaseRM > 0 && result.foreignGrandTotal > 0
       ? (result.potForeign / result.foreignGrandTotal) * result.totalPurchaseRM : 0,
@@ -8116,7 +8142,7 @@ function exportSystemExcel() {
 function backupSystemData() {
   const backup = {
     app: "Lover Legend Import Cost & Inventory System",
-    version: "2.99",
+    version: "3.01",
     exportedAt: new Date().toISOString(),
     settings: loadJSON("importSystemSettings", {}),
     products: getProducts(),
