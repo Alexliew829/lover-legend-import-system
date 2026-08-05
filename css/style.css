@@ -3056,7 +3056,7 @@ body.access-locked {
   }
 }
 
-/* V3.08：编辑进口记录时锁定所有会影响原始成本的输入 */
+/* V4.0：编辑进口记录时锁定所有会影响原始成本的输入 */
 .cost-field-locked,
 .cost-field-locked:disabled {
   cursor: not-allowed;
@@ -3089,3 +3089,17 @@ body.access-locked {
   }
 }
 
+
+
+
+
+/* V4.0：上方进口编辑只显示原进口数量 */
+.batch-original-qty {
+  min-width: 88px;
+}
+
+@media (max-width: 680px) {
+  .batch-original-qty {
+    min-width: 76px;
+  }
+}
