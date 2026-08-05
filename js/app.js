@@ -2512,7 +2512,7 @@ function readStoredCostNumber(value) {
 }
 
 function cleanupLegacyVndChinaTransportValuesV300() {
-  // V3.05：永久停用旧版 VND 自动清零。
+  // V3.07：永久停用旧版 VND 自动清零。
   // 保留空函数只是为了兼容旧调用，不修改任何历史费用。
   return 0;
 }
@@ -2720,7 +2720,7 @@ function buildFixedImportCostSnapshot(record, batchSnapshot) {
     fixedUnitCostRM,
     fixedBatchTotalRM:
       fixedUnitCostRM * originalQuantity,
-    costSnapshotVersion: "3.05",
+    costSnapshotVersion: "3.07",
     costSnapshotLocked: true
   };
 }
@@ -2748,7 +2748,7 @@ function ensureFixedCostSnapshotsV302() {
 
       const alreadyLocked =
         item?.costSnapshotLocked === true &&
-        ["3.05", "3.05"].includes(
+        ["3.07", "3.07"].includes(
           String(item?.costSnapshotVersion || "")
         );
 
@@ -2777,7 +2777,7 @@ function ensureFixedCostSnapshotsV302() {
 
     const alreadyLocked =
       batch?.costSnapshotLocked === true &&
-      ["3.05", "3.05"].includes(
+      ["3.07", "3.07"].includes(
         String(batch?.costSnapshotVersion || "")
       );
 
@@ -2812,7 +2812,7 @@ function ensureFixedCostSnapshotsV302() {
       ...batch,
       ...snapshot,
       items: nextItems,
-      costSnapshotVersion: "3.05",
+      costSnapshotVersion: "3.07",
       costSnapshotLocked: true
     };
   });
@@ -2827,7 +2827,7 @@ function ensureFixedCostSnapshotsV302() {
   const nextImports = imports.map(record => {
     const alreadyLocked =
       record?.costSnapshotLocked === true &&
-      String(record?.costSnapshotVersion || "") === "3.05";
+      String(record?.costSnapshotVersion || "") === "3.07";
 
     if (alreadyLocked) return record;
 
@@ -4765,7 +4765,7 @@ function publishPricingSuiteImportUnitPrices() {
                   )
             );
 
-      // V3.05：Pricing Suite 优先读取进口保存时锁定的成本快照。
+      // V3.07：Pricing Suite 优先读取进口保存时锁定的成本快照。
       // 售出库存只影响 remainingQuantity，不重新分摊整批费用。
       const fixedInlandMiscPercent =
         Number(source?.fixedInlandMiscPercent);
@@ -5858,23 +5858,97 @@ function saveBatchImport() {
     }
 
     const oldBatch = batches[batchIndex];
-    const oldItems = getBatchItemsForDisplay(oldBatch);
-    const keyOf = item => `${String(item.productId || "")}::${String(item.productName || item.name || "").trim().toLowerCase()}::${String(item.category || "盆栽")}`;
-    const oldMap = new Map(oldItems.map(item => [keyOf(item), item]));
-    const editedMap = new Map(result.valid.map(item => [keyOf({
-      productId: item.productId,
-      productName: item.name,
-      category: item.category
-    }), item]));
 
-    if (oldMap.size !== editedMap.size || [...oldMap.keys()].some(key => !editedMap.has(key))) {
-      status.textContent = "库存调整只能修改原进口记录内产品的剩余数量，不能新增、删除或更换产品。";
+    // V3.07：编辑进口记录时，以当前画面输入的日期为准。
+    // Date Picker 会同步到 DD-MM-YYYY 输入框，这里再次正规化，
+    // 避免旧 batch 日期覆盖用户刚修改的新日期。
+    const editedContainerDate = normalizeFlexibleDateInput(
+      document.getElementById("batchContainerDate")
+    ) || String(
+      document.getElementById("batchContainerDate")?.value || ""
+    ).trim();
+
+    const editedArrivalDate = normalizeFlexibleDateInput(
+      document.getElementById("batchArrivalDate")
+    ) || String(
+      document.getElementById("batchArrivalDate")?.value || ""
+    ).trim();
+
+    const editedRackQuantity = Math.max(
+      0,
+      Math.floor(
+        parseAmount(
+          document.getElementById("batchRackQuantity")?.value
+        )
+      )
+    );
+
+    const editedTrackingNumber = String(
+      document.getElementById("batchTrackingNumber")?.value || ""
+    ).trim();
+
+    const editedOverseasTrackingNumber = String(
+      document.getElementById("batchOverseasTrackingNumber")?.value || ""
+    ).trim();
+
+    const oldItems = getBatchItemsForDisplay(oldBatch);
+
+    if (oldItems.length !== result.valid.length) {
+      status.textContent =
+        "编辑进口记录时不能新增或删除产品行；产品名称可以修改，数量代表当前剩余。";
       return;
     }
 
+    const editedByProductId = new Map(
+      result.valid
+        .filter(item => String(item.productId || "").trim())
+        .map(item => [
+          String(item.productId).trim(),
+          item
+        ])
+    );
+
+    const usedEditedItems = new Set();
+    const editPairs = oldItems.map((oldItem, index) => {
+      const productId =
+        String(oldItem.productId || "").trim();
+
+      let edited = productId
+        ? editedByProductId.get(productId)
+        : null;
+
+      if (!edited || usedEditedItems.has(edited)) {
+        edited = result.valid[index];
+      }
+
+      usedEditedItems.add(edited);
+
+      return { oldItem, edited };
+    });
+
+    const invalidPair = editPairs.find(({ oldItem, edited }) =>
+      !edited ||
+      String(edited.category || "盆栽") !==
+        String(oldItem.category || "盆栽")
+    );
+
+    if (invalidPair) {
+      status.textContent =
+        "产品类别不能在进口记录编辑时更换；可以修改产品名称及当前剩余数量。";
+      return;
+    }
+
+    const renamedProducts = new Map();
     const updatedItems = [];
-    for (const [key, oldItem] of oldMap.entries()) {
-      const edited = editedMap.get(key);
+
+    for (const { oldItem, edited } of editPairs) {
+      const editedProductName =
+        String(edited.name || "").trim();
+
+      if (!editedProductName) {
+        status.textContent = "产品名称不能为空。";
+        return;
+      }
       const originalQuantity = Math.max(
         0,
         Number(oldItem.originalQuantity ?? oldItem.quantity) || 0
@@ -5904,7 +5978,40 @@ function saveBatchImport() {
         (String(product.name || "").trim().toLowerCase() === String(oldItem.productName || "").trim().toLowerCase() &&
          product.category === oldItem.category)
       );
-      const productBeforeEdit = productIndex !== -1 ? products[productIndex] : null;
+      const productBeforeEdit =
+        productIndex !== -1
+          ? products[productIndex]
+          : null;
+
+      const productId = String(
+        oldItem.productId ||
+        productBeforeEdit?.id ||
+        ""
+      ).trim();
+
+      const conflictingProduct = products.find((product, index) =>
+        index !== productIndex &&
+        String(product.name || "")
+          .trim()
+          .toLowerCase() ===
+          editedProductName.toLowerCase() &&
+        String(product.category || "盆栽") ===
+          String(oldItem.category || "盆栽")
+      );
+
+      if (conflictingProduct) {
+        status.textContent =
+          `产品名称“${editedProductName}”已经属于另一个产品，不能直接合并库存。`;
+        return;
+      }
+
+      if (
+        productId &&
+        editedProductName !==
+          String(oldItem.productName || "").trim()
+      ) {
+        renamedProducts.set(productId, editedProductName);
+      }
 
       const matchingStoredImport = imports.find(record =>
         String(record.id || "") === String(oldItem.id || "") ||
@@ -5946,21 +6053,49 @@ function saveBatchImport() {
 
         products[productIndex] = {
           ...products[productIndex],
-          stock: Math.max(0, currentStock + stockDifference),
-          averageCost: Math.max(0, Number(products[productIndex].averageCost) || 0),
-          inventoryArchived: currentStock + stockDifference > 0
-            ? false
-            : products[productIndex].inventoryArchived,
+          name: editedProductName,
+          stock: Math.max(
+            0,
+            currentStock + stockDifference
+          ),
+          // 买卖、改名或行政资料修正都不能重算 Average Cost。
+          averageCost: Math.max(
+            0,
+            Number(products[productIndex].averageCost) || 0
+          ),
+          inventoryArchived:
+            currentStock + stockDifference > 0
+              ? false
+              : products[productIndex].inventoryArchived,
           updatedAt: new Date().toISOString()
         };
       }
 
       updatedItems.push({
         ...oldItem,
+        productId: productId || oldItem.productId || "",
+        productName: editedProductName,
+        name: editedProductName,
+        category: oldItem.category || "盆栽",
+
+        // 原进口数量永久冻结；编辑数量只代表当前剩余。
         originalQuantity,
         quantity: originalQuantity,
         remainingQuantity: newRemaining,
         stockAdded: originalQuantity,
+
+        // 原始成本快照永久冻结。
+        unitPrice: Number(oldItem.unitPrice) || 0,
+        originalUnitPrice:
+          Number(oldItem.originalUnitPrice) > 0
+            ? Number(oldItem.originalUnitPrice)
+            : Number(oldItem.unitPrice) || 0,
+        foreignTotal:
+          Number(oldItem.foreignTotal) || 0,
+        originalForeignTotal:
+          Number(oldItem.originalForeignTotal) > 0
+            ? Number(oldItem.originalForeignTotal)
+            : Number(oldItem.foreignTotal) || 0,
         unitCost: preservedUnitCost,
         batchTotal: preservedBatchTotal,
         fixedUnitCostRM:
@@ -5972,23 +6107,188 @@ function saveBatchImport() {
             ? Number(oldItem.fixedBatchTotalRM)
             : preservedBatchTotal,
         costSnapshotVersion:
-          oldItem.costSnapshotVersion || "3.05",
+          oldItem.costSnapshotVersion || "3.07",
         costSnapshotLocked: true,
+
+        // 允许修正不影响成本的行政资料。
+        rackQuantity: editedRackQuantity,
+        trackingNumber: editedTrackingNumber,
+        overseasTrackingNumber:
+          editedOverseasTrackingNumber,
+        containerDate:
+          editedContainerDate ||
+          oldItem.containerDate ||
+          oldBatch.containerDate ||
+          "",
+        arrivalDate:
+          editedArrivalDate ||
+          oldItem.arrivalDate ||
+          oldBatch.arrivalDate ||
+          "",
+        transitDays:
+          editedContainerDate && editedArrivalDate
+            ? calculateDaysBetween(
+                editedContainerDate,
+                editedArrivalDate
+              )
+            : oldItem.transitDays,
         updatedAt: new Date().toISOString()
       });
     }
 
-    const replacements = new Map(updatedItems.map(item => [String(item.id || ""), item]));
+    const replacements = new Map(
+      updatedItems.map(item => [
+        String(item.id || ""),
+        item
+      ])
+    );
+
     for (let i = 0; i < imports.length; i += 1) {
-      const replacement = replacements.get(String(imports[i].id || ""));
-      if (replacement) imports[i] = replacement;
+      const record = imports[i];
+      let replacement =
+        replacements.get(String(record.id || ""));
+
+      if (!replacement) {
+        replacement = updatedItems.find(item =>
+          String(
+            record.batchId ||
+            record.importNumber ||
+            ""
+          ) === String(
+            oldBatch.id ||
+            oldBatch.importNumber ||
+            ""
+          ) &&
+          (
+            (
+              record.productId &&
+              item.productId &&
+              String(record.productId) ===
+                String(item.productId)
+            ) ||
+            (
+              String(record.productName || "")
+                .trim()
+                .toLowerCase() ===
+              String(item.productName || "")
+                .trim()
+                .toLowerCase() &&
+              String(record.category || "盆栽") ===
+                String(item.category || "盆栽")
+            )
+          )
+        );
+      }
+
+      if (replacement) {
+        imports[i] = {
+          ...record,
+          ...replacement,
+          containerDate:
+            editedContainerDate ||
+            replacement.containerDate ||
+            record.containerDate ||
+            "",
+          arrivalDate:
+            editedArrivalDate ||
+            replacement.arrivalDate ||
+            record.arrivalDate ||
+            "",
+          updatedAt: new Date().toISOString()
+        };
+      }
     }
+
     updatedItems.forEach(item => {
-      if (!imports.some(record => String(record.id || "") === String(item.id || ""))) imports.push(item);
+      if (
+        !imports.some(record =>
+          String(record.id || "") ===
+          String(item.id || "")
+        )
+      ) {
+        imports.push(item);
+      }
+    });
+
+    // 产品改名按 productId 同步到产品主档、所有进口明细及其他进口编号。
+    // 只改名称，不改任何数量或成本。
+    renamedProducts.forEach((newName, productId) => {
+      products.forEach((product, index) => {
+        if (String(product.id || "") === productId) {
+          products[index] = {
+            ...product,
+            name: newName,
+            updatedAt: new Date().toISOString()
+          };
+        }
+      });
+
+      imports.forEach((record, index) => {
+        if (String(record.productId || "") === productId) {
+          imports[index] = {
+            ...record,
+            productName: newName,
+            name: newName,
+            updatedAt: new Date().toISOString()
+          };
+        }
+      });
+
+      batches.forEach((batch, batchPosition) => {
+        const items = Array.isArray(batch.items)
+          ? batch.items
+          : [];
+
+        let changed = false;
+        const renamedItems = items.map(item => {
+          if (String(item.productId || "") !== productId) {
+            return item;
+          }
+
+          changed = true;
+          return {
+            ...item,
+            productName: newName,
+            name: newName,
+            updatedAt: new Date().toISOString()
+          };
+        });
+
+        if (changed) {
+          batches[batchPosition] = {
+            ...batch,
+            items: renamedItems,
+            updatedAt: new Date().toISOString()
+          };
+        }
+      });
     });
 
     batches[batchIndex] = {
       ...oldBatch,
+
+      // 允许修正不影响成本的资料。
+      rackQuantity: editedRackQuantity,
+      trackingNumber: editedTrackingNumber,
+      overseasTrackingNumber:
+        editedOverseasTrackingNumber,
+      containerDate:
+        editedContainerDate ||
+        oldBatch.containerDate ||
+        "",
+      arrivalDate:
+        editedArrivalDate ||
+        oldBatch.arrivalDate ||
+        "",
+      transitDays:
+        editedContainerDate && editedArrivalDate
+          ? calculateDaysBetween(
+              editedContainerDate,
+              editedArrivalDate
+            )
+          : oldBatch.transitDays,
+
+      // oldBatch 的汇率、费用、运费比例及总成本全部保留。
       items: updatedItems,
       totalQuantity: oldItems.reduce(
         (sum, item) => sum + (Number(item.originalQuantity ?? item.quantity) || 0),
@@ -6012,7 +6312,7 @@ function saveBatchImport() {
 
     clearBatchAfterSuccessfulAction();
     document.getElementById("batchStatusText").textContent =
-      `已更新 ${currentEditingImportNumber || oldBatch.importNumber} 的进口记录剩余数量；库存只按新旧数量差额调整。Average Cost、原进口历史及海外运费比例保持不变。`;
+      `已更新 ${currentEditingImportNumber || oldBatch.importNumber}。产品名称、木架数量、运输单号、装柜／抵达日期及当前剩余已保存；原进口数量、汇率、费用、运费比例、每棵成本、整批成本和Average Cost保持不变。`;
     return;
   }
 
@@ -6042,7 +6342,7 @@ function saveBatchImport() {
     fixedTotalForeignCostsRM: result.totalPurchaseRM,
     fixedShippingRate: result.shippingRate,
     fixedGrandTotalRM: result.grandTotal,
-    costSnapshotVersion: "3.05",
+    costSnapshotVersion: "3.07",
     costSnapshotLocked: true
   };
 
@@ -6120,7 +6420,7 @@ function saveBatchImport() {
         (1 + fixedBatchSnapshot.fixedInlandMiscPercent / 100),
       fixedUnitCostRM: item.unitCost,
       fixedBatchTotalRM: item.itemTotal,
-      costSnapshotVersion: "3.05",
+      costSnapshotVersion: "3.07",
       costSnapshotLocked: true
     };
 
@@ -8489,7 +8789,7 @@ function exportSystemExcel() {
 function backupSystemData() {
   const backup = {
     app: "Lover Legend Import Cost & Inventory System",
-    version: "3.05",
+    version: "3.07",
     exportedAt: new Date().toISOString(),
     settings: loadJSON("importSystemSettings", {}),
     products: getProducts(),
