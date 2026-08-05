@@ -1389,9 +1389,23 @@ function applyBatchCostFieldLock(isEditing) {
   });
 
   document.querySelectorAll("#batchRows tr").forEach(row => {
+    const originalQuantity =
+      row.querySelector(".batch-original-qty");
     const price = row.querySelector(".batch-price");
     const category = row.querySelector(".batch-category");
     const removeButton = row.querySelector(".remove-item-btn");
+
+    if (originalQuantity) {
+      originalQuantity.disabled = Boolean(isEditing);
+      originalQuantity.classList.toggle(
+        "cost-field-locked",
+        Boolean(isEditing)
+      );
+      originalQuantity.title = isEditing
+        ? "原进口数量已锁定"
+        : "";
+    }
+
 
     if (price) {
       price.disabled = Boolean(isEditing);
@@ -2577,7 +2591,7 @@ function readStoredCostNumber(value) {
 }
 
 function cleanupLegacyVndChinaTransportValuesV300() {
-  // V3.08：永久停用旧版 VND 自动清零。
+  // V4.0：永久停用旧版 VND 自动清零。
   // 保留空函数只是为了兼容旧调用，不修改任何历史费用。
   return 0;
 }
@@ -2785,7 +2799,7 @@ function buildFixedImportCostSnapshot(record, batchSnapshot) {
     fixedUnitCostRM,
     fixedBatchTotalRM:
       fixedUnitCostRM * originalQuantity,
-    costSnapshotVersion: "3.08",
+    costSnapshotVersion: "4.0",
     costSnapshotLocked: true
   };
 }
@@ -2813,7 +2827,7 @@ function ensureFixedCostSnapshotsV302() {
 
       const alreadyLocked =
         item?.costSnapshotLocked === true &&
-        ["3.08", "3.08"].includes(
+        ["4.0", "4.0"].includes(
           String(item?.costSnapshotVersion || "")
         );
 
@@ -2842,7 +2856,7 @@ function ensureFixedCostSnapshotsV302() {
 
     const alreadyLocked =
       batch?.costSnapshotLocked === true &&
-      ["3.08", "3.08"].includes(
+      ["4.0", "4.0"].includes(
         String(batch?.costSnapshotVersion || "")
       );
 
@@ -2877,7 +2891,7 @@ function ensureFixedCostSnapshotsV302() {
       ...batch,
       ...snapshot,
       items: nextItems,
-      costSnapshotVersion: "3.08",
+      costSnapshotVersion: "4.0",
       costSnapshotLocked: true
     };
   });
@@ -2892,7 +2906,7 @@ function ensureFixedCostSnapshotsV302() {
   const nextImports = imports.map(record => {
     const alreadyLocked =
       record?.costSnapshotLocked === true &&
-      String(record?.costSnapshotVersion || "") === "3.08";
+      String(record?.costSnapshotVersion || "") === "4.0";
 
     if (alreadyLocked) return record;
 
@@ -4830,7 +4844,7 @@ function publishPricingSuiteImportUnitPrices() {
                   )
             );
 
-      // V3.08：Pricing Suite 优先读取进口保存时锁定的成本快照。
+      // V4.0：Pricing Suite 优先读取进口保存时锁定的成本快照。
       // 售出库存只影响 remainingQuantity，不重新分摊整批费用。
       const fixedInlandMiscPercent =
         Number(source?.fixedInlandMiscPercent);
@@ -5357,16 +5371,23 @@ function resetBatchForm(options = {}) {
   calculateBatch();
 }
 function addBatchRow(prefill = {}){
-  const id=++batchRowSeq,tr=document.createElement("tr");
-  tr.dataset.rowId=id;
+  const id = ++batchRowSeq;
+  const tr = document.createElement("tr");
+  tr.dataset.rowId = id;
 
-  const editableMaximum = Number(prefill.originalQuantity);
-  const hasEditableMaximum = Number.isFinite(editableMaximum) && editableMaximum >= 0;
-  if (hasEditableMaximum) {
-    tr.dataset.originalQuantity = String(Math.floor(editableMaximum));
-  }
+  const originalQuantity = Math.max(
+    0,
+    Math.floor(Number(
+      prefill.originalQuantity ??
+      prefill.quantity ??
+      0
+    ) || 0)
+  );
 
-  tr.innerHTML=`<td class="batch-product-cell">
+  tr.dataset.originalQuantity =
+    String(originalQuantity);
+
+  tr.innerHTML = `<td class="batch-product-cell">
     <input id="batchName-${id}"
            class="batch-name"
            placeholder="输入或选择产品"
@@ -5379,38 +5400,80 @@ function addBatchRow(prefill = {}){
            type="hidden"
            value="${escapeHTML(prefill.productId || "")}">
   </td>
-  <td><input id="batchQty-${id}" inputmode="numeric" placeholder="0"></td>
-  <td><input id="batchPrice-${id}" class="batch-price" inputmode="decimal" placeholder="0.00"></td>
-  <td><input id="batchPurchaseForeign-${id}" value="0.00" disabled></td>
-  <td><select id="batchCategory-${id}" class="batch-category">
-    <option value="盆栽">盆栽</option>
-    <option value="花盆">花盆</option>
-    <option value="周边产品">周边产品</option>
-  </select></td>
-  <td><input id="batchStock-${id}" inputmode="numeric" placeholder="0" disabled></td>
-  <td><input id="batchUnitCost-${id}" value="0.00" disabled></td>
-  <td><button type="button" class="remove-item-btn" onclick="removeBatchRow(${id})">删除</button></td>`;
-  document.getElementById("batchRows").appendChild(tr);
-  document.getElementById(`batchCategory-${id}`).value =
-    prefill.category || "盆栽";
-  if (Number.isFinite(Number(prefill.quantity))) {
-    const quantity = Math.max(0, Math.floor(Number(prefill.quantity)));
-    const quantityInput = document.getElementById(`batchQty-${id}`);
-    quantityInput.value = quantity;
-    document.getElementById(`batchStock-${id}`).value = quantity;
+  <td>
+    <input id="batchQty-${id}"
+           class="batch-original-qty"
+           inputmode="numeric"
+           placeholder="0"
+           value="${originalQuantity || ""}">
+  </td>
+  <td>
+    <input id="batchPrice-${id}"
+           class="batch-price"
+           inputmode="decimal"
+           placeholder="0.00">
+  </td>
+  <td>
+    <input id="batchPurchaseForeign-${id}"
+           value="0.00"
+           disabled>
+  </td>
+  <td>
+    <select id="batchCategory-${id}"
+            class="batch-category">
+      <option value="盆栽">盆栽</option>
+      <option value="花盆">花盆</option>
+      <option value="周边产品">周边产品</option>
+    </select>
+  </td>
+  <td>
+    <input id="batchStock-${id}"
+           inputmode="numeric"
+           placeholder="0"
+           disabled>
+  </td>
+  <td>
+    <input id="batchUnitCost-${id}"
+           value="0.00"
+           disabled>
+  </td>
+  <td>
+    <button type="button"
+            class="remove-item-btn"
+            onclick="removeBatchRow(${id})">
+      删除
+    </button>
+  </td>`;
 
-    if (hasEditableMaximum) {
-      quantityInput.max = String(Math.floor(editableMaximum));
-      quantityInput.setAttribute(
-        "aria-label",
-        `此进口编号当前剩余数量，允许 0 至 ${Math.floor(editableMaximum)}`
-      );
-    }
+  document.getElementById("batchRows")
+    .appendChild(tr);
+
+  document.getElementById(
+    `batchCategory-${id}`
+  ).value = prefill.category || "盆栽";
+
+  const originalInput =
+    document.getElementById(`batchQty-${id}`);
+
+  if (currentEditingImportNumber) {
+    originalInput.disabled = true;
+    originalInput.classList.add(
+      "cost-field-locked"
+    );
+    originalInput.title =
+      "原进口数量已锁定";
   }
+
+  document.getElementById(
+    `batchStock-${id}`
+  ).value = originalQuantity;
+
   if (prefill.unitPrice) {
-    document.getElementById(`batchPrice-${id}`).value =
-      formatMoney(prefill.unitPrice);
+    document.getElementById(
+      `batchPrice-${id}`
+    ).value = formatMoney(prefill.unitPrice);
   }
+
   attachBatchRowEvents(id);
   calculateBatch();
 
@@ -5418,17 +5481,24 @@ function addBatchRow(prefill = {}){
     applyBatchCostFieldLock(true);
   }
 
-  if (Number.isFinite(Number(prefill.unitCost))) {
+  if (
+    Number.isFinite(
+      Number(prefill.unitCost)
+    )
+  ) {
     const unitCostField =
-      document.getElementById(`batchUnitCost-${id}`);
+      document.getElementById(
+        `batchUnitCost-${id}`
+      );
 
     if (unitCostField) {
       unitCostField.value =
-        formatMoney(Number(prefill.unitCost) || 0);
+        formatMoney(
+          Number(prefill.unitCost) || 0
+        );
     }
   }
 }
-
 function positionBatchRowSuggestionBox(id) {
   const input =
     document.getElementById(`batchName-${id}`);
@@ -5638,7 +5708,30 @@ function attachBatchRowEvents(id){
     }, 320);
   });
   n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();n.value=Array.from(t).slice(0,15).join("");n.dispatchEvent(new Event("input",{bubbles:true}));});
-  [`batchQty-${id}`,`batchPrice-${id}`].forEach(k=>{const x=document.getElementById(k);x.addEventListener("focus",()=>x.select());x.addEventListener("input",calculateBatch);x.addEventListener("blur",()=>{if(!k.includes("Qty")&&!k.includes("Stock"))formatInputAmount(x);calculateBatch();});});
+  [
+    `batchQty-${id}`,
+    `batchPrice-${id}`
+  ].forEach(k => {
+    const x = document.getElementById(k);
+    if (!x) return;
+
+    x.addEventListener("focus", () => {
+      x.select();
+    });
+
+    x.addEventListener("input", calculateBatch);
+
+    x.addEventListener("blur", () => {
+      if (
+        !k.includes("Qty") &&
+        !k.includes("Stock")
+      ) {
+        formatInputAmount(x);
+      }
+
+      calculateBatch();
+    });
+  });
   document.getElementById(`batchPrice-${id}`).addEventListener("input", () => {
     const price = parseAmount(
       document.getElementById(`batchPrice-${id}`).value
@@ -5672,9 +5765,77 @@ function attachBatchRowEvents(id){
   });
 }
 function removeBatchRow(id){const r=document.querySelectorAll("#batchRows tr");if(r.length<=1){alert("至少保留一行。");return;}document.querySelector(`#batchRows tr[data-row-id="${id}"]`)?.remove();calculateBatch();}
-function collectBatchRows(){
-  const rate=parseAmount(document.getElementById("batchRate").value),currency=document.getElementById("batchCurrency").value;
-  return Array.from(document.querySelectorAll("#batchRows tr")).map(tr=>{const id=Number(tr.dataset.rowId),name=document.getElementById(`batchName-${id}`).value.trim(),quantity=Math.max(0,Math.floor(parseAmount(document.getElementById(`batchQty-${id}`).value))),unitPrice=parseAmount(document.getElementById(`batchPrice-${id}`).value),stockAdded=quantity,foreignTotal=quantity*unitPrice,purchaseRM=rate>0?foreignTotal/rate:0,productId=document.getElementById(`batchProductId-${id}`).value,existing=getProducts().find(x=>x.id===productId);return{id,name,category:document.getElementById(`batchCategory-${id}`).value||"盆栽",productId,quantity,unitPrice,stockAdded,currency,rate,foreignTotal,purchaseRM,oldStock:Number(existing?.stock)||0,oldAverage:Number(existing?.averageCost)||0};});
+function collectBatchRows() {
+  const rate = parseAmount(
+    document.getElementById("batchRate").value
+  );
+
+  const currency =
+    document.getElementById("batchCurrency").value;
+
+  return Array.from(
+    document.querySelectorAll("#batchRows tr")
+  ).map(tr => {
+    const id = Number(tr.dataset.rowId);
+
+    const name = document.getElementById(
+      `batchName-${id}`
+    ).value.trim();
+
+    const originalQuantity = Math.max(
+      0,
+      Math.floor(
+        parseAmount(
+          document.getElementById(
+            `batchQty-${id}`
+          ).value
+        )
+      )
+    );
+
+    const unitPrice = parseAmount(
+      document.getElementById(
+        `batchPrice-${id}`
+      ).value
+    );
+
+    const foreignTotal =
+      originalQuantity * unitPrice;
+
+    const productId =
+      document.getElementById(
+        `batchProductId-${id}`
+      ).value;
+
+    const existing = getProducts().find(
+      product => product.id === productId
+    );
+
+    return {
+      id,
+      name,
+      category:
+        document.getElementById(
+          `batchCategory-${id}`
+        ).value || "盆栽",
+      productId,
+      quantity: originalQuantity,
+      originalQuantity,
+      unitPrice,
+      stockAdded: originalQuantity,
+      currency,
+      rate,
+      foreignTotal,
+      purchaseRM:
+        rate > 0
+          ? foreignTotal / rate
+          : 0,
+      oldStock:
+        Number(existing?.stock) || 0,
+      oldAverage:
+        Number(existing?.averageCost) || 0
+    };
+  });
 }
 function calculateBatch() {
   updateTransitDays();
@@ -5733,9 +5894,9 @@ function calculateBatch() {
 
     const itemTotal = baseCost * (1 + (shippingRate / 100));
 
-    const stockAdded = row.quantity;
-    const unitCost = stockAdded > 0
-      ? itemTotal / stockAdded
+    const stockAdded = row.originalQuantity;
+    const unitCost = row.originalQuantity > 0
+      ? itemTotal / row.originalQuantity
       : 0;
 
     const newStock = row.oldStock + stockAdded;
@@ -5780,7 +5941,10 @@ function calculateBatch() {
     const stockCell = document.getElementById(
       `batchStock-${row.id}`
     );
-    if (stockCell) stockCell.value = stockAdded || "";
+    if (stockCell) {
+      stockCell.value =
+        row.originalQuantity || "";
+    }
   });
 
   rows.filter(row => !valid.includes(row)).forEach(row => {
@@ -5801,7 +5965,7 @@ function calculateBatch() {
   });
 
   const totalQuantity = valid.reduce(
-    (sum, row) => sum + row.quantity,
+    (sum, row) => sum + row.originalQuantity,
     0
   );
 
@@ -5928,7 +6092,7 @@ function saveBatchImport() {
 
     const oldBatch = batches[batchIndex];
 
-    // V3.08：编辑进口记录时，以当前画面输入的日期为准。
+    // V4.0：编辑进口记录时，以当前画面输入的日期为准。
     // Date Picker 会同步到 DD-MM-YYYY 输入框，这里再次正规化，
     // 避免旧 batch 日期覆盖用户刚修改的新日期。
     const editedContainerDate = normalizeFlexibleDateInput(
@@ -5964,7 +6128,7 @@ function saveBatchImport() {
 
     if (oldItems.length !== result.valid.length) {
       status.textContent =
-        "编辑进口记录时不能新增或删除产品行；产品名称可以修改，数量代表当前剩余。";
+        "编辑进口记录时不能新增或删除产品行；产品名称可以修改，原进口数量保持锁定。";
       return;
     }
 
@@ -6003,7 +6167,7 @@ function saveBatchImport() {
 
     if (invalidPair) {
       status.textContent =
-        "产品类别不能在进口记录编辑时更换；可以修改产品名称及当前剩余数量。";
+        "产品类别不能在进口记录编辑时更换；可以修改产品名称，库存数量请到页面最下面修改。";
       return;
     }
 
@@ -6023,24 +6187,20 @@ function saveBatchImport() {
         Number(oldItem.originalQuantity ?? oldItem.quantity) || 0
       );
       const oldRemainingRaw = Number(
-        oldItem.remainingQuantity ?? oldItem.quantity
+        oldItem.remainingQuantity ??
+        oldItem.quantity
       );
-      const oldRemaining = Number.isFinite(oldRemainingRaw)
-        ? Math.min(
-            originalQuantity,
-            Math.max(0, Math.floor(oldRemainingRaw))
-          )
-        : originalQuantity;
-      const parsedRemaining = Number(edited.quantity);
-      const newRemaining = Number.isFinite(parsedRemaining)
-        ? Math.max(0, Math.floor(parsedRemaining))
-        : oldRemaining;
 
-      if (newRemaining > originalQuantity) {
-        status.textContent =
-          `${oldItem.productName || edited.name || "此产品"} 原进口 ${originalQuantity}，此进口编号的当前剩余数量只允许输入 0 至 ${originalQuantity}，不能保存 ${newRemaining}。`;
-        return;
-      }
+      const preservedRemaining =
+        Number.isFinite(oldRemainingRaw)
+          ? Math.min(
+              originalQuantity,
+              Math.max(
+                0,
+                Math.floor(oldRemainingRaw)
+              )
+            )
+          : originalQuantity;
 
       const productIndex = products.findIndex(product =>
         product.id === oldItem.productId ||
@@ -6114,28 +6274,18 @@ function saveBatchImport() {
         preservedUnitCost > 0 ? preservedUnitCost * originalQuantity : 0
       ].find(value => Number.isFinite(value) && value > 0) || 0;
 
-      // 编辑旧批次只按剩余数量差额调整当前库存。
-      // 销售或退货不能触发旧 Imports 全量重建，也不能改变 Average Cost。
+      // V4.0：上方进口记录编辑区绝不修改库存。
+      // 产品名称可以同步，但库存数量只能在页面最下面的产品库存区调整。
       if (productIndex !== -1) {
-        const stockDifference = newRemaining - oldRemaining;
-        const currentStock = Math.max(0, Number(products[productIndex].stock) || 0);
-
         products[productIndex] = {
           ...products[productIndex],
           name: editedProductName,
-          stock: Math.max(
-            0,
-            currentStock + stockDifference
-          ),
-          // 买卖、改名或行政资料修正都不能重算 Average Cost。
           averageCost: Math.max(
             0,
-            Number(products[productIndex].averageCost) || 0
+            Number(
+              products[productIndex].averageCost
+            ) || 0
           ),
-          inventoryArchived:
-            currentStock + stockDifference > 0
-              ? false
-              : products[productIndex].inventoryArchived,
           updatedAt: new Date().toISOString()
         };
       }
@@ -6147,10 +6297,12 @@ function saveBatchImport() {
         name: editedProductName,
         category: oldItem.category || "盆栽",
 
-        // 原进口数量永久冻结；编辑数量只代表当前剩余。
+        // 原进口数量及当前剩余都保持原记录。
+        // 库存只能在页面最下面的产品库存区修改。
         originalQuantity,
         quantity: originalQuantity,
-        remainingQuantity: newRemaining,
+        remainingQuantity:
+          preservedRemaining,
         stockAdded: originalQuantity,
 
         // 原始成本快照永久冻结。
@@ -6176,7 +6328,7 @@ function saveBatchImport() {
             ? Number(oldItem.fixedBatchTotalRM)
             : preservedBatchTotal,
         costSnapshotVersion:
-          oldItem.costSnapshotVersion || "3.08",
+          oldItem.costSnapshotVersion || "4.0",
         costSnapshotLocked: true,
 
         // 允许修正不影响成本的行政资料。
@@ -6381,7 +6533,7 @@ function saveBatchImport() {
 
     clearBatchAfterSuccessfulAction();
     document.getElementById("batchStatusText").textContent =
-      `已更新 ${currentEditingImportNumber || oldBatch.importNumber}。产品名称、木架数量、运输单号、装柜／抵达日期及当前剩余已保存；原进口数量、汇率、费用、运费比例、每棵成本、整批成本和Average Cost保持不变。`;
+      `已更新 ${currentEditingImportNumber || oldBatch.importNumber}。产品名称、木架数量、运输单号及装柜／抵达日期已保存；原进口数量、库存数量、汇率、费用、运费比例、每棵成本、整批成本和Average Cost保持不变。库存请在页面最下面修改。`;
     return;
   }
 
@@ -6411,7 +6563,7 @@ function saveBatchImport() {
     fixedTotalForeignCostsRM: result.totalPurchaseRM,
     fixedShippingRate: result.shippingRate,
     fixedGrandTotalRM: result.grandTotal,
-    costSnapshotVersion: "3.08",
+    costSnapshotVersion: "4.0",
     costSnapshotLocked: true
   };
 
@@ -6489,7 +6641,7 @@ function saveBatchImport() {
         (1 + fixedBatchSnapshot.fixedInlandMiscPercent / 100),
       fixedUnitCostRM: item.unitCost,
       fixedBatchTotalRM: item.itemTotal,
-      costSnapshotVersion: "3.08",
+      costSnapshotVersion: "4.0",
       costSnapshotLocked: true
     };
 
@@ -8858,7 +9010,7 @@ function exportSystemExcel() {
 function backupSystemData() {
   const backup = {
     app: "Lover Legend Import Cost & Inventory System",
-    version: "3.08",
+    version: "4.0",
     exportedAt: new Date().toISOString(),
     settings: loadJSON("importSystemSettings", {}),
     products: getProducts(),
