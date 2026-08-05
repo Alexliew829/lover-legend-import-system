@@ -1360,6 +1360,67 @@ function bindBatchMoneyInput(id) {
 
 let currentEditingImportNumber = "";
 
+function applyBatchCostFieldLock(isEditing) {
+  const lockedFieldIds = [
+    "batchChinaTransportCost",
+    "batchPotCost",
+    "batchCurrency",
+    "batchRate",
+    "batchShippingMY"
+  ];
+
+  lockedFieldIds.forEach(id => {
+    const field = document.getElementById(id);
+    if (!field) return;
+
+    field.disabled = Boolean(isEditing);
+    field.classList.toggle("cost-field-locked", Boolean(isEditing));
+
+    if (isEditing) {
+      field.setAttribute(
+        "aria-label",
+        "原始成本资料已锁定，不能在编辑进口记录时修改"
+      );
+      field.title = "原始成本资料已锁定";
+    } else {
+      field.removeAttribute("aria-label");
+      field.removeAttribute("title");
+    }
+  });
+
+  document.querySelectorAll("#batchRows tr").forEach(row => {
+    const price = row.querySelector(".batch-price");
+    const category = row.querySelector(".batch-category");
+    const removeButton = row.querySelector(".remove-item-btn");
+
+    if (price) {
+      price.disabled = Boolean(isEditing);
+      price.classList.toggle("cost-field-locked", Boolean(isEditing));
+      price.title = isEditing ? "原始单价已锁定" : "";
+    }
+
+    if (category) {
+      category.disabled = Boolean(isEditing);
+      category.classList.toggle("cost-field-locked", Boolean(isEditing));
+      category.title = isEditing ? "产品类别已锁定" : "";
+    }
+
+    if (removeButton) {
+      removeButton.disabled = Boolean(isEditing);
+      removeButton.hidden = Boolean(isEditing);
+    }
+  });
+
+  const addRowButton = document.getElementById("addBatchRowBtn");
+  if (addRowButton) {
+    addRowButton.disabled = Boolean(isEditing);
+    addRowButton.hidden = Boolean(isEditing);
+  }
+
+  const lockNotice = document.getElementById("batchCostLockNotice");
+  if (lockNotice) lockNotice.hidden = !isEditing;
+}
+
 function setBatchEditMode(importNumber = "") {
   currentEditingImportNumber = importNumber;
 
@@ -1369,7 +1430,9 @@ function setBatchEditMode(importNumber = "") {
 
   if (!modeBox || !label || !saveButton) return;
 
-  if (importNumber) {
+  const isEditing = Boolean(importNumber);
+
+  if (isEditing) {
     modeBox.hidden = false;
     label.textContent = importNumber;
     saveButton.textContent = "保存/更新进口记录";
@@ -1380,6 +1443,8 @@ function setBatchEditMode(importNumber = "") {
     saveButton.textContent = "保存/更新进口记录";
     saveButton.classList.remove("update-mode");
   }
+
+  applyBatchCostFieldLock(isEditing);
 }
 
 function setupImportModule(){
@@ -2512,7 +2577,7 @@ function readStoredCostNumber(value) {
 }
 
 function cleanupLegacyVndChinaTransportValuesV300() {
-  // V3.07：永久停用旧版 VND 自动清零。
+  // V3.08：永久停用旧版 VND 自动清零。
   // 保留空函数只是为了兼容旧调用，不修改任何历史费用。
   return 0;
 }
@@ -2720,7 +2785,7 @@ function buildFixedImportCostSnapshot(record, batchSnapshot) {
     fixedUnitCostRM,
     fixedBatchTotalRM:
       fixedUnitCostRM * originalQuantity,
-    costSnapshotVersion: "3.07",
+    costSnapshotVersion: "3.08",
     costSnapshotLocked: true
   };
 }
@@ -2748,7 +2813,7 @@ function ensureFixedCostSnapshotsV302() {
 
       const alreadyLocked =
         item?.costSnapshotLocked === true &&
-        ["3.07", "3.07"].includes(
+        ["3.08", "3.08"].includes(
           String(item?.costSnapshotVersion || "")
         );
 
@@ -2777,7 +2842,7 @@ function ensureFixedCostSnapshotsV302() {
 
     const alreadyLocked =
       batch?.costSnapshotLocked === true &&
-      ["3.07", "3.07"].includes(
+      ["3.08", "3.08"].includes(
         String(batch?.costSnapshotVersion || "")
       );
 
@@ -2812,7 +2877,7 @@ function ensureFixedCostSnapshotsV302() {
       ...batch,
       ...snapshot,
       items: nextItems,
-      costSnapshotVersion: "3.07",
+      costSnapshotVersion: "3.08",
       costSnapshotLocked: true
     };
   });
@@ -2827,7 +2892,7 @@ function ensureFixedCostSnapshotsV302() {
   const nextImports = imports.map(record => {
     const alreadyLocked =
       record?.costSnapshotLocked === true &&
-      String(record?.costSnapshotVersion || "") === "3.07";
+      String(record?.costSnapshotVersion || "") === "3.08";
 
     if (alreadyLocked) return record;
 
@@ -4765,7 +4830,7 @@ function publishPricingSuiteImportUnitPrices() {
                   )
             );
 
-      // V3.07：Pricing Suite 优先读取进口保存时锁定的成本快照。
+      // V3.08：Pricing Suite 优先读取进口保存时锁定的成本快照。
       // 售出库存只影响 remainingQuantity，不重新分摊整批费用。
       const fixedInlandMiscPercent =
         Number(source?.fixedInlandMiscPercent);
@@ -5315,9 +5380,9 @@ function addBatchRow(prefill = {}){
            value="${escapeHTML(prefill.productId || "")}">
   </td>
   <td><input id="batchQty-${id}" inputmode="numeric" placeholder="0"></td>
-  <td><input id="batchPrice-${id}" inputmode="decimal" placeholder="0.00"></td>
+  <td><input id="batchPrice-${id}" class="batch-price" inputmode="decimal" placeholder="0.00"></td>
   <td><input id="batchPurchaseForeign-${id}" value="0.00" disabled></td>
-  <td><select id="batchCategory-${id}">
+  <td><select id="batchCategory-${id}" class="batch-category">
     <option value="盆栽">盆栽</option>
     <option value="花盆">花盆</option>
     <option value="周边产品">周边产品</option>
@@ -5348,6 +5413,10 @@ function addBatchRow(prefill = {}){
   }
   attachBatchRowEvents(id);
   calculateBatch();
+
+  if (currentEditingImportNumber) {
+    applyBatchCostFieldLock(true);
+  }
 
   if (Number.isFinite(Number(prefill.unitCost))) {
     const unitCostField =
@@ -5859,7 +5928,7 @@ function saveBatchImport() {
 
     const oldBatch = batches[batchIndex];
 
-    // V3.07：编辑进口记录时，以当前画面输入的日期为准。
+    // V3.08：编辑进口记录时，以当前画面输入的日期为准。
     // Date Picker 会同步到 DD-MM-YYYY 输入框，这里再次正规化，
     // 避免旧 batch 日期覆盖用户刚修改的新日期。
     const editedContainerDate = normalizeFlexibleDateInput(
@@ -6107,7 +6176,7 @@ function saveBatchImport() {
             ? Number(oldItem.fixedBatchTotalRM)
             : preservedBatchTotal,
         costSnapshotVersion:
-          oldItem.costSnapshotVersion || "3.07",
+          oldItem.costSnapshotVersion || "3.08",
         costSnapshotLocked: true,
 
         // 允许修正不影响成本的行政资料。
@@ -6342,7 +6411,7 @@ function saveBatchImport() {
     fixedTotalForeignCostsRM: result.totalPurchaseRM,
     fixedShippingRate: result.shippingRate,
     fixedGrandTotalRM: result.grandTotal,
-    costSnapshotVersion: "3.07",
+    costSnapshotVersion: "3.08",
     costSnapshotLocked: true
   };
 
@@ -6420,7 +6489,7 @@ function saveBatchImport() {
         (1 + fixedBatchSnapshot.fixedInlandMiscPercent / 100),
       fixedUnitCostRM: item.unitCost,
       fixedBatchTotalRM: item.itemTotal,
-      costSnapshotVersion: "3.07",
+      costSnapshotVersion: "3.08",
       costSnapshotLocked: true
     };
 
@@ -8789,7 +8858,7 @@ function exportSystemExcel() {
 function backupSystemData() {
   const backup = {
     app: "Lover Legend Import Cost & Inventory System",
-    version: "3.07",
+    version: "3.08",
     exportedAt: new Date().toISOString(),
     settings: loadJSON("importSystemSettings", {}),
     products: getProducts(),
