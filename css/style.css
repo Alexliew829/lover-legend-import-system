@@ -3056,3 +3056,36 @@ body.access-locked {
   }
 }
 
+/* V3.08：编辑进口记录时锁定所有会影响原始成本的输入 */
+.cost-field-locked,
+.cost-field-locked:disabled {
+  cursor: not-allowed;
+  border-color: #c9d1cc !important;
+  background: #eef1ef !important;
+  color: #6f7772 !important;
+  opacity: 1;
+  -webkit-text-fill-color: #6f7772;
+}
+
+.batch-cost-lock-notice {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid #d5c07a;
+  border-radius: 10px;
+  background: #fff9e5;
+  color: #765b0d;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.batch-cost-lock-notice[hidden] {
+  display: none;
+}
+
+@media (max-width: 680px) {
+  .batch-cost-lock-notice {
+    font-size: 12px;
+  }
+}
+
