@@ -3056,7 +3056,7 @@ body.access-locked {
   }
 }
 
-/* V4.1：编辑进口记录时锁定所有会影响原始成本的输入 */
+/* V4.1.1：编辑进口记录时锁定所有会影响原始成本的输入 */
 .cost-field-locked,
 .cost-field-locked:disabled {
   cursor: not-allowed;
@@ -3093,7 +3093,7 @@ body.access-locked {
 
 
 
-/* V4.1：上方进口编辑只显示原进口数量 */
+/* V4.1.1：上方进口编辑只显示原进口数量 */
 .batch-original-qty {
   min-width: 88px;
 }
@@ -3105,7 +3105,7 @@ body.access-locked {
 }
 
 
-/* V4.1：历史进口记录只开放“原单价”修改 */
+/* V4.1.1：历史原进口单价唯一开放编辑 */
 .historical-price-editable {
   background: #fff8d8 !important;
   border-color: #c9a227 !important;
