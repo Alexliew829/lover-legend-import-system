@@ -1408,9 +1408,16 @@ function applyBatchCostFieldLock(isEditing) {
 
 
     if (price) {
-      price.disabled = Boolean(isEditing);
-      price.classList.toggle("cost-field-locked", Boolean(isEditing));
-      price.title = isEditing ? "原始单价已锁定" : "";
+      // V4.1：历史进口记录只开放“原进口单价”修改。
+      price.disabled = false;
+      price.classList.remove("cost-field-locked");
+      price.classList.toggle(
+        "historical-price-editable",
+        Boolean(isEditing)
+      );
+      price.title = isEditing
+        ? "可修改原进口单价；其他成本会即时自动重算"
+        : "";
     }
 
     if (category) {
@@ -2591,7 +2598,7 @@ function readStoredCostNumber(value) {
 }
 
 function cleanupLegacyVndChinaTransportValuesV300() {
-  // V4.0：永久停用旧版 VND 自动清零。
+  // V4.1：永久停用旧版 VND 自动清零。
   // 保留空函数只是为了兼容旧调用，不修改任何历史费用。
   return 0;
 }
@@ -2799,7 +2806,7 @@ function buildFixedImportCostSnapshot(record, batchSnapshot) {
     fixedUnitCostRM,
     fixedBatchTotalRM:
       fixedUnitCostRM * originalQuantity,
-    costSnapshotVersion: "4.0",
+    costSnapshotVersion: "4.1",
     costSnapshotLocked: true
   };
 }
@@ -2827,7 +2834,7 @@ function ensureFixedCostSnapshotsV302() {
 
       const alreadyLocked =
         item?.costSnapshotLocked === true &&
-        ["4.0", "4.0"].includes(
+        ["4.1", "4.1"].includes(
           String(item?.costSnapshotVersion || "")
         );
 
@@ -2856,7 +2863,7 @@ function ensureFixedCostSnapshotsV302() {
 
     const alreadyLocked =
       batch?.costSnapshotLocked === true &&
-      ["4.0", "4.0"].includes(
+      ["4.1", "4.1"].includes(
         String(batch?.costSnapshotVersion || "")
       );
 
@@ -2891,7 +2898,7 @@ function ensureFixedCostSnapshotsV302() {
       ...batch,
       ...snapshot,
       items: nextItems,
-      costSnapshotVersion: "4.0",
+      costSnapshotVersion: "4.1",
       costSnapshotLocked: true
     };
   });
@@ -2906,7 +2913,7 @@ function ensureFixedCostSnapshotsV302() {
   const nextImports = imports.map(record => {
     const alreadyLocked =
       record?.costSnapshotLocked === true &&
-      String(record?.costSnapshotVersion || "") === "4.0";
+      String(record?.costSnapshotVersion || "") === "4.1";
 
     if (alreadyLocked) return record;
 
@@ -3020,16 +3027,27 @@ function loadBatchByNumber() {
   const arrivalDate = getStoredBatchValue(batch, batchItems, "arrivalDate", "");
   const storedPotCost = Number(batch.potCost);
   const storedPotRM = Number(batch.potRM);
-  const potCost =
-    Number.isFinite(storedPotCost) && storedPotCost > 0
-      ? storedPotCost
-      : (
-          Number.isFinite(storedPotRM) &&
-          storedPotRM > 0 &&
-          effectiveRate > 0
-            ? storedPotRM * effectiveRate
-            : 0
-        );
+  const isVndBatch = currency === "VND";
+  const potWasManuallyEntered =
+    String(batch.potCostSource || "").trim() === "manual";
+
+  // V4.1：旧 VND 记录如果没有“手动输入”标记，
+  // 不再从 potCost / potRM 自动恢复“搭配花盆总费用”。
+  // 这是过去 VND 内地杂费自动出现的主要来源之一。
+  const potCost = isVndBatch && !potWasManuallyEntered
+    ? 0
+    : (
+        Number.isFinite(storedPotCost) && storedPotCost > 0
+          ? storedPotCost
+          : (
+              Number.isFinite(storedPotRM) &&
+              storedPotRM > 0 &&
+              effectiveRate > 0 &&
+              potWasManuallyEntered
+                ? storedPotRM * effectiveRate
+                : 0
+            )
+      );
 
   const shippingMY = Number(batch.shippingMY) || 0;
 
@@ -3039,17 +3057,26 @@ function loadBatchByNumber() {
   const storedChinaTransportRM =
     Number(batch.chinaTransportRM);
 
+  const chinaTransportWasManuallyEntered =
+    String(batch.chinaTransportSource || "").trim() === "manual";
+
+  // V4.1：VND 旧记录没有手动标记时，
+  // 不再自动显示“内地运输＋打木架费用”。
   const chinaTransportCost =
-    Number.isFinite(storedChinaTransportCost) &&
-    storedChinaTransportCost > 0
-      ? storedChinaTransportCost
+    isVndBatch && !chinaTransportWasManuallyEntered
+      ? 0
       : (
-          Number.isFinite(storedChinaTransportRM) &&
-          storedChinaTransportRM > 0 &&
-          effectiveRate > 0 &&
-          String(batch.chinaTransportSource || "") === "manual"
-            ? storedChinaTransportRM * effectiveRate
-            : 0
+          Number.isFinite(storedChinaTransportCost) &&
+          storedChinaTransportCost > 0
+            ? storedChinaTransportCost
+            : (
+                Number.isFinite(storedChinaTransportRM) &&
+                storedChinaTransportRM > 0 &&
+                effectiveRate > 0 &&
+                chinaTransportWasManuallyEntered
+                  ? storedChinaTransportRM * effectiveRate
+                  : 0
+              )
         );
 
   document.getElementById("batchRackQuantity").value = rackQuantity;
@@ -4844,7 +4871,7 @@ function publishPricingSuiteImportUnitPrices() {
                   )
             );
 
-      // V4.0：Pricing Suite 优先读取进口保存时锁定的成本快照。
+      // V4.1：Pricing Suite 优先读取进口保存时锁定的成本快照。
       // 售出库存只影响 remainingQuantity，不重新分摊整批费用。
       const fixedInlandMiscPercent =
         Number(source?.fixedInlandMiscPercent);
@@ -5837,6 +5864,40 @@ function collectBatchRows() {
     };
   });
 }
+function hasHistoricalUnitPriceChanged() {
+  if (!currentEditingImportNumber) return false;
+
+  const batch = getBatches().find(
+    item =>
+      String(item.importNumber || "") ===
+      String(currentEditingImportNumber || "")
+  );
+
+  if (!batch) return false;
+
+  const storedItems = getBatchItemsForDisplay(batch);
+  const rows = Array.from(
+    document.querySelectorAll("#batchRows tr")
+  );
+
+  return rows.some((row, index) => {
+    const rowId = Number(row.dataset.rowId);
+    const currentPrice = parseAmount(
+      document.getElementById(
+        `batchPrice-${rowId}`
+      )?.value
+    );
+
+    const storedPrice = Number(
+      storedItems[index]?.originalUnitPrice ??
+      storedItems[index]?.unitPrice ??
+      0
+    ) || 0;
+
+    return Math.abs(currentPrice - storedPrice) > 0.000001;
+  });
+}
+
 function calculateBatch() {
   updateTransitDays();
 
@@ -6023,12 +6084,21 @@ function calculateBatch() {
       formatMoney(grandTotal, "RM ");
   }
 
-  if (currentEditingImportNumber) {
+  if (
+    currentEditingImportNumber &&
+    !hasHistoricalUnitPriceChanged()
+  ) {
     const storedBatch = getBatches().find(
-      batch => batch.importNumber === currentEditingImportNumber
+      batch =>
+        batch.importNumber ===
+        currentEditingImportNumber
     );
+
     if (storedBatch) {
-      restoreStoredBatchRMDisplay(storedBatch, getBatchItemsForDisplay(storedBatch));
+      restoreStoredBatchRMDisplay(
+        storedBatch,
+        getBatchItemsForDisplay(storedBatch)
+      );
     }
   }
 
@@ -6092,7 +6162,7 @@ function saveBatchImport() {
 
     const oldBatch = batches[batchIndex];
 
-    // V4.0：编辑进口记录时，以当前画面输入的日期为准。
+    // V4.1：编辑进口记录时，以当前画面输入的日期为准。
     // Date Picker 会同步到 DD-MM-YYYY 输入框，这里再次正规化，
     // 避免旧 batch 日期覆盖用户刚修改的新日期。
     const editedContainerDate = normalizeFlexibleDateInput(
@@ -6125,6 +6195,21 @@ function saveBatchImport() {
     ).trim();
 
     const oldItems = getBatchItemsForDisplay(oldBatch);
+
+    const historicalPriceChanged =
+      result.valid.some((editedItem, index) => {
+        const oldItem = oldItems[index] || {};
+        const oldPrice = Number(
+          oldItem.originalUnitPrice ??
+          oldItem.unitPrice ??
+          0
+        ) || 0;
+
+        return Math.abs(
+          Number(editedItem.unitPrice || 0) -
+          oldPrice
+        ) > 0.000001;
+      });
 
     if (oldItems.length !== result.valid.length) {
       status.textContent =
@@ -6256,25 +6341,46 @@ function saveBatchImport() {
         )
       );
 
-      const preservedUnitCost = resolveImportUnitCost(
+      const oldUnitCost = resolveImportUnitCost(
         oldItem,
         oldBatch,
         productBeforeEdit,
         matchingStoredImport
       );
 
-      if (!(preservedUnitCost > 0) && originalQuantity > 0) {
+      const editedUnitCost =
+        historicalPriceChanged
+          ? Math.max(0, Number(edited.unitCost) || 0)
+          : oldUnitCost;
+
+      if (!(editedUnitCost > 0) && originalQuantity > 0) {
         status.textContent =
-          `${oldItem.productName || edited.name || "此产品"} 的原始成本资料不完整，系统已停止保存，避免把Average Cost覆盖成0。请先从原进口费用恢复成本。`;
+          `${oldItem.productName || edited.name || "此产品"} 的成本资料不完整，系统已停止保存，避免把Average Cost覆盖成0。`;
         return;
       }
-      const preservedBatchTotal = [
-        Number(oldItem.batchTotal),
-        Number(matchingStoredImport?.batchTotal),
-        preservedUnitCost > 0 ? preservedUnitCost * originalQuantity : 0
-      ].find(value => Number.isFinite(value) && value > 0) || 0;
 
-      // V4.0：上方进口记录编辑区绝不修改库存。
+      const editedBatchTotal =
+        historicalPriceChanged
+          ? Math.max(
+              0,
+              Number(edited.itemTotal) ||
+              editedUnitCost * originalQuantity
+            )
+          : (
+              [
+                Number(oldItem.batchTotal),
+                Number(matchingStoredImport?.batchTotal),
+                oldUnitCost > 0
+                  ? oldUnitCost * originalQuantity
+                  : 0
+              ].find(
+                value =>
+                  Number.isFinite(value) &&
+                  value > 0
+              ) || 0
+            );
+
+      // V4.1：上方进口记录编辑区绝不修改库存。
       // 产品名称可以同步，但库存数量只能在页面最下面的产品库存区调整。
       if (productIndex !== -1) {
         products[productIndex] = {
@@ -6305,30 +6411,93 @@ function saveBatchImport() {
           preservedRemaining,
         stockAdded: originalQuantity,
 
-        // 原始成本快照永久冻结。
-        unitPrice: Number(oldItem.unitPrice) || 0,
-        originalUnitPrice:
-          Number(oldItem.originalUnitPrice) > 0
-            ? Number(oldItem.originalUnitPrice)
+        // V4.1：只有原进口单价允许更正。
+        // 一旦单价改变，相关成本快照同步重新计算。
+        unitPrice:
+          historicalPriceChanged
+            ? Number(edited.unitPrice) || 0
             : Number(oldItem.unitPrice) || 0,
+        originalUnitPrice:
+          historicalPriceChanged
+            ? Number(edited.unitPrice) || 0
+            : (
+                Number(oldItem.originalUnitPrice) > 0
+                  ? Number(oldItem.originalUnitPrice)
+                  : Number(oldItem.unitPrice) || 0
+              ),
         foreignTotal:
-          Number(oldItem.foreignTotal) || 0,
-        originalForeignTotal:
-          Number(oldItem.originalForeignTotal) > 0
-            ? Number(oldItem.originalForeignTotal)
+          historicalPriceChanged
+            ? Number(edited.foreignTotal) || 0
             : Number(oldItem.foreignTotal) || 0,
-        unitCost: preservedUnitCost,
-        batchTotal: preservedBatchTotal,
-        fixedUnitCostRM:
-          Number(oldItem.fixedUnitCostRM) > 0
-            ? Number(oldItem.fixedUnitCostRM)
-            : preservedUnitCost,
-        fixedBatchTotalRM:
-          Number(oldItem.fixedBatchTotalRM) > 0
-            ? Number(oldItem.fixedBatchTotalRM)
-            : preservedBatchTotal,
-        costSnapshotVersion:
-          oldItem.costSnapshotVersion || "4.0",
+        originalForeignTotal:
+          historicalPriceChanged
+            ? Number(edited.foreignTotal) || 0
+            : (
+                Number(oldItem.originalForeignTotal) > 0
+                  ? Number(oldItem.originalForeignTotal)
+                  : Number(oldItem.foreignTotal) || 0
+              ),
+        purchaseRM:
+          historicalPriceChanged
+            ? Number(edited.purchaseRM) || 0
+            : Number(oldItem.purchaseRM) || 0,
+        shippingRate:
+          historicalPriceChanged
+            ? Number(result.shippingRate) || 0
+            : Number(oldItem.shippingRate) || 0,
+        unitCost: editedUnitCost,
+        batchTotal: editedBatchTotal,
+        fixedPricingUnitPriceForeign:
+          historicalPriceChanged
+            ? (
+                Number(edited.unitPrice) *
+                (
+                  1 +
+                  (
+                    (
+                      Number(result.chinaForeign) +
+                      Number(result.potForeign)
+                    ) /
+                    Math.max(
+                      Number(result.totalPurchaseForeign),
+                      0.000001
+                    )
+                  )
+                )
+              )
+            : Number(oldItem.fixedPricingUnitPriceForeign) || 0,
+        fixedUnitCostRM: editedUnitCost,
+        fixedBatchTotalRM: editedBatchTotal,
+        fixedRate:
+          historicalPriceChanged
+            ? parseAmount(
+                document.getElementById("batchRate").value
+              )
+            : (
+                Number(oldItem.fixedRate) ||
+                Number(oldItem.rate) ||
+                0
+              ),
+        fixedInlandMiscPercent:
+          historicalPriceChanged &&
+          Number(result.totalPurchaseForeign) > 0
+            ? (
+                (
+                  Number(result.chinaForeign) +
+                  Number(result.potForeign)
+                ) /
+                Number(result.totalPurchaseForeign)
+              ) * 100
+            : Number(oldItem.fixedInlandMiscPercent) || 0,
+        fixedShippingRate:
+          historicalPriceChanged
+            ? Number(result.shippingRate) || 0
+            : (
+                Number(oldItem.fixedShippingRate) ||
+                Number(oldItem.shippingRate) ||
+                0
+              ),
+        costSnapshotVersion: "4.1",
         costSnapshotLocked: true,
 
         // 允许修正不影响成本的行政资料。
@@ -6485,8 +6654,58 @@ function saveBatchImport() {
       });
     });
 
+    const recalculatedBatchCostSnapshot =
+      historicalPriceChanged
+        ? {
+            originalGoodsTotalForeign:
+              Number(result.totalPurchaseForeign) || 0,
+            fixedRate:
+              parseAmount(
+                document.getElementById("batchRate").value
+              ),
+            fixedChinaTransportCost:
+              Number(result.chinaForeign) || 0,
+            fixedPotCost:
+              Number(result.potForeign) || 0,
+            fixedInlandMiscForeign:
+              (
+                Number(result.chinaForeign) +
+                Number(result.potForeign)
+              ),
+            fixedInlandMiscPercent:
+              Number(result.totalPurchaseForeign) > 0
+                ? (
+                    (
+                      Number(result.chinaForeign) +
+                      Number(result.potForeign)
+                    ) /
+                    Number(result.totalPurchaseForeign)
+                  ) * 100
+                : 0,
+            fixedShippingMY:
+              Number(result.shippingMY) || 0,
+            fixedForeignGrandTotal:
+              Number(result.foreignGrandTotal) || 0,
+            fixedTotalForeignCostsRM:
+              Number(result.totalPurchaseRM) || 0,
+            fixedShippingRate:
+              Number(result.shippingRate) || 0,
+            fixedGrandTotalRM:
+              Number(result.grandTotal) || 0,
+            totalForeignCostsRM:
+              Number(result.totalPurchaseRM) || 0,
+            shippingRate:
+              Number(result.shippingRate) || 0,
+            grandTotal:
+              Number(result.grandTotal) || 0,
+            costSnapshotVersion: "4.1",
+            costSnapshotLocked: true
+          }
+        : {};
+
     batches[batchIndex] = {
       ...oldBatch,
+      ...recalculatedBatchCostSnapshot,
 
       // 允许修正不影响成本的资料。
       rackQuantity: editedRackQuantity,
@@ -6522,6 +6741,38 @@ function saveBatchImport() {
       updatedAt: new Date().toISOString()
     };
 
+    if (historicalPriceChanged) {
+      const affectedProductIds = new Set(
+        updatedItems
+          .map(item => String(item.productId || "").trim())
+          .filter(Boolean)
+      );
+
+      affectedProductIds.forEach(productId => {
+        const productIndex = products.findIndex(
+          product =>
+            String(product.id || "").trim() ===
+            productId
+        );
+
+        if (productIndex === -1) return;
+
+        const rebuilt =
+          rebuildProductInventoryFromImports(
+            products[productIndex],
+            imports
+          );
+
+        products[productIndex] = {
+          ...products[productIndex],
+          // 库存数量由页面最下面管理，不在这里改。
+          averageCost:
+            Number(rebuilt.averageCost) || 0,
+          updatedAt: new Date().toISOString()
+        };
+      });
+    }
+
     saveProducts(products);
     saveImports(imports);
     saveBatches(batches);
@@ -6533,7 +6784,9 @@ function saveBatchImport() {
 
     clearBatchAfterSuccessfulAction();
     document.getElementById("batchStatusText").textContent =
-      `已更新 ${currentEditingImportNumber || oldBatch.importNumber}。产品名称、木架数量、运输单号及装柜／抵达日期已保存；原进口数量、库存数量、汇率、费用、运费比例、每棵成本、整批成本和Average Cost保持不变。库存请在页面最下面修改。`;
+      historicalPriceChanged
+        ? `已更新 ${currentEditingImportNumber || oldBatch.importNumber}。原进口单价及相关成本、运费比例、每棵成本和Average Cost已重新计算；原进口数量和库存数量不变。`
+        : `已更新 ${currentEditingImportNumber || oldBatch.importNumber}。产品名称、木架数量、运输单号及装柜／抵达日期已保存；原进口数量、库存数量和成本保持不变。库存请在页面最下面修改。`;
     return;
   }
 
@@ -6563,7 +6816,7 @@ function saveBatchImport() {
     fixedTotalForeignCostsRM: result.totalPurchaseRM,
     fixedShippingRate: result.shippingRate,
     fixedGrandTotalRM: result.grandTotal,
-    costSnapshotVersion: "4.0",
+    costSnapshotVersion: "4.1",
     costSnapshotLocked: true
   };
 
@@ -6583,6 +6836,8 @@ function saveBatchImport() {
     potCost: result.potForeign,
     potRM: result.totalPurchaseRM > 0 && result.foreignGrandTotal > 0
       ? (result.potForeign / result.foreignGrandTotal) * result.totalPurchaseRM : 0,
+    potCostSource:
+      result.potForeign > 0 ? "manual" : "empty",
     currency: document.getElementById("batchCurrency").value,
     rate: parseAmount(document.getElementById("batchRate").value),
     containerDate: document.getElementById("batchContainerDate").value,
@@ -6641,7 +6896,7 @@ function saveBatchImport() {
         (1 + fixedBatchSnapshot.fixedInlandMiscPercent / 100),
       fixedUnitCostRM: item.unitCost,
       fixedBatchTotalRM: item.itemTotal,
-      costSnapshotVersion: "4.0",
+      costSnapshotVersion: "4.1",
       costSnapshotLocked: true
     };
 
@@ -9010,7 +9265,7 @@ function exportSystemExcel() {
 function backupSystemData() {
   const backup = {
     app: "Lover Legend Import Cost & Inventory System",
-    version: "4.0",
+    version: "4.1",
     exportedAt: new Date().toISOString(),
     settings: loadJSON("importSystemSettings", {}),
     products: getProducts(),
