@@ -2688,7 +2688,7 @@ function calculateFixedBatchCostSnapshot(batch, batchItems = []) {
     ) || 0
   );
 
-  // V5.2：VND没有系统自动内地杂费。
+  // V5.1：VND没有系统自动内地杂费。
   // 只有明确manual的VND费用才保留。
   const fixedChinaTransportCost =
     currency === "VND" && !chinaManual
@@ -2842,7 +2842,7 @@ function buildFixedImportCostSnapshot(record, batchSnapshot) {
     fixedUnitCostRM,
     fixedBatchTotalRM:
       fixedUnitCostRM * originalQuantity,
-    costSnapshotVersion: "5.2",
+    costSnapshotVersion: "5.1",
     costSnapshotLocked: true
   };
 }
@@ -2934,7 +2934,7 @@ function ensureFixedCostSnapshotsV302() {
       ...batch,
       ...snapshot,
       items: nextItems,
-      costSnapshotVersion: "5.2",
+      costSnapshotVersion: "5.1",
       costSnapshotLocked: true
     };
   });
@@ -3070,7 +3070,7 @@ function loadBatchByNumber() {
   const potCostIsManual =
     String(batch.potCostSource || "").trim() === "manual";
 
-  // V5.2 A规则：内地费用跟随进口货币。
+  // V5.1 A规则：内地费用跟随进口货币。
   // VND绝不从旧RM字段、比例或其他资料自动倒推。
   const potCost =
     isVndBatch && !potCostIsManual
@@ -6968,7 +6968,7 @@ function saveBatchImport() {
               Number(oldItem.shippingRate) ||
               0
             ),
-        costSnapshotVersion: "5.2",
+        costSnapshotVersion: "5.1",
         costSnapshotLocked: true,
 
         // 允许修正不影响成本的行政资料。
@@ -7163,7 +7163,7 @@ function saveBatchImport() {
             Number(result.totalPurchaseRM) || 0,
           grandTotal:
             Number(result.grandTotal) || 0,
-          costSnapshotVersion: "5.2",
+          costSnapshotVersion: "5.1",
           costSnapshotLocked: true
         }
       : {};
@@ -7278,7 +7278,7 @@ function saveBatchImport() {
     fixedTotalForeignCostsRM: result.totalPurchaseRM,
     fixedShippingRate: result.shippingRate,
     fixedGrandTotalRM: result.grandTotal,
-    costSnapshotVersion: "5.2",
+    costSnapshotVersion: "5.1",
     costSnapshotLocked: true
   };
 
@@ -7358,7 +7358,7 @@ function saveBatchImport() {
         (1 + fixedBatchSnapshot.fixedInlandMiscPercent / 100),
       fixedUnitCostRM: item.unitCost,
       fixedBatchTotalRM: item.itemTotal,
-      costSnapshotVersion: "5.2",
+      costSnapshotVersion: "5.1",
       costSnapshotLocked: true
     };
 
@@ -9727,7 +9727,7 @@ function exportSystemExcel() {
 function backupSystemData() {
   const backup = {
     app: "Lover Legend Import Cost & Inventory System",
-    version: "5.2",
+    version: "5.1",
     exportedAt: new Date().toISOString(),
     settings: loadJSON("importSystemSettings", {}),
     products: getProducts(),
@@ -9865,7 +9865,7 @@ function normalizeBackupForV51(rawData) {
                 : String(batch?.potCostSource || "empty")
             ),
 
-      costSnapshotVersion: "5.2",
+      costSnapshotVersion: "5.1",
       costSnapshotLocked: true
     };
 
@@ -9884,7 +9884,7 @@ function normalizeBackupForV51(rawData) {
             : snapshot.fixedRate,
         shippingRate:
           snapshot.fixedShippingRate,
-        costSnapshotVersion: "5.2",
+        costSnapshotVersion: "5.1",
         costSnapshotLocked: true
       }));
     }
@@ -9920,7 +9920,7 @@ function normalizeBackupForV51(rawData) {
       return {
         ...record,
         costSnapshotVersion:
-          record?.costSnapshotVersion || "5.2"
+          record?.costSnapshotVersion || "5.1"
       };
     }
 
@@ -9948,7 +9948,7 @@ function normalizeBackupForV51(rawData) {
           : snapshot.fixedRate,
       shippingRate:
         snapshot.fixedShippingRate,
-      costSnapshotVersion: "5.2",
+      costSnapshotVersion: "5.1",
       costSnapshotLocked: true
     };
   });
@@ -9976,7 +9976,7 @@ function restoreSystemData(event) {
 
       const confirmed = confirm(
         "Restore 会覆盖当前产品、库存和进口记录。\\n\\n" +
-        "旧版本 Backup 会自动升级为 V5.2 成本结构。\\n" +
+        "旧版本 Backup 会自动升级为 V5.1 成本结构。\\n" +
         "确定继续？"
       );
 

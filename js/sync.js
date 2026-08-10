@@ -376,7 +376,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     action: "push",
     force: false,
     baseRevision: Number(config.revision) || 0,
-    updatedBy: "System V5.2 Stable",
+    updatedBy: "System V5.1 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
@@ -465,7 +465,7 @@ function applyRemoteData(data) {
     cloudApplyingRemote = false;
   }
 
-  // V5.2：云端旧资料载入后，清除 VND 自动倒推出来的错误运输费用。
+  // V5.1：云端旧资料载入后，清除 VND 自动倒推出来的错误运输费用。
   // 只删除两个显示字段，不重算库存、Average Cost、Unit Cost 或历史总成本。
   if (
     typeof cleanupLegacyVndChinaTransportValuesV300 === "function"
