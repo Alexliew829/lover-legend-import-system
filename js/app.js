@@ -1408,7 +1408,7 @@ function applyBatchCostFieldLock(isEditing) {
 
 
     if (price) {
-      // V4.3：历史进口记录唯一开放的成本输入是“原单价”。
+      // V4.4：历史进口记录唯一开放的成本输入是“原单价”。
       price.disabled = false;
       price.classList.remove("cost-field-locked");
       price.classList.toggle(
@@ -2598,7 +2598,7 @@ function readStoredCostNumber(value) {
 }
 
 function cleanupLegacyVndChinaTransportValuesV300() {
-  // V4.3：永久停用旧版 VND 自动清零。
+  // V4.4：永久停用旧版 VND 自动清零。
   // 保留空函数只是为了兼容旧调用，不修改任何历史费用。
   return 0;
 }
@@ -2806,7 +2806,7 @@ function buildFixedImportCostSnapshot(record, batchSnapshot) {
     fixedUnitCostRM,
     fixedBatchTotalRM:
       fixedUnitCostRM * originalQuantity,
-    costSnapshotVersion: "4.3",
+    costSnapshotVersion: "4.4",
     costSnapshotLocked: true
   };
 }
@@ -2834,7 +2834,7 @@ function ensureFixedCostSnapshotsV302() {
 
       const alreadyLocked =
         item?.costSnapshotLocked === true &&
-        ["4.3", "4.3"].includes(
+        ["4.4", "4.4"].includes(
           String(item?.costSnapshotVersion || "")
         );
 
@@ -2863,7 +2863,7 @@ function ensureFixedCostSnapshotsV302() {
 
     const alreadyLocked =
       batch?.costSnapshotLocked === true &&
-      ["4.3", "4.3"].includes(
+      ["4.4", "4.4"].includes(
         String(batch?.costSnapshotVersion || "")
       );
 
@@ -2898,7 +2898,7 @@ function ensureFixedCostSnapshotsV302() {
       ...batch,
       ...snapshot,
       items: nextItems,
-      costSnapshotVersion: "4.3",
+      costSnapshotVersion: "4.4",
       costSnapshotLocked: true
     };
   });
@@ -2913,7 +2913,7 @@ function ensureFixedCostSnapshotsV302() {
   const nextImports = imports.map(record => {
     const alreadyLocked =
       record?.costSnapshotLocked === true &&
-      String(record?.costSnapshotVersion || "") === "4.3";
+      String(record?.costSnapshotVersion || "") === "4.4";
 
     if (alreadyLocked) return record;
 
@@ -3031,7 +3031,7 @@ function loadBatchByNumber() {
   const potCostIsManual =
     String(batch.potCostSource || "").trim() === "manual";
 
-  // V4.3：VND 旧资料没有明确 manual 标记时，不自动恢复花盆费用。
+  // V4.4：VND 旧资料没有明确 manual 标记时，不自动恢复花盆费用。
   const potCost =
     isVndBatch && !potCostIsManual
       ? 0
@@ -3059,7 +3059,7 @@ function loadBatchByNumber() {
   const chinaTransportIsManual =
     String(batch.chinaTransportSource || "").trim() === "manual";
 
-  // V4.3：VND 旧资料没有明确 manual 标记时，不自动恢复内地运输＋打木架费用。
+  // V4.4：VND 旧资料没有明确 manual 标记时，不自动恢复内地运输＋打木架费用。
   const chinaTransportCost =
     isVndBatch && !chinaTransportIsManual
       ? 0
@@ -3965,10 +3965,6 @@ function getHistorySingleDateEventCount(
 }
 
 function getHistoryAdjustmentUnitCost(adjustment) {
-  const importNumber = String(
-    adjustment?.importNumber || ""
-  ).trim().toLowerCase();
-
   const productId = String(
     adjustment?.productId || ""
   ).trim();
@@ -3981,6 +3977,36 @@ function getHistoryAdjustmentUnitCost(adjustment) {
     adjustment?.category || "盆栽"
   );
 
+  // V4.4：历史“当天卖出成本”必须使用库存管理当前采用的
+  // 产品 Average Cost。卖出库存只减少数量，不改变 Average Cost，
+  // 因此这里与首页/库存管理显示的平均成本保持完全一致。
+  const product = getProducts().find(item => {
+    const sameId =
+      productId &&
+      item?.id &&
+      String(item.id).trim() === productId;
+
+    const sameName =
+      productName &&
+      String(item?.name || "")
+        .trim()
+        .toLowerCase() === productName &&
+      String(item?.category || "盆栽") === category;
+
+    return sameId || sameName;
+  });
+
+  const averageCost = Number(product?.averageCost);
+  if (Number.isFinite(averageCost) && averageCost > 0) {
+    return averageCost;
+  }
+
+  // 仅供旧资料缺少产品 Average Cost 时备用：
+  // 再按同一进口编号 + 同一产品寻找保存的固定成本。
+  const importNumber = String(
+    adjustment?.importNumber || ""
+  ).trim().toLowerCase();
+
   if (!importNumber) return 0;
 
   const isSameProduct = item => {
@@ -3990,19 +4016,15 @@ function getHistoryAdjustmentUnitCost(adjustment) {
       String(item.productId).trim() === productId;
 
     const sameName =
-      !sameId &&
       productName &&
-      String(
-        item?.productName ||
-        item?.name ||
-        ""
-      ).trim().toLowerCase() === productName &&
+      String(item?.productName || item?.name || "")
+        .trim()
+        .toLowerCase() === productName &&
       String(item?.category || "盆栽") === category;
 
     return sameId || sameName;
   };
 
-  // 优先从 Imports 找到同一进口编号 + 同一产品。
   const importRecord = getImports().find(item =>
     String(item.importNumber || "")
       .trim()
@@ -4016,13 +4038,9 @@ function getHistoryAdjustmentUnitCost(adjustment) {
       importRecord.unitCost ??
       0
     );
-
-    if (Number.isFinite(cost) && cost > 0) {
-      return cost;
-    }
+    if (Number.isFinite(cost) && cost > 0) return cost;
   }
 
-  // 再从 Batch Items 找同一进口编号 + 同一产品。
   const batch = getBatches().find(item =>
     String(item.importNumber || "")
       .trim()
@@ -4030,18 +4048,13 @@ function getHistoryAdjustmentUnitCost(adjustment) {
   );
 
   if (batch) {
-    const batchItem = getBatchItemsForDisplay(batch)
-      .find(isSameProduct);
-
+    const batchItem = getBatchItemsForDisplay(batch).find(isSameProduct);
     const cost = Number(
       batchItem?.fixedUnitCostRM ??
       batchItem?.unitCost ??
       0
     );
-
-    if (Number.isFinite(cost) && cost > 0) {
-      return cost;
-    }
+    if (Number.isFinite(cost) && cost > 0) return cost;
   }
 
   return 0;
@@ -4996,7 +5009,7 @@ function publishPricingSuiteImportUnitPrices() {
                   )
             );
 
-      // V4.3：Pricing Suite 优先读取进口保存时锁定的成本快照。
+      // V4.4：Pricing Suite 优先读取进口保存时锁定的成本快照。
       // 售出库存只影响 remainingQuantity，不重新分摊整批费用。
       const fixedInlandMiscPercent =
         Number(source?.fixedInlandMiscPercent);
@@ -6281,7 +6294,7 @@ function saveBatchImport() {
 
     const oldBatch = batches[batchIndex];
 
-    // V4.3：编辑进口记录时，以当前画面输入的日期为准。
+    // V4.4：编辑进口记录时，以当前画面输入的日期为准。
     // Date Picker 会同步到 DD-MM-YYYY 输入框，这里再次正规化，
     // 避免旧 batch 日期覆盖用户刚修改的新日期。
     const editedContainerDate = normalizeFlexibleDateInput(
@@ -6500,7 +6513,7 @@ function saveBatchImport() {
             ) || 0
           );
 
-      // V4.3：上方进口记录编辑区绝不修改库存。
+      // V4.4：上方进口记录编辑区绝不修改库存。
       // 产品名称可以同步，但库存数量只能在页面最下面的产品库存区调整。
       if (productIndex !== -1) {
         products[productIndex] = {
@@ -6531,7 +6544,7 @@ function saveBatchImport() {
           preservedRemaining,
         stockAdded: originalQuantity,
 
-        // V4.3：原进口单价允许更正，其余原始成本输入仍锁定。
+        // V4.4：原进口单价允许更正，其余原始成本输入仍锁定。
         unitPrice: itemPriceChanged
           ? Number(edited.unitPrice) || 0
           : Number(oldItem.unitPrice) || 0,
@@ -6581,7 +6594,7 @@ function saveBatchImport() {
               Number(oldItem.shippingRate) ||
               0
             ),
-        costSnapshotVersion: "4.3",
+        costSnapshotVersion: "4.4",
         costSnapshotLocked: true,
 
         // 允许修正不影响成本的行政资料。
@@ -6776,7 +6789,7 @@ function saveBatchImport() {
             Number(result.totalPurchaseRM) || 0,
           grandTotal:
             Number(result.grandTotal) || 0,
-          costSnapshotVersion: "4.3",
+          costSnapshotVersion: "4.4",
           costSnapshotLocked: true
         }
       : {};
@@ -6891,7 +6904,7 @@ function saveBatchImport() {
     fixedTotalForeignCostsRM: result.totalPurchaseRM,
     fixedShippingRate: result.shippingRate,
     fixedGrandTotalRM: result.grandTotal,
-    costSnapshotVersion: "4.3",
+    costSnapshotVersion: "4.4",
     costSnapshotLocked: true
   };
 
@@ -6971,7 +6984,7 @@ function saveBatchImport() {
         (1 + fixedBatchSnapshot.fixedInlandMiscPercent / 100),
       fixedUnitCostRM: item.unitCost,
       fixedBatchTotalRM: item.itemTotal,
-      costSnapshotVersion: "4.3",
+      costSnapshotVersion: "4.4",
       costSnapshotLocked: true
     };
 
@@ -9340,7 +9353,7 @@ function exportSystemExcel() {
 function backupSystemData() {
   const backup = {
     app: "Lover Legend Import Cost & Inventory System",
-    version: "4.3",
+    version: "4.4",
     exportedAt: new Date().toISOString(),
     settings: loadJSON("importSystemSettings", {}),
     products: getProducts(),
