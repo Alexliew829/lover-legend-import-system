@@ -4998,6 +4998,15 @@ function calculateBatch() {
     chinaForeign +
     potForeign;
 
+  // V3.1 mapping field: inland miscellaneous cost is the two explicit
+  // mainland cost items divided by the complete foreign-side batch total.
+  // Keep this separate from inventory/Average Cost so stock movements never
+  // rewrite the original import-cost mapping.
+  const inlandMiscForeign = chinaForeign + potForeign;
+  const inlandMiscRate = foreignGrandTotal > 0
+    ? (inlandMiscForeign / foreignGrandTotal) * 100
+    : 0;
+
   const allForeignCostsRM = batchRate > 0
     ? foreignGrandTotal / batchRate
     : 0;
@@ -5164,6 +5173,8 @@ function calculateBatch() {
     totalPurchaseRM: allForeignCostsRM,
     chinaForeign,
     potForeign,
+    inlandMiscForeign,
+    inlandMiscRate,
     shippingMY,
     shippingRate,
     grandTotal,
@@ -5383,6 +5394,10 @@ function saveBatchImport() {
     potCost: result.potForeign,
     potRM: result.totalPurchaseRM > 0 && result.foreignGrandTotal > 0
       ? (result.potForeign / result.foreignGrandTotal) * result.totalPurchaseRM : 0,
+    // V3.1: explicit mapping fields for Pricing Suite.
+    inlandMiscForeign: result.inlandMiscForeign,
+    inlandMiscRate: result.inlandMiscRate,
+    inlandMiscPercent: result.inlandMiscRate,
     currency: document.getElementById("batchCurrency").value,
     rate: parseAmount(document.getElementById("batchRate").value),
     containerDate: document.getElementById("batchContainerDate").value,
@@ -5435,6 +5450,8 @@ function saveBatchImport() {
       quantity: item.quantity, remainingQuantity: item.quantity,
       unitPrice: item.unitPrice, currency: item.currency, rate: item.rate,
       foreignTotal: item.foreignTotal, purchaseRM: item.purchaseRM,
+      inlandMiscRate: result.inlandMiscRate,
+      inlandMiscPercent: result.inlandMiscRate,
       shippingRate: result.shippingRate, unitCost: item.unitCost,
       stockAdded: item.stockAdded, batchTotal: item.itemTotal,
       averageDirection: item.direction, rackQuantity: batch.rackQuantity,
@@ -7779,7 +7796,7 @@ function exportSystemExcel() {
 function backupSystemData() {
   const backup = {
     app: "Lover Legend Import Cost & Inventory System",
-    version: "2.63",
+    version: "3.1",
     exportedAt: new Date().toISOString(),
     settings: loadJSON("importSystemSettings", {}),
     products: getProducts(),
