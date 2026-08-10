@@ -2688,7 +2688,7 @@ function calculateFixedBatchCostSnapshot(batch, batchItems = []) {
     ) || 0
   );
 
-  // V5.1：VND没有系统自动内地杂费。
+  // V5.2：VND没有系统自动内地杂费。
   // 只有明确manual的VND费用才保留。
   const fixedChinaTransportCost =
     currency === "VND" && !chinaManual
@@ -3070,7 +3070,7 @@ function loadBatchByNumber() {
   const potCostIsManual =
     String(batch.potCostSource || "").trim() === "manual";
 
-  // V5.1 A规则：内地费用跟随进口货币。
+  // V5.2 A规则：内地费用跟随进口货币。
   // VND绝不从旧RM字段、比例或其他资料自动倒推。
   const potCost =
     isVndBatch && !potCostIsManual
@@ -9976,7 +9976,7 @@ function restoreSystemData(event) {
 
       const confirmed = confirm(
         "Restore 会覆盖当前产品、库存和进口记录。\\n\\n" +
-        "旧版本 Backup 会自动升级为 V5.1 成本结构。\\n" +
+        "旧版本 Backup 会自动升级为 V5.2 成本结构。\\n" +
         "确定继续？"
       );
 
