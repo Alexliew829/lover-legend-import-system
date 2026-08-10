@@ -1408,7 +1408,7 @@ function applyBatchCostFieldLock(isEditing) {
 
 
     if (price) {
-      // V5.5：历史进口记录唯一开放的成本输入是“原单价”。
+      // V5.6：历史进口记录唯一开放的成本输入是“原单价”。
       price.disabled = false;
       price.classList.remove("cost-field-locked");
       price.classList.toggle(
@@ -2611,7 +2611,7 @@ function readStoredCostNumber(value) {
 }
 
 function cleanupLegacyVndChinaTransportValuesV300() {
-  // V5.5：永久停用旧版 VND 自动清零。
+  // V5.6：永久停用旧版 VND 自动清零。
   // 保留空函数只是为了兼容旧调用，不修改任何历史费用。
   return 0;
 }
@@ -2688,7 +2688,7 @@ function calculateFixedBatchCostSnapshot(batch, batchItems = []) {
     ) || 0
   );
 
-  // V5.5：VND没有系统自动内地杂费。
+  // V5.6：VND没有系统自动内地杂费。
   // 只有明确manual的VND费用才保留。
   const fixedChinaTransportCost =
     currency === "VND" && !chinaManual
@@ -2763,7 +2763,7 @@ function calculateFixedBatchCostSnapshot(batch, batchItems = []) {
 }
 
 
-// V5.5 Cost Migration Repair:
+// V5.6 Cost Migration Repair:
 // Restore corrupted legacy snapshots where numeric fields were saved as date strings.
 function repairCostNumber(value, fallback = 0) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -2891,7 +2891,7 @@ function ensureFixedCostSnapshotsV302() {
 
       const alreadyLocked =
         item?.costSnapshotLocked === true &&
-        ["5.5", "5.5"].includes(
+        ["5.6", "5.6"].includes(
           String(item?.costSnapshotVersion || "")
         );
 
@@ -2920,7 +2920,7 @@ function ensureFixedCostSnapshotsV302() {
 
     const alreadyLocked =
       batch?.costSnapshotLocked === true &&
-      ["5.5", "5.5"].includes(
+      ["5.6", "5.6"].includes(
         String(batch?.costSnapshotVersion || "")
       );
 
@@ -2970,7 +2970,7 @@ function ensureFixedCostSnapshotsV302() {
   const nextImports = imports.map(record => {
     const alreadyLocked =
       record?.costSnapshotLocked === true &&
-      String(record?.costSnapshotVersion || "") === "5.5";
+      String(record?.costSnapshotVersion || "") === "5.6";
 
     if (alreadyLocked) return record;
 
@@ -3091,7 +3091,7 @@ function loadBatchByNumber() {
   const potCostIsManual =
     String(batch.potCostSource || "").trim() === "manual";
 
-  // V5.5 A规则：内地费用跟随进口货币。
+  // V5.6 A规则：内地费用跟随进口货币。
   // VND绝不从旧RM字段、比例或其他资料自动倒推。
   const potCost =
     isVndBatch && !potCostIsManual
@@ -4054,7 +4054,7 @@ function getHistoryAdjustmentUnitCost(adjustment) {
     adjustment?.category || "盆栽"
   );
 
-  // V5.5：历史“当天卖出成本”必须使用库存管理当前采用的
+  // V5.6：历史“当天卖出成本”必须使用库存管理当前采用的
   // 产品 Average Cost。卖出库存只减少数量，不改变 Average Cost，
   // 因此这里与首页/库存管理显示的平均成本保持完全一致。
   const product = getProducts().find(item => {
@@ -4326,7 +4326,7 @@ function buildHistoryRangeSoldCostHtml(
 ) {
   if (!range) return "";
 
-  // V5.5：History 的底部总和只看“当前查询结果”。
+  // V5.6：History 的底部总和只看“当前查询结果”。
   // 关键词、部分产品名、完整产品名、点击选择产品，
   // 单日或多日，都统一从同一套 Adjustment 资料计算。
   const soldCost =
@@ -5404,7 +5404,7 @@ function publishPricingSuiteImportUnitPrices() {
                   )
             );
 
-      // V5.5：Pricing Suite 优先读取进口保存时锁定的成本快照。
+      // V5.6：Pricing Suite 优先读取进口保存时锁定的成本快照。
       // 售出库存只影响 remainingQuantity，不重新分摊整批费用。
       const fixedInlandMiscPercent =
         Number(source?.fixedInlandMiscPercent);
@@ -6689,7 +6689,7 @@ function saveBatchImport() {
 
     const oldBatch = batches[batchIndex];
 
-    // V5.5：编辑进口记录时，以当前画面输入的日期为准。
+    // V5.6：编辑进口记录时，以当前画面输入的日期为准。
     // Date Picker 会同步到 DD-MM-YYYY 输入框，这里再次正规化，
     // 避免旧 batch 日期覆盖用户刚修改的新日期。
     const editedContainerDate = normalizeFlexibleDateInput(
@@ -6908,7 +6908,7 @@ function saveBatchImport() {
             ) || 0
           );
 
-      // V5.5：上方进口记录编辑区绝不修改库存。
+      // V5.6：上方进口记录编辑区绝不修改库存。
       // 产品名称可以同步，但库存数量只能在页面最下面的产品库存区调整。
       if (productIndex !== -1) {
         products[productIndex] = {
@@ -6939,7 +6939,7 @@ function saveBatchImport() {
           preservedRemaining,
         stockAdded: originalQuantity,
 
-        // V5.5：原进口单价允许更正，其余原始成本输入仍锁定。
+        // V5.6：原进口单价允许更正，其余原始成本输入仍锁定。
         unitPrice: itemPriceChanged
           ? Number(edited.unitPrice) || 0
           : Number(oldItem.unitPrice) || 0,
@@ -9997,7 +9997,7 @@ function restoreSystemData(event) {
 
       const confirmed = confirm(
         "Restore 会覆盖当前产品、库存和进口记录。\\n\\n" +
-        "旧版本 Backup 会自动升级为 V5.5 成本结构。\\n" +
+        "旧版本 Backup 会自动升级为 V5.6 成本结构。\\n" +
         "确定继续？"
       );
 
