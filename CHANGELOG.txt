@@ -1,4 +1,15 @@
-V4.5 Stable
+V4.6 Stable
+
+History / 历史查询：
+- “卖出成本总值”改为查询结果固定底部汇总。
+- 无论单日、多日、输入产品名称、选择某个产品或没有产品筛选，最后都会显示。
+- 总和严格跟随当前日期范围及当前产品筛选后的卖出记录计算。
+- 没有卖出记录时仍显示 RM 0.00。
+- 产品专属的 Compact History 页面同样在最下面显示卖出成本总值。
+- 保留每天各自的“当天卖出成本总值”。
+- 不修改库存、进口、Average Cost 或既有成本资料。
+
+V4.6 Stable
 
 History / 历史查询：
 - 修复 V4.3 当天卖出成本仍读取进口批次固定成本而与首页 Average Cost 不一致的问题。
@@ -7,7 +18,7 @@ History / 历史查询：
 - 只有旧资料找不到产品 Average Cost 时，才备用读取同进口编号 + 同产品的固定进口成本。
 - 保持“当天卖出成本总值”位于当天卖出/库存异动记录最下面。
 
-V4.5 Stable
+V4.6 Stable
 
 History / 历史查询：
 - 每个查询日期新增“库存成本变化”。
@@ -19,7 +30,7 @@ History / 历史查询：
 - 历史库存成本按进口抵达日期、原进口数量及截至查询日的库存异动重建，不拿今天的库存总值冒充历史库存值。
 - 不修改现有库存、进口记录或 Average Cost，只增加历史查询统计显示。
 
-V4.5
+V4.6
 
 - 以 V4.0 Stable 为基础重做，保留原本编辑/保存流程。
 - 历史进口编号只开放“原进口单价”修改。
@@ -28,9 +39,9 @@ V4.5
 - 原进口数量、汇率、内地运输＋打木架费用、搭配花盆总费用、海外运费等继续灰色锁定。
 - 修复 VND 旧进口记录自动出现内地杂费：没有 manual 标记时，不再从旧 potRM / chinaTransportRM / 旧值自动恢复。
 - 新进口增加 potCostSource 标记，与 chinaTransportSource 一样区分真正手动输入。
-- 所有版本号、资源版本及缓存版本更新为 V4.5。
+- 所有版本号、资源版本及缓存版本更新为 V4.6。
 
-V4.5 Stable
+V4.6 Stable
 
 进口记录日期更新修复：
 - 修复修改进口编号后，抵达日期保存后仍恢复旧日期的问题。
@@ -40,9 +51,9 @@ V4.5 Stable
 - 抵达日期由 01-08-2026 改为 06-08-2026 后，重新打开仍显示 06-08-2026。
 - 同步更新运输天数。
 - 不重算库存、Average Cost、原始 Unit Cost、历史成本或海外运费比例。
-- 所有版本号、资源版本及缓存版本更新为 V4.5。
+- 所有版本号、资源版本及缓存版本更新为 V4.6。
 
-V4.5 Fixed Cost Lock
+V4.6 Fixed Cost Lock
 - 内地运输＋打木架费用、搭配花盆费用、内地杂费比例及海外运费比例按进口保存时固定。
 - 库存售出后只减少剩余数量，不重新分摊整批费用，不会令比例越来越高。
 - fixedShippingRate 为 0 时，不再覆盖仍然有效的历史 shippingRate。
@@ -50,20 +61,20 @@ V4.5 Fixed Cost Lock
 - 固定成本计算使用原进口数量，不使用当前剩余库存数量。
 - 不修改产品、库存、Average Cost、售出记录或新进口编号。
 
-V4.5 Fixed Cost Cloud Fields
+V4.6 Fixed Cost Cloud Fields
 - Apps Script Imports/Batches 表新增固定成本快照栏位，避免同步后 fixedShippingRate、fixedInlandMiscPercent 等资料丢失。
 - 前端文件改为平铺根目录结构，部署 GitHub Pages 时可直接覆盖仓库根目录。
-- Service Worker、Manifest、HTML、JS 与 VERSION 全部更新为 4.5。
+- Service Worker、Manifest、HTML、JS 与 VERSION 全部更新为 4.6。
 - 不修改产品、库存、Average Cost、剩余数量或新进口编号。
 
-V4.5 Fixed Shipping Recovery
+V4.6 Fixed Shipping Recovery
 - 修复旧批次 fixedShippingRate 被错误锁定为 0 的问题。
 - 当海外到马运费金额缺失，但原进口产品或批次仍保存 shippingRate 时，自动恢复固定海外运费比例。
 - 已锁定为 0 的 V3.02 成本快照会安全补修，不改变库存、Average Cost、原单价或剩余数量。
 - 新进口仍按保存时的整批数据固定海外运费比例。
 - Pricing Suite 联动资料版本更新为 13。
 
-V4.5 Fixed Cost Stable
+V4.6 Fixed Cost Stable
 - 永久停用 VND 内地运输自动清零逻辑。
 - 新增批次固定成本快照：整批原货款、汇率、内地杂费比例、海外运费比例及整批成本。
 - 新增产品固定成本快照：原单价、固定汇率、固定内地杂费比例、固定海外运费比例及每棵实际成本。
@@ -73,7 +84,7 @@ V4.5 Fixed Cost Stable
 - 旧资料仅补齐缺失的成本快照，不清零、不倒推、不改变库存或 Average Cost。
 - 联动资料版本更新为 11。
 
-V4.5 Stable
+V4.6 Stable
 - 修正 Pricing Suite 联动的内地杂费比例。
 - 正确公式：内地运输＋打木架＋搭配花盆费用 ÷ 整批货款总额。
 - 同一进口编号的全部产品共用相同批次比例。
