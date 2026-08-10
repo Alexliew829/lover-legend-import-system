@@ -3056,7 +3056,7 @@ body.access-locked {
   }
 }
 
-/* V4.1.1：编辑进口记录时锁定所有会影响原始成本的输入 */
+/* V4.2：编辑进口记录时锁定所有会影响原始成本的输入 */
 .cost-field-locked,
 .cost-field-locked:disabled {
   cursor: not-allowed;
@@ -3093,7 +3093,7 @@ body.access-locked {
 
 
 
-/* V4.1.1：上方进口编辑只显示原进口数量 */
+/* V4.2：上方进口编辑只显示原进口数量 */
 .batch-original-qty {
   min-width: 88px;
 }
@@ -3105,7 +3105,7 @@ body.access-locked {
 }
 
 
-/* V4.1.1：历史原进口单价唯一开放编辑 */
+/* V4.2：历史原进口单价唯一开放编辑 */
 .historical-price-editable {
   background: #fff8d8 !important;
   border-color: #c9a227 !important;
@@ -3115,4 +3115,65 @@ body.access-locked {
 
 .historical-price-editable:focus {
   outline: 2px solid rgba(201, 162, 39, 0.25);
+}
+
+
+/* V4.2 History：每日库存成本变化 */
+.history-inventory-cost-card {
+  margin: 14px 0 18px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: #f5faf6;
+  border: 1px solid rgba(34, 101, 63, 0.16);
+}
+
+.history-inventory-cost-title {
+  margin-bottom: 10px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #1f633d;
+}
+
+.history-cost-flow-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 8px 0;
+  color: #44554b;
+}
+
+.history-cost-flow-row strong {
+  white-space: nowrap;
+  color: #1f633d;
+}
+
+.history-cost-flow-row.sold strong {
+  color: #c93030;
+}
+
+.history-cost-flow-row.increase strong {
+  color: #176d45;
+}
+
+.history-cost-flow-row.ending {
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(34, 101, 63, 0.28);
+  font-weight: 800;
+}
+
+.history-cost-flow-row.ending strong {
+  font-size: 1.08rem;
+}
+
+@media (max-width: 520px) {
+  .history-cost-flow-row {
+    align-items: flex-start;
+    font-size: 0.94rem;
+  }
+
+  .history-cost-flow-row span {
+    max-width: 62%;
+  }
 }
