@@ -1408,7 +1408,7 @@ function applyBatchCostFieldLock(isEditing) {
 
 
     if (price) {
-      // V4.6：历史进口记录唯一开放的成本输入是“原单价”。
+      // V4.7：历史进口记录唯一开放的成本输入是“原单价”。
       price.disabled = false;
       price.classList.remove("cost-field-locked");
       price.classList.toggle(
@@ -2598,7 +2598,7 @@ function readStoredCostNumber(value) {
 }
 
 function cleanupLegacyVndChinaTransportValuesV300() {
-  // V4.6：永久停用旧版 VND 自动清零。
+  // V4.7：永久停用旧版 VND 自动清零。
   // 保留空函数只是为了兼容旧调用，不修改任何历史费用。
   return 0;
 }
@@ -2806,7 +2806,7 @@ function buildFixedImportCostSnapshot(record, batchSnapshot) {
     fixedUnitCostRM,
     fixedBatchTotalRM:
       fixedUnitCostRM * originalQuantity,
-    costSnapshotVersion: "4.6",
+    costSnapshotVersion: "4.7",
     costSnapshotLocked: true
   };
 }
@@ -2834,7 +2834,7 @@ function ensureFixedCostSnapshotsV302() {
 
       const alreadyLocked =
         item?.costSnapshotLocked === true &&
-        ["4.6", "4.6"].includes(
+        ["4.7", "4.7"].includes(
           String(item?.costSnapshotVersion || "")
         );
 
@@ -2863,7 +2863,7 @@ function ensureFixedCostSnapshotsV302() {
 
     const alreadyLocked =
       batch?.costSnapshotLocked === true &&
-      ["4.6", "4.6"].includes(
+      ["4.7", "4.7"].includes(
         String(batch?.costSnapshotVersion || "")
       );
 
@@ -2898,7 +2898,7 @@ function ensureFixedCostSnapshotsV302() {
       ...batch,
       ...snapshot,
       items: nextItems,
-      costSnapshotVersion: "4.6",
+      costSnapshotVersion: "4.7",
       costSnapshotLocked: true
     };
   });
@@ -2913,7 +2913,7 @@ function ensureFixedCostSnapshotsV302() {
   const nextImports = imports.map(record => {
     const alreadyLocked =
       record?.costSnapshotLocked === true &&
-      String(record?.costSnapshotVersion || "") === "4.6";
+      String(record?.costSnapshotVersion || "") === "4.7";
 
     if (alreadyLocked) return record;
 
@@ -3031,7 +3031,7 @@ function loadBatchByNumber() {
   const potCostIsManual =
     String(batch.potCostSource || "").trim() === "manual";
 
-  // V4.6：VND 旧资料没有明确 manual 标记时，不自动恢复花盆费用。
+  // V4.7：VND 旧资料没有明确 manual 标记时，不自动恢复花盆费用。
   const potCost =
     isVndBatch && !potCostIsManual
       ? 0
@@ -3059,7 +3059,7 @@ function loadBatchByNumber() {
   const chinaTransportIsManual =
     String(batch.chinaTransportSource || "").trim() === "manual";
 
-  // V4.6：VND 旧资料没有明确 manual 标记时，不自动恢复内地运输＋打木架费用。
+  // V4.7：VND 旧资料没有明确 manual 标记时，不自动恢复内地运输＋打木架费用。
   const chinaTransportCost =
     isVndBatch && !chinaTransportIsManual
       ? 0
@@ -3764,6 +3764,14 @@ function getDailyStockAdjustments(selectedDate, keyword = "") {
   const normalizedDate =
     normalizeDateToDDMMYYYY(selectedDate);
 
+  const historyInput =
+    document.getElementById("historyLookupInput");
+
+  const exactHistoryProduct =
+    String(
+      historyInput?.dataset?.exactHistoryProduct || ""
+    ).trim().toLowerCase();
+
   return getProducts()
     .flatMap(product =>
       getProductStockAdjustments(product)
@@ -3778,9 +3786,19 @@ function getDailyStockAdjustments(selectedDate, keyword = "") {
           category: product.category || "盆栽"
         }))
     )
-    .filter(adjustment =>
-      historyProductMatchesKeyword(adjustment, keyword)
-    )
+    .filter(adjustment => {
+      if (exactHistoryProduct) {
+        return String(
+          adjustment.productName || ""
+        ).trim().toLowerCase() ===
+          exactHistoryProduct;
+      }
+
+      return historyProductMatchesKeyword(
+        adjustment,
+        keyword
+      );
+    })
     .sort((a, b) =>
       String(a.createdAt || "").localeCompare(
         String(b.createdAt || "")
@@ -3977,7 +3995,7 @@ function getHistoryAdjustmentUnitCost(adjustment) {
     adjustment?.category || "盆栽"
   );
 
-  // V4.6：历史“当天卖出成本”必须使用库存管理当前采用的
+  // V4.7：历史“当天卖出成本”必须使用库存管理当前采用的
   // 产品 Average Cost。卖出库存只减少数量，不改变 Average Cost，
   // 因此这里与首页/库存管理显示的平均成本保持完全一致。
   const product = getProducts().find(item => {
@@ -4103,32 +4121,171 @@ function buildDailySoldCostHtml(adjustments) {
 }
 
 
-function getHistoryRangeSoldCostTotal(range, keyword = "") {
-  return getHistoryRangeDates(range).reduce(
-    (total, date) =>
-      total + getDailySoldCostTotal(
-        getDailyStockAdjustments(date, keyword)
-      ),
-    0
+function getHistoryQueryAdjustments(range, keyword = "") {
+  if (!range) return [];
+
+  const normalizedKeyword =
+    String(keyword || "").trim();
+
+  const historyInput =
+    document.getElementById("historyLookupInput");
+
+  const exactHistoryProduct =
+    String(
+      historyInput?.dataset?.exactHistoryProduct || ""
+    ).trim().toLowerCase();
+
+  return getProducts()
+    .flatMap(product => {
+      const productName =
+        String(product.name || "")
+          .trim()
+          .toLowerCase();
+
+      const productMatches = exactHistoryProduct
+        ? productName === exactHistoryProduct
+        : historyProductMatchesKeyword(
+            {
+              name: product.name,
+              id: product.id,
+              category: product.category
+            },
+            normalizedKeyword
+          );
+
+      if (!productMatches) return [];
+
+      return getProductStockAdjustments(product)
+        .filter(adjustment =>
+          isDateWithinHistoryRange(
+            adjustment.date,
+            range
+          )
+        )
+        .map(adjustment => ({
+          ...adjustment,
+          productId: product.id || "",
+          productName:
+            product.name || "未命名产品",
+          category:
+            product.category || "盆栽"
+        }));
+    })
+    .sort((a, b) => {
+      const dateDifference =
+        parseDDMMYYYY(a.date) -
+        parseDDMMYYYY(b.date);
+
+      if (dateDifference !== 0) {
+        return dateDifference;
+      }
+
+      return String(a.createdAt || "")
+        .localeCompare(
+          String(b.createdAt || "")
+        );
+    });
+}
+
+function getHistoryRangeSoldCostTotal(
+  range,
+  keyword = ""
+) {
+  return getDailySoldCostTotal(
+    getHistoryQueryAdjustments(
+      range,
+      keyword
+    )
   );
 }
 
-function buildHistoryRangeSoldCostHtml(range, keyword = "") {
+function buildHistoryFilteredDailySoldCostHtml(
+  range,
+  keyword = ""
+) {
   if (!range) return "";
 
-  // V4.6：卖出成本总和是 History 查询结果的固定底部栏。
-  // 无论单日／多日、有没有产品筛选、有没有卖出记录都显示。
-  // 金额严格跟随当前日期范围 + 当前产品筛选后的结果计算。
+  const adjustments =
+    getHistoryQueryAdjustments(
+      range,
+      keyword
+    ).filter(adjustment =>
+      Math.trunc(
+        Number(adjustment.delta) || 0
+      ) < 0
+    );
+
+  if (!adjustments.length) {
+    return "";
+  }
+
+  const grouped = new Map();
+
+  adjustments.forEach(adjustment => {
+    const date =
+      normalizeDateToDDMMYYYY(
+        adjustment.date
+      );
+
+    if (!date) return;
+
+    if (!grouped.has(date)) {
+      grouped.set(date, []);
+    }
+
+    grouped.get(date).push(adjustment);
+  });
+
+  const dates = Array.from(grouped.keys())
+    .sort(
+      (a, b) =>
+        parseDDMMYYYY(a) -
+        parseDDMMYYYY(b)
+    );
+
+  return dates.map(date => `
+    <div class="history-filtered-daily-sold-cost">
+      <span>
+        ${escapeHTML(date)}
+        · 当天卖出成本
+      </span>
+      <strong>
+        ${formatMoney(
+          getDailySoldCostTotal(
+            grouped.get(date)
+          ),
+          "RM "
+        )}
+      </strong>
+    </div>
+  `).join("");
+}
+
+function buildHistoryRangeSoldCostHtml(
+  range,
+  keyword = ""
+) {
+  if (!range) return "";
+
+  // V4.7：History 的底部总和只看“当前查询结果”。
+  // 关键词、部分产品名、完整产品名、点击选择产品，
+  // 单日或多日，都统一从同一套 Adjustment 资料计算。
   const soldCost =
-    getHistoryRangeSoldCostTotal(range, keyword);
+    getHistoryRangeSoldCostTotal(
+      range,
+      keyword
+    );
 
   return `
     <div class="history-range-sold-cost-total">
       <span>卖出成本总值</span>
-      <strong>${formatMoney(soldCost, "RM ")}</strong>
+      <strong>
+        ${formatMoney(soldCost, "RM ")}
+      </strong>
     </div>
   `;
 }
+
 
 
 function renderHistorySingleDateSection(
@@ -4635,10 +4792,15 @@ function renderCompactProductHistoryByRange(
   output.innerHTML =
     summaryBox +
     compactRows +
+    buildHistoryFilteredDailySoldCostHtml(
+      range,
+      normalizedKeyword
+    ) +
     buildHistoryRangeSoldCostHtml(
       range,
       normalizedKeyword
     );
+
   return true;
 }
 
@@ -5046,7 +5208,7 @@ function publishPricingSuiteImportUnitPrices() {
                   )
             );
 
-      // V4.6：Pricing Suite 优先读取进口保存时锁定的成本快照。
+      // V4.7：Pricing Suite 优先读取进口保存时锁定的成本快照。
       // 售出库存只影响 remainingQuantity，不重新分摊整批费用。
       const fixedInlandMiscPercent =
         Number(source?.fixedInlandMiscPercent);
@@ -6331,7 +6493,7 @@ function saveBatchImport() {
 
     const oldBatch = batches[batchIndex];
 
-    // V4.6：编辑进口记录时，以当前画面输入的日期为准。
+    // V4.7：编辑进口记录时，以当前画面输入的日期为准。
     // Date Picker 会同步到 DD-MM-YYYY 输入框，这里再次正规化，
     // 避免旧 batch 日期覆盖用户刚修改的新日期。
     const editedContainerDate = normalizeFlexibleDateInput(
@@ -6550,7 +6712,7 @@ function saveBatchImport() {
             ) || 0
           );
 
-      // V4.6：上方进口记录编辑区绝不修改库存。
+      // V4.7：上方进口记录编辑区绝不修改库存。
       // 产品名称可以同步，但库存数量只能在页面最下面的产品库存区调整。
       if (productIndex !== -1) {
         products[productIndex] = {
@@ -6581,7 +6743,7 @@ function saveBatchImport() {
           preservedRemaining,
         stockAdded: originalQuantity,
 
-        // V4.6：原进口单价允许更正，其余原始成本输入仍锁定。
+        // V4.7：原进口单价允许更正，其余原始成本输入仍锁定。
         unitPrice: itemPriceChanged
           ? Number(edited.unitPrice) || 0
           : Number(oldItem.unitPrice) || 0,
@@ -6631,7 +6793,7 @@ function saveBatchImport() {
               Number(oldItem.shippingRate) ||
               0
             ),
-        costSnapshotVersion: "4.6",
+        costSnapshotVersion: "4.7",
         costSnapshotLocked: true,
 
         // 允许修正不影响成本的行政资料。
@@ -6826,7 +6988,7 @@ function saveBatchImport() {
             Number(result.totalPurchaseRM) || 0,
           grandTotal:
             Number(result.grandTotal) || 0,
-          costSnapshotVersion: "4.6",
+          costSnapshotVersion: "4.7",
           costSnapshotLocked: true
         }
       : {};
@@ -6941,7 +7103,7 @@ function saveBatchImport() {
     fixedTotalForeignCostsRM: result.totalPurchaseRM,
     fixedShippingRate: result.shippingRate,
     fixedGrandTotalRM: result.grandTotal,
-    costSnapshotVersion: "4.6",
+    costSnapshotVersion: "4.7",
     costSnapshotLocked: true
   };
 
@@ -7021,7 +7183,7 @@ function saveBatchImport() {
         (1 + fixedBatchSnapshot.fixedInlandMiscPercent / 100),
       fixedUnitCostRM: item.unitCost,
       fixedBatchTotalRM: item.itemTotal,
-      costSnapshotVersion: "4.6",
+      costSnapshotVersion: "4.7",
       costSnapshotLocked: true
     };
 
@@ -9390,7 +9552,7 @@ function exportSystemExcel() {
 function backupSystemData() {
   const backup = {
     app: "Lover Legend Import Cost & Inventory System",
-    version: "4.6",
+    version: "4.7",
     exportedAt: new Date().toISOString(),
     settings: loadJSON("importSystemSettings", {}),
     products: getProducts(),
