@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=4.9" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=4.9" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=4.9" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=4.9" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=4.9" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=4.9" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=4.9" />
+  <link rel="manifest" href="./manifest.json?v=2.90" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=2.90" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=2.90" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=2.90" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=2.90" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=2.90" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=2.90" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=4.9" />
-  <link rel="stylesheet" href="./css/style.css?v=4.9" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=2.90" />
+  <link rel="stylesheet" href="./css/style.css?v=2.90" />
 </head>
 <body>
   <div id="accessLock"
@@ -84,7 +84,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 4.9 Stable</div>
+          <div class="app-header-version">正式版 2.90 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -174,11 +174,6 @@
                       class="secondary-btn"
                       type="button">＋ 新增一行</button>
             </div>
-            <div id="batchLookupStatus"
-                 class="batch-lookup-status"
-                 role="status"
-                 aria-live="polite"
-                 hidden></div>
           </div>
 
           <form id="batchImportForm">
@@ -189,8 +184,8 @@
                 <thead>
                   <tr>
                     <th>产品</th>
-                    <th>原进口</th>
-                    <th>原单价</th>
+                    <th>数量</th>
+                    <th>单价</th>
                     <th>货款总额</th>
                     <th>类别</th>
                     <th>入库</th>
@@ -296,11 +291,6 @@
             <div class="clear-help">只清空尚未保存的本次输入，不会删除已经保存的资料。</div>
             <div id="batchEditMode" class="batch-edit-mode" hidden>
               当前编辑：<strong id="currentImportNumberLabel"></strong>
-            </div>
-            <div id="batchCostLockNotice"
-                 class="batch-cost-lock-notice"
-                 hidden>
-              🔒 原进口数量及其他成本资料已锁定。只有“原单价”可修改；相关成本会即时自动重算。库存只能在页面最下面修改。
             </div>
             <div id="batchStatusText" class="status-text"></div>
           </form>
@@ -595,7 +585,7 @@
 
         <section class="panel">
           <h3>系统资料</h3>
-          <div class="info-row"><span>版本</span><strong>正式版 4.9 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong>正式版 2.90 Stable</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
           <div class="info-row"><span>Google Sheet</span><strong>已连接 Google Web App</strong></div>
         </section>
@@ -618,8 +608,8 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=4.9"></script>
-  <script src="./js/sync.js?v=4.9"></script>
-  <script src="./js/app.js?v=4.9"></script>
+  <script src="./js/common.js?v=2.90"></script>
+  <script src="./js/sync.js?v=2.90"></script>
+  <script src="./js/app.js?v=2.90"></script>
 </body>
 </html>
