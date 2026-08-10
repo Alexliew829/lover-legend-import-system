@@ -3056,7 +3056,7 @@ body.access-locked {
   }
 }
 
-/* V5.2：编辑进口记录时锁定所有会影响原始成本的输入 */
+/* V5.3：编辑进口记录时锁定所有会影响原始成本的输入 */
 .cost-field-locked,
 .cost-field-locked:disabled {
   cursor: not-allowed;
@@ -3093,7 +3093,7 @@ body.access-locked {
 
 
 
-/* V5.2：上方进口编辑只显示原进口数量 */
+/* V5.3：上方进口编辑只显示原进口数量 */
 .batch-original-qty {
   min-width: 88px;
 }
@@ -3105,7 +3105,7 @@ body.access-locked {
 }
 
 
-/* V5.2：历史原进口单价唯一开放编辑 */
+/* V5.3：历史原进口单价唯一开放编辑 */
 .historical-price-editable {
   background: #fff8d8 !important;
   border-color: #c9a227 !important;
@@ -3120,7 +3120,7 @@ body.access-locked {
 
 
 
-/* V5.2 History：当天卖出成本只显示在卖出记录下面 */
+/* V5.3 History：当天卖出成本只显示在卖出记录下面 */
 .history-daily-sold-cost {
   display: flex;
   align-items: center;
@@ -3150,7 +3150,7 @@ body.access-locked {
 }
 
 
-/* V5.2 History：多日期范围卖出成本总和 */
+/* V5.3 History：多日期范围卖出成本总和 */
 .history-range-sold-cost-total {
   display: flex;
   align-items: center;
@@ -3168,7 +3168,7 @@ body.access-locked {
 .history-range-sold-cost-total strong { color: #c93030; white-space: nowrap; font-size: 1.12rem; }
 
 
-/* V5.2：产品筛选查询也固定显示每日卖出成本及最终总和 */
+/* V5.3：产品筛选查询也固定显示每日卖出成本及最终总和 */
 .history-filtered-daily-sold-cost {
   display: flex;
   align-items: center;
