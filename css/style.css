@@ -3055,3 +3055,19 @@ body.access-locked {
 .compact-batch-grid .field-foreign-total{grid-column:2 / span 3!important;}
 #batchTrackingNumber{width:100%!important;}
 #batchRackQuantity{max-width:100%!important;}
+
+
+/* V4.7 final import cost layout */
+.compact-batch-grid{
+  grid-template-columns: minmax(260px,2fr) 80px minmax(160px,1fr) minmax(160px,1fr) minmax(170px,1fr) !important;
+  gap:12px !important;
+}
+.compact-batch-grid .field-tracking{grid-column:1!important;}
+.compact-batch-grid .field-rack{grid-column:2!important;}
+.compact-batch-grid .field-inland{grid-column:3!important;}
+.compact-batch-grid .field-pot{grid-column:4!important;}
+.compact-batch-grid .field-currency{grid-column:5!important;}
+.compact-batch-grid .field-inland-rate{grid-column:1!important;}
+.compact-batch-grid .field-foreign-total{grid-column:2 / span 4!important;}
+#batchRackQuantity{max-width:80px!important;}
+#batchTrackingNumber{width:100%!important;}
