@@ -1,6 +1,6 @@
-Lover Legend Import Cost & Inventory System V4.5 Stable
+Lover Legend Import Cost & Inventory System V4.6 Stable
 
 GitHub Pages：将 ZIP 内 lover-legend-import-system-main 文件夹中的全部文件覆盖到 repository 根目录。
 请确保 assets、css、js、index.html、manifest.json、sw.js、VERSION 同时上传。
-上传后页面应显示：正式版 4.5 Stable。
+上传后页面应显示：正式版 4.6 Stable。
 本版没有提供或修改 Apps Script Code.gs。
