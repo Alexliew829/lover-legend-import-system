@@ -4999,7 +4999,7 @@ function calculateBatch() {
     chinaForeign +
     potForeign;
 
-  // V3.9.1.1 mapping field: inland miscellaneous cost is the two explicit
+  // V4.0.1 mapping field: inland miscellaneous cost is the two explicit
   // mainland cost items divided by the complete foreign-side batch total.
   // Keep this separate from inventory/Average Cost so stock movements never
   // rewrite the original import-cost mapping.
@@ -5007,6 +5007,11 @@ function calculateBatch() {
   const inlandMiscRate = totalPurchaseForeign > 0
     ? (inlandMiscForeign / totalPurchaseForeign) * 100
     : 0;
+
+  const inlandRateField = document.getElementById("batchInlandMiscRate");
+  if (inlandRateField) {
+    inlandRateField.value = `${inlandMiscRate.toFixed(2)}%`;
+  }
 
   const allForeignCostsRM = batchRate > 0
     ? foreignGrandTotal / batchRate
@@ -5395,7 +5400,7 @@ function saveBatchImport() {
     potCost: result.potForeign,
     potRM: result.totalPurchaseRM > 0 && result.foreignGrandTotal > 0
       ? (result.potForeign / result.foreignGrandTotal) * result.totalPurchaseRM : 0,
-    // V3.9.1.1: explicit mapping fields for Pricing Suite.
+    // V4.0.1: explicit mapping fields for Pricing Suite.
     inlandMiscForeign: result.inlandMiscForeign,
     inlandMiscRate: result.inlandMiscRate,
     inlandMiscPercent: result.inlandMiscRate,

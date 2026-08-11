@@ -3025,3 +3025,12 @@ body.access-locked {
 /* V3.9 layout correction */
 .wide-tracking{grid-column:span 2;}
 .small-rack input{max-width:90px;}
+
+/* V4.0 batch import layout refinement */
+.tracking-input { min-width: 180px !important; }
+.small-rack input, .field-rack input { max-width: 70px !important; }
+/* Keep inland costs together and move grand total with misc rate area */
+.compact-batch-grid .field-inland,
+.compact-batch-grid .field-pot,
+.compact-batch-grid .field-foreign-total,
+.compact-batch-grid .field-inland-rate { min-width: 160px; }
