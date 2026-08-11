@@ -2531,7 +2531,7 @@ function loadBatchByNumber() {
             : 0
         );
 
-  // V4.7: never reconstruct inland cost from total cost.
+  // V4.8: never reconstruct inland cost from total cost.
   // Only use values explicitly saved in this import record.
   // This prevents old VND/CNY batches from inheriting incorrect costs.
   const recoveredChinaTransportCost = 0;
@@ -2552,7 +2552,7 @@ function loadBatchByNumber() {
   document.getElementById("batchChinaTransportCost").value =
     chinaTransportCost ? formatMoney(chinaTransportCost) : "";
 
-  // V4.7: old batches without explicit inland cost stay empty.
+  // V4.8: old batches without explicit inland cost stay empty.
   // Do not show recovery warning because it is not reliable.
   if (document.getElementById("batchStatusText")) {
     document.getElementById("batchStatusText").textContent = "";
@@ -4983,7 +4983,7 @@ function calculateBatch() {
     chinaForeign +
     potForeign;
 
-  // V4.7 mapping field: inland miscellaneous cost is the two explicit
+  // V4.8 mapping field: inland miscellaneous cost is the two explicit
   // mainland cost items divided by the complete foreign-side batch total.
   // Keep this separate from inventory/Average Cost so stock movements never
   // rewrite the original import-cost mapping.
@@ -5378,12 +5378,12 @@ function saveBatchImport() {
     rackQuantity: Math.max(0, Math.floor(parseAmount(document.getElementById("batchRackQuantity").value))),
     trackingNumber: document.getElementById("batchTrackingNumber").value.trim(),
     overseasTrackingNumber: document.getElementById("batchOverseasTrackingNumber").value.trim(),
-    // V4.7: batch costs only come from current input. Never inherit from previous currency/product.
+    // V4.8: batch costs only come from current input. Never inherit from previous currency/product.
     chinaTransportCost: Number(parseAmount(document.getElementById("batchChinaTransportCost").value)) || 0,
     chinaTransportRM: 0,
     potCost: Number(parseAmount(document.getElementById("batchPotCost").value)) || 0,
     potRM: 0,
-    // V4.7: explicit mapping fields for Pricing Suite.
+    // V4.8: explicit mapping fields for Pricing Suite.
     inlandMiscForeign: result.inlandMiscForeign,
     inlandMiscRate: result.inlandMiscRate,
     inlandMiscPercent: result.inlandMiscRate,
@@ -7813,6 +7813,24 @@ function restoreSystemData(event) {
   reader.onload = () => {
     try {
       const data = JSON.parse(String(reader.result || ""));
+
+      // V4.8 restore migration: keep old cost fields compatible.
+      // Never invent costs. Only normalize missing fields and preserve values.
+      if (Array.isArray(data.batches)) {
+        data.batches = data.batches.map(batch => {
+          const b = { ...batch };
+          if (b.inlandTransportCost == null && typeof b.chinaTransportCost === "number") {
+            b.inlandTransportCost = b.chinaTransportCost;
+          }
+          if (b.potCost == null && typeof b.potRM === "number") {
+            b.potCost = b.potRM;
+          }
+          if (typeof b.inlandTransportCost === "string" && !/^\d/.test(b.inlandTransportCost)) {
+            b.inlandTransportCost = 0;
+          }
+          return b;
+        });
+      }
 
       if (
         !Array.isArray(data.products) ||
