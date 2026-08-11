@@ -2695,7 +2695,7 @@ function loadBatchByNumber() {
             : 0
         );
 
-  // V4.10: never reconstruct inland cost from total cost.
+  // V4.11: never reconstruct inland cost from total cost.
   // Only use values explicitly saved in this import record.
   // This prevents old VND/CNY batches from inheriting incorrect costs.
   const recoveredChinaTransportCost = 0;
@@ -2716,7 +2716,7 @@ function loadBatchByNumber() {
   document.getElementById("batchChinaTransportCost").value =
     chinaTransportCost ? formatMoney(chinaTransportCost) : "";
 
-  // V4.10: old batches without explicit inland cost stay empty.
+  // V4.11: old batches without explicit inland cost stay empty.
   // Do not show recovery warning because it is not reliable.
   if (document.getElementById("batchStatusText")) {
     document.getElementById("batchStatusText").textContent = "";
@@ -5147,7 +5147,7 @@ function calculateBatch() {
     chinaForeign +
     potForeign;
 
-  // V4.10 mapping field: inland miscellaneous cost is the two explicit
+  // V4.11 mapping field: inland miscellaneous cost is the two explicit
   // mainland cost items divided by the complete foreign-side batch total.
   // Keep this separate from inventory/Average Cost so stock movements never
   // rewrite the original import-cost mapping.
@@ -5499,7 +5499,7 @@ function saveBatchImport() {
       if (!imports.some(record => String(record.id || "") === String(item.id || ""))) imports.push(item);
     });
 
-    // V4.10: ordinary metadata updates always save. Cost fields only update when
+    // V4.11: ordinary metadata updates always save. Cost fields only update when
     // Cost Repair Mode is explicitly enabled. This prevents accidental changes
     // while still allowing manual repair of historical batch-cost data.
     const repairEnabled = getCostRepairModeEnabled();
@@ -5639,12 +5639,12 @@ function saveBatchImport() {
     rackQuantity: Math.max(0, Math.floor(parseAmount(document.getElementById("batchRackQuantity").value))),
     trackingNumber: document.getElementById("batchTrackingNumber").value.trim(),
     overseasTrackingNumber: document.getElementById("batchOverseasTrackingNumber").value.trim(),
-    // V4.10: batch costs only come from current input. Never inherit from previous currency/product.
+    // V4.11: batch costs only come from current input. Never inherit from previous currency/product.
     chinaTransportCost: Number(parseAmount(document.getElementById("batchChinaTransportCost").value)) || 0,
     chinaTransportRM: 0,
     potCost: Number(parseAmount(document.getElementById("batchPotCost").value)) || 0,
     potRM: 0,
-    // V4.10: explicit mapping fields for Pricing Suite.
+    // V4.11: explicit mapping fields for Pricing Suite.
     inlandMiscForeign: result.inlandMiscForeign,
     inlandMiscRate: result.inlandMiscRate,
     inlandMiscPercent: result.inlandMiscRate,
@@ -8075,7 +8075,7 @@ function restoreSystemData(event) {
     try {
       const data = JSON.parse(String(reader.result || ""));
 
-      // V4.10 restore migration: keep old cost fields compatible.
+      // V4.11 restore migration: keep old cost fields compatible.
       // Never invent costs. Only normalize missing fields and preserve values.
       if (Array.isArray(data.batches)) {
         data.batches = data.batches.map(batch => {

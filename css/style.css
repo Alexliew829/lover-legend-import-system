@@ -3072,7 +3072,7 @@ body.access-locked {
 #batchRackQuantity{max-width:80px!important;}
 #batchTrackingNumber{width:100%!important;}
 
-/* V4.10 Cost Repair / revision history */
+/* V4.11 Cost Repair / revision history */
 .cost-repair-control-row {
   display: flex;
   align-items: center;
@@ -3122,4 +3122,80 @@ body.access-locked {
 .cost-revision-item small { color: #777; }
 @media (max-width: 700px) {
   .cost-repair-control-row { align-items: stretch; flex-direction: column; }
+}
+
+
+/* V4.11 Mobile Layout Fix */
+html, body {
+  overflow-x: hidden;
+  width: 100%;
+}
+
+@media (max-width: 700px) {
+  .app-shell {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .app-header-wrap {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .app-header-card {
+    grid-template-columns: 48px minmax(0,1fr) 48px;
+    padding: 8px;
+  }
+
+  /* Keep product table scroll only */
+  .table-wrap,
+  .product-table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  /* Import batch no longer expands whole page */
+  .compact-batch-grid {
+    width: 100% !important;
+    min-width: 0 !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+  }
+
+  .compact-batch-grid > * {
+    min-width: 0 !important;
+    grid-column: auto !important;
+  }
+
+  .compact-batch-grid .field-tracking {
+    grid-column: 1 / -1 !important;
+  }
+
+  .compact-batch-grid .field-rack {
+    grid-column: span 1 !important;
+  }
+
+  .compact-batch-grid .field-inland,
+  .compact-batch-grid .field-pot {
+    grid-column: span 1 !important;
+  }
+
+  .compact-batch-grid .field-currency {
+    grid-column: span 1 !important;
+  }
+
+  .compact-batch-grid .field-inland-rate,
+  .compact-batch-grid .field-foreign-total {
+    grid-column: 1 / -1 !important;
+  }
+
+  input, select, button {
+    max-width: 100%;
+  }
+
+  .bottom-nav {
+    width: 100%;
+  }
 }
