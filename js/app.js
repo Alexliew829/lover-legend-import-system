@@ -4999,7 +4999,7 @@ function calculateBatch() {
     chinaForeign +
     potForeign;
 
-  // V4.1 mapping field: inland miscellaneous cost is the two explicit
+  // V4.2 mapping field: inland miscellaneous cost is the two explicit
   // mainland cost items divided by the complete foreign-side batch total.
   // Keep this separate from inventory/Average Cost so stock movements never
   // rewrite the original import-cost mapping.
@@ -5394,13 +5394,12 @@ function saveBatchImport() {
     rackQuantity: Math.max(0, Math.floor(parseAmount(document.getElementById("batchRackQuantity").value))),
     trackingNumber: document.getElementById("batchTrackingNumber").value.trim(),
     overseasTrackingNumber: document.getElementById("batchOverseasTrackingNumber").value.trim(),
-    chinaTransportCost: result.chinaForeign,
-    chinaTransportRM: result.totalPurchaseRM > 0 && result.foreignGrandTotal > 0
-      ? (result.chinaForeign / result.foreignGrandTotal) * result.totalPurchaseRM : 0,
-    potCost: result.potForeign,
-    potRM: result.totalPurchaseRM > 0 && result.foreignGrandTotal > 0
-      ? (result.potForeign / result.foreignGrandTotal) * result.totalPurchaseRM : 0,
-    // V4.1: explicit mapping fields for Pricing Suite.
+    // V4.2: batch costs only come from current input. Never inherit from previous currency/product.
+    chinaTransportCost: Number(parseAmount(document.getElementById("batchChinaTransportCost").value)) || 0,
+    chinaTransportRM: 0,
+    potCost: Number(parseAmount(document.getElementById("batchPotCost").value)) || 0,
+    potRM: 0,
+    // V4.2: explicit mapping fields for Pricing Suite.
     inlandMiscForeign: result.inlandMiscForeign,
     inlandMiscRate: result.inlandMiscRate,
     inlandMiscPercent: result.inlandMiscRate,
