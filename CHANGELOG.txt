@@ -1,23 +1,23 @@
-V4.8 Stable
-- 以 V4.8 正确版本为唯一开发基准。
-- 保留 V4.8 成本计算、库存、Average Cost、同步及历史功能。
+V4.9 Stable
+- 以 V4.9 正确版本为唯一开发基准。
+- 保留 V4.9 成本计算、库存、Average Cost、同步及历史功能。
 - 新增 Pricing Suite 映射字段 inlandMiscRate / inlandMiscPercent。
 - 内地杂费比例按（内地运输＋打木架费用 + 搭配花盆总费用）÷ 整批货款总额（外币）计算。
 - Batch 与 Import 新记录同步保存内地杂费比例及海外运费比例。
 - Backup JSON version 更新为 3.0。
-- 所有当前版本显示、PWA cache、资源 query version、同步 updatedBy 统一为 V4.8。
+- 所有当前版本显示、PWA cache、资源 query version、同步 updatedBy 统一为 V4.9。
 
-V4.8 Stable
-- V4.8 的稳定基础版本；原有业务逻辑保留。
+V4.9 Stable
+- V4.9 的稳定基础版本；原有业务逻辑保留。
 
 
-V4.8 Stable
+V4.9 Stable
 - 修正版本同步。
 - 保留前后端分离结构。
 - 保留 V2.90 成本逻辑基础。
 - 保留历史查询模块结构。
 
 
-V4.8 Stable
+V4.9 Stable
 - Version synchronization update.
-- Base prepared for V4.8 migration.
+- Base prepared for V4.9 migration.
