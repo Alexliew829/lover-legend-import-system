@@ -2531,17 +2531,10 @@ function loadBatchByNumber() {
             : 0
         );
 
-  const recoveredChinaTransportCost =
-    currency === 'CNY' &&
-    recoverableForeignCostsRM > 0 &&
-    effectiveRate > 0
-      ? Math.max(
-          0,
-          (recoverableForeignCostsRM * effectiveRate) -
-          totalProductForeign -
-          potCost
-        )
-      : 0;
+  // V4.3: never reconstruct inland cost from total cost.
+  // Only use values explicitly saved in this import record.
+  // This prevents old VND/CNY batches from inheriting incorrect costs.
+  const recoveredChinaTransportCost = 0;
 
   const chinaTransportCost =
     Number.isFinite(storedChinaTransportCost) && storedChinaTransportCost > 0
@@ -2559,19 +2552,10 @@ function loadBatchByNumber() {
   document.getElementById("batchChinaTransportCost").value =
     chinaTransportCost ? formatMoney(chinaTransportCost) : "";
 
-  if (
-    !chinaTransportCost &&
-    (Number(batch.grandTotal) || Number(batch.shippingRate))
-  ) {
-    document.getElementById("batchStatusText").textContent =
-      `提醒：这项进口记录属于旧版本资料，无法自动恢复当时的内地运输＋打木架费用。如该栏位为空，请按原始单据补回后再更新，不会影响现有库存及Average Cost。`;
-  } else if (
-    !(Number.isFinite(storedChinaTransportCost) && storedChinaTransportCost > 0) &&
-    !(Number.isFinite(storedChinaTransportRM) && storedChinaTransportRM > 0) &&
-    recoveredChinaTransportCost > 0
-  ) {
-    document.getElementById("batchStatusText").textContent =
-      `已从该批原有总成本自动恢复内地运输＋打木架费用：${formatMoney(recoveredChinaTransportCost)} ${currency}`;
+  // V4.3: old batches without explicit inland cost stay empty.
+  // Do not show recovery warning because it is not reliable.
+  if (document.getElementById("batchStatusText")) {
+    document.getElementById("batchStatusText").textContent = "";
   }
   document.getElementById("batchPotCost").value =
     potCost ? formatMoney(potCost) : "";
@@ -4999,7 +4983,7 @@ function calculateBatch() {
     chinaForeign +
     potForeign;
 
-  // V4.2 mapping field: inland miscellaneous cost is the two explicit
+  // V4.3 mapping field: inland miscellaneous cost is the two explicit
   // mainland cost items divided by the complete foreign-side batch total.
   // Keep this separate from inventory/Average Cost so stock movements never
   // rewrite the original import-cost mapping.
@@ -5394,12 +5378,12 @@ function saveBatchImport() {
     rackQuantity: Math.max(0, Math.floor(parseAmount(document.getElementById("batchRackQuantity").value))),
     trackingNumber: document.getElementById("batchTrackingNumber").value.trim(),
     overseasTrackingNumber: document.getElementById("batchOverseasTrackingNumber").value.trim(),
-    // V4.2: batch costs only come from current input. Never inherit from previous currency/product.
+    // V4.3: batch costs only come from current input. Never inherit from previous currency/product.
     chinaTransportCost: Number(parseAmount(document.getElementById("batchChinaTransportCost").value)) || 0,
     chinaTransportRM: 0,
     potCost: Number(parseAmount(document.getElementById("batchPotCost").value)) || 0,
     potRM: 0,
-    // V4.2: explicit mapping fields for Pricing Suite.
+    // V4.3: explicit mapping fields for Pricing Suite.
     inlandMiscForeign: result.inlandMiscForeign,
     inlandMiscRate: result.inlandMiscRate,
     inlandMiscPercent: result.inlandMiscRate,
