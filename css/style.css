@@ -3040,3 +3040,14 @@ body.access-locked {
 
 /* V4.1 layout */
 .compact-batch-grid .second-row{grid-column:span 1;}
+
+/* V4.4 Import layout final override */
+.compact-batch-grid{display:grid!important;grid-template-columns:2fr .45fr 1fr 1fr!important;gap:12px!important;align-items:end!important;}
+.compact-batch-grid .field-tracking{grid-column:1!important;}
+.compact-batch-grid .field-rack{grid-column:2!important;}
+.compact-batch-grid .field-inland{grid-column:3!important;}
+.compact-batch-grid .field-pot{grid-column:4!important;}
+.compact-batch-grid .field-inland-rate{grid-column:1!important;}
+.compact-batch-grid .field-foreign-total{grid-column:2 / span 3!important;}
+#batchTrackingNumber{width:100%!important;}
+#batchRackQuantity{max-width:100%!important;}
