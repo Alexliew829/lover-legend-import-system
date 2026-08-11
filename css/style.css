@@ -3071,3 +3071,55 @@ body.access-locked {
 .compact-batch-grid .field-foreign-total{grid-column:2 / span 4!important;}
 #batchRackQuantity{max-width:80px!important;}
 #batchTrackingNumber{width:100%!important;}
+
+/* V4.10 Cost Repair / revision history */
+.cost-repair-control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--line, #d9d9d9);
+  border-radius: 12px;
+  margin: 12px 0;
+}
+.cost-repair-control-row > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+#costRepairModeStatus { color: #666; font-size: 13px; }
+#costRepairModeStatus.enabled { font-weight: 700; color: #b42318; }
+.cost-field-locked { background: #f3f4f6 !important; cursor: not-allowed; }
+.cost-revision-history-panel {
+  margin-top: 12px;
+  border-top: 1px dashed #bbb;
+  padding-top: 12px;
+}
+.cost-revision-history-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+#costRevisionHistorySearch { width: 100%; margin-bottom: 10px; }
+.cost-revision-history-list { display: grid; gap: 8px; max-height: 420px; overflow: auto; }
+.cost-revision-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fff;
+}
+.cost-revision-title,
+.cost-revision-values {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.cost-revision-values { margin: 6px 0; font-size: 13px; }
+.cost-revision-item small { color: #777; }
+@media (max-width: 700px) {
+  .cost-repair-control-row { align-items: stretch; flex-direction: column; }
+}
