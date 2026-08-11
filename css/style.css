@@ -1014,9 +1014,13 @@ input::placeholder {
 
 /* V2.10 Stable import layout */
 .compact-batch-grid{display:grid;grid-template-columns:1.8fr .35fr 1fr 1fr;gap:12px;align-items:end}
-.field-foreign-total{grid-column:1;}
+.field-tracking{grid-column:1;}
+.field-rack{grid-column:2;}
+.field-inland{grid-column:3;}
+.field-pot{grid-column:4;}
 .second-row.field-inland-rate{grid-column:1;}
-.second-row.field-foreign-total{grid-column:2 / span 3;}
+.second-row.field-foreign-total{grid-column:2;}
+.second-row.field-currency{grid-column:3;}
 .currency-divider{grid-column:1/-1;position:relative;margin:4px 0 0;border-top:2px dashed #c62828;text-align:center}
 .currency-divider span{position:relative;top:-10px;display:inline-block;padding:0 10px;background:var(--card);color:#c62828;font-size:12px;font-weight:800}
 #batchTrackingNumber{text-align:left!important}
