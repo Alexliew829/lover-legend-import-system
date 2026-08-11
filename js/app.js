@@ -2532,6 +2532,7 @@ function loadBatchByNumber() {
         );
 
   const recoveredChinaTransportCost =
+    currency === 'CNY' &&
     recoverableForeignCostsRM > 0 &&
     effectiveRate > 0
       ? Math.max(
@@ -4998,13 +4999,13 @@ function calculateBatch() {
     chinaForeign +
     potForeign;
 
-  // V3.8 mapping field: inland miscellaneous cost is the two explicit
+  // V3.9 mapping field: inland miscellaneous cost is the two explicit
   // mainland cost items divided by the complete foreign-side batch total.
   // Keep this separate from inventory/Average Cost so stock movements never
   // rewrite the original import-cost mapping.
   const inlandMiscForeign = chinaForeign + potForeign;
-  const inlandMiscRate = foreignGrandTotal > 0
-    ? (inlandMiscForeign / foreignGrandTotal) * 100
+  const inlandMiscRate = totalPurchaseForeign > 0
+    ? (inlandMiscForeign / totalPurchaseForeign) * 100
     : 0;
 
   const allForeignCostsRM = batchRate > 0
@@ -5394,7 +5395,7 @@ function saveBatchImport() {
     potCost: result.potForeign,
     potRM: result.totalPurchaseRM > 0 && result.foreignGrandTotal > 0
       ? (result.potForeign / result.foreignGrandTotal) * result.totalPurchaseRM : 0,
-    // V3.8: explicit mapping fields for Pricing Suite.
+    // V3.9: explicit mapping fields for Pricing Suite.
     inlandMiscForeign: result.inlandMiscForeign,
     inlandMiscRate: result.inlandMiscRate,
     inlandMiscPercent: result.inlandMiscRate,

@@ -3021,3 +3021,7 @@ body.access-locked {
   }
 }
 
+
+/* V3.9 layout correction */
+.wide-tracking{grid-column:span 2;}
+.small-rack input{max-width:90px;}
