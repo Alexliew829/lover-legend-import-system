@@ -376,7 +376,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     action: "push",
     force: false,
     baseRevision: Number(config.revision) || 0,
-    updatedBy: "System V4.11 Stable",
+    updatedBy: "System V4.12 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
