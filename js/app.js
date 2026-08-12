@@ -748,14 +748,7 @@ function repairLegacyImportDates() {
       }
     });
 
-    // V4.25: keep V4.25 data model unchanged. Legacy/non-array items are
-    // skipped here instead of being parsed or rewritten during startup.
-    // This prevents the V4.24 compatibility repair from mutating synced data.
-    const batchItems = Array.isArray(batch.items) ? batch.items : [];
-
-    batchItems.forEach(item => {
-      if (!item || typeof item !== "object") return;
-
+    (batch.items || []).forEach(item => {
       ["date", "containerDate", "arrivalDate"].forEach(key => {
         const corrected = repair(item[key]);
 
@@ -1564,7 +1557,7 @@ function setupImportModule(){
       alert("找不到这个进口编号或海外运输单号。");
     }
 
-    // V4.25: do not refocus/select the field after the alert.
+    // V4.20: do not refocus/select the field after the alert.
     // The typed value remains editable, so a wrong entry never becomes trapped.
     return false;
   };
@@ -1622,7 +1615,7 @@ function setupImportModule(){
 
   // iPhone 键盘工具栏的 ✓ / Done 会先结束输入或令输入框失焦。
   // change 与 blur 都接入同一函数，并以值去重，确保只载入一次。
-  // V4.25: change / blur only auto-load when the typed value is an exact
+  // V4.20: change / blur only auto-load when the typed value is an exact
   // saved import number or overseas tracking number. An incomplete or wrong
   // value must remain editable and must never trap the user in an alert loop.
   batchLookupInput?.addEventListener("change", () => {
@@ -2772,7 +2765,7 @@ function loadBatchByNumber() {
       batch = partialMatches[0];
     } else if (partialMatches.length > 1) {
       alert("找到多个符合的进口记录，请输入更完整的进口编号或海外运输单号。");
-      // V4.25: do not force focus/select after closing the alert.
+      // V4.20: do not force focus/select after closing the alert.
       // The user can tap back into the field and correct the value normally.
       return;
     }
@@ -2780,7 +2773,7 @@ function loadBatchByNumber() {
 
   if (!batch) {
     alert("找不到这个进口编号或海外运输单号。");
-    // V4.25: never force focus/select here. On iPhone this previously caused
+    // V4.20: never force focus/select here. On iPhone this previously caused
     // the invalid value to immediately trigger lookup again and appear "locked".
     return;
   }
@@ -2854,7 +2847,7 @@ function loadBatchByNumber() {
             : 0
         );
 
-  // V4.25: never reconstruct inland cost from total cost.
+  // V4.20: never reconstruct inland cost from total cost.
   // Only use values explicitly saved in this import record.
   // This prevents old VND/CNY batches from inheriting incorrect costs.
   const recoveredChinaTransportCost = 0;
@@ -2875,7 +2868,7 @@ function loadBatchByNumber() {
   document.getElementById("batchChinaTransportCost").value =
     chinaTransportCost ? formatMoney(chinaTransportCost) : "";
 
-  // V4.25: old batches without explicit inland cost stay empty.
+  // V4.20: old batches without explicit inland cost stay empty.
   // Do not show recovery warning because it is not reliable.
   if (document.getElementById("batchStatusText")) {
     document.getElementById("batchStatusText").textContent = "";
@@ -5564,7 +5557,7 @@ function calculateBatch() {
     chinaForeign +
     potForeign;
 
-  // V4.25 mapping field: inland miscellaneous cost is the two explicit
+  // V4.20 mapping field: inland miscellaneous cost is the two explicit
   // mainland cost items divided by the complete foreign-side batch total.
   // Keep this separate from inventory/Average Cost so stock movements never
   // rewrite the original import-cost mapping.
@@ -5728,7 +5721,7 @@ function calculateBatch() {
       formatMoney(grandTotal, "RM ");
   }
 
-  // V4.25: inventory movement is NOT an import-cost recalculation.
+  // V4.20: inventory movement is NOT an import-cost recalculation.
   // When editing an existing import number, always restore the original paid
   // batch snapshot for inland-misc ratio, overseas-shipping ratio, foreign
   // totals and unit costs. Only remaining inventory may change.
@@ -5921,7 +5914,7 @@ function saveBatchImport() {
       if (!imports.some(record => String(record.id || "") === String(item.id || ""))) imports.push(item);
     });
 
-    // V4.25: ordinary metadata updates always save. Cost fields only update when
+    // V4.20: ordinary metadata updates always save. Cost fields only update when
     // Cost Repair Mode is explicitly enabled. This prevents accidental changes
     // while still allowing manual repair of historical batch-cost data.
     const repairEnabled = getCostRepairModeEnabled();
@@ -6064,12 +6057,12 @@ function saveBatchImport() {
     rackQuantity: Math.max(0, Math.floor(parseAmount(document.getElementById("batchRackQuantity").value))),
     trackingNumber: document.getElementById("batchTrackingNumber").value.trim(),
     overseasTrackingNumber: document.getElementById("batchOverseasTrackingNumber").value.trim(),
-    // V4.25: batch costs only come from current input. Never inherit from previous currency/product.
+    // V4.20: batch costs only come from current input. Never inherit from previous currency/product.
     chinaTransportCost: Number(parseAmount(document.getElementById("batchChinaTransportCost").value)) || 0,
     chinaTransportRM: 0,
     potCost: Number(parseAmount(document.getElementById("batchPotCost").value)) || 0,
     potRM: 0,
-    // V4.25: explicit mapping fields for Pricing Suite.
+    // V4.20: explicit mapping fields for Pricing Suite.
     inlandMiscForeign: result.inlandMiscForeign,
     inlandMiscRate: result.inlandMiscRate,
     inlandMiscPercent: result.inlandMiscRate,
@@ -8616,7 +8609,7 @@ function restoreSystemData(event) {
     try {
       const data = JSON.parse(String(reader.result || ""));
 
-      // V4.25 restore migration: keep old cost fields compatible.
+      // V4.20 restore migration: keep old cost fields compatible.
       // Never invent costs. Only normalize missing fields and preserve values.
       if (Array.isArray(data.batches)) {
         data.batches = data.batches.map(batch => {
