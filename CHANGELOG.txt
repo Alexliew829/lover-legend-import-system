@@ -1,8 +1,8 @@
-V4.14 Stable
+V4.17 Stable
 - 修正进口编号输入错误时：提示一次“找不到这个进口编号或海外运输单号”，关闭后仍可继续修改，不会锁死或重复弹窗。
 - 历史查询新增“卖出的成本总值”，按所选日期范围累计所有卖出数量 × 对应进口批次原每棵成本。
 - 产品筛选只影响历史明细，日期范围底部“卖出的成本总值”保持整段日期全部产品总和。
-- 前端、后端标识、静态资源 query、manifest 与 Service Worker cache 统一 V4.14 Stable。
+- 前端、后端标识、静态资源 query、manifest 与 Service Worker cache 统一 V4.17 Stable。
 
 V4.12 Stable
 - 修正 iPhone / 手机进口编号输入错误后出现“锁死”的问题。
