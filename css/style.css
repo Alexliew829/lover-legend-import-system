@@ -3090,7 +3090,7 @@ body.access-locked {
 #batchRackQuantity{max-width:80px!important;}
 #batchTrackingNumber{width:100%!important;}
 
-/* V4.18 Cost Repair / revision history */
+/* V4.19 Cost Repair / revision history */
 .cost-repair-control-row {
   display: flex;
   align-items: center;
@@ -3143,7 +3143,7 @@ body.access-locked {
 }
 
 
-/* V4.18 Mobile Layout Fix */
+/* V4.19 Mobile Layout Fix */
 html, body {
   overflow-x: hidden;
   width: 100%;
@@ -3218,8 +3218,9 @@ html, body {
   }
 }
 
-/* V4.18 History sold cost total */
-.history-sold-cost-summary {
+/* V4.19 History sold cost total */
+.history-sold-cost-summary,
+.history-sold-quantity-summary {
   margin-top: 14px;
   padding: 13px 16px;
   border: 1px solid #f1c7c3;
@@ -3237,7 +3238,7 @@ html, body {
   .history-sold-cost-summary strong { font-size: 20px; }
 }
 
-/* V4.18 History sold record product identification */
+/* V4.19 History sold record product identification */
 .product-history-adjustment-product{
   min-width:0;
   overflow-wrap:anywhere;
