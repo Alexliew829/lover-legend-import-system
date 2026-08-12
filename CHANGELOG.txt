@@ -1,13 +1,15 @@
-V4.24 Stable
-- History「卖出所有产品总数量」与「卖出成本总值」统一视觉层级：标题与数值同样加粗、放大并使用红色。
-- 不修改卖出数量或卖出成本计算逻辑。
-- 前后端及缓存版本统一 V4.24 Stable。
+V4.25 Stable
+- 以用户确认“数据正常、同步快速”的 V4.20 前后端代码作为基线重建。
+- 对比 V4.24 后撤销会在启动时解析并改写 batch.items 的兼容处理；非数组旧资料只安全跳过，不改写同步数据。
+- 保留 History「卖出所有产品总数量」与「卖出成本总值」一致的红色/大字体视觉效果。
+- 不改变 V4.20 的 Google Sheet 字段映射、同步流程、库存、成本、Average Cost、History 计算及 Pricing Suite 映射逻辑。
+- 全部前后端版本标识、静态资源版本参数、Manifest、Service Worker Cache 统一为 V4.25 Stable。
 
-V4.24 Stable
+V4.25 Stable
 - 修正进口编号输入错误时：提示一次“找不到这个进口编号或海外运输单号”，关闭后仍可继续修改，不会锁死或重复弹窗。
 - 历史查询新增“卖出的成本总值”，按所选日期范围累计所有卖出数量 × 对应进口批次原每棵成本。
 - 产品筛选只影响历史明细，日期范围底部“卖出的成本总值”保持整段日期全部产品总和。
-- 前端、后端标识、静态资源 query、manifest 与 Service Worker cache 统一 V4.24 Stable。
+- 前端、后端标识、静态资源 query、manifest 与 Service Worker cache 统一 V4.25 Stable。
 
 V4.12 Stable
 - 修正 iPhone / 手机进口编号输入错误后出现“锁死”的问题。
