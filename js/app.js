@@ -1557,7 +1557,7 @@ function setupImportModule(){
       alert("找不到这个进口编号或海外运输单号。");
     }
 
-    // V4.14: do not refocus/select the field after the alert.
+    // V4.17: do not refocus/select the field after the alert.
     // The typed value remains editable, so a wrong entry never becomes trapped.
     return false;
   };
@@ -1615,7 +1615,7 @@ function setupImportModule(){
 
   // iPhone 键盘工具栏的 ✓ / Done 会先结束输入或令输入框失焦。
   // change 与 blur 都接入同一函数，并以值去重，确保只载入一次。
-  // V4.14: change / blur only auto-load when the typed value is an exact
+  // V4.17: change / blur only auto-load when the typed value is an exact
   // saved import number or overseas tracking number. An incomplete or wrong
   // value must remain editable and must never trap the user in an alert loop.
   batchLookupInput?.addEventListener("change", () => {
@@ -2132,36 +2132,147 @@ function getBatchDisplayTotalQuantity(
 }
 
 function restoreStoredBatchRMDisplay(batch, items) {
+  const safeItems = Array.isArray(items) ? items : [];
+  const currency = String(
+    batch?.currency ||
+    safeItems.find(item => item?.currency)?.currency ||
+    document.getElementById("batchCurrency")?.value ||
+    ""
+  ).trim();
+
+  const originalPurchaseForeign = safeItems.reduce((sum, item) => {
+    const storedForeign = Number(item?.foreignTotal);
+    if (Number.isFinite(storedForeign) && storedForeign >= 0) {
+      return sum + storedForeign;
+    }
+
+    const originalQuantity = Math.max(
+      0,
+      Number(item?.originalQuantity ?? item?.quantity) || 0
+    );
+    const unitPrice = Math.max(0, Number(item?.unitPrice) || 0);
+    return sum + (originalQuantity * unitPrice);
+  }, 0);
+
+  const originalQuantityTotal = Number(batch?.totalQuantity) > 0
+    ? Number(batch.totalQuantity)
+    : safeItems.reduce(
+        (sum, item) =>
+          sum +
+          Math.max(
+            0,
+            Number(item?.originalQuantity ?? item?.quantity) || 0
+          ),
+        0
+      );
+
+  const inlandTransport =
+    Number(batch?.inlandTransportCost) ||
+    Number(batch?.chinaTransportCost) ||
+    0;
+  const potCost =
+    Number(batch?.potCost) ||
+    Number(batch?.potCostForeign) ||
+    0;
+  const inlandMiscForeign = inlandTransport + potCost;
+
+  const storedInlandRate = Number(batch?.inlandMiscRate);
+  const lockedInlandRate = Number.isFinite(storedInlandRate)
+    ? storedInlandRate
+    : (
+        originalPurchaseForeign > 0
+          ? (inlandMiscForeign / originalPurchaseForeign) * 100
+          : 0
+      );
+
+  const lockedForeignGrandTotal =
+    originalPurchaseForeign + inlandMiscForeign;
+
   const foreignRM = document.getElementById("batchPurchaseTotalRM");
   const shippingRate = document.getElementById("batchShippingRate");
   const grandTotal = document.getElementById("batchGrandTotalRM");
+  const inlandRateField = document.getElementById("batchInlandMiscRate");
+  const foreignGrandTotalField =
+    document.getElementById("batchForeignGrandTotal");
+  const topForeign =
+    document.getElementById("batchPurchaseTotalForeignTop");
+  const quantityTotal =
+    document.getElementById("batchQuantityTotal");
+  const quantityTop =
+    document.getElementById("batchQuantityTop");
+  const itemCount =
+    document.getElementById("batchItemCount");
 
-  if (foreignRM && Number.isFinite(Number(batch.totalForeignCostsRM))) {
+  if (foreignRM && Number.isFinite(Number(batch?.totalForeignCostsRM))) {
     foreignRM.textContent =
       formatMoney(Number(batch.totalForeignCostsRM) || 0, "RM ");
   }
 
-  if (shippingRate && Number.isFinite(Number(batch.shippingRate))) {
+  if (shippingRate) {
     shippingRate.textContent =
-      `${formatMoney(Number(batch.shippingRate) || 0)}%`;
+      `${formatMoney(getBatchShippingRate(batch))}%`;
   }
 
-  if (grandTotal && Number.isFinite(Number(batch.grandTotal))) {
+  if (grandTotal && Number.isFinite(Number(batch?.grandTotal))) {
     grandTotal.textContent =
       formatMoney(Number(batch.grandTotal) || 0, "RM ");
   }
 
-  items.forEach((item, index) => {
+  if (inlandRateField) {
+    inlandRateField.value = `${lockedInlandRate.toFixed(2)}%`;
+  }
+
+  if (foreignGrandTotalField) {
+    foreignGrandTotalField.value =
+      `${formatMoney(lockedForeignGrandTotal)} ${currency}`;
+  }
+
+  if (topForeign) {
+    topForeign.textContent =
+      `${formatMoney(originalPurchaseForeign)} ${currency}`;
+  }
+
+  if (quantityTotal) {
+    quantityTotal.textContent = formatNumber(originalQuantityTotal);
+  }
+
+  if (quantityTop) {
+    quantityTop.textContent = formatNumber(originalQuantityTotal);
+  }
+
+  if (itemCount) {
+    itemCount.textContent = safeItems.length;
+  }
+
+  safeItems.forEach((item, index) => {
     const row = document.querySelectorAll("#batchRows tr")[index];
     if (!row) return;
 
     const rowId = Number(row.dataset.rowId);
+    const foreignField =
+      document.getElementById(`batchPurchaseForeign-${rowId}`);
     const unitCostField =
       document.getElementById(`batchUnitCost-${rowId}`);
 
+    const originalForeign = Number(item?.foreignTotal);
+    const originalQuantity = Math.max(
+      0,
+      Number(item?.originalQuantity ?? item?.quantity) || 0
+    );
+    const fallbackForeign =
+      originalQuantity * (Number(item?.unitPrice) || 0);
+
+    if (foreignField) {
+      foreignField.value = formatMoney(
+        Number.isFinite(originalForeign)
+          ? originalForeign
+          : fallbackForeign
+      );
+    }
+
     if (
       unitCostField &&
-      Number.isFinite(Number(item.unitCost))
+      Number.isFinite(Number(item?.unitCost))
     ) {
       unitCostField.value = formatMoney(Number(item.unitCost) || 0);
     }
@@ -2646,7 +2757,7 @@ function loadBatchByNumber() {
       batch = partialMatches[0];
     } else if (partialMatches.length > 1) {
       alert("找到多个符合的进口记录，请输入更完整的进口编号或海外运输单号。");
-      // V4.14: do not force focus/select after closing the alert.
+      // V4.17: do not force focus/select after closing the alert.
       // The user can tap back into the field and correct the value normally.
       return;
     }
@@ -2654,7 +2765,7 @@ function loadBatchByNumber() {
 
   if (!batch) {
     alert("找不到这个进口编号或海外运输单号。");
-    // V4.14: never force focus/select here. On iPhone this previously caused
+    // V4.17: never force focus/select here. On iPhone this previously caused
     // the invalid value to immediately trigger lookup again and appear "locked".
     return;
   }
@@ -2728,7 +2839,7 @@ function loadBatchByNumber() {
             : 0
         );
 
-  // V4.14: never reconstruct inland cost from total cost.
+  // V4.17: never reconstruct inland cost from total cost.
   // Only use values explicitly saved in this import record.
   // This prevents old VND/CNY batches from inheriting incorrect costs.
   const recoveredChinaTransportCost = 0;
@@ -2749,7 +2860,7 @@ function loadBatchByNumber() {
   document.getElementById("batchChinaTransportCost").value =
     chinaTransportCost ? formatMoney(chinaTransportCost) : "";
 
-  // V4.14: old batches without explicit inland cost stay empty.
+  // V4.17: old batches without explicit inland cost stay empty.
   // Do not show recovery warning because it is not reliable.
   if (document.getElementById("batchStatusText")) {
     document.getElementById("batchStatusText").textContent = "";
@@ -4176,6 +4287,14 @@ function renderCompactProductHistoryByRange(
                       ) || "-"
                     )}
                   </strong>
+                  <span class="product-history-adjustment-product">
+                    ${escapeHTML(
+                      adjustment.productName ||
+                      item.name ||
+                      item.productName ||
+                      "未命名产品"
+                    )}
+                  </span>
                   <span class="product-history-adjustment-action">
                     ${actionLabel}
                   </span>
@@ -4572,6 +4691,12 @@ function renderImportHistory() {
               return `
                 <div class="product-history-adjustment ${delta >= 0 ? "increase" : "decrease"}">
                   <strong class="product-history-adjustment-date">${escapeHTML(adjustment.date || "-")}</strong>
+                  <span class="product-history-adjustment-product">${escapeHTML(
+                    adjustment.productName ||
+                    item.name ||
+                    item.productName ||
+                    "未命名产品"
+                  )}</span>
                   <span class="product-history-adjustment-action">${actionLabel}</span>
                   <strong class="product-history-adjustment-quantity">${signedDelta}</strong>
                 </div>
@@ -5344,7 +5469,7 @@ function calculateBatch() {
     chinaForeign +
     potForeign;
 
-  // V4.14 mapping field: inland miscellaneous cost is the two explicit
+  // V4.17 mapping field: inland miscellaneous cost is the two explicit
   // mainland cost items divided by the complete foreign-side batch total.
   // Keep this separate from inventory/Average Cost so stock movements never
   // rewrite the original import-cost mapping.
@@ -5508,12 +5633,19 @@ function calculateBatch() {
       formatMoney(grandTotal, "RM ");
   }
 
+  // V4.17: inventory movement is NOT an import-cost recalculation.
+  // When editing an existing import number, always restore the original paid
+  // batch snapshot for inland-misc ratio, overseas-shipping ratio, foreign
+  // totals and unit costs. Only remaining inventory may change.
   if (currentEditingImportNumber) {
     const storedBatch = getBatches().find(
       batch => batch.importNumber === currentEditingImportNumber
     );
     if (storedBatch) {
-      restoreStoredBatchRMDisplay(storedBatch, getBatchItemsForDisplay(storedBatch));
+      restoreStoredBatchRMDisplay(
+        storedBatch,
+        getBatchItemsForDisplay(storedBatch)
+      );
     }
   }
 
@@ -5696,7 +5828,7 @@ function saveBatchImport() {
       if (!imports.some(record => String(record.id || "") === String(item.id || ""))) imports.push(item);
     });
 
-    // V4.14: ordinary metadata updates always save. Cost fields only update when
+    // V4.17: ordinary metadata updates always save. Cost fields only update when
     // Cost Repair Mode is explicitly enabled. This prevents accidental changes
     // while still allowing manual repair of historical batch-cost data.
     const repairEnabled = getCostRepairModeEnabled();
@@ -5836,12 +5968,12 @@ function saveBatchImport() {
     rackQuantity: Math.max(0, Math.floor(parseAmount(document.getElementById("batchRackQuantity").value))),
     trackingNumber: document.getElementById("batchTrackingNumber").value.trim(),
     overseasTrackingNumber: document.getElementById("batchOverseasTrackingNumber").value.trim(),
-    // V4.14: batch costs only come from current input. Never inherit from previous currency/product.
+    // V4.17: batch costs only come from current input. Never inherit from previous currency/product.
     chinaTransportCost: Number(parseAmount(document.getElementById("batchChinaTransportCost").value)) || 0,
     chinaTransportRM: 0,
     potCost: Number(parseAmount(document.getElementById("batchPotCost").value)) || 0,
     potRM: 0,
-    // V4.14: explicit mapping fields for Pricing Suite.
+    // V4.17: explicit mapping fields for Pricing Suite.
     inlandMiscForeign: result.inlandMiscForeign,
     inlandMiscRate: result.inlandMiscRate,
     inlandMiscPercent: result.inlandMiscRate,
@@ -6205,6 +6337,15 @@ function renderBatchProductStockResults() {
         aria-label="长按修改当前库存">
         当前库存：<strong>${formatNumber(Number(product.stock) || 0)}</strong>
       </button>
+
+      <button
+        class="product-stock-cost-btn"
+        type="button"
+        data-product-id="${escapeHTML(product.id || "")}"
+        data-edit-type="averageCost"
+        aria-label="长按修改平均成本">
+        平均成本：<strong>${formatMoney(Number(product.averageCost) || 0, "RM ")}</strong>
+      </button>
     </div>
   `).join("");
 
@@ -6236,7 +6377,7 @@ function bindProductStockLongPress() {
 
   const start = event => {
     const button = event.target.closest(
-      ".product-stock-name-btn, .product-stock-qty-btn"
+      ".product-stock-name-btn, .product-stock-qty-btn, .product-stock-cost-btn"
     );
     if (!button) return;
 
@@ -6259,6 +6400,8 @@ function bindProductStockLongPress() {
         editProductNameFromImportPage(productId);
       } else if (editType === "stock") {
         editProductStockFromImportPage(productId);
+      } else if (editType === "averageCost") {
+        editProductAverageCostFromImportPage(productId);
       }
     }, 650);
   };
@@ -6289,7 +6432,7 @@ function bindProductStockLongPress() {
   output.addEventListener("contextmenu", event => {
     if (
       event.target.closest(
-        ".product-stock-name-btn, .product-stock-qty-btn"
+        ".product-stock-name-btn, .product-stock-qty-btn, .product-stock-cost-btn"
       )
     ) {
       event.preventDefault();
@@ -6298,7 +6441,7 @@ function bindProductStockLongPress() {
 
   output.addEventListener("click", event => {
     const button = event.target.closest(
-      ".product-stock-name-btn, .product-stock-qty-btn"
+      ".product-stock-name-btn, .product-stock-qty-btn, .product-stock-cost-btn"
     );
     if (!button) return;
 
@@ -6673,6 +6816,111 @@ function editProductStockFromImportPage(productId) {
   if (status) {
     status.textContent =
       `已更新：${product.name} 当前库存 ${formatNumber(nextStock)}`;
+  }
+}
+
+
+function editProductAverageCostFromImportPage(productId) {
+  const id = String(productId || "").trim();
+  const products = getProducts();
+  const productIndex = products.findIndex(
+    product => String(product.id || "") === id
+  );
+
+  if (productIndex === -1) {
+    alert("找不到这个产品。");
+    return;
+  }
+
+  const product = products[productIndex];
+  const currentStock = Math.max(0, Number(product.stock) || 0);
+  const currentAverageCost = Math.max(
+    0,
+    Number(product.averageCost) || 0
+  );
+
+  const entered = window.prompt(
+    `修改平均成本：${product.name}\n\n目前平均成本：${formatMoney(currentAverageCost, "RM ")}\n请输入新的平均成本`,
+    currentAverageCost.toFixed(2)
+  );
+
+  if (entered === null) return;
+
+  const normalized = String(entered)
+    .replace(/RM/gi, "")
+    .replace(/,/g, "")
+    .trim();
+
+  if (
+    normalized === "" ||
+    !/^\d+(?:\.\d{1,2})?$/.test(normalized)
+  ) {
+    alert("平均成本必须是0或正数，最多2位小数。");
+    return;
+  }
+
+  const nextAverageCost = Number(normalized);
+
+  if (
+    !Number.isFinite(nextAverageCost) ||
+    nextAverageCost < 0
+  ) {
+    alert("平均成本不正确。");
+    return;
+  }
+
+  if (Math.abs(nextAverageCost - currentAverageCost) < 0.005) {
+    const status = document.getElementById("batchProductStockStatus");
+    if (status) status.textContent = "平均成本没有改变";
+    return;
+  }
+
+  const beforeValue = currentStock * currentAverageCost;
+  const afterValue = currentStock * nextAverageCost;
+  const difference = afterValue - beforeValue;
+
+  const confirmed = window.confirm(
+    `确认修改平均成本？\n\n` +
+    `产品：${product.name}\n` +
+    `当前库存：${formatNumber(currentStock)}\n` +
+    `目前平均成本：${formatMoney(currentAverageCost, "RM ")}\n` +
+    `修改为：${formatMoney(nextAverageCost, "RM ")}\n\n` +
+    `这项修改会直接影响库存总值：\n` +
+    `${formatMoney(beforeValue, "RM ")} → ${formatMoney(afterValue, "RM ")}\n` +
+    `变化：${difference >= 0 ? "+" : "-"}${formatMoney(Math.abs(difference), "RM ")}\n\n` +
+    `是否确定继续？`
+  );
+
+  if (!confirmed) return;
+
+  const now = new Date().toISOString();
+
+  products[productIndex] = {
+    ...product,
+    averageCost: nextAverageCost,
+    updatedAt: now
+  };
+
+  saveProducts(products);
+
+  appendCostRevisionHistory([{
+    timestamp: now,
+    importNumber: product.id || "-",
+    fieldLabel: `平均成本 · ${product.name || "未命名产品"}`,
+    before: formatMoney(currentAverageCost, "RM "),
+    after: formatMoney(nextAverageCost, "RM ")
+  }]);
+
+  renderBatchProductStockResults();
+  renderInventoryManagementList();
+  renderDashboard();
+  renderBatchList();
+  renderCostRevisionHistory();
+
+  const status = document.getElementById("batchProductStockStatus");
+  if (status) {
+    status.textContent =
+      `已更新：${product.name} 平均成本 ${formatMoney(nextAverageCost, "RM ")}`;
   }
 }
 
@@ -8272,7 +8520,7 @@ function restoreSystemData(event) {
     try {
       const data = JSON.parse(String(reader.result || ""));
 
-      // V4.14 restore migration: keep old cost fields compatible.
+      // V4.17 restore migration: keep old cost fields compatible.
       // Never invent costs. Only normalize missing fields and preserve values.
       if (Array.isArray(data.batches)) {
         data.batches = data.batches.map(batch => {
