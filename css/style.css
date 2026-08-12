@@ -1803,8 +1803,23 @@ input::placeholder {
   gap: 9px;
 }
 
+.product-stock-cost-btn {
+  grid-column: 1 / -1;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: #fffaf0;
+  color: var(--green);
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
 .product-stock-name-btn,
-.product-stock-qty-btn {
+.product-stock-qty-btn,
+.product-stock-cost-btn {
   min-height: 46px;
   padding: 10px 12px;
   border: 1px solid var(--border);
@@ -1889,7 +1904,8 @@ input::placeholder {
   }
 
   .product-stock-name-btn,
-  .product-stock-qty-btn {
+  .product-stock-qty-btn,
+  .product-stock-cost-btn {
     padding: 9px 10px;
     font-size: 13px;
   }
@@ -1907,8 +1923,10 @@ input::placeholder {
 /* V3.5：产品名称及库存仅长按编辑，禁止 iPhone 文字选择菜单 */
 .product-stock-name-btn,
 .product-stock-qty-btn,
+.product-stock-cost-btn,
 .product-stock-name-btn *,
-.product-stock-qty-btn * {
+.product-stock-qty-btn *,
+.product-stock-cost-btn * {
   -webkit-user-select: none !important;
   user-select: none !important;
   -webkit-touch-callout: none !important;
@@ -3072,7 +3090,7 @@ body.access-locked {
 #batchRackQuantity{max-width:80px!important;}
 #batchTrackingNumber{width:100%!important;}
 
-/* V4.14 Cost Repair / revision history */
+/* V4.17 Cost Repair / revision history */
 .cost-repair-control-row {
   display: flex;
   align-items: center;
@@ -3125,7 +3143,7 @@ body.access-locked {
 }
 
 
-/* V4.14 Mobile Layout Fix */
+/* V4.17 Mobile Layout Fix */
 html, body {
   overflow-x: hidden;
   width: 100%;
@@ -3200,7 +3218,7 @@ html, body {
   }
 }
 
-/* V4.14 History sold cost total */
+/* V4.17 History sold cost total */
 .history-sold-cost-summary {
   margin-top: 14px;
   padding: 13px 16px;
@@ -3217,4 +3235,19 @@ html, body {
 @media (max-width: 720px) {
   .history-sold-cost-summary { align-items: flex-start; flex-direction: column; }
   .history-sold-cost-summary strong { font-size: 20px; }
+}
+
+/* V4.17 History sold record product identification */
+.product-history-adjustment-product{
+  min-width:0;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+  font-weight:700;
+}
+@media(max-width:768px){
+  .product-history-adjustment{flex-wrap:wrap;gap:6px 10px}
+  .product-history-adjustment-product{flex:1 1 100%;order:2}
+  .product-history-adjustment-date{order:1}
+  .product-history-adjustment-action,
+  .product-history-adjustment-quantity{order:3}
 }
