@@ -3072,7 +3072,7 @@ body.access-locked {
 #batchRackQuantity{max-width:80px!important;}
 #batchTrackingNumber{width:100%!important;}
 
-/* V4.11 Cost Repair / revision history */
+/* V4.12 Cost Repair / revision history */
 .cost-repair-control-row {
   display: flex;
   align-items: center;
@@ -3125,7 +3125,7 @@ body.access-locked {
 }
 
 
-/* V4.11 Mobile Layout Fix */
+/* V4.12 Mobile Layout Fix */
 html, body {
   overflow-x: hidden;
   width: 100%;
