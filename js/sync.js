@@ -242,6 +242,17 @@ function scheduleGoogleSync(delay = 25) {
   cloudSyncTimer = window.setTimeout(() => runCloudSync(), delay);
 }
 
+function hasLocalCoreData() {
+  // V4.22 performance only:
+  // 初次同步只需要知道本机是否已有核心资料，不需要先把整个
+  // products/imports/batches 快照各解析一次，再在 pull 内重复解析。
+  return (
+    loadJSON("importSystemProducts", []).length > 0 ||
+    loadJSON("importSystemImports", []).length > 0 ||
+    loadJSON("importSystemBatches", []).length > 0
+  );
+}
+
 async function runCloudSync() {
   if (!navigator.onLine) {
     setCloudState("failed");
@@ -259,11 +270,7 @@ async function runCloudSync() {
 
   try {
     const queue = getCloudQueue();
-    const snapshot = makeLocalSnapshot();
-    const localHasCoreData =
-      (snapshot.products || []).length > 0 ||
-      (snapshot.imports || []).length > 0 ||
-      (snapshot.batches || []).length > 0;
+    const localHasCoreData = hasLocalCoreData();
 
     // 浏览器资料为空时，绝不能把空阵列推回Google Sheet。
     let remoteUpdated = false;
@@ -274,14 +281,14 @@ async function runCloudSync() {
         changedAt: "",
         deleted: { products: [], imports: [], batches: [] }
       });
-      remoteUpdated = await pullLatestSnapshot();
+      remoteUpdated = await pullLatestSnapshot(false);
     } else if (queue.dirty) {
       // push 本身会以 baseRevision 做服务器端检查；
       // 若电脑已经更新，服务器返回 conflict 后自动合并再重试，
       // 不额外增加一次网络请求。
       await pushPendingSnapshot(queue);
     } else {
-      remoteUpdated = await pullLatestSnapshot();
+      remoteUpdated = await pullLatestSnapshot(localHasCoreData);
     }
 
     if (remoteUpdated) {
@@ -301,23 +308,22 @@ async function runCloudSync() {
   }
 }
 
-async function pullLatestSnapshot() {
+async function pullLatestSnapshot(localHasCoreData = null) {
   const config = getCloudConfig();
-  const local = makeLocalSnapshot();
-  const localHasCoreData =
-    (local.products || []).length > 0 ||
-    (local.imports || []).length > 0 ||
-    (local.batches || []).length > 0;
+  const hasLocalData =
+    typeof localHasCoreData === "boolean"
+      ? localHasCoreData
+      : hasLocalCoreData();
 
   const data = await callGoogleApi({
     action: "pull",
     knownRevision: Number(config.revision) || 0,
-    hasLocalData: localHasCoreData,
-    forceFull: !localHasCoreData
+    hasLocalData,
+    forceFull: !hasLocalData
   });
 
   if (data.unchanged) {
-    if (!localHasCoreData) {
+    if (!hasLocalData) {
       throw new Error("Google Sheet未返回完整资料，已停止显示空库存");
     }
     config.revision = Number(data.revision) || 0;
@@ -376,7 +382,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     action: "push",
     force: false,
     baseRevision: Number(config.revision) || 0,
-    updatedBy: "System V4.21 Stable",
+    updatedBy: "System V4.22 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
@@ -470,20 +476,41 @@ function applyRemoteData(data) {
 }
 
 function refreshSystemViewsAfterSync() {
-  [
-    "renderDashboard",
-    "renderProductList",
-    "renderBatchSuggestions",
-    "renderBatchList",
-    "renderInventoryManagementList",
-    "updatePasswordHintDisplays"
-  ].forEach(name => {
-    try {
-      if (typeof window[name] === "function") window[name]();
-    } catch (error) {
-      console.warn(`${name} refresh skipped:`, error);
+  // V4.22 performance only:
+  // 首页是同步完成后用户第一眼看到的资料，先刷新首页。
+  // 其余页面仍会完整刷新，但让到下一帧执行，避免一次大量 DOM
+  // 重绘拖慢“进入系统”的体感；不改变任何资料、公式或保存逻辑。
+  try {
+    if (typeof window.renderDashboard === "function") {
+      window.renderDashboard();
     }
-  });
+  } catch (error) {
+    console.warn("renderDashboard refresh skipped:", error);
+  }
+
+  const refreshSecondaryViews = () => {
+    [
+      "renderProductList",
+      "renderBatchSuggestions",
+      "renderBatchList",
+      "renderInventoryManagementList",
+      "updatePasswordHintDisplays"
+    ].forEach(name => {
+      try {
+        if (typeof window[name] === "function") window[name]();
+      } catch (error) {
+        console.warn(`${name} refresh skipped:`, error);
+      }
+    });
+  };
+
+  if (typeof window.requestAnimationFrame === "function") {
+    window.requestAnimationFrame(() => {
+      window.setTimeout(refreshSecondaryViews, 0);
+    });
+  } else {
+    window.setTimeout(refreshSecondaryViews, 0);
+  }
 }
 
 function renderCloudMeta(config = getCloudConfig()) {
