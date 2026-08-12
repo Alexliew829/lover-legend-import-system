@@ -1557,7 +1557,7 @@ function setupImportModule(){
       alert("找不到这个进口编号或海外运输单号。");
     }
 
-    // V4.17: do not refocus/select the field after the alert.
+    // V4.18: do not refocus/select the field after the alert.
     // The typed value remains editable, so a wrong entry never becomes trapped.
     return false;
   };
@@ -1615,7 +1615,7 @@ function setupImportModule(){
 
   // iPhone 键盘工具栏的 ✓ / Done 会先结束输入或令输入框失焦。
   // change 与 blur 都接入同一函数，并以值去重，确保只载入一次。
-  // V4.17: change / blur only auto-load when the typed value is an exact
+  // V4.18: change / blur only auto-load when the typed value is an exact
   // saved import number or overseas tracking number. An incomplete or wrong
   // value must remain editable and must never trap the user in an alert loop.
   batchLookupInput?.addEventListener("change", () => {
@@ -2131,6 +2131,22 @@ function getBatchDisplayTotalQuantity(
   );
 }
 
+function getLockedBatchOriginalQuantity(item) {
+  const candidates = [
+    Number(item?.stockAdded),
+    Number(item?.originalQuantity),
+    Number(item?.quantity)
+  ];
+
+  const value = candidates.find(
+    candidate =>
+      Number.isFinite(candidate) &&
+      candidate >= 0
+  );
+
+  return Math.max(0, Math.floor(value || 0));
+}
+
 function restoreStoredBatchRMDisplay(batch, items) {
   const safeItems = Array.isArray(items) ? items : [];
   const currency = String(
@@ -2146,25 +2162,17 @@ function restoreStoredBatchRMDisplay(batch, items) {
       return sum + storedForeign;
     }
 
-    const originalQuantity = Math.max(
-      0,
-      Number(item?.originalQuantity ?? item?.quantity) || 0
-    );
+    const originalQuantity =
+      getLockedBatchOriginalQuantity(item);
     const unitPrice = Math.max(0, Number(item?.unitPrice) || 0);
     return sum + (originalQuantity * unitPrice);
   }, 0);
 
-  const originalQuantityTotal = Number(batch?.totalQuantity) > 0
-    ? Number(batch.totalQuantity)
-    : safeItems.reduce(
-        (sum, item) =>
-          sum +
-          Math.max(
-            0,
-            Number(item?.originalQuantity ?? item?.quantity) || 0
-          ),
-        0
-      );
+  const originalQuantityTotal = safeItems.reduce(
+    (sum, item) =>
+      sum + getLockedBatchOriginalQuantity(item),
+    0
+  );
 
   const inlandTransport =
     Number(batch?.inlandTransportCost) ||
@@ -2757,7 +2765,7 @@ function loadBatchByNumber() {
       batch = partialMatches[0];
     } else if (partialMatches.length > 1) {
       alert("找到多个符合的进口记录，请输入更完整的进口编号或海外运输单号。");
-      // V4.17: do not force focus/select after closing the alert.
+      // V4.18: do not force focus/select after closing the alert.
       // The user can tap back into the field and correct the value normally.
       return;
     }
@@ -2765,7 +2773,7 @@ function loadBatchByNumber() {
 
   if (!batch) {
     alert("找不到这个进口编号或海外运输单号。");
-    // V4.17: never force focus/select here. On iPhone this previously caused
+    // V4.18: never force focus/select here. On iPhone this previously caused
     // the invalid value to immediately trigger lookup again and appear "locked".
     return;
   }
@@ -2839,7 +2847,7 @@ function loadBatchByNumber() {
             : 0
         );
 
-  // V4.17: never reconstruct inland cost from total cost.
+  // V4.18: never reconstruct inland cost from total cost.
   // Only use values explicitly saved in this import record.
   // This prevents old VND/CNY batches from inheriting incorrect costs.
   const recoveredChinaTransportCost = 0;
@@ -2860,7 +2868,7 @@ function loadBatchByNumber() {
   document.getElementById("batchChinaTransportCost").value =
     chinaTransportCost ? formatMoney(chinaTransportCost) : "";
 
-  // V4.17: old batches without explicit inland cost stay empty.
+  // V4.18: old batches without explicit inland cost stay empty.
   // Do not show recovery warning because it is not reliable.
   if (document.getElementById("batchStatusText")) {
     document.getElementById("batchStatusText").textContent = "";
@@ -3716,7 +3724,7 @@ function getAllHistoryStockAdjustments() {
   );
 }
 
-function getHistorySoldAdjustments(options = {}) {
+function getHistoryRelevantAdjustments(options = {}) {
   const {
     range = null,
     keyword = "",
@@ -3725,13 +3733,12 @@ function getHistorySoldAdjustments(options = {}) {
   } = options;
 
   const normalizedKeyword = String(keyword || "").trim();
-  const normalizedExactProduct = String(exactProduct || "").trim().toLowerCase();
-  const normalizedImportNumber = String(importNumber || "").trim().toLowerCase();
+  const normalizedExactProduct =
+    String(exactProduct || "").trim().toLowerCase();
+  const normalizedImportNumber =
+    String(importNumber || "").trim().toLowerCase();
 
   return getAllHistoryStockAdjustments().filter(adjustment => {
-    const delta = Math.trunc(Number(adjustment.delta) || 0);
-    if (delta >= 0) return false;
-
     if (
       range &&
       !range.error &&
@@ -3768,11 +3775,82 @@ function getHistorySoldAdjustments(options = {}) {
   });
 }
 
+function getHistoryNetSoldLots(options = {}) {
+  const relevant = getHistoryRelevantAdjustments(options)
+    .slice()
+    .sort((a, b) => {
+      const createdCompare = String(a.createdAt || "")
+        .localeCompare(String(b.createdAt || ""));
+      if (createdCompare) return createdCompare;
+
+      return String(a.date || "")
+        .localeCompare(String(b.date || ""));
+    });
+
+  const queues = new Map();
+
+  const groupKey = adjustment => [
+    String(adjustment.productId || adjustment.productName || "")
+      .trim()
+      .toLowerCase(),
+    String(adjustment.importNumber || "")
+      .trim()
+      .toLowerCase()
+  ].join("::");
+
+  relevant.forEach(adjustment => {
+    const delta = Math.trunc(Number(adjustment.delta) || 0);
+    if (delta === 0) return;
+
+    const key = groupKey(adjustment);
+    if (!queues.has(key)) queues.set(key, []);
+    const queue = queues.get(key);
+
+    if (delta < 0) {
+      queue.push({
+        adjustment,
+        remainingQuantity: Math.abs(delta),
+        unitCost: getHistorySoldAdjustmentUnitCost(adjustment)
+      });
+      return;
+    }
+
+    // A later positive adjustment only reverses earlier negative records.
+    // It must NOT offset future real sales.
+    let quantityToReverse = delta;
+
+    while (quantityToReverse > 0 && queue.length) {
+      const lot = queue[0];
+      const reversed = Math.min(
+        quantityToReverse,
+        lot.remainingQuantity
+      );
+
+      lot.remainingQuantity -= reversed;
+      quantityToReverse -= reversed;
+
+      if (lot.remainingQuantity <= 0) {
+        queue.shift();
+      }
+    }
+  });
+
+  return Array.from(queues.values())
+    .flat()
+    .filter(lot => lot.remainingQuantity > 0);
+}
+
+function getHistorySoldAdjustments(options = {}) {
+  return getHistoryNetSoldLots(options).map(lot => ({
+    ...lot.adjustment,
+    delta: -lot.remainingQuantity
+  }));
+}
+
 function getHistorySoldCostTotal(options = {}) {
-  return getHistorySoldAdjustments(options).reduce((sum, adjustment) => {
-    const quantity = Math.abs(Math.trunc(Number(adjustment.delta) || 0));
-    const unitCost = getHistorySoldAdjustmentUnitCost(adjustment);
-    return sum + quantity * unitCost;
+  return getHistoryNetSoldLots(options).reduce((sum, lot) => {
+    return sum +
+      (lot.remainingQuantity * (Number(lot.unitCost) || 0));
   }, 0);
 }
 
@@ -5469,7 +5547,7 @@ function calculateBatch() {
     chinaForeign +
     potForeign;
 
-  // V4.17 mapping field: inland miscellaneous cost is the two explicit
+  // V4.18 mapping field: inland miscellaneous cost is the two explicit
   // mainland cost items divided by the complete foreign-side batch total.
   // Keep this separate from inventory/Average Cost so stock movements never
   // rewrite the original import-cost mapping.
@@ -5633,7 +5711,7 @@ function calculateBatch() {
       formatMoney(grandTotal, "RM ");
   }
 
-  // V4.17: inventory movement is NOT an import-cost recalculation.
+  // V4.18: inventory movement is NOT an import-cost recalculation.
   // When editing an existing import number, always restore the original paid
   // batch snapshot for inland-misc ratio, overseas-shipping ratio, foreign
   // totals and unit costs. Only remaining inventory may change.
@@ -5727,10 +5805,8 @@ function saveBatchImport() {
     const updatedItems = [];
     for (const [key, oldItem] of oldMap.entries()) {
       const edited = editedMap.get(key);
-      const originalQuantity = Math.max(
-        0,
-        Number(oldItem.originalQuantity ?? oldItem.quantity) || 0
-      );
+      const originalQuantity =
+        getLockedBatchOriginalQuantity(oldItem);
       const oldRemainingRaw = Number(
         oldItem.remainingQuantity ?? oldItem.quantity
       );
@@ -5828,7 +5904,7 @@ function saveBatchImport() {
       if (!imports.some(record => String(record.id || "") === String(item.id || ""))) imports.push(item);
     });
 
-    // V4.17: ordinary metadata updates always save. Cost fields only update when
+    // V4.18: ordinary metadata updates always save. Cost fields only update when
     // Cost Repair Mode is explicitly enabled. This prevents accidental changes
     // while still allowing manual repair of historical batch-cost data.
     const repairEnabled = getCostRepairModeEnabled();
@@ -5851,7 +5927,9 @@ function saveBatchImport() {
       const totalPurchaseForeign = oldItems.reduce((sum, item) => {
         const foreignTotal = Number(item.foreignTotal);
         if (Number.isFinite(foreignTotal) && foreignTotal >= 0) return sum + foreignTotal;
-        return sum + ((Number(item.originalQuantity ?? item.quantity) || 0) * (Number(item.unitPrice) || 0));
+        return sum +
+          (getLockedBatchOriginalQuantity(item) *
+           (Number(item.unitPrice) || 0));
       }, 0);
       const foreignGrandTotal = totalPurchaseForeign + nextChina + nextPot;
       const totalForeignCostsRM = nextRate > 0 ? foreignGrandTotal / nextRate : 0;
@@ -5929,7 +6007,8 @@ function saveBatchImport() {
       ...updatedCostSnapshot,
       items: mergedItems,
       totalQuantity: oldItems.reduce(
-        (sum, item) => sum + (Number(item.originalQuantity ?? item.quantity) || 0),
+        (sum, item) =>
+          sum + getLockedBatchOriginalQuantity(item),
         0
       ),
       totalRemainingQuantity: mergedItems.reduce(
@@ -5968,12 +6047,12 @@ function saveBatchImport() {
     rackQuantity: Math.max(0, Math.floor(parseAmount(document.getElementById("batchRackQuantity").value))),
     trackingNumber: document.getElementById("batchTrackingNumber").value.trim(),
     overseasTrackingNumber: document.getElementById("batchOverseasTrackingNumber").value.trim(),
-    // V4.17: batch costs only come from current input. Never inherit from previous currency/product.
+    // V4.18: batch costs only come from current input. Never inherit from previous currency/product.
     chinaTransportCost: Number(parseAmount(document.getElementById("batchChinaTransportCost").value)) || 0,
     chinaTransportRM: 0,
     potCost: Number(parseAmount(document.getElementById("batchPotCost").value)) || 0,
     potRM: 0,
-    // V4.17: explicit mapping fields for Pricing Suite.
+    // V4.18: explicit mapping fields for Pricing Suite.
     inlandMiscForeign: result.inlandMiscForeign,
     inlandMiscRate: result.inlandMiscRate,
     inlandMiscPercent: result.inlandMiscRate,
@@ -8520,7 +8599,7 @@ function restoreSystemData(event) {
     try {
       const data = JSON.parse(String(reader.result || ""));
 
-      // V4.17 restore migration: keep old cost fields compatible.
+      // V4.18 restore migration: keep old cost fields compatible.
       // Never invent costs. Only normalize missing fields and preserve values.
       if (Array.isArray(data.batches)) {
         data.batches = data.batches.map(batch => {
