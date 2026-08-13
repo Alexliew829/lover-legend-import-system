@@ -299,7 +299,7 @@ async function runCloudSync() {
       (snapshot.imports || []).length > 0 ||
       (snapshot.batches || []).length > 0;
 
-    // V4.29 hard bootstrap: this version's first successful sync is ALWAYS a full Pull.
+    // V4.3 hard bootstrap: this version's first successful sync is ALWAYS a full Pull.
     // Legacy V4.20/V4.25/V4.26 dirty flags are discarded before any write can happen.
     // No Push is allowed until the canonical Sheet has been pulled successfully.
     let remoteUpdated = false;
@@ -428,7 +428,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V4.29 Stable",
+    updatedBy: "System V4.3 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
