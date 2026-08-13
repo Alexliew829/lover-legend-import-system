@@ -1,3 +1,12 @@
+V4.27 Stable — Click Edit + Inventory Value Safe Sync
+- 产品/进口修改/编辑页面的产品名称、当前库存、平均成本改为普通点击/轻触即可修改，不再需要长按。
+- 产品名称保存前确认；确认后同步 Products + Imports + Batches 中所有对应产品名称。
+- 当前库存保存前确认；沿用 FIFO 分配逻辑，同步 Products + Imports + Batches，并保留库存调整历史。
+- 平均成本保存前显示库存总值变化提示；确认后只修改 Products 平均成本，不改历史进口成本。
+- 首页/库存管理库存总值继续使用 Σ(当前库存 × 平均成本) 实时重算。
+- 保留 V4.26.3 快速同步、首次 Full Pull、Revision、Bootstrap、Canonical Sheet Guard，不改变同步主架构。
+- 当前客户端/后端握手版本升级为 4.27；Schema 仍为 LL-IMPORT-2026-08-CANONICAL-3。
+
 V4.26.3 Stable — Restore + Excel Export Fix
 
 - 对比 14-08-2026 Backup JSON 与最新 Lover Legend Import Cost Database：Products 169 / Imports 177 / Batches 37，ID 无缺失、无重复；业务字段映射一致。
