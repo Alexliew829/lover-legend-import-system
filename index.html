@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#1f5d3a" />
+  <title>进口成本与库存系统</title>
+  <link rel="manifest" href="./manifest.json?v=4.26.1" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=4.26.1" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=4.26.1" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=4.26.1" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=4.26.1" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=4.26.1" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=4.26.1" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="application-name" content="Lover Legend Import System" />
+  <meta name="msapplication-TileColor" content="#1f5d3a" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=4.26.1" />
+  <link rel="stylesheet" href="./css/style.css?v=4.26.1" />
+</head>
+<body>
+  <div id="accessLock"
+       class="access-lock"
+       role="dialog"
+       aria-modal="true"
+       aria-labelledby="accessLockTitle">
+    <div class="access-lock-card">
+      <div class="access-lock-logo">🔒</div>
+      <h1 id="accessLockTitle">系统密码</h1>
+      <p>电脑会记住系统密码，点击进入系统即可；手机可使用 Face ID</p>
+
+      <form id="accessLockForm"
+            autocomplete="off"
+            data-lpignore="true"
+            data-1p-ignore="true">
+        <input id="accessPasswordInput"
+               name="systemAccessCode"
+               class="masked-access-code"
+               type="text"
+               maxlength="12"
+               placeholder="输入密码"
+               autocomplete="off"
+               autocapitalize="none"
+               autocorrect="off"
+               spellcheck="false"
+               data-lpignore="true"
+               data-1p-ignore="true"
+               inputmode="text" />
+
+        <button class="primary-btn"
+                type="submit">进入系统</button>
+      </form>
+
+      <button id="biometricLoginBtn"
+              class="biometric-login-btn"
+              type="button"
+              hidden>使用 Face ID / 生物辨识</button>
+
+      <div id="biometricLoginStatus"
+           class="biometric-login-status"
+           hidden></div>
+
+      <button id="showPasswordHintBtn"
+              class="password-hint-btn"
+              type="button">忘记密码？查看提示</button>
+
+      <div id="accessPasswordHint"
+           class="access-password-hint"
+           hidden></div>
+
+      <div id="accessLockStatus"
+           class="status-text access-lock-status"></div>
+    </div>
+  </div>
+  <div class="app-shell">
+    <header class="app-header-wrap">
+      <div class="app-header-card">
+        <img class="app-header-logo app-header-logo-green"
+             src="./assets/images/logo-green.jpg"
+             alt="Lover Legend green logo" />
+
+        <div class="app-header-title">
+          <div class="app-header-main-title">进口成本与库存系统</div>
+          <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
+          <div class="app-header-brand">Lover Legend Gardening</div>
+          <div class="app-header-version">正式版 4.26.1 Stable</div>
+        </div>
+
+        <img class="app-header-logo app-header-logo-red"
+             src="./assets/images/logo-red.jpg"
+             alt="Lover Legend red logo" />
+      </div>
+    </header>
+
+    <main class="content">
+      <section id="dashboardPage" class="page active">
+        <div class="section-title-row">
+          <h2>Dashboard / 首页</h2>
+        </div>
+
+
+        <section class="dashboard-sync-card" aria-live="polite">
+          <div id="googleSyncStatus" class="dashboard-sync-status syncing">
+            <span class="dashboard-sync-icon" aria-hidden="true">↻</span>
+            <strong class="dashboard-sync-text">同步中...</strong>
+          </div>
+          <div class="dashboard-sync-time">
+            最后同步：<strong id="googleLastSync">尚未同步</strong>
+          </div>
+        </section>
+
+        <div class="stats-grid">
+          <article class="stat-card">
+            <span>产品种类</span>
+            <strong id="productCount">0</strong>
+          </article>
+          <article class="stat-card">
+            <span>当前库存</span>
+            <strong id="stockCount">0</strong>
+          </article>
+          <article class="stat-card wide">
+            <span>库存成本总值</span>
+            <strong id="inventoryValue">RM 0.00</strong>
+          </article>
+          <article class="stat-card">
+            <span>最近进口</span>
+            <strong id="lastImport">-</strong>
+          </article>
+        </div>
+
+        <section class="panel">
+          <div class="section-title-row inventory-title-row">
+            <h3>库存管理</h3>
+            <div class="inventory-title-summary">
+              <span class="inventory-filter-stock">当前库存：<strong id="inventoryFilteredStock">0</strong></span>
+              <span class="inventory-filter-value">库存成本：<strong id="inventoryFilteredValue">RM 0.00</strong></span>
+              <span class="muted" id="inventoryPageCount">0 项</span>
+            </div>
+          </div>
+          <div class="inventory-toolbar">
+            <input id="inventorySearch" class="search-input text-left-input" placeholder="搜索产品名称、编号、类别或进口编号" />
+            <select id="inventorySort">
+              <option value="latest">最近进口</option>
+              <option value="name">产品名称</option>
+              <option value="stock-desc">库存最多</option>
+              <option value="stock-asc">库存最少</option>
+              <option value="value-desc">库存成本最高</option>
+              <option value="cost-desc">平均成本最高</option>
+            </select>
+          </div>
+          <div id="inventoryManagementList" class="inventory-management-list">
+            <div class="empty-state">暂无库存资料</div>
+          </div>
+        </section>
+      </section>
+
+      <section id="importPage" class="page">
+        <section class="panel">
+          <div class="section-title-row batch-products-topbar">
+            <h2>同批进口产品</h2>
+            <div class="batch-lookup-group">
+              <div class="batch-inline-lookup">
+                <label for="batchLookupInput">进口编号</label>
+                <input id="batchLookupInput"
+                       class="batch-lookup-input"
+                       placeholder="输入进口编号和海外运输单号"
+                       autocomplete="off"
+                       autocapitalize="characters"
+                       spellcheck="false"
+                       enterkeyhint="done" />
+              </div>
+              <button id="addBatchRowBtn"
+                      class="secondary-btn"
+                      type="button">＋ 新增一行</button>
+            </div>
+          </div>
+
+          <form id="batchImportForm">
+            <datalist id="batchProductSuggestions"></datalist>
+
+            <div class="batch-table-wrap">
+              <table class="batch-table">
+                <thead>
+                  <tr>
+                    <th>产品</th>
+                    <th>数量</th>
+                    <th>单价</th>
+                    <th>货款总额</th>
+                    <th>类别</th>
+                    <th>入库</th>
+                    <th>每棵成本</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="batchRows"></tbody>
+              </table>
+            </div>
+
+            <div class="section-title-row batch-import-heading">
+              <h2>Import / 进口记录</h2>
+              <div class="batch-heading-stats">
+                <div class="import-quantity-top">
+                  <span>整批进口数量</span>
+                  <strong id="batchQuantityTop">0</strong>
+                </div>
+                <div class="foreign-total-top">
+                <span>整批货款总额</span>
+                <strong id="batchPurchaseTotalForeignTop">0.00 CNY</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="batch-common-grid compact-batch-grid">
+<label class="field-tracking top-row">内地运输单号<input id="batchTrackingNumber" class="text-left-input tracking-input" maxlength="18" placeholder="最多18个字"></label>
+<label class="field-rack top-row">木架数量<input id="batchRackQuantity" inputmode="numeric" placeholder="0" maxlength="3"></label>
+<label class="field-inland top-row">内地运输＋打木架费用<input id="batchChinaTransportCost" inputmode="decimal" maxlength="12" placeholder="0.00"></label>
+<label class="field-pot top-row">搭配花盆总费用<input id="batchPotCost" inputmode="decimal" maxlength="9" placeholder="0.00"></label>
+<label class="field-currency top-row">货币
+  <select id="batchCurrency">
+    <option value="CNY">CNY</option>
+    <option value="NTD">NTD</option>
+    <option value="VND">VND</option>
+    <option value="IDR">IDR</option>
+  </select>
+</label>
+
+<label class="field-inland-rate second-row">内地杂费比例<input id="batchInlandMiscRate" value="0.00%" disabled /></label>
+<label class="field-foreign-total second-row">
+  整批货款总额+运费
+  <input id="batchForeignGrandTotal" value="0.00" disabled />
+</label>
+<div class="currency-divider"><span>虚线以下以马币为单位</span></div>
+<label class="field-rate middle-row">汇率
+  <input id="batchRate" inputmode="decimal" value="1.60">
+</label>
+<label class="field-overseas-tracking middle-row">海外运输单号
+  <input id="batchOverseasTrackingNumber"
+         class="text-left-input"
+         maxlength="25"
+         placeholder="例如：XX-A00336 / XX-A7691">
+</label>
+<label class="field-container-date bottom-row">装柜日期
+  <div class="date-field-wrap mobile-native-date-wrap">
+    <input id="batchContainerDate" class="date-input" inputmode="numeric" placeholder="dd-mm-yyyy" maxlength="10">
+    <input id="batchContainerDatePicker" class="native-date-picker mobile-native-date-picker" type="date" aria-label="选择装柜日期">
+    <button class="calendar-btn" type="button" data-date-target="batchContainerDatePicker">📅</button>
+  </div>
+</label>
+<label class="field-arrival-date bottom-row">抵达日期
+  <div class="date-field-wrap mobile-native-date-wrap">
+    <input id="batchArrivalDate" class="date-input" inputmode="numeric" placeholder="dd-mm-yyyy" maxlength="10">
+    <input id="batchArrivalDatePicker" class="native-date-picker mobile-native-date-picker" type="date" aria-label="选择日期">
+    <button class="calendar-btn" type="button" data-date-target="batchArrivalDatePicker">📅</button>
+  </div>
+</label>
+<label class="field-transit-days bottom-row">运输天数
+  <input id="batchTransitDays" value="-" disabled>
+</label>
+<label class="field-shipping-rm bottom-row">海外到大马运费（RM）
+  <input id="batchShippingMY" inputmode="decimal" placeholder="0.00">
+</label>
+</div>
+<div class="batch-summary">
+              <div>
+                <span>产品种类</span>
+                <strong id="batchItemCount">0</strong>
+              </div>
+              <div>
+                <span>总数量</span>
+                <strong id="batchQuantityTotal">0</strong>
+              </div>
+              <div>
+                <span>整批货款总额折合RM</span>
+                <strong id="batchPurchaseTotalRM">RM 0.00</strong>
+              </div>
+              <div>
+                <span>海外运费比例</span>
+                <strong id="batchShippingRate">0.00%</strong>
+              </div>
+              <div>
+                <span>整批货总成本</span>
+                <strong id="batchGrandTotalRM">RM 0.00</strong>
+              </div>
+            </div>
+
+            <div class="batch-form-actions">
+              <button id="saveBatchBtn" class="primary-btn" type="submit">保存新进口</button>
+              <button id="resetBatchBtn" class="ghost-btn" type="button">清空本次输入</button>
+            </div>
+            <div class="clear-help">只清空尚未保存的本次输入，不会删除已经保存的资料。</div>
+            <div id="batchEditMode" class="batch-edit-mode" hidden>
+              当前编辑：<strong id="currentImportNumberLabel"></strong>
+            </div>
+            <div id="batchStatusText" class="status-text"></div>
+          </form>
+        </section>
+
+        <section class="panel">
+         <div class="section-title-row batch-list-toolbar">
+  <h3>最近进口记录</h3>
+
+  <div class="batch-search-fields">
+    <input
+      id="batchSearch"
+      class="search-input text-left-input batch-number-search"
+      type="text"
+      placeholder="进口编号 / 内地或海外运输单号"
+      autocomplete="off"
+    />
+
+    <input
+      id="batchProductStockSearch"
+      class="search-input text-left-input batch-product-search"
+      type="text"
+      placeholder="输入产品可修改名称和数量"
+      autocomplete="off"
+    />
+  </div>
+
+  <button
+    id="toggleBatchListBtn"
+    class="secondary-btn"
+    type="button">
+    显示全部
+  </button>
+
+  <span class="muted" id="batchListCount">0 批</span>
+</div>
+
+          <div id="batchProductStockResults" class="product-stock-search-results" hidden></div>
+          <div id="batchProductStockStatus" class="status-text"></div>
+
+          <div id="recentBatchResultsArea">
+            <div id="batchList" class="import-list">
+              <div class="empty-state">暂无进口记录</div>
+            </div>
+          </div>
+        </section>
+      </section>
+
+
+      <section id="historyPage" class="page">
+        <h2>History Search / 历史查询</h2>
+        <section class="panel">
+          <div class="history-lookup-row">
+            <input id="historyLookupInput"
+                   class="search-input text-left-input"
+                   placeholder="输入进口编号或产品名称"
+                   autocomplete="off"
+                   autocapitalize="characters"
+                   spellcheck="false"
+                   enterkeyhint="search" />
+            <button id="historyLookupBtn" class="primary-btn" type="button">查看历史</button>
+            <button id="historyClearPageBtn"
+                    class="secondary-btn history-clear-page-btn"
+                    type="button">清空本页</button>
+          </div>
+
+          <div class="history-date-range-row">
+            <label class="history-date-range-field">
+              <span>开始日期</span>
+              <div class="date-field-wrap history-date-field-wrap">
+                <input id="historyStartDateInput"
+                       class="date-input"
+                       inputmode="numeric"
+                       placeholder="dd-mm-yyyy"
+                       maxlength="10"
+                       autocomplete="off" />
+                <input id="historyStartDatePicker"
+                       class="native-date-picker history-native-date-picker"
+                       type="date"
+                       aria-label="选择开始日期" />
+                <button class="calendar-btn"
+                        type="button"
+                        data-date-target="historyStartDatePicker">📅</button>
+              </div>
+            </label>
+
+            <label class="history-date-range-field">
+              <span>结束日期</span>
+              <div class="date-field-wrap history-date-field-wrap">
+                <input id="historyEndDateInput"
+                       class="date-input"
+                       inputmode="numeric"
+                       placeholder="dd-mm-yyyy"
+                       maxlength="10"
+                       autocomplete="off" />
+                <input id="historyEndDatePicker"
+                       class="native-date-picker history-native-date-picker"
+                       type="date"
+                       aria-label="选择结束日期" />
+                <button class="calendar-btn"
+                        type="button"
+                        data-date-target="historyEndDatePicker">📅</button>
+              </div>
+            </label>
+
+            <button id="historyDateClearBtn"
+                    class="secondary-btn"
+                    type="button">清除日期</button>
+          </div>
+
+          <div class="history-readonly-note">此页面只查询进口、卖出及库存修改历史，不能进行任何编辑。</div>
+          <div id="historyResult">
+            <div class="empty-state">输入进口编号、产品名称，或选择日期范围查看历史资料</div>
+          </div>
+        </section>
+      </section>
+
+      <section id="settingsPage" class="page">
+        <h2>Settings / 设置</h2>
+
+        <section class="panel">
+          <h3>默认汇率</h3>
+          <div class="form-grid">
+            <label>
+              CNY
+              <input id="rateCNY" inputmode="decimal" value="1.60" />
+            </label>
+            <label>
+              NTD
+              <input id="rateNTD" inputmode="decimal" value="7.69" />
+            </label>
+            <label>
+              VND
+              <input id="rateVND" inputmode="decimal" value="6300.00" />
+            </label>
+            <label>
+              IDR
+              <input id="rateIDR" inputmode="decimal" value="3571.00" />
+            </label>
+          </div>
+          <button id="saveSettingsBtn" class="primary-btn" type="button">保存设置</button>
+          <div id="settingsStatus" class="status-text"></div>
+        </section>
+
+
+        <section class="panel">
+          <h3>更改系统密码</h3>
+          <p class="settings-help">
+            密码可以使用英文字母、数字或任何符号，不限最少字数，最多12个字。更改时必须输入旧密码。
+          </p>
+
+          <div class="password-change-grid">
+            <label>
+              旧密码
+              <input id="oldAccessPassword"
+                     name="oldSystemAccessCode"
+                     class="masked-access-code"
+                     type="text"
+                     maxlength="12"
+                     autocomplete="off"
+                     autocapitalize="none"
+                     autocorrect="off"
+                     spellcheck="false"
+                     data-lpignore="true"
+                     data-1p-ignore="true" />
+            </label>
+
+            <label>
+              新密码
+              <input id="newAccessPassword"
+                     name="newSystemAccessCode"
+                     class="masked-access-code"
+                     type="text"
+                     maxlength="12"
+                     autocomplete="off"
+                     autocapitalize="none"
+                     autocorrect="off"
+                     spellcheck="false"
+                     data-lpignore="true"
+                     data-1p-ignore="true" />
+            </label>
+
+            <label>
+              确认新密码
+              <input id="confirmAccessPassword"
+                     name="confirmSystemAccessCode"
+                     class="masked-access-code"
+                     type="text"
+                     maxlength="12"
+                     autocomplete="off"
+                     autocapitalize="none"
+                     autocorrect="off"
+                     spellcheck="false"
+                     data-lpignore="true"
+                     data-1p-ignore="true" />
+            </label>
+          </div>
+
+          <button id="changeAccessPasswordBtn"
+                  class="primary-btn"
+                  type="button">更改密码</button>
+
+          <div class="current-password-hint">
+            当前密码提示：<strong id="currentPasswordHint">6个数字</strong>
+          </div>
+
+          <div id="passwordChangeStatus"
+               class="status-text"></div>
+
+          <div class="device-biometric-settings">
+            <div>
+              <strong>此设备 Face ID / 生物辨识</strong>
+              <span id="deviceBiometricStatus">检查中...</span>
+            </div>
+            <button id="setupBiometricBtn"
+                    class="secondary-btn"
+                    type="button">启用 / 重新设置</button>
+            <button id="removeBiometricBtn"
+                    class="ghost-btn"
+                    type="button">关闭此设备</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h3>资料管理</h3>
+
+          <div class="settings-tools-grid">
+            <button id="exportExcelBtn" class="tool-action-btn" type="button">
+              <span class="tool-action-icon">📊</span>
+              <span>导出 Excel</span>
+            </button>
+
+            <button id="backupDataBtn" class="tool-action-btn" type="button">
+              <span class="tool-action-icon">💾</span>
+              <span>Backup</span>
+            </button>
+
+            <button id="restoreDataBtn" class="tool-action-btn" type="button">
+              <span class="tool-action-icon">📂</span>
+              <span>Restore</span>
+            </button>
+
+            <button id="rebuildHistoryStockBtn"
+                    class="tool-action-btn repair-history-btn"
+                    type="button"
+                    disabled
+                    aria-disabled="true"
+                    title="暂时停用，需要时再开启">
+              <span class="tool-action-icon">🔄</span>
+              <span>重建历史库存（暂时停用）</span>
+            </button>
+
+            <button id="findStaleZeroStockBtn"
+                    class="tool-action-btn cleanup-stock-btn"
+                    type="button">
+              <span class="tool-action-icon">🧹</span>
+              <span>清理零库存产品</span>
+            </button>
+          </div>
+
+          <div id="staleZeroStockPanel"
+               class="stale-zero-stock-panel"
+               hidden>
+            <div class="stale-zero-stock-head">
+              <div>
+                <strong>零库存超过3个月</strong>
+                <span id="staleZeroStockCount">0 项</span>
+              </div>
+              <button id="deleteSelectedStaleProductsBtn"
+                      class="danger-action-btn"
+                      type="button"
+                      disabled>
+                删除已选择
+              </button>
+            </div>
+            <div id="staleZeroStockList"
+                 class="stale-zero-stock-list"></div>
+          </div>
+
+          <input id="restoreFileInput"
+                 type="file"
+                 accept=".json,application/json"
+                 hidden />
+
+          <p class="settings-help">
+            Backup 会保存产品、库存、进口记录和汇率。Restore 会覆盖当前资料。<br>
+            “重建历史库存”暂时停用。清理工具只列出当前库存为0，并且超过3个月没有进口或库存增减记录的产品。删除时必须输入 DELETE，系统会移除该产品及相关进口记录。
+          </p>
+
+          <div id="dataToolsStatus" class="status-text"></div>
+        </section>
+
+        <section class="panel cost-repair-panel">
+          <h3>成本修改 / Cost Repair</h3>
+          <p class="settings-help">
+            正常情况下保持关闭。只有需要补回或纠正旧进口编号的成本资料时才开启；所有成本修改都会记录在“成本修改记录”。
+          </p>
+
+          <div class="cost-repair-control-row">
+            <div>
+              <strong>成本修改模式</strong>
+              <span id="costRepairModeStatus">OFF · 已锁定</span>
+            </div>
+            <button id="toggleCostRepairModeBtn" class="secondary-btn" type="button">开启成本修改模式</button>
+          </div>
+
+          <div class="settings-tools-grid cost-revision-tools">
+            <button id="showCostRevisionHistoryBtn" class="tool-action-btn" type="button">
+              <span class="tool-action-icon">🧾</span>
+              <span>成本修改记录</span>
+            </button>
+          </div>
+
+          <div id="costRevisionHistoryPanel" class="cost-revision-history-panel" hidden>
+            <div class="cost-revision-history-head">
+              <strong>成本修改记录</strong>
+              <button id="closeCostRevisionHistoryBtn" class="ghost-btn" type="button">关闭</button>
+            </div>
+            <input id="costRevisionHistorySearch" type="search" placeholder="搜索进口编号 / 修改项目" autocomplete="off">
+            <div id="costRevisionHistoryList" class="cost-revision-history-list"></div>
+          </div>
+          <div id="costRepairStatus" class="status-text"></div>
+        </section>
+
+        <section class="panel">
+          <h3>系统资料</h3>
+          <div class="info-row"><span>版本</span><strong>正式版 4.26.1 Stable</strong></div>
+          <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
+          <div class="info-row"><span>Google Sheet</span><strong>已连接 Google Web App</strong></div>
+        </section>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Main Navigation">
+      <button class="nav-btn active" data-page="dashboardPage" type="button">
+        <span>🏠</span><small>首页</small>
+      </button>
+      <button class="nav-btn" data-page="importPage" type="button">
+        <span>📦</span><small>产品/进口<br>修改/编辑</small>
+      </button>
+      <button class="nav-btn" data-page="historyPage" type="button">
+        <span>📜</span><small>历史查询</small>
+      </button>
+      <button class="nav-btn" data-page="settingsPage" type="button">
+        <span>⚙️</span><small>设置</small>
+      </button>
+    </nav>
+  </div>
+
+  <script src="./js/common.js?v=4.26.1"></script>
+  <script src="./js/sync.js?v=4.26.1"></script>
+  <script src="./js/app.js?v=4.26.1"></script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+V4.26.1 Stable — Fast Sync + Canonical Sheet Guard
+- 以 V4.20 的快速同步流程作为同步性能基线。
+- 保留 V4.25 最新前端业务逻辑，包括错误进口编号不会锁死、History 卖出成本总值、batch.items 非数组安全跳过等。
+- 正式数据库固定为 Spreadsheet ID：1TD3pcl-LrB63xk6q0bjRc6lvheUxKo_OOqmsdlpNWDA。
+- Apps Script 使用最新确认的 Products / Imports / Batches / Settings / Logs 中文表头作为 Canonical Schema；不再自动新增、重排或改写栏位。
+- 后端读取/写入均按已确认表头映射；一旦栏位数量、名称或顺序不一致即停止，禁止猜测固定 index。
+- 新增前后端版本协议：只有 V4.26.1 + Canonical Schema Token 可以写入；旧 V4.20/V4.25 缓存前端只可读取，不能覆盖新数据库。
+- Push 前按 ID 与 Sheet 旧记录合并：若前端缺少新字段，保留 Sheet 原值，避免旧/缺字段 payload 把新字段清空。
+- 保留 Revision 冲突保护；禁止 force 绕过版本冲突。
+- 同步性能优化：Revision 优先读 Script Properties、Schema 检查使用短期 Cache、每张 Sheet 单次批量读取/批量写入、日常 Push 不再重复套格式/栏宽。
+- Google Web App URL 更新为 2026-08-13 新部署 URL。
+- 所有前端版本、静态资源 query、Manifest、Service Worker Cache 统一为 V4.26.1 Stable。
+
+
+V4.26.1 additional hard-write protection:
+- 第一次启动 V4.26.1 永远强制 Full Pull，Google Sheet 为唯一资料来源。
+- 首次 Pull 前会清除旧 V4.20/V4.25/V4.26 遗留的 dirty/deleted 同步队列，绝不自动 Push 旧缓存。
+- 首次 Pull 成功后才建立 V4.26.1 bootstrap 标记并开放正常写入排队。
+- 后端 Push 必须同时携带由最新 Pull 签发的 bootstrap token；没有先 Pull、token 不符、版本不符或 Schema 不符，一律阻止写入。
+- 每次成功 Push / Revision 冲突 Pull 后会更新 bootstrap token，继续保留 Revision 冲突保护。
+- Canonical Schema Token 升级为 LL-IMPORT-2026-08-CANONICAL-2，V4.26 也不能写入 V4.26.1 后端。
