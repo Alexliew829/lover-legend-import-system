@@ -1,60 +1,10 @@
-V4.28 Stable — Long-Press Safe Edit
-- 产品/进口修改/编辑页面的产品名称、当前库存、平均成本恢复 V4.20 的安全长按模式。
-- 必须持续长按约 650ms 才进入修改；普通点击/轻触不会修改。
-- 手指/鼠标移动超过 12px 会取消长按，避免滚动页面时误触。
-- 修改后原有保存前确认、FIFO 库存分配、Products/Imports/Batches 同步与库存总值重算逻辑全部保留。
-- 最新数据库基准更新为：库存 1,134；库存总值 RM645,671.78。
-- 当前客户端/后端握手版本升级为 4.28；Schema 仍为 LL-IMPORT-2026-08-CANONICAL-3。
+V4.29 Inventory Consistency Fix
 
-V4.28 Stable — Click Edit + Inventory Value Safe Sync
-- 产品/进口修改/编辑页面的产品名称、当前库存、平均成本改为普通点击/轻触即可修改，不再需要长按。
-- 产品名称保存前确认；确认后同步 Products + Imports + Batches 中所有对应产品名称。
-- 当前库存保存前确认；沿用 FIFO 分配逻辑，同步 Products + Imports + Batches，并保留库存调整历史。
-- 平均成本保存前显示库存总值变化提示；确认后只修改 Products 平均成本，不改历史进口成本。
-- 首页/库存管理库存总值继续使用 Σ(当前库存 × 平均成本) 实时重算。
-- 保留 V4.26.3 快速同步、首次 Full Pull、Revision、Bootstrap、Canonical Sheet Guard，不改变同步主架构。
-- 当前客户端/后端握手版本升级为 4.28；Schema 仍为 LL-IMPORT-2026-08-CANONICAL-3。
-
-V4.26.3 Stable — Restore + Excel Export Fix
-
-- 对比 14-08-2026 Backup JSON 与最新 Lover Legend Import Cost Database：Products 169 / Imports 177 / Batches 37，ID 无缺失、无重复；业务字段映射一致。
-- 特别核对 CNY030620262 / PZ0041：最新 Imports 的 originalQuantity / quantity / remainingQuantity 均为 25。
-- Batches.items 仍保留旧测试快照 80，这是历史 Snapshot，不再作为 History 的权威数量来源；V4.26.2 起仍由 Imports 优先。
-- 修复 Restore 把任何运行/画面错误都误报成「文件格式不正确」的问题。
-- Restore 改为先完整解析与验证，再一次性写入本机快照，再只建立一次 Google Sync Push，避免 Products / Imports / Batches 分段同步。
-- Restore 失败会显示真实原因；若本机写入失败会尝试 rollback。
-- Restore 只有在首次 Google Sheet Pull 已完成后才能执行，避免 Restore 被首次 Pull 反向覆盖。
-- Excel 导出新增栏宽计算 + AutoFitWidth，长产品名称会自动加宽。
-- Excel 金额 / 成本 / 汇率等数值显示两位小数，数量保持整数。
-- Excel 表头加粗并加入基础格式。
-- 不改变 V4.26.1/V4.26.2 的快速同步主流程与 Canonical Sheet 字段保护。
-
-V4.26.3 Stable — Imports Canonical History Fix
-
-- 修正 History/批次显示仍优先读取 Batches.items 旧 JSON 的问题。
-- 最新 Imports Sheet 现在是产品明细的权威资料来源；Batches.items 仅保留为旧资料/显示顺序 fallback。
-- 如果旧测试 JSON 保存 originalQuantity=80，而最新 Imports 已修正为25，系统会显示最新 Imports 值，不会再被旧 JSON 覆盖。
-- 不改变 V4.26.1 的快速同步主流程、首次 Full Pull、Revision、Bootstrap 与字段保护架构。
-- Schema Token 更新为 CANONICAL-3，旧 V4.26.1 前端不能写入 V4.26.3 后端。
-
-V4.26.3 Stable — Fast Sync + Canonical Sheet Guard
-- 以 V4.20 的快速同步流程作为同步性能基线。
-- 保留 V4.25 最新前端业务逻辑，包括错误进口编号不会锁死、History 卖出成本总值、batch.items 非数组安全跳过等。
-- 正式数据库固定为 Spreadsheet ID：1TD3pcl-LrB63xk6q0bjRc6lvheUxKo_OOqmsdlpNWDA。
-- Apps Script 使用最新确认的 Products / Imports / Batches / Settings / Logs 中文表头作为 Canonical Schema；不再自动新增、重排或改写栏位。
-- 后端读取/写入均按已确认表头映射；一旦栏位数量、名称或顺序不一致即停止，禁止猜测固定 index。
-- 新增前后端版本协议：只有 V4.26.3 + Canonical Schema Token 可以写入；旧 V4.20/V4.25 缓存前端只可读取，不能覆盖新数据库。
-- Push 前按 ID 与 Sheet 旧记录合并：若前端缺少新字段，保留 Sheet 原值，避免旧/缺字段 payload 把新字段清空。
-- 保留 Revision 冲突保护；禁止 force 绕过版本冲突。
-- 同步性能优化：Revision 优先读 Script Properties、Schema 检查使用短期 Cache、每张 Sheet 单次批量读取/批量写入、日常 Push 不再重复套格式/栏宽。
-- Google Web App URL 更新为 2026-08-13 新部署 URL。
-- 所有前端版本、静态资源 query、Manifest、Service Worker Cache 统一为 V4.26.3 Stable。
-
-
-V4.26.3 additional hard-write protection:
-- 第一次启动 V4.26.3 永远强制 Full Pull，Google Sheet 为唯一资料来源。
-- 首次 Pull 前会清除旧 V4.20/V4.25/V4.26 遗留的 dirty/deleted 同步队列，绝不自动 Push 旧缓存。
-- 首次 Pull 成功后才建立 V4.26.3 bootstrap 标记并开放正常写入排队。
-- 后端 Push 必须同时携带由最新 Pull 签发的 bootstrap token；没有先 Pull、token 不符、版本不符或 Schema 不符，一律阻止写入。
-- 每次成功 Push / Revision 冲突 Pull 后会更新 bootstrap token，继续保留 Revision 冲突保护。
-- Canonical Schema Token 升级为 LL-IMPORT-2026-08-CANONICAL-3，V4.26 也不能写入 V4.26.3 后端。
+- History 产品名称查询：「目前总剩余」以 Products.stock 为最终真值。
+- 单个进口编号仍显示 Imports.remainingQuantity，保留批次层级库存。
+- Products.stock 与 Imports.remainingQuantity 合计不一致时显示库存一致性警告。
+- 库存修改先同时写入 Products / Imports / Batches / stockAdjustments 的一致本地快照，再排队同步。
+- 库存减少必须分类：S=实际卖出；R=库存修正。只有 sale 计入卖出数量与卖出成本。
+- 新 stockAdjustments 写入 adjustmentType / reason。
+- 保留 V4.29 Fast Safe Database Mapping、旧前端阻止写入及同步速度架构。
+- 全部版本号更新至 V4.29。
