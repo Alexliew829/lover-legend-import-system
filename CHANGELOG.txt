@@ -1,11 +1,19 @@
-V4.27 Stable — Click Edit + Inventory Value Safe Sync
+V4.28 Stable — Long-Press Safe Edit
+- 产品/进口修改/编辑页面的产品名称、当前库存、平均成本恢复 V4.20 的安全长按模式。
+- 必须持续长按约 650ms 才进入修改；普通点击/轻触不会修改。
+- 手指/鼠标移动超过 12px 会取消长按，避免滚动页面时误触。
+- 修改后原有保存前确认、FIFO 库存分配、Products/Imports/Batches 同步与库存总值重算逻辑全部保留。
+- 最新数据库基准更新为：库存 1,134；库存总值 RM645,671.78。
+- 当前客户端/后端握手版本升级为 4.28；Schema 仍为 LL-IMPORT-2026-08-CANONICAL-3。
+
+V4.28 Stable — Click Edit + Inventory Value Safe Sync
 - 产品/进口修改/编辑页面的产品名称、当前库存、平均成本改为普通点击/轻触即可修改，不再需要长按。
 - 产品名称保存前确认；确认后同步 Products + Imports + Batches 中所有对应产品名称。
 - 当前库存保存前确认；沿用 FIFO 分配逻辑，同步 Products + Imports + Batches，并保留库存调整历史。
 - 平均成本保存前显示库存总值变化提示；确认后只修改 Products 平均成本，不改历史进口成本。
 - 首页/库存管理库存总值继续使用 Σ(当前库存 × 平均成本) 实时重算。
 - 保留 V4.26.3 快速同步、首次 Full Pull、Revision、Bootstrap、Canonical Sheet Guard，不改变同步主架构。
-- 当前客户端/后端握手版本升级为 4.27；Schema 仍为 LL-IMPORT-2026-08-CANONICAL-3。
+- 当前客户端/后端握手版本升级为 4.28；Schema 仍为 LL-IMPORT-2026-08-CANONICAL-3。
 
 V4.26.3 Stable — Restore + Excel Export Fix
 

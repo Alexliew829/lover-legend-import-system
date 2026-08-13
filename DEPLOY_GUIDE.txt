@@ -1,4 +1,4 @@
-Lover Legend Import Cost & Inventory System V4.27 Stable
+Lover Legend Import Cost & Inventory System V4.28 Stable
 
 A. Apps Script（先部署后端）
 1. 用 ZIP 内 Apps Script/Code.gs 覆盖当前 Apps Script Code.gs。
@@ -10,14 +10,14 @@ A. Apps Script（先部署后端）
 B. Frontend（再上传前端）
 1. 将 Frontend 文件夹内全部文件覆盖 GitHub Pages repository 对应根目录。
 2. 必须同时上传 index.html、css、js、manifest.json、sw.js、VERSION、assets。
-3. 打开系统后应显示：正式版 4.27 Stable。
+3. 打开系统后应显示：正式版 4.28 Stable。
 4. 先只读确认库存/进口记录，再做一笔可控写入测试。
 
-注意：V4.27 后端会主动阻止旧 V4.20/V4.25 前端写入，避免浏览器旧缓存覆盖最新 Sheet 字段。
+注意：V4.28 后端会主动阻止旧 V4.20/V4.25 前端写入，避免浏览器旧缓存覆盖最新 Sheet 字段。
 
 
-V4.27 部署顺序（重要）：
+V4.28 部署顺序（重要）：
 1. 先更新 Apps Script Code.gs 并部署新版本。
-2. 再上传 V4.27 Frontend 全部文件。
-3. 第一次打开 V4.27 时不要新增/修改，等待状态显示「已同步」。这一次只会 Full Pull，不会 Push 旧本地资料。
+2. 再上传 V4.28 Frontend 全部文件。
+3. 第一次打开 V4.28 时不要新增/修改，等待状态显示「已同步」。这一次只会 Full Pull，不会 Push 旧本地资料。
 4. 确认库存/进口资料正确后，才进行第一笔受控写入测试。
