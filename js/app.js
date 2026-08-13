@@ -748,7 +748,7 @@ function repairLegacyImportDates() {
       }
     });
 
-    // V4.26.2: keep V4.26.2 data model unchanged. Legacy/non-array items are
+    // V4.26.3: keep V4.26.3 data model unchanged. Legacy/non-array items are
     // skipped here instead of being parsed or rewritten during startup.
     // This prevents the V4.24 compatibility repair from mutating synced data.
     const batchItems = Array.isArray(batch.items) ? batch.items : [];
@@ -1564,7 +1564,7 @@ function setupImportModule(){
       alert("找不到这个进口编号或海外运输单号。");
     }
 
-    // V4.26.2: do not refocus/select the field after the alert.
+    // V4.26.3: do not refocus/select the field after the alert.
     // The typed value remains editable, so a wrong entry never becomes trapped.
     return false;
   };
@@ -1622,7 +1622,7 @@ function setupImportModule(){
 
   // iPhone 键盘工具栏的 ✓ / Done 会先结束输入或令输入框失焦。
   // change 与 blur 都接入同一函数，并以值去重，确保只载入一次。
-  // V4.26.2: change / blur only auto-load when the typed value is an exact
+  // V4.26.3: change / blur only auto-load when the typed value is an exact
   // saved import number or overseas tracking number. An incomplete or wrong
   // value must remain editable and must never trap the user in an alert loop.
   batchLookupInput?.addEventListener("change", () => {
@@ -1974,7 +1974,7 @@ function getBatchItemsForDisplay(batch) {
   const batchId = String(batch?.id || "").trim();
   const importNumber = String(batch?.importNumber || "").trim().toLowerCase();
 
-  // V4.26.2 canonical-data rule:
+  // V4.26.3 canonical-data rule:
   // Imports Sheet is the authoritative source for item fields. Batches.items
   // is only a legacy/order fallback. This prevents stale JSON (for example an
   // old test originalQuantity=80) from overriding a corrected Imports row.
@@ -2838,7 +2838,7 @@ function loadBatchByNumber() {
       batch = partialMatches[0];
     } else if (partialMatches.length > 1) {
       alert("找到多个符合的进口记录，请输入更完整的进口编号或海外运输单号。");
-      // V4.26.2: do not force focus/select after closing the alert.
+      // V4.26.3: do not force focus/select after closing the alert.
       // The user can tap back into the field and correct the value normally.
       return;
     }
@@ -2846,7 +2846,7 @@ function loadBatchByNumber() {
 
   if (!batch) {
     alert("找不到这个进口编号或海外运输单号。");
-    // V4.26.2: never force focus/select here. On iPhone this previously caused
+    // V4.26.3: never force focus/select here. On iPhone this previously caused
     // the invalid value to immediately trigger lookup again and appear "locked".
     return;
   }
@@ -2920,7 +2920,7 @@ function loadBatchByNumber() {
             : 0
         );
 
-  // V4.26.2: never reconstruct inland cost from total cost.
+  // V4.26.3: never reconstruct inland cost from total cost.
   // Only use values explicitly saved in this import record.
   // This prevents old VND/CNY batches from inheriting incorrect costs.
   const recoveredChinaTransportCost = 0;
@@ -2941,7 +2941,7 @@ function loadBatchByNumber() {
   document.getElementById("batchChinaTransportCost").value =
     chinaTransportCost ? formatMoney(chinaTransportCost) : "";
 
-  // V4.26.2: old batches without explicit inland cost stay empty.
+  // V4.26.3: old batches without explicit inland cost stay empty.
   // Do not show recovery warning because it is not reliable.
   if (document.getElementById("batchStatusText")) {
     document.getElementById("batchStatusText").textContent = "";
@@ -5630,7 +5630,7 @@ function calculateBatch() {
     chinaForeign +
     potForeign;
 
-  // V4.26.2 mapping field: inland miscellaneous cost is the two explicit
+  // V4.26.3 mapping field: inland miscellaneous cost is the two explicit
   // mainland cost items divided by the complete foreign-side batch total.
   // Keep this separate from inventory/Average Cost so stock movements never
   // rewrite the original import-cost mapping.
@@ -5794,7 +5794,7 @@ function calculateBatch() {
       formatMoney(grandTotal, "RM ");
   }
 
-  // V4.26.2: inventory movement is NOT an import-cost recalculation.
+  // V4.26.3: inventory movement is NOT an import-cost recalculation.
   // When editing an existing import number, always restore the original paid
   // batch snapshot for inland-misc ratio, overseas-shipping ratio, foreign
   // totals and unit costs. Only remaining inventory may change.
@@ -5987,7 +5987,7 @@ function saveBatchImport() {
       if (!imports.some(record => String(record.id || "") === String(item.id || ""))) imports.push(item);
     });
 
-    // V4.26.2: ordinary metadata updates always save. Cost fields only update when
+    // V4.26.3: ordinary metadata updates always save. Cost fields only update when
     // Cost Repair Mode is explicitly enabled. This prevents accidental changes
     // while still allowing manual repair of historical batch-cost data.
     const repairEnabled = getCostRepairModeEnabled();
@@ -6130,12 +6130,12 @@ function saveBatchImport() {
     rackQuantity: Math.max(0, Math.floor(parseAmount(document.getElementById("batchRackQuantity").value))),
     trackingNumber: document.getElementById("batchTrackingNumber").value.trim(),
     overseasTrackingNumber: document.getElementById("batchOverseasTrackingNumber").value.trim(),
-    // V4.26.2: batch costs only come from current input. Never inherit from previous currency/product.
+    // V4.26.3: batch costs only come from current input. Never inherit from previous currency/product.
     chinaTransportCost: Number(parseAmount(document.getElementById("batchChinaTransportCost").value)) || 0,
     chinaTransportRM: 0,
     potCost: Number(parseAmount(document.getElementById("batchPotCost").value)) || 0,
     potRM: 0,
-    // V4.26.2: explicit mapping fields for Pricing Suite.
+    // V4.26.3: explicit mapping fields for Pricing Suite.
     inlandMiscForeign: result.inlandMiscForeign,
     inlandMiscRate: result.inlandMiscRate,
     inlandMiscPercent: result.inlandMiscRate,
@@ -8546,20 +8546,52 @@ function xmlEscape(value) {
     .replaceAll("'", "&apos;");
 }
 
-function excelCell(value, type = "String") {
-  return `<Cell><Data ss:Type="${type}">${xmlEscape(value)}</Data></Cell>`;
+function excelCell(value, type = "String", styleId = "") {
+  const style = styleId ? ` ss:StyleID="${styleId}"` : "";
+  return `<Cell${style}><Data ss:Type="${type}">${xmlEscape(value)}</Data></Cell>`;
 }
 
-function excelWorksheet(name, headers, rows) {
-  const headerXml = `<Row>${headers.map(header => excelCell(header)).join("")}</Row>`;
+function excelDisplayLength(value) {
+  const text = String(value ?? "");
+  let length = 0;
+  for (const char of text) {
+    length += char.charCodeAt(0) > 255 ? 2 : 1;
+  }
+  return length;
+}
+
+function excelColumnWidth(header, rows, columnIndex) {
+  let maxLength = excelDisplayLength(header);
+  rows.forEach(row => {
+    maxLength = Math.max(maxLength, excelDisplayLength(row[columnIndex]));
+  });
+
+  // SpreadsheetML Width uses points. Keep long text readable without creating absurdly wide columns.
+  return Math.max(58, Math.min(260, 12 + maxLength * 6.2));
+}
+
+function excelWorksheet(name, headers, rows, columnTypes = []) {
+  const columnsXml = headers.map((header, index) => {
+    const width = excelColumnWidth(header, rows, index).toFixed(1);
+    return `<Column ss:AutoFitWidth="1" ss:Width="${width}"/>`;
+  }).join("");
+
+  const headerXml = `<Row ss:StyleID="HeaderRow">${headers.map(header => excelCell(header, "String", "Header")).join("")}</Row>`;
   const rowXml = rows.map(row => {
-    return `<Row>${row.map(value => {
+    return `<Row>${row.map((value, index) => {
+      const cellType = columnTypes[index] || "auto";
       const isNumber = typeof value === "number" && Number.isFinite(value);
-      return excelCell(isNumber ? value : value ?? "", isNumber ? "Number" : "String");
+
+      if (!isNumber) return excelCell(value ?? "", "String");
+      if (cellType === "integer") return excelCell(Math.round(value), "Number", "Integer");
+      if (cellType === "money" || cellType === "decimal2" || cellType === "rate") {
+        return excelCell(Number(value), "Number", "Number2");
+      }
+      return excelCell(Number(value), "Number", "GeneralNumber");
     }).join("")}</Row>`;
   }).join("");
 
-  return `<Worksheet ss:Name="${xmlEscape(name)}"><Table>${headerXml}${rowXml}</Table></Worksheet>`;
+  return `<Worksheet ss:Name="${xmlEscape(name)}"><Table>${columnsXml}${headerXml}${rowXml}</Table></Worksheet>`;
 }
 
 function exportSystemExcel() {
@@ -8585,7 +8617,7 @@ function exportSystemExcel() {
   ]);
 
   const importRows = imports.map(record => [
-    record.batchId || "",
+    record.importNumber || "",
     record.containerDate || "",
     record.arrivalDate || "",
     record.productId || "",
@@ -8602,14 +8634,14 @@ function exportSystemExcel() {
   ]);
 
   const batchRows = batches.map(batch => [
-    batch.id || "",
+    batch.importNumber || "",
     batch.containerDate || "",
     batch.arrivalDate || "",
     Number(batch.transitDays) || 0,
     Number(batch.itemCount) || 0,
     Number(batch.totalQuantity) || 0,
     Number(batch.rackQuantity) || 0,
-    batch.trackingNumber || "",
+    batch.overseasTrackingNumber || "",
     batch.currency || "",
     Number(batch.rate) || 0,
     Number(batch.shippingMY) || 0,
@@ -8624,20 +8656,31 @@ function exportSystemExcel() {
     `xmlns:o="urn:schemas-microsoft-com:office:office" ` +
     `xmlns:x="urn:schemas-microsoft-com:office:excel" ` +
     `xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">` +
+    `<Styles>` +
+      `<Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Center"/><Font ss:FontName="Arial" ss:Size="10"/></Style>` +
+      `<Style ss:ID="Header"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Arial" ss:Size="10" ss:Bold="1"/><Interior ss:Color="#D9EAD3" ss:Pattern="Solid"/></Style>` +
+      `<Style ss:ID="HeaderRow"><Alignment ss:Vertical="Center"/></Style>` +
+      `<Style ss:ID="Integer"><NumberFormat ss:Format="0"/></Style>` +
+      `<Style ss:ID="Number2"><NumberFormat ss:Format="#,##0.00"/></Style>` +
+      `<Style ss:ID="GeneralNumber"><NumberFormat ss:Format="General"/></Style>` +
+    `</Styles>` +
     excelWorksheet(
       "Inventory",
       ["产品编号", "产品名称", "类别", "当前库存", "平均成本", "库存成本总值", "最后进口", "状态"],
-      inventoryRows
+      inventoryRows,
+      ["text", "text", "text", "integer", "money", "money", "text", "text"]
     ) +
     excelWorksheet(
       "Imports",
       ["进口编号", "装柜日期", "抵达日期", "产品编号", "产品名称", "类别", "数量", "单价", "货币", "汇率", "货款RM", "每件成本RM", "入库", "成本变化"],
-      importRows
+      importRows,
+      ["text", "text", "text", "text", "text", "text", "integer", "money", "text", "rate", "money", "money", "integer", "text"]
     ) +
     excelWorksheet(
       "Batches",
-      ["进口编号", "装柜日期", "抵达日期", "运输天数", "产品种类", "总数量", "木架总数", "运输单号", "货币", "汇率", "海外运费RM", "海外运费比例", "进口总成本RM"],
-      batchRows
+      ["进口编号", "装柜日期", "抵达日期", "运输天数", "产品种类", "总数量", "木架总数", "海外运输单号", "货币", "汇率", "海外运费RM", "海外运费比例", "进口总成本RM"],
+      batchRows,
+      ["text", "text", "text", "integer", "integer", "integer", "integer", "text", "text", "rate", "money", "decimal2", "money"]
     ) +
     `</Workbook>`;
 
@@ -8647,13 +8690,13 @@ function exportSystemExcel() {
     "application/vnd.ms-excel;charset=utf-8"
   );
 
-  showDataToolsStatus(`Excel 已导出：${activeInventoryProducts.length} 项当前库存`);
+  showDataToolsStatus(`Excel 已导出：${activeInventoryProducts.length} 项当前库存；金额已格式化为 2 位小数`);
 }
 
 function backupSystemData() {
   const backup = {
     app: "Lover Legend Import Cost & Inventory System",
-    version: "3.2",
+    version: "4.26.3",
     exportedAt: new Date().toISOString(),
     settings: loadJSON("importSystemSettings", {}),
     products: getProducts(),
@@ -8670,71 +8713,178 @@ function backupSystemData() {
   showDataToolsStatus("Backup 已完成");
 }
 
+function normalizeRestoreBackup(rawData) {
+  if (!rawData || typeof rawData !== "object") {
+    throw new Error("Backup JSON 不是有效对象");
+  }
+
+  if (
+    !Array.isArray(rawData.products) ||
+    !Array.isArray(rawData.imports) ||
+    !Array.isArray(rawData.batches)
+  ) {
+    throw new Error("Backup 缺少 products / imports / batches 数组");
+  }
+
+  const idSet = (items, label) => {
+    const seen = new Set();
+    items.forEach((item, index) => {
+      const id = String(item?.id || "").trim();
+      if (!id) throw new Error(`${label} 第 ${index + 1} 笔缺少 ID`);
+      if (seen.has(id)) throw new Error(`${label} 出现重复 ID：${id}`);
+      seen.add(id);
+    });
+  };
+
+  idSet(rawData.products, "Products");
+  idSet(rawData.imports, "Imports");
+  idSet(rawData.batches, "Batches");
+
+  const batches = rawData.batches.map(batch => {
+    const b = { ...batch };
+
+    // 旧 Backup 兼容：旧名称只在新版标准字段不存在时补入。
+    if (b.chinaTransportCost == null && b.inlandTransportCost != null) {
+      b.chinaTransportCost = Number(b.inlandTransportCost) || 0;
+    }
+    if (b.chinaTransportRM == null && b.inlandTransportRM != null) {
+      b.chinaTransportRM = Number(b.inlandTransportRM) || 0;
+    }
+    if (b.potCost == null && b.potForeign != null) {
+      b.potCost = Number(b.potForeign) || 0;
+    }
+    if (b.potRM == null && b.potCostRM != null) {
+      b.potRM = Number(b.potCostRM) || 0;
+    }
+
+    if (!Array.isArray(b.items)) b.items = [];
+    return b;
+  });
+
+  return {
+    settings: rawData.settings && typeof rawData.settings === "object" ? rawData.settings : {},
+    products: rawData.products.map(item => ({ ...item })),
+    imports: rawData.imports.map(item => ({ ...item })),
+    batches
+  };
+}
+
+function getDeletedIdsForRestore(previousItems = [], nextItems = []) {
+  const nextIds = new Set(nextItems.map(item => String(item?.id || "")).filter(Boolean));
+  return previousItems
+    .map(item => String(item?.id || ""))
+    .filter(id => id && !nextIds.has(id));
+}
+
+function applyRestoreSnapshot(restored) {
+  if (typeof isCloudBootstrapComplete === "function" && !isCloudBootstrapComplete()) {
+    throw new Error("Google Sheet 首次同步尚未完成，请等待显示「已同步」后再 Restore");
+  }
+
+  const previous = {
+    settings: loadJSON("importSystemSettings", {}),
+    products: getProducts(),
+    imports: getImports(),
+    batches: getBatches()
+  };
+
+  const rollback = () => {
+    localStorage.setItem("importSystemSettings", JSON.stringify(previous.settings || {}));
+    localStorage.setItem("importSystemProducts", JSON.stringify(previous.products || []));
+    localStorage.setItem("importSystemImports", JSON.stringify(previous.imports || []));
+    localStorage.setItem("importSystemBatches", JSON.stringify(previous.batches || []));
+  };
+
+  try {
+    if (typeof cloudApplyingRemote !== "undefined") cloudApplyingRemote = true;
+    localStorage.setItem("importSystemSettings", JSON.stringify(restored.settings || {}));
+    localStorage.setItem("importSystemProducts", JSON.stringify(restored.products || []));
+    localStorage.setItem("importSystemImports", JSON.stringify(restored.imports || []));
+    localStorage.setItem("importSystemBatches", JSON.stringify(restored.batches || []));
+  } catch (error) {
+    try { rollback(); } catch (rollbackError) { console.error("Restore rollback failed", rollbackError); }
+    throw error;
+  } finally {
+    if (typeof cloudApplyingRemote !== "undefined") cloudApplyingRemote = false;
+  }
+
+  // Restore 是一次完整快照覆盖，只建立一次 dirty queue，避免 products/imports/batches 分三次 Push。
+  if (typeof getCloudQueue === "function" && typeof saveCloudQueue === "function") {
+    const queue = getCloudQueue();
+    queue.dirty = true;
+    queue.changedAt = new Date().toISOString();
+    queue.deleted = {
+      products: getDeletedIdsForRestore(previous.products, restored.products),
+      imports: getDeletedIdsForRestore(previous.imports, restored.imports),
+      batches: getDeletedIdsForRestore(previous.batches, restored.batches)
+    };
+    saveCloudQueue(queue);
+  }
+
+  if (typeof scheduleGoogleSync === "function") {
+    scheduleGoogleSync(120);
+  }
+}
+
 function restoreSystemData(event) {
   const file = event.target.files?.[0];
   event.target.value = "";
-
   if (!file) return;
 
   const reader = new FileReader();
 
   reader.onload = () => {
+    let restored;
     try {
-      const data = JSON.parse(String(reader.result || ""));
-
-      // V4.26.2 restore migration: keep old cost fields compatible.
-      // Never invent costs. Only normalize missing fields and preserve values.
-      if (Array.isArray(data.batches)) {
-        data.batches = data.batches.map(batch => {
-          const b = { ...batch };
-          if (b.inlandTransportCost == null && typeof b.chinaTransportCost === "number") {
-            b.inlandTransportCost = b.chinaTransportCost;
-          }
-          if (b.potCost == null && typeof b.potRM === "number") {
-            b.potCost = b.potRM;
-          }
-          if (typeof b.inlandTransportCost === "string" && !/^\d/.test(b.inlandTransportCost)) {
-            b.inlandTransportCost = 0;
-          }
-          return b;
-        });
-      }
-
-      if (
-        !Array.isArray(data.products) ||
-        !Array.isArray(data.imports) ||
-        !Array.isArray(data.batches)
-      ) {
-        throw new Error("Backup 格式不正确");
-      }
-
-      const confirmed = confirm(
-        "Restore 会覆盖当前产品、库存和进口记录。\n\n确定继续？"
-      );
-
-      if (!confirmed) return;
-
-      saveJSON("importSystemSettings", data.settings || {});
-      if (typeof markCloudSettingsSaved === "function") {
-        markCloudSettingsSaved();
-      }
-      saveProducts(data.products);
-      saveImports(data.imports);
-      saveBatches(data.batches);
-
-      renderBatchSuggestions();
-      renderBatchList();
-      renderInventoryManagementList();
-      renderProductList();
-      renderDashboard();
-      showDataToolsStatus("Restore 已完成，资料正在同步");
+      // Accept UTF-8 JSON with or without BOM.
+      const text = String(reader.result || "").replace(/^\uFEFF/, "").trim();
+      restored = normalizeRestoreBackup(JSON.parse(text));
     } catch (error) {
-      console.error(error);
-      showDataToolsStatus("Restore 失败：文件格式不正确", true);
+      console.error("Restore parse/validation failed", error);
+      showDataToolsStatus(`Restore 失败：${error.message || "文件格式不正确"}`, true);
+      return;
     }
+
+    const confirmed = confirm(
+      `Restore 会覆盖当前产品、库存和进口记录，并同步至 Google Sheet。\n\n` +
+      `Products：${restored.products.length}\nImports：${restored.imports.length}\nBatches：${restored.batches.length}\n\n确定继续？`
+    );
+    if (!confirmed) return;
+
+    try {
+      applyRestoreSnapshot(restored);
+    } catch (error) {
+      console.error("Restore apply failed", error);
+      showDataToolsStatus(`Restore 失败：${error.message || "无法写入本机资料"}`, true);
+      return;
+    }
+
+    // 画面刷新错误不再误报为「文件格式不正确」。
+    [
+      "renderBatchSuggestions",
+      "renderBatchList",
+      "renderInventoryManagementList",
+      "renderProductList",
+      "renderDashboard",
+      "updatePasswordHintDisplays"
+    ].forEach(name => {
+      try {
+        if (typeof window[name] === "function") window[name]();
+      } catch (error) {
+        console.warn(`${name} refresh skipped after Restore`, error);
+      }
+    });
+
+    showDataToolsStatus(
+      `Restore 已读取：Products ${restored.products.length} / Imports ${restored.imports.length} / Batches ${restored.batches.length}，正在同步 Google Sheet`
+    );
   };
 
-  reader.readAsText(file);
+  reader.onerror = () => {
+    showDataToolsStatus("Restore 失败：无法读取 JSON 文件", true);
+  };
+
+  reader.readAsText(file, "utf-8");
 }
 
 function showDataToolsStatus(message, isError = false) {
