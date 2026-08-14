@@ -3051,7 +3051,7 @@ body.access-locked {
 .wide-tracking{grid-column:span 2;}
 .small-rack input{max-width:90px;}
 
-/* V4.6 batch import layout refinement */
+/* V4.7 batch import layout refinement */
 .tracking-input { min-width: 180px !important; }
 .small-rack input, .field-rack input { max-width: 70px !important; }
 /* Keep inland costs together and move grand total with misc rate area */
@@ -3060,10 +3060,10 @@ body.access-locked {
 .compact-batch-grid .field-foreign-total,
 .compact-batch-grid .field-inland-rate { min-width: 160px; }
 
-/* V4.6 layout */
+/* V4.7 layout */
 .compact-batch-grid .second-row{grid-column:span 1;}
 
-/* V4.6 Import layout final override */
+/* V4.7 Import layout final override */
 .compact-batch-grid{display:grid!important;grid-template-columns:2fr .45fr 1fr 1fr!important;gap:12px!important;align-items:end!important;}
 .compact-batch-grid .field-tracking{grid-column:1!important;}
 .compact-batch-grid .field-rack{grid-column:2!important;}
@@ -3090,7 +3090,7 @@ body.access-locked {
 #batchRackQuantity{max-width:80px!important;}
 #batchTrackingNumber{width:100%!important;}
 
-/* V4.6 Cost Repair / revision history */
+/* V4.7 Cost Repair / revision history */
 .cost-repair-control-row {
   display: flex;
   align-items: center;
@@ -3143,7 +3143,7 @@ body.access-locked {
 }
 
 
-/* V4.6 Mobile Layout Fix */
+/* V4.7 Mobile Layout Fix */
 html, body {
   overflow-x: hidden;
   width: 100%;
@@ -3218,7 +3218,7 @@ html, body {
   }
 }
 
-/* V4.6 History sold cost total */
+/* V4.7 History sold cost total */
 .history-sold-cost-summary,
 .history-sold-quantity-summary {
   margin-top: 14px;
@@ -3238,7 +3238,7 @@ html, body {
   .history-sold-cost-summary strong { font-size: 20px; }
 }
 
-/* V4.6 History sold record product identification */
+/* V4.7 History sold record product identification */
 .product-history-adjustment-product{
   min-width:0;
   overflow-wrap:anywhere;
@@ -3254,7 +3254,7 @@ html, body {
 }
 
 
-/* V4.6 History import number: tap/click to copy */
+/* V4.7 History import number: tap/click to copy */
 .history-adjustment-meta .history-copy-import-number{
   display:inline-flex;
   align-items:center;
@@ -3274,7 +3274,7 @@ html, body {
 }
 
 
-/* V4.6 History sold quantity summary - visual only */
+/* V4.7 History sold quantity summary - visual only */
 .history-sold-quantity-summary .history-sold-cost-label {
   font-weight: 700;
   color: #7a271a;
@@ -3295,7 +3295,7 @@ html, body {
 }
 
 
-/* V4.6 safer stock decrease classification */
+/* V4.7 safer stock decrease classification */
 .stock-decrease-overlay{position:fixed;inset:0;background:rgba(0,0,0,.38);display:flex;align-items:center;justify-content:center;padding:20px;z-index:10000}
 .stock-decrease-dialog{width:min(520px,100%);background:#fff;border-radius:18px;padding:22px;box-shadow:0 18px 60px rgba(0,0,0,.24)}
 .stock-decrease-title{font-size:20px;font-weight:800;margin-bottom:12px;color:#153d2b}
@@ -3306,3 +3306,17 @@ html, body {
 .stock-decrease-sale{background:#1f6a45;color:#fff;border:1px solid #1f6a45}
 .stock-decrease-repair{background:#fff7e8;color:#8a5700;border:1px solid #d6a54b}
 .stock-decrease-cancel{grid-column:1/-1;background:#f4f4f4;color:#444;border:1px solid #ccc}
+
+/* V4.7 Historical Sales Repair */
+.history-sales-repair-box{margin-top:14px;border:1px solid #d7e5da;border-radius:14px;padding:14px;background:#fbfdfb}
+.history-sales-repair-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.history-sales-repair-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:12px}
+.history-sales-repair-summary>div{padding:10px 12px;background:#eef6f0;border-radius:10px;display:flex;flex-direction:column;gap:4px}
+.history-sales-repair-summary span{font-size:12px;color:#65746a}.history-sales-repair-summary strong{color:#174d32}
+.history-sales-repair-note{padding:10px 12px;background:#fff8e8;border:1px solid #ead49a;border-radius:10px;margin-bottom:12px}
+.history-sales-repair-list{display:flex;flex-direction:column;gap:9px;max-height:560px;overflow:auto}
+.history-sales-repair-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;border:1px solid #dbe5dd;border-radius:12px;background:#fff}
+.history-sales-repair-info{min-width:0;display:flex;flex-direction:column;gap:3px}.history-sales-repair-info strong{overflow-wrap:anywhere}.history-sales-repair-info span,.history-sales-repair-info small{color:#69756d;font-size:12px}
+.history-sales-repair-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}.history-sales-repair-actions button{border:1px solid #c8d5cb;background:#f5f7f5;border-radius:9px;padding:7px 9px;font-weight:700;cursor:pointer}.history-sales-repair-actions button.active{background:#1f6a45;color:#fff;border-color:#1f6a45}.history-sales-repair-actions button.suggested{background:#fff4d8;color:#825500;border-color:#dfba60}
+.history-sales-repair-empty{padding:18px;text-align:center;color:#7a857e}
+@media(max-width:720px){.history-sales-repair-summary{grid-template-columns:1fr 1fr}.history-sales-repair-row{align-items:flex-start;flex-direction:column}.history-sales-repair-actions{width:100%;justify-content:flex-start}}
