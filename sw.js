@@ -1,4 +1,4 @@
-const CACHE = "lover-legend-import-cost-v4.7-stable";
+const CACHE = "lover-legend-import-cost-v4.8-stable";
 const CORE = [
   "./",
   "./index.html?v=4.7",

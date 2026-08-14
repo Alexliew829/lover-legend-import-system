@@ -748,7 +748,7 @@ function repairLegacyImportDates() {
       }
     });
 
-    // V4.7: keep V4.7 data model unchanged. Legacy/non-array items are
+    // V4.8: keep V4.8 data model unchanged. Legacy/non-array items are
     // skipped here instead of being parsed or rewritten during startup.
     // This prevents the V4.24 compatibility repair from mutating synced data.
     const batchItems = Array.isArray(batch.items) ? batch.items : [];
@@ -1565,7 +1565,7 @@ function setupImportModule(){
       alert("找不到这个进口编号或海外运输单号。");
     }
 
-    // V4.7: do not refocus/select the field after the alert.
+    // V4.8: do not refocus/select the field after the alert.
     // The typed value remains editable, so a wrong entry never becomes trapped.
     return false;
   };
@@ -1623,7 +1623,7 @@ function setupImportModule(){
 
   // iPhone 键盘工具栏的 ✓ / Done 会先结束输入或令输入框失焦。
   // change 与 blur 都接入同一函数，并以值去重，确保只载入一次。
-  // V4.7: change / blur only auto-load when the typed value is an exact
+  // V4.8: change / blur only auto-load when the typed value is an exact
   // saved import number or overseas tracking number. An incomplete or wrong
   // value must remain editable and must never trap the user in an alert loop.
   batchLookupInput?.addEventListener("change", () => {
@@ -1975,7 +1975,7 @@ function getBatchItemsForDisplay(batch) {
   const batchId = String(batch?.id || "").trim();
   const importNumber = String(batch?.importNumber || "").trim().toLowerCase();
 
-  // V4.7 canonical-data rule:
+  // V4.8 canonical-data rule:
   // Imports Sheet is the authoritative source for item fields. Batches.items
   // is only a legacy/order fallback. This prevents stale JSON (for example an
   // old test originalQuantity=80) from overriding a corrected Imports row.
@@ -2839,7 +2839,7 @@ function loadBatchByNumber() {
       batch = partialMatches[0];
     } else if (partialMatches.length > 1) {
       alert("找到多个符合的进口记录，请输入更完整的进口编号或海外运输单号。");
-      // V4.7: do not force focus/select after closing the alert.
+      // V4.8: do not force focus/select after closing the alert.
       // The user can tap back into the field and correct the value normally.
       return;
     }
@@ -2847,7 +2847,7 @@ function loadBatchByNumber() {
 
   if (!batch) {
     alert("找不到这个进口编号或海外运输单号。");
-    // V4.7: never force focus/select here. On iPhone this previously caused
+    // V4.8: never force focus/select here. On iPhone this previously caused
     // the invalid value to immediately trigger lookup again and appear "locked".
     return;
   }
@@ -2921,7 +2921,7 @@ function loadBatchByNumber() {
             : 0
         );
 
-  // V4.7: never reconstruct inland cost from total cost.
+  // V4.8: never reconstruct inland cost from total cost.
   // Only use values explicitly saved in this import record.
   // This prevents old VND/CNY batches from inheriting incorrect costs.
   const recoveredChinaTransportCost = 0;
@@ -2942,7 +2942,7 @@ function loadBatchByNumber() {
   document.getElementById("batchChinaTransportCost").value =
     chinaTransportCost ? formatMoney(chinaTransportCost) : "";
 
-  // V4.7: old batches without explicit inland cost stay empty.
+  // V4.8: old batches without explicit inland cost stay empty.
   // Do not show recovery warning because it is not reliable.
   if (document.getElementById("batchStatusText")) {
     document.getElementById("batchStatusText").textContent = "";
@@ -3510,7 +3510,7 @@ function repairInventoryConsistencyForProduct(productId) {
 
   if (!confirmed) return;
 
-  // V4.7: repair only the stale lot-level remaining quantities. Products is the truth
+  // V4.8: repair only the stale lot-level remaining quantities. Products is the truth
   // and remains untouched; no stock adjustment is created, so sales/history are not duplicated.
   localStorage.setItem("importSystemImports", JSON.stringify(allocation.nextImports));
   localStorage.setItem("importSystemBatches", JSON.stringify(allocation.nextBatches));
@@ -3691,7 +3691,7 @@ function getHistoryAdjustmentType(adjustment) {
   if (["modify", "adjustment", "修改"].includes(type)) return "modify";
   const override = getHistorySalesOverride(adjustment);
   if (override) return override;
-  // V4.7 以前没有类型字段。未审核的旧负数仍暂按 sale；
+  // V4.8 以前没有类型字段。未审核的旧负数仍暂按 sale；
   // 可在设置 > 历史销售修复中人工确认或自动标记完整抵消记录。
   return Number(adjustment?.delta) < 0 ? "sale" : "modify";
 }
@@ -4073,7 +4073,7 @@ function getTrustedHistoryUnitCost(item) {
 }
 
 function getHistorySoldAdjustmentUnitCost(adjustment) {
-  // V4.7: new sale records lock the unit cost at the moment of sale.
+  // V4.8: new sale records lock the unit cost at the moment of sale.
   const locked = Number(adjustment?.soldUnitCost);
   if (Number.isFinite(locked) && locked > 0) return locked;
 
@@ -4169,7 +4169,7 @@ function getHistoryRelevantAdjustments(options = {}) {
 }
 
 function getHistoryNetSoldLots(options = {}) {
-  // V4.7: calculate NET sold quantity, not the sum of every historical negative row.
+  // V4.8: calculate NET sold quantity, not the sum of every historical negative row.
   // A later positive Modify/Correction reverses earlier sale quantity for the same
   // product/import lot. Example: -3, +3, -3, +3, -7 => net sold 7.
   // Keep non-sale negative repairs out of sales totals.
@@ -5047,7 +5047,7 @@ function renderImportHistory() {
     return;
   }
 
-  // V4.7 History lookup safety: resolve the typed product against the current
+  // V4.8 History lookup safety: resolve the typed product against the current
   // Products collection first. This keeps product search working even when an
   // older Batches.items snapshot still contains a previous product name.
   const exactHistoryProduct = String(
@@ -5131,7 +5131,7 @@ function renderImportHistory() {
       summary.productNames
     );
 
-  // V4.7: product-name History uses Products.stock as the final truth for total remaining.
+  // V4.8: product-name History uses Products.stock as the final truth for total remaining.
   // Import-number rows still keep each Imports.remainingQuantity for batch-level history.
   const normalizedHistoryLookup = String(keyword || "").trim().toLowerCase();
   const isExactImportNumberLookup = getBatches().some(batch =>
@@ -5996,7 +5996,7 @@ function calculateBatch() {
     chinaForeign +
     potForeign;
 
-  // V4.7 mapping field: inland miscellaneous cost is the two explicit
+  // V4.8 mapping field: inland miscellaneous cost is the two explicit
   // mainland cost items divided by the complete foreign-side batch total.
   // Keep this separate from inventory/Average Cost so stock movements never
   // rewrite the original import-cost mapping.
@@ -6160,7 +6160,7 @@ function calculateBatch() {
       formatMoney(grandTotal, "RM ");
   }
 
-  // V4.7: inventory movement is NOT an import-cost recalculation.
+  // V4.8: inventory movement is NOT an import-cost recalculation.
   // When editing an existing import number, always restore the original paid
   // batch snapshot for inland-misc ratio, overseas-shipping ratio, foreign
   // totals and unit costs. Only remaining inventory may change.
@@ -6353,7 +6353,7 @@ function saveBatchImport() {
       if (!imports.some(record => String(record.id || "") === String(item.id || ""))) imports.push(item);
     });
 
-    // V4.7: ordinary metadata updates always save. Cost fields only update when
+    // V4.8: ordinary metadata updates always save. Cost fields only update when
     // Cost Repair Mode is explicitly enabled. This prevents accidental changes
     // while still allowing manual repair of historical batch-cost data.
     const repairEnabled = getCostRepairModeEnabled();
@@ -6496,12 +6496,12 @@ function saveBatchImport() {
     rackQuantity: Math.max(0, Math.floor(parseAmount(document.getElementById("batchRackQuantity").value))),
     trackingNumber: document.getElementById("batchTrackingNumber").value.trim(),
     overseasTrackingNumber: document.getElementById("batchOverseasTrackingNumber").value.trim(),
-    // V4.7: batch costs only come from current input. Never inherit from previous currency/product.
+    // V4.8: batch costs only come from current input. Never inherit from previous currency/product.
     chinaTransportCost: Number(parseAmount(document.getElementById("batchChinaTransportCost").value)) || 0,
     chinaTransportRM: 0,
     potCost: Number(parseAmount(document.getElementById("batchPotCost").value)) || 0,
     potRM: 0,
-    // V4.7: explicit mapping fields for Pricing Suite.
+    // V4.8: explicit mapping fields for Pricing Suite.
     inlandMiscForeign: result.inlandMiscForeign,
     inlandMiscRate: result.inlandMiscRate,
     inlandMiscPercent: result.inlandMiscRate,
@@ -6882,7 +6882,7 @@ function renderBatchProductStockResults() {
 
 
 function bindProductStockLongPress() {
-  // V4.7 safety mode: follow the proven V4.20 interaction.
+  // V4.8 safety mode: follow the proven V4.20 interaction.
   // Name / stock / average cost require a deliberate 650ms long press.
   // Moving more than 12px cancels the action, and ordinary click/tap never edits.
   const output = document.getElementById("batchProductStockResults");
@@ -7285,7 +7285,7 @@ function allocateProductRemainingFIFO(productId, productName, targetStock, adjus
 }
 
 function saveInventoryConsistencySnapshot(previousProducts, nextProducts, previousImports, nextImports, previousBatches, nextBatches) {
-  // V4.7: write the three related collections to localStorage first, then mark one sync snapshot.
+  // V4.8: write the three related collections to localStorage first, then mark one sync snapshot.
   // This prevents the sync timer from observing a half-updated Products / Imports / Batches state.
   localStorage.setItem("importSystemProducts", JSON.stringify(nextProducts));
   localStorage.setItem("importSystemImports", JSON.stringify(nextImports));
@@ -8385,8 +8385,6 @@ function setupDataTools() {
   const backupButton = document.getElementById("backupDataBtn");
   const restoreButton = document.getElementById("restoreDataBtn");
   const restoreInput = document.getElementById("restoreFileInput");
-  const rebuildHistoryButton =
-    document.getElementById("rebuildHistoryStockBtn");
   const findStaleButton =
     document.getElementById("findStaleZeroStockBtn");
   const deleteSelectedButton =
@@ -8398,11 +8396,6 @@ function setupDataTools() {
   backupButton?.addEventListener("click", backupSystemData);
   restoreButton?.addEventListener("click", () => restoreInput?.click());
   restoreInput?.addEventListener("change", restoreSystemData);
-
-  // 暂时停用，保留原函数以便以后重新开启。
-  if (rebuildHistoryButton) {
-    rebuildHistoryButton.disabled = true;
-  }
 
   findStaleButton?.addEventListener(
     "click",
@@ -8503,24 +8496,24 @@ function getThreeMonthsAgoTime() {
 }
 
 function getStaleZeroStockProducts() {
+  // V4.8: user-confirmed cleanup rule. Every product whose canonical
+  // Products.stock is exactly 0 is eligible, regardless of age/activity.
+  // Nothing is deleted automatically; the user must select rows and type DELETE.
   const imports = getImports();
   const batches = getBatches();
-  const threshold = getThreeMonthsAgoTime();
 
   return getProducts()
     .filter(product => (Number(product?.stock) || 0) === 0)
     .map(product => ({
       product,
-      lastActivityTime:
-        getStaleProductActivityTime(product, imports, batches)
+      lastActivityTime: getStaleProductActivityTime(product, imports, batches)
     }))
-    .filter(item =>
-      item.lastActivityTime > 0 &&
-      item.lastActivityTime < threshold
-    )
-    .sort((a, b) =>
-      a.lastActivityTime - b.lastActivityTime
-    );
+    .sort((a, b) => {
+      const ta = Number(a.lastActivityTime) || 0;
+      const tb = Number(b.lastActivityTime) || 0;
+      if (ta !== tb) return ta - tb;
+      return String(a.product?.name || '').localeCompare(String(b.product?.name || ''), 'zh-Hans-CN');
+    });
 }
 
 function formatActivityDate(time) {
@@ -8554,7 +8547,7 @@ function renderStaleZeroStockProducts() {
     list.innerHTML =
       '<div class="empty-state">没有符合条件的零库存产品</div>';
     updateStaleDeleteButtonState();
-    showDataToolsStatus("没有超过3个月未进出的零库存产品");
+    showDataToolsStatus("目前没有零库存产品");
     return;
   }
 
@@ -8571,7 +8564,7 @@ function renderStaleZeroStockProducts() {
           <small>
             ${escapeHTML(product.id || "-")} ·
             ${escapeHTML(product.category || "-")} ·
-            最后进出 ${formatActivityDate(item.lastActivityTime)}
+            最后记录 ${formatActivityDate(item.lastActivityTime)}
           </small>
         </span>
         <span class="stale-zero-stock-value">库存 0</span>
@@ -8581,7 +8574,7 @@ function renderStaleZeroStockProducts() {
 
   updateStaleDeleteButtonState();
   showDataToolsStatus(
-    `已找到 ${formatNumber(staleProducts.length)} 个可清理产品`
+    `已找到 ${formatNumber(staleProducts.length)} 个零库存产品可清理`
   );
 }
 
@@ -8622,100 +8615,90 @@ function isSameCleanupProduct(item, product) {
 
 function deleteSelectedStaleZeroStockProducts() {
   const selectedIds = Array.from(
-    document.querySelectorAll(
-      ".stale-zero-stock-checkbox:checked"
-    )
+    document.querySelectorAll(".stale-zero-stock-checkbox:checked")
   ).map(input => String(input.value || "").trim());
 
   if (!selectedIds.length) return;
 
-  const staleById = new Map(
-    getStaleZeroStockProducts().map(item => [
-      String(item.product.id || "").trim(),
-      item.product
-    ])
+  const zeroById = new Map(
+    getStaleZeroStockProducts().map(item => [String(item.product.id || "").trim(), item.product])
   );
-
-  const selectedProducts = selectedIds
-    .map(id => staleById.get(id))
-    .filter(Boolean);
+  const selectedProducts = selectedIds.map(id => zeroById.get(id)).filter(Boolean);
 
   if (!selectedProducts.length) {
-    alert("这些产品已不符合删除条件，请重新检查。");
+    alert("这些产品已经不再是零库存，请重新检查。");
     renderStaleZeroStockProducts();
     return;
   }
 
+  const names = selectedProducts.slice(0, 8).map(p => `• ${p.name || p.id}`).join("\n");
+  const more = selectedProducts.length > 8 ? `\n…另有 ${selectedProducts.length - 8} 项` : "";
   const typed = window.prompt(
-    `危险操作：将永久删除 ${selectedProducts.length} 个产品及所有相关进口资料。\n\n此操作无法还原。请先完成 Backup。\n\n请输入 DELETE 确认：`
+    `永久删除 ${selectedProducts.length} 个零库存产品？\n\n${names}${more}\n\n将从 Products、Imports、Batches 对应项目及历史销售修复设置中移除。删除后系统会视为公司从未进口过这些产品。\n\n此操作无法还原，请先 Backup。\n\n请输入 DELETE 确认：`
   );
-
   if (typed === null) return;
-
   if (String(typed).trim() !== "DELETE") {
     alert("输入不正确，已取消删除。");
     return;
   }
 
-  const selectedIdSet = new Set(
-    selectedProducts.map(product =>
-      String(product.id || "").trim()
-    )
-  );
+  // Final guard immediately before mutation: only canonical stock=0 may be deleted.
+  const latestProducts = getProducts();
+  const latestById = new Map(latestProducts.map(p => [String(p.id || "").trim(), p]));
+  const invalid = selectedProducts.filter(p => {
+    const latest = latestById.get(String(p.id || "").trim());
+    return !latest || (Number(latest.stock) || 0) !== 0;
+  });
+  if (invalid.length) {
+    alert("其中有产品库存已经改变，已取消整次删除。请重新同步后再检查。");
+    return;
+  }
 
-  const products = getProducts();
+  const products = latestProducts;
   const imports = getImports();
   const batches = getBatches();
+  const settings = loadJSON("importSystemSettings", {});
   const now = new Date().toISOString();
+  const selectedIdSet = new Set(selectedProducts.map(p => String(p.id || "").trim()));
 
-  const nextProducts = products.filter(product =>
-    !selectedIdSet.has(String(product.id || "").trim())
-  );
+  const nextProducts = products.filter(p => !selectedIdSet.has(String(p.id || "").trim()));
+  const nextImports = imports.filter(record => !selectedProducts.some(product => isSameCleanupProduct(record, product)));
+  const nextBatches = batches.map(batch => {
+    const currentItems = Array.isArray(batch.items) ? batch.items : [];
+    const nextItems = currentItems.filter(item => !selectedProducts.some(product => isSameCleanupProduct(item, product)));
+    if (!nextItems.length) return null;
+    if (nextItems.length === currentItems.length) return batch;
+    return {
+      ...batch,
+      items: nextItems,
+      productTypeCount: new Set(nextItems.map(item => String(item.productId || item.productName || ""))).size,
+      totalQuantity: nextItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0),
+      updatedAt: now
+    };
+  }).filter(Boolean);
 
-  const nextImports = imports.filter(record =>
-    !selectedProducts.some(product =>
-      isSameCleanupProduct(record, product)
-    )
-  );
+  // Remove legacy History Sales Repair overrides belonging to the deleted products.
+  const oldOverrides = settings.historySalesOverrides && typeof settings.historySalesOverrides === "object"
+    ? settings.historySalesOverrides : {};
+  const nextOverrides = Object.fromEntries(Object.entries(oldOverrides).filter(([, entry]) => {
+    return !selectedProducts.some(product => isSameCleanupProduct(entry || {}, product));
+  }));
+  const nextSettings = { ...settings, historySalesOverrides: nextOverrides };
 
-  const nextBatches = batches
-    .map(batch => {
-      const currentItems =
-        Array.isArray(batch.items) ? batch.items : [];
+  // V4.8 atomic local snapshot: write all related collections first, then mark one cloud sync set.
+  localStorage.setItem("importSystemProducts", JSON.stringify(nextProducts));
+  localStorage.setItem("importSystemImports", JSON.stringify(nextImports));
+  localStorage.setItem("importSystemBatches", JSON.stringify(nextBatches));
+  localStorage.setItem("importSystemSettings", JSON.stringify(nextSettings));
 
-      const nextItems = currentItems.filter(item =>
-        !selectedProducts.some(product =>
-          isSameCleanupProduct(item, product)
-        )
-      );
-
-      if (!nextItems.length) return null;
-
-      if (nextItems.length === currentItems.length) {
-        return batch;
-      }
-
-      return {
-        ...batch,
-        items: nextItems,
-        productTypeCount: new Set(
-          nextItems.map(item =>
-            String(item.productId || item.productName || "")
-          )
-        ).size,
-        totalQuantity: nextItems.reduce(
-          (sum, item) =>
-            sum + (Number(item.quantity) || 0),
-          0
-        ),
-        updatedAt: now
-      };
-    })
-    .filter(Boolean);
-
-  saveProducts(nextProducts);
-  saveImports(nextImports);
-  saveBatches(nextBatches);
+  if (typeof markCloudCollectionSaved === "function") {
+    markCloudCollectionSaved("products", products, nextProducts);
+    markCloudCollectionSaved("imports", imports, nextImports);
+    markCloudCollectionSaved("batches", batches, nextBatches);
+  }
+  if (JSON.stringify(settings) !== JSON.stringify(nextSettings) && typeof markCloudSettingsSaved === "function") {
+    markCloudSettingsSaved();
+  }
 
   renderProductList();
   renderDashboard();
@@ -8726,270 +8709,10 @@ function deleteSelectedStaleZeroStockProducts() {
   renderImportHistory();
   renderStaleZeroStockProducts();
 
-  showDataToolsStatus(
-    `已永久删除 ${formatNumber(selectedProducts.length)} 个零库存产品及相关资料`
-  );
+  showDataToolsStatus(`已永久删除 ${formatNumber(selectedProducts.length)} 个零库存产品及相关进口资料，正在同步 Google Sheet`);
 }
 
-function rebuildAllImportHistoryRemainingFIFO() {
-  const products = getProducts();
-  const imports = getImports();
-  const batches = getBatches();
 
-  if (!products.length || !imports.length) {
-    showDataToolsStatus("没有可重建的产品或进口历史。");
-    return;
-  }
-
-  const confirmed = window.confirm(
-    "确认重建历史库存？\n\n" +
-    "系统会依据每个产品目前的总库存，按最早进口优先（FIFO）重新分配各进口编号的当前剩余。\n\n" +
-    "不会修改：原进口数量、Average Cost、原单价、原每棵成本和进口成本。\n\n" +
-    "建议已经完成 Backup 后再继续。"
-  );
-
-  if (!confirmed) return;
-
-  const now = new Date().toISOString();
-  const nextImports = imports.map(record => ({ ...record }));
-  const nextBatches = batches.map(batch => ({
-    ...batch,
-    items: Array.isArray(batch.items)
-      ? batch.items.map(item => ({ ...item }))
-      : []
-  }));
-
-  const batchById = new Map(
-    nextBatches.map(batch => [String(batch.id || ""), batch])
-  );
-  const batchByImportNumber = new Map(
-    nextBatches.map(batch => [
-      String(batch.importNumber || "").trim().toLowerCase(),
-      batch
-    ])
-  );
-
-  const originalOf = item =>
-    getSafeDisplayOriginalQuantity(item);
-
-  let repairedProducts = 0;
-  let repairedRecords = 0;
-  const skippedProducts = [];
-
-  products.forEach(product => {
-    const productId = String(product.id || "").trim();
-    const productName = String(product.name || "").trim().toLowerCase();
-    const targetStock = Math.max(0, Math.floor(Number(product.stock) || 0));
-
-    const isSameProduct = item => {
-      const sameProductId =
-        productId &&
-        item?.productId &&
-        String(item.productId).trim() === productId;
-
-      const sameLegacyName =
-        !sameProductId &&
-        productName &&
-        String(item?.productName || item?.name || "")
-          .trim()
-          .toLowerCase() === productName;
-
-      return sameProductId || sameLegacyName;
-    };
-
-    const entries = nextImports
-      .map((record, index) => ({ record, index }))
-      .filter(entry => isSameProduct(entry.record))
-      .map(entry => {
-        const record = entry.record;
-        const batch =
-          batchById.get(String(record.batchId || "")) ||
-          batchByImportNumber.get(
-            String(record.importNumber || "").trim().toLowerCase()
-          ) ||
-          {};
-
-        const arrivalTime = parseDDMMYYYY(
-          record.arrivalDate || batch.arrivalDate || ""
-        );
-        const containerTime = parseDDMMYYYY(
-          record.containerDate || batch.containerDate || ""
-        );
-        const createdTime = Date.parse(
-          record.createdAt || batch.createdAt || ""
-        );
-
-        return {
-          ...entry,
-          batch,
-          originalQuantity: originalOf(record),
-          sortTime:
-            arrivalTime ||
-            containerTime ||
-            (Number.isFinite(createdTime) ? createdTime : 0),
-          importNumber: String(
-            record.importNumber || batch.importNumber || ""
-          ).trim()
-        };
-      })
-      .sort((a, b) => {
-        if (a.sortTime !== b.sortTime) return a.sortTime - b.sortTime;
-
-        const createdA = String(
-          a.record.createdAt || a.batch.createdAt || ""
-        );
-        const createdB = String(
-          b.record.createdAt || b.batch.createdAt || ""
-        );
-        const createdCompare = createdA.localeCompare(createdB);
-        if (createdCompare) return createdCompare;
-
-        return a.importNumber.localeCompare(b.importNumber);
-      });
-
-    if (!entries.length) return;
-
-    const cumulativeOriginal = entries.reduce(
-      (sum, entry) => sum + entry.originalQuantity,
-      0
-    );
-
-    if (targetStock > cumulativeOriginal) {
-      skippedProducts.push(
-        `${product.name}：库存 ${formatNumber(targetStock)} > 原进口 ${formatNumber(cumulativeOriginal)}`
-      );
-      return;
-    }
-
-    let quantityToDeduct = cumulativeOriginal - targetStock;
-    const remainingByImportIndex = new Map();
-
-    entries.forEach(entry => {
-      const deducted = Math.min(
-        entry.originalQuantity,
-        quantityToDeduct
-      );
-      const remainingQuantity =
-        entry.originalQuantity - deducted;
-
-      quantityToDeduct -= deducted;
-      remainingByImportIndex.set(entry.index, remainingQuantity);
-
-      const previousRemaining = Number(
-        nextImports[entry.index].remainingQuantity
-      );
-
-      if (
-        !Number.isFinite(previousRemaining) ||
-        previousRemaining !== remainingQuantity ||
-        Number(nextImports[entry.index].originalQuantity) !==
-          entry.originalQuantity
-      ) {
-        repairedRecords += 1;
-      }
-
-      nextImports[entry.index] = {
-        ...nextImports[entry.index],
-        originalQuantity: entry.originalQuantity,
-        remainingQuantity,
-        updatedAt: now
-      };
-    });
-
-    nextBatches.forEach(batch => {
-      const matchingEntries = entries.filter(entry => {
-        const sameBatchId =
-          batch.id &&
-          entry.record.batchId &&
-          String(entry.record.batchId) === String(batch.id);
-
-        const sameImportNumber =
-          batch.importNumber &&
-          String(entry.record.importNumber || "")
-            .trim()
-            .toLowerCase() ===
-          String(batch.importNumber)
-            .trim()
-            .toLowerCase();
-
-        return sameBatchId || sameImportNumber;
-      });
-
-      if (!matchingEntries.length || !Array.isArray(batch.items)) return;
-
-      const unusedEntries = matchingEntries.map(entry => ({
-        entry,
-        used: false
-      }));
-
-      batch.items = batch.items.map(item => {
-        if (!isSameProduct(item)) return item;
-
-        const itemProductId = String(item.productId || "").trim();
-        const itemName = String(
-          item.productName || item.name || ""
-        ).trim().toLowerCase();
-        const itemCategory = String(item.category || "盆栽");
-
-        const matched = unusedEntries.find(wrapper => {
-          if (wrapper.used) return false;
-          const record = wrapper.entry.record;
-
-          const sameProductId =
-            itemProductId &&
-            record.productId &&
-            String(record.productId).trim() === itemProductId;
-
-          const sameLegacyIdentity =
-            !sameProductId &&
-            itemName &&
-            String(record.productName || record.name || "")
-              .trim()
-              .toLowerCase() === itemName &&
-            String(record.category || "盆栽") === itemCategory;
-
-          return sameProductId || sameLegacyIdentity;
-        });
-
-        if (!matched) return item;
-
-        matched.used = true;
-
-        return {
-          ...item,
-          originalQuantity: matched.entry.originalQuantity,
-          remainingQuantity:
-            remainingByImportIndex.get(matched.entry.index),
-          updatedAt: now
-        };
-      });
-
-      batch.updatedAt = now;
-    });
-
-    repairedProducts += 1;
-  });
-
-  saveImports(nextImports);
-  saveBatches(nextBatches);
-
-  renderBatchList();
-  renderImportHistory();
-  renderInventoryManagementList();
-  renderDashboard();
-
-  let message =
-    `历史库存重建完成：${formatNumber(repairedProducts)} 个产品，` +
-    `${formatNumber(repairedRecords)} 条进口记录已检查或更新。`;
-
-  if (skippedProducts.length) {
-    message +=
-      ` 有 ${formatNumber(skippedProducts.length)} 个产品未处理，因为当前库存超过累计原进口数量。`;
-    console.warn("未重建产品：", skippedProducts);
-  }
-
-  showDataToolsStatus(message);
-}
 
 function downloadTextFile(filename, content, mimeType) {
   const blob = new Blob([content], { type: mimeType });
@@ -9164,7 +8887,7 @@ function exportSystemExcel() {
 function backupSystemData() {
   const backup = {
     app: "Lover Legend Import Cost & Inventory System",
-    version: "4.7",
+    version: "4.8",
     exportedAt: new Date().toISOString(),
     settings: loadJSON("importSystemSettings", {}),
     products: getProducts(),

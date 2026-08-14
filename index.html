@@ -84,7 +84,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 4.7 Stable</div>
+          <div class="app-header-version">正式版 4.8 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -533,16 +533,6 @@
               <span>Restore</span>
             </button>
 
-            <button id="rebuildHistoryStockBtn"
-                    class="tool-action-btn repair-history-btn"
-                    type="button"
-                    disabled
-                    aria-disabled="true"
-                    title="暂时停用，需要时再开启">
-              <span class="tool-action-icon">🔄</span>
-              <span>重建历史库存（暂时停用）</span>
-            </button>
-
             <button id="findStaleZeroStockBtn"
                     class="tool-action-btn cleanup-stock-btn"
                     type="button">
@@ -556,7 +546,7 @@
                hidden>
             <div class="stale-zero-stock-head">
               <div>
-                <strong>零库存超过3个月</strong>
+                <strong>全部零库存产品</strong>
                 <span id="staleZeroStockCount">0 项</span>
               </div>
               <button id="deleteSelectedStaleProductsBtn"
@@ -577,7 +567,7 @@
 
           <p class="settings-help">
             Backup 会保存产品、库存、进口记录和汇率。Restore 会覆盖当前资料。<br>
-            “重建历史库存”暂时停用。清理工具只列出当前库存为0，并且超过3个月没有进口或库存增减记录的产品。删除时必须输入 DELETE，系统会移除该产品及相关进口记录。
+            清理工具会列出所有当前库存为 0 的产品。删除时必须输入 DELETE 二次确认。删除后会从 Products、Imports 及 Batches 对应项目中永久移除，就当公司从未进口过该产品；以后重新进口时再建立新产品。建议删除前先 Backup。
           </p>
 
           <div id="dataToolsStatus" class="status-text"></div>
@@ -649,7 +639,7 @@
 
         <section class="panel">
           <h3>系统资料</h3>
-          <div class="info-row"><span>版本</span><strong>正式版 4.7 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong>正式版 4.8 Stable</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
           <div class="info-row"><span>Google Sheet</span><strong>已连接 Google Web App</strong></div>
         </section>

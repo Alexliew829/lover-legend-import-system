@@ -1,23 +1,23 @@
-Lover Legend Import Cost & Inventory System V4.7 Stable
+Lover Legend Import Cost & Inventory System V4.8 Stable
 
 A. Apps Script（先部署后端）
 1. 用 ZIP 内 Apps Script/Code.gs 覆盖当前 Apps Script Code.gs。
 2. Save。
-3. 执行 validateDatabaseBaseline()，确认 Schema 正确；如库存基准仍为当前确认值，应看到 stock 1132 / inventoryValue 644780.33 / products 169 / imports 177 / batches 37。
+3. 执行 validateDatabaseBaseline()，确认 Schema 正确；如库存基准仍为当前确认值，应看到 stock 1131 / inventoryValue 644457.65。Products / Imports / Batches 行数会因永久清理零库存产品而减少，因此不再作为验证失败条件。
 4. 执行 checkWriteStatus()，确认 writesEnabled=true。
 5. Deploy > Manage deployments > Edit > New version > Deploy。沿用同一个 Web App Deployment URL。
 
 B. Frontend（再上传前端）
 1. 将 Frontend 文件夹内全部文件覆盖 GitHub Pages repository 对应根目录。
 2. 必须同时上传 index.html、css、js、manifest.json、sw.js、VERSION、assets。
-3. 打开系统后应显示：正式版 4.7 Stable。
+3. 打开系统后应显示：正式版 4.8 Stable。
 4. 先只读确认库存/进口记录，再做一笔可控写入测试。
 
-注意：V4.7 后端会主动阻止旧 V4.20/V4.25 前端写入，避免浏览器旧缓存覆盖最新 Sheet 字段。
+注意：V4.8 后端会主动阻止旧 V4.20/V4.25 前端写入，避免浏览器旧缓存覆盖最新 Sheet 字段。
 
 
-V4.7 部署顺序（重要）：
+V4.8 部署顺序（重要）：
 1. 先更新 Apps Script Code.gs 并部署新版本。
-2. 再上传 V4.7 Frontend 全部文件。
-3. 第一次打开 V4.7 时不要新增/修改，等待状态显示「已同步」。这一次只会 Full Pull，不会 Push 旧本地资料。
+2. 再上传 V4.8 Frontend 全部文件。
+3. 第一次打开 V4.8 时不要新增/修改，等待状态显示「已同步」。这一次只会 Full Pull，不会 Push 旧本地资料。
 4. 确认库存/进口资料正确后，才进行第一笔受控写入测试。
