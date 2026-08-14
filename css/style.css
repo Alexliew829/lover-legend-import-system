@@ -3090,7 +3090,7 @@ body.access-locked {
 #batchRackQuantity{max-width:80px!important;}
 #batchTrackingNumber{width:100%!important;}
 
-/* V4.5 Cost Repair / revision history */
+/* V4.6 Cost Repair / revision history */
 .cost-repair-control-row {
   display: flex;
   align-items: center;
@@ -3143,7 +3143,7 @@ body.access-locked {
 }
 
 
-/* V4.5 Mobile Layout Fix */
+/* V4.6 Mobile Layout Fix */
 html, body {
   overflow-x: hidden;
   width: 100%;
@@ -3218,7 +3218,7 @@ html, body {
   }
 }
 
-/* V4.5 History sold cost total */
+/* V4.6 History sold cost total */
 .history-sold-cost-summary,
 .history-sold-quantity-summary {
   margin-top: 14px;
@@ -3238,7 +3238,7 @@ html, body {
   .history-sold-cost-summary strong { font-size: 20px; }
 }
 
-/* V4.5 History sold record product identification */
+/* V4.6 History sold record product identification */
 .product-history-adjustment-product{
   min-width:0;
   overflow-wrap:anywhere;
@@ -3254,7 +3254,7 @@ html, body {
 }
 
 
-/* V4.5 History import number: tap/click to copy */
+/* V4.6 History import number: tap/click to copy */
 .history-adjustment-meta .history-copy-import-number{
   display:inline-flex;
   align-items:center;
@@ -3274,7 +3274,7 @@ html, body {
 }
 
 
-/* V4.5 History sold quantity summary - visual only */
+/* V4.6 History sold quantity summary - visual only */
 .history-sold-quantity-summary .history-sold-cost-label {
   font-weight: 700;
   color: #7a271a;
@@ -3295,7 +3295,7 @@ html, body {
 }
 
 
-/* V4.5 safer stock decrease classification */
+/* V4.6 safer stock decrease classification */
 .stock-decrease-overlay{position:fixed;inset:0;background:rgba(0,0,0,.38);display:flex;align-items:center;justify-content:center;padding:20px;z-index:10000}
 .stock-decrease-dialog{width:min(520px,100%);background:#fff;border-radius:18px;padding:22px;box-shadow:0 18px 60px rgba(0,0,0,.24)}
 .stock-decrease-title{font-size:20px;font-weight:800;margin-bottom:12px;color:#153d2b}

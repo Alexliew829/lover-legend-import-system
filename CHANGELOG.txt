@@ -1,28 +1,37 @@
-V4.5 Safer Sale / Inventory Repair + Sold Cost Lock
+V4.6 History Search + Safe Stock Decrease Buttons
+- 修复历史查询：可按当前 Products 产品名称/编号搜索，即使旧 Batches.items 名称过时也会以 productId 找回对应进口记录。
+- 修复 V4.5 库存减少弹窗 escapeHTML 运行时错误；长按修改库存后会显示「实际卖出 / 库存修正 / 取消」按钮。
+- 选择「实际卖出」或「库存修正」后仍需二次确认。
+- 只有实际卖出计入 History 卖出数量与卖出成本；库存修正不计销售。
+- History 成本显示加入异常值保护，避免日期序号/错位数字被当作单棵成本。
+- 保留 V4.5 的 soldUnitCost 锁定、FIFO、库存一致性修复与 Fast Safe 同步。
+- 最新数据库验证基准：库存 1132，库存总值 RM644,780.33。
+
+V4.6 Safer Sale / Inventory Repair + Sold Cost Lock
 - 库存减少不再输入 S/R，改为「实际卖出」/「库存修正」两个明确按钮。
 - 选择后仍会再次弹出确认提示，防止误操作。
 - 实际卖出会计入 History 卖出数量与卖出成本；库存修正不会。
 - 新销售记录锁定 soldUnitCost，避免以后成本或字段变化污染历史卖出成本。
 - 旧历史记录优先读取正确 Imports.unitCost；异常映射值会回退 Products.averageCost，避免 46211 一类日期序号被当成成本。
-- 保留 V4.5 已修正的同步、FIFO、库存一致性及数据库保护逻辑。
-- 前端与 Apps Script 全部版本号更新至 V4.5。
+- 保留 V4.6 已修正的同步、FIFO、库存一致性及数据库保护逻辑。
+- 前端与 Apps Script 全部版本号更新至 V4.6。
 
-V4.5 Net Sales Correction
+V4.6 Net Sales Correction
 - History「卖出所有产品总数量」改为净卖出逻辑：后续正数「修改/修正」会抵消同产品/同进口编号较早的误卖出负数。
 - 示例 BX380：-3 +3 -3 +3 -7 => 实际卖出 7，不再错误显示 13。
 - 卖出成本总值同步按净卖出数量计算；被 +3 抵消的误卖出成本不会计入。
 - repair 类型的负数仍不计入销售。
 - 不修改 Products / Imports / Batches 库存资料，只修正 History 销售统计逻辑。
-- 全部运行版本更新至 V4.5。
+- 全部运行版本更新至 V4.6。
 
-V4.5 Inventory Consistency Repair
+V4.6 Inventory Consistency Repair
 - History 库存一致性警告新增「修复库存一致性」按钮。
 - 修复时以 Products.stock 为最终真值，只校正 Imports.remainingQuantity 与 Batches.items.remainingQuantity。
 - 修复不会改变 Products.stock、库存总值，也不会新增卖出/修改/修正记录。
 - 多进口批次按既有 FIFO 规则重新分配当前剩余数量。
 - 修复前后均验证 Imports 合计必须与 Products.stock 一致，否则停止。
 - 保留上一版的 History 分类、Fast Safe 同步、Bootstrap/Revision/旧前端写入保护。
-- 全部运行版本更新至 V4.5。
+- 全部运行版本更新至 V4.6。
 
 Previous Inventory Consistency Fix (carried forward)
 
@@ -32,5 +41,5 @@ Previous Inventory Consistency Fix (carried forward)
 - 库存修改先同时写入 Products / Imports / Batches / stockAdjustments 的一致本地快照，再排队同步。
 - 库存减少必须分类：S=实际卖出；R=库存修正。只有 sale 计入卖出数量与卖出成本。
 - 新 stockAdjustments 写入 adjustmentType / reason。
-- 保留 V4.5 Fast Safe Database Mapping、旧前端阻止写入及同步速度架构。
-- 全部版本号更新至 V4.5。
+- 保留 V4.6 Fast Safe Database Mapping、旧前端阻止写入及同步速度架构。
+- 全部版本号更新至 V4.6。
