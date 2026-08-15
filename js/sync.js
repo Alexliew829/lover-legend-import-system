@@ -1,6 +1,6 @@
 const CLOUD_CONFIG_KEY = "importSystemCloudConfig";
 const CLOUD_SCHEMA_VERSION = "LL-IMPORT-2026-08-CANONICAL-3";
-const CLOUD_BOOTSTRAP_KEY = "importSystemCloudBootstrapV427";
+const CLOUD_BOOTSTRAP_KEY = "importSystemCloudBootstrapV50";
 const CLOUD_QUEUE_KEY = "importSystemCloudQueueV2";
 const DEFAULT_GOOGLE_SCRIPT_URL =
   "https://script.google.com/macros/s/AKfycbxWKdEC7vy_7pZ2_CPie-9L5DeIofPggZlLuwB7gW-31HqWXEOxshtCR-HB-m5qLYS6/exec";
@@ -299,7 +299,7 @@ async function runCloudSync() {
       (snapshot.imports || []).length > 0 ||
       (snapshot.batches || []).length > 0;
 
-    // V4.9 hard bootstrap: this version's first successful sync is ALWAYS a full Pull.
+    // V5.0 hard bootstrap: this version's first successful sync is ALWAYS a full Pull.
     // Legacy V4.20/V4.25/V4.26 dirty flags are discarded before any write can happen.
     // No Push is allowed until the canonical Sheet has been pulled successfully.
     let remoteUpdated = false;
@@ -428,7 +428,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V4.9 Stable",
+    updatedBy: "System V5.0 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
