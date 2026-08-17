@@ -1,11 +1,12 @@
-Lover Legend Import Cost & Inventory System V5.5 Stable
+Lover Legend Import Cost & Inventory System V5.6 Stable
 
-V5.5 仅修改最低售价视觉颜色，Schema 不变。
+V5.6 基于 V5.5 完美运行版，只优化「最低售价」保存同步速度；Google Sheet Schema 不变。
 
-如果 V5.4 已经完成最低售价 Schema：
-1. 不要再次运行 upgradeProductsSchemaV54()。
-2. 替换 V5.5 Apps Script Code.gs 并 Save。
-3. Deploy → Manage deployments → Edit → New version → Deploy。
-4. 再上传 V5.5 Frontend。
+部署：
+1. 先替换 Apps Script 的 V5.6 Code.gs 并 Save。
+2. Deploy > Manage deployments > Edit > New version > Deploy。
+3. 再上传 V5.6 Frontend 到 GitHub。
+4. 第一次打开等「已同步」后，再测试最低售价。
 
-Google Sheet 无需新增或移动任何栏位。
+不需要再次运行 upgradeProductsSchemaV54()。
+最低售价修改会使用专用快速写入，不再重写完整 Products / Imports / Batches。

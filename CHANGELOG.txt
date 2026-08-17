@@ -1,7 +1,10 @@
-V5.5 Stable — Minimum Price Visual Cue
+V5.6 Stable — Minimum Price Fast Sync
 
-- Based strictly on V5.4 Stable.
-- Minimum sale price label and amount are red for easier identification as editable data.
-- Minimum sale price amount remains RM format with 2 decimals.
-- Long-press edit, confirmation, sync, Backup/Restore and Excel behavior unchanged.
-- No inventory, cost, FIFO, History or Sheet Schema logic changed.
+基于 V5.5 完美运行版，仅优化「最低售价」保存同步速度。
+
+- 最低售价不再触发完整 Products / Imports / Batches Snapshot Push。
+- 新增 updateMinimumPrice 快速写入：只更新 Products 对应产品的「最低售价」及「更新时间」。
+- 保留 Revision、Bootstrap Token、Schema、Write Guard 与 LockService 写入保护。
+- 若 Revision 冲突，阻止覆盖并恢复本地原价，再读取最新数据库。
+- 其他库存、进口、成本、FIFO、History 与完整同步逻辑保持 V5.5 不变。
+- Google Sheet Schema 不变：LL-IMPORT-2026-08-CANONICAL-4。

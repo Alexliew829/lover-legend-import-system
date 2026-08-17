@@ -3418,7 +3418,7 @@ html, body {
   outline: 2px solid rgba(31, 93, 58, .35);
 }
 
-/* V5.5 minimum sale price visual cue: editable field shown in red */
+/* V5.6 minimum sale price visual cue: editable field shown in red */
 .inventory-minimum-price-btn span,
 .inventory-minimum-price-btn strong,
 .product-stock-minimum-price-btn,

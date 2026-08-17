@@ -299,7 +299,7 @@ async function runCloudSync() {
       (snapshot.imports || []).length > 0 ||
       (snapshot.batches || []).length > 0;
 
-    // V5.5 hard bootstrap: this version's first successful sync is ALWAYS a full Pull.
+    // V5.6 hard bootstrap: this version's first successful sync is ALWAYS a full Pull.
     // Legacy V4.20/V4.25/V4.26 dirty flags are discarded before any write can happen.
     // No Push is allowed until the canonical Sheet has been pulled successfully.
     let remoteUpdated = false;
@@ -415,6 +415,55 @@ function hasUnsyncedLocalChanges(local, remote, config) {
   );
 }
 
+
+async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt) {
+  const config = getCloudConfig();
+
+  if (!navigator.onLine) {
+    throw new Error("目前离线，最低售价尚未同步到 Google Sheet。");
+  }
+  if (!isCloudBootstrapComplete()) {
+    throw new Error("首次同步尚未完成，请等显示「已同步」后再修改最低售价。");
+  }
+
+  setCloudState("syncing");
+
+  const data = await callGoogleApi({
+    action: "updateMinimumPrice",
+    clientVersion: APP_VERSION,
+    schemaVersion: CLOUD_SCHEMA_VERSION,
+    baseRevision: Number(config.revision) || 0,
+    bootstrapToken: String(config.bootstrapToken || ""),
+    bootstrapRevision: Number(config.bootstrapRevision) || 0,
+    updatedBy: "System V5.6 Stable",
+    productId: String(productId || ""),
+    minimumPrice: Number(minimumPrice),
+    updatedAt: String(updatedAt || new Date().toISOString())
+  });
+
+  if (data.conflict) {
+    config.revision = Number(data.revision) || Number(config.revision) || 0;
+    if (data.bootstrapToken) {
+      config.bootstrapToken = String(data.bootstrapToken);
+      config.bootstrapRevision = Number(data.revision) || 0;
+    }
+    saveCloudConfig(config);
+    throw new Error("资料已在其他设备更新，请同步最新资料后再修改最低售价。");
+  }
+
+  config.revision = Number(data.revision) || 0;
+  config.lastSyncAt = new Date().toISOString();
+  config.bootstrapToken = String(data.bootstrapToken || "");
+  config.bootstrapRevision = Number(data.revision) || 0;
+  saveCloudConfig(config);
+
+  renderCloudMeta(config);
+  setCloudState("synced");
+  return data;
+}
+
+window.updateProductMinimumPriceFast = updateProductMinimumPriceFast;
+
 async function pushPendingSnapshot(queue, retryCount = 0) {
   const config = getCloudConfig();
   const snapshot = makeLocalSnapshot();
@@ -428,7 +477,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V5.5 Stable",
+    updatedBy: "System V5.6 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
