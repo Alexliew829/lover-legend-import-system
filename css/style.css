@@ -3418,7 +3418,7 @@ html, body {
   outline: 2px solid rgba(31, 93, 58, .35);
 }
 
-/* V5.6 minimum sale price visual cue: editable field shown in red */
+/* V5.7 minimum sale price visual cue: editable field shown in red */
 .inventory-minimum-price-btn span,
 .inventory-minimum-price-btn strong,
 .product-stock-minimum-price-btn,
@@ -3431,4 +3431,14 @@ html, body {
 .product-stock-minimum-price-btn strong,
 .inventory-manage-minimum-price-btn strong {
   font-weight: 700;
+}
+
+
+/* V5.7 original purchase cost: latest import unit price in original currency */
+.inventory-original-cost span,
+.inventory-original-cost strong {
+  color: #0b63ce;
+}
+.inventory-original-cost strong {
+  font-weight: 800;
 }

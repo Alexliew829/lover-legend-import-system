@@ -1,4 +1,11 @@
-V5.6 Stable — Minimum Price Fast Sync
+V5.7 Stable — Original Cost Display
+- Based strictly on V5.6 perfect-running baseline.
+- Inventory cards now show 原成本 beside 当前库存.
+- 原成本 uses the latest import record unitPrice and preserves its original currency (CNY/VND/NTD/IDR).
+- Display-only change: no inventory/cost/history calculations are changed.
+- Minimum-price fast sync remains unchanged.
+
+V5.7 Stable — Minimum Price Fast Sync
 
 基于 V5.5 完美运行版，仅优化「最低售价」保存同步速度。
 
