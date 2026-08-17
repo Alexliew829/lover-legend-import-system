@@ -1,21 +1,13 @@
-Lover Legend 进口成本与库存系统 — 正式版 V5.3 Stable
+Lover Legend 进口成本与库存系统 — 正式版 V5.4 Stable
 
-设计原则：
-1. 同步速度以 V4.20 为基线。
-2. 业务功能以 V4.25 为基线。
-3. Google Sheet 结构以已确认正确的 Lover Legend Import Cost Database 为唯一标准。
-4. 安全优先：旧前端、错 Schema、Revision 冲突不得覆盖正式数据库。
+V5.4 基于 V5.3 完美运行版，只新增「最低售价」。
 
-正式数据库 Spreadsheet ID：
-1TD3pcl-LrB63xk6q0bjRc6lvheUxKo_OOqmsdlpNWDA
+重要部署：
+1. 先把 V5.4 Code.gs 放进 Apps Script 并 Save。
+2. 手动运行 upgradeProductsSchemaV54() 一次。它只会在 Products 最右边追加「最低售价」，现有产品填 0.00，不移动旧栏。
+3. 运行 validateDatabaseBaseline()，确认 stock 1132 / inventoryValue 667101.48 / schemaOk true。
+4. Deploy New Version。
+5. 最后上传 V5.4 Frontend。
 
-V5.3 重点保护：
-- 不自动新增/移动/重命名数据库栏位。
-- Products / Imports / Batches / Settings / Logs 必须与 Canonical Schema 完全一致。
-- 旧 V4.20/V4.25 前端没有 V5.3 clientVersion + schemaVersion，因此后端会阻止其 Push。
-- 新前端即使某对象缺少字段，后端也先与 Sheet 原记录按 ID 合并，避免缺字段被写成空白。
-- 日常同步不执行格式化，减少 Apps Script API 调用。
-- V5.3 第一次启动固定执行 Full Pull；未完成首次 Pull 前，前端不会建立 dirty 队列，后端也不会接受 Push。
-- 首次 Pull 成功后取得 bootstrap token；每次写入必须同时通过 clientVersion、Schema、bootstrap token、Revision 四层检查。
-
-成本逻辑继续沿用 V4.25：库存卖出/修改不应改写原进口成本快照；内地杂费及海外运费比例继续按原有逻辑读取与保存。
+最低售价：Products.minimumPrice，默认0，显示2位小数；只影响底价资料，不参与库存成本计算。
+Backup/Restore/Excel 均保留最低售价。

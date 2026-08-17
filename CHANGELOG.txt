@@ -1,101 +1,12 @@
-V5.3 Stable — History Transaction Date Fix
-- 历史查询的进口日期改以系统保存交易日期（Imports.date / Batches.date）为准，不再用抵达日期作为日期筛选依据。
-- 选择 17-08-2026 时，当天新增进口批次会和当天卖出／库存修改一起显示。
-- 日期 + 产品关键词（例如「忠盛」）会先按交易日期筛选，再按产品/进口编号筛选，不会漏掉当天新进口。
-- 抵达日期、装柜日期继续作为物流资料显示，不改变成本、库存、FIFO、同步或销售统计逻辑。
-- Legacy 没有交易日期的旧资料才 fallback 到 createdAt / 抵达日期 / 装柜日期。
-- 全部运行版本更新至 V5.3。
+V5.4 Stable — Minimum Sale Price
 
-V5.2 Stable — Copy Product Names
-- 保留 V5.2 稳定逻辑，不修改同步、库存、FIFO、History 销售计算。
-- 最近进口记录产品名称维持点击复制，并显示「✓ 已复制」。
-- History 查询里的卖出/修改/修正记录产品名称现在也可点击复制，并显示「✓ 已复制」。
-- 数据库验证基准更新：库存 1,130；库存总值 RM643,121.74。
-- 全部运行版本更新至 V5.2。
-
-V5.2 Stable — Confirmed Sales Only
-- 历史卖出统计只计算明确标记为 sale / 实际卖出的记录。
-- V4.6 以前没有 adjustmentType 且未人工确认的旧负数记录，不再默认当成卖出。
-- 未确认旧记录会显示“旧记录待确认”，并明确提示暂不计入卖出数量及卖出成本。
-- 历史销售修复中的人工分类仍可把旧记录确认成“实际卖出”或“库存修正”。
-- 未分类旧正数不会再静默抵消已确认的实际卖出。
-- 保留上一稳定版的库存、FIFO、同步、History 搜索及实际卖出/库存修正逻辑。
-- 数据库验证基准：库存 1,131；库存成本总值 RM644,457.65。
-- 全部运行版本更新至 V5.2。
-
-V5.2 Stable
-- History 销售统计改为：先用完整历史抵消误卖出/修正，再按所选日期范围统计真正卖出。
-- 日期范围底部明确显示「所选期间：开始日期 至 结束日期」。
-- 底部继续显示「卖出所有产品总数量」与「卖出成本总值」，只统计所选期间。
-- 顶部库存摘要改为「全部历史累计进口 · 当前库存」，明确不受日期范围影响。
-- 保留 V4.8 稳定库存、FIFO、同步、实际卖出/库存修正及数据库保护逻辑。
-- 前端与 Apps Script 版本同步更新至 V5.2。
-
-V5.2 Stable
-
-- 移除设置页「重建历史库存（暂时停用）」按钮与说明。
-- 「清理零库存产品」改为列出全部 Products.stock = 0 产品，不再限制超过3个月。
-- 删除必须逐项选择并输入 DELETE；删除前再次确认库存仍为0。
-- 删除会同步移除 Products、相关 Imports、Batches.items；空批次一并删除；并清除相关 historySalesOverrides。
-- 删除采用同一份本地快照后一次同步，避免 Products / Imports / Batches 半更新。
-- 数据库验证基准更新：stock 1131，inventoryValue RM644,457.65；记录数量不再作为验证门槛，因为清理会合法减少行数。
-- 保留 V4.7 稳定同步、History、FIFO、实际卖出/库存修正及历史销售修复逻辑。
-
-V5.2 Stable
-- Base: V4.6 stable only.
-- Added Historical Sales Repair for legacy untyped negative stock adjustments.
-- Manual Actual Sale / Inventory Repair classification; overrides sync through Settings.
-- Auto-suggests only fully offset legacy negatives; never rewrites stock/import/batch/history source data.
-- History sold totals respect confirmed overrides.
-- Inventory-vs-sales difference shown as diagnostic, not treated as sales truth.
-
-V5.2 History Search + Safe Stock Decrease Buttons
-- 修复历史查询：可按当前 Products 产品名称/编号搜索，即使旧 Batches.items 名称过时也会以 productId 找回对应进口记录。
-- 修复 V4.5 库存减少弹窗 escapeHTML 运行时错误；长按修改库存后会显示「实际卖出 / 库存修正 / 取消」按钮。
-- 选择「实际卖出」或「库存修正」后仍需二次确认。
-- 只有实际卖出计入 History 卖出数量与卖出成本；库存修正不计销售。
-- History 成本显示加入异常值保护，避免日期序号/错位数字被当作单棵成本。
-- 保留 V4.5 的 soldUnitCost 锁定、FIFO、库存一致性修复与 Fast Safe 同步。
-- 最新数据库验证基准：库存 1131，库存总值 RM644,457.65。
-
-V5.2 Safer Sale / Inventory Repair + Sold Cost Lock
-- 库存减少不再输入 S/R，改为「实际卖出」/「库存修正」两个明确按钮。
-- 选择后仍会再次弹出确认提示，防止误操作。
-- 实际卖出会计入 History 卖出数量与卖出成本；库存修正不会。
-- 新销售记录锁定 soldUnitCost，避免以后成本或字段变化污染历史卖出成本。
-- 旧历史记录优先读取正确 Imports.unitCost；异常映射值会回退 Products.averageCost，避免 46211 一类日期序号被当成成本。
-- 保留 V5.2 已修正的同步、FIFO、库存一致性及数据库保护逻辑。
-- 前端与 Apps Script 全部版本号更新至 V5.2。
-
-V5.2 Net Sales Correction
-- History「卖出所有产品总数量」改为净卖出逻辑：后续正数「修改/修正」会抵消同产品/同进口编号较早的误卖出负数。
-- 示例 BX380：-3 +3 -3 +3 -7 => 实际卖出 7，不再错误显示 13。
-- 卖出成本总值同步按净卖出数量计算；被 +3 抵消的误卖出成本不会计入。
-- repair 类型的负数仍不计入销售。
-- 不修改 Products / Imports / Batches 库存资料，只修正 History 销售统计逻辑。
-- 全部运行版本更新至 V5.2。
-
-V5.2 Inventory Consistency Repair
-- History 库存一致性警告新增「修复库存一致性」按钮。
-- 修复时以 Products.stock 为最终真值，只校正 Imports.remainingQuantity 与 Batches.items.remainingQuantity。
-- 修复不会改变 Products.stock、库存总值，也不会新增卖出/修改/修正记录。
-- 多进口批次按既有 FIFO 规则重新分配当前剩余数量。
-- 修复前后均验证 Imports 合计必须与 Products.stock 一致，否则停止。
-- 保留上一版的 History 分类、Fast Safe 同步、Bootstrap/Revision/旧前端写入保护。
-- 全部运行版本更新至 V5.2。
-
-Previous Inventory Consistency Fix (carried forward)
-
-- History 产品名称查询：「目前总剩余」以 Products.stock 为最终真值。
-- 单个进口编号仍显示 Imports.remainingQuantity，保留批次层级库存。
-- Products.stock 与 Imports.remainingQuantity 合计不一致时显示库存一致性警告。
-- 库存修改先同时写入 Products / Imports / Batches / stockAdjustments 的一致本地快照，再排队同步。
-- 库存减少必须分类：S=实际卖出；R=库存修正。只有 sale 计入卖出数量与卖出成本。
-- 新 stockAdjustments 写入 adjustmentType / reason。
-- 保留 V5.2 Fast Safe Database Mapping、旧前端阻止写入及同步速度架构。
-- 全部版本号更新至 V5.2。
-
-V5.2 Stable
-- 修复「最近进口记录」产品名称无法点击复制：产品名称现在直接作为复制按钮。
-- 点击后显示「✓ 已复制」，并复制纯产品名称到剪贴板。
-- 保留 V5.1 History 产品名称复制及全部库存/同步/历史统计逻辑。
+- Stable base: V5.3 perfect-running version.
+- Products adds minimumPrice / 最低售价, default RM0.00, 2 decimal display.
+- Dashboard inventory cards show 最低售价 above 平均成本.
+- Long press 最低售价 to edit; save requires confirmation.
+- Product/import stock search also shows/edit 最低售价 by long press.
+- minimumPrice syncs to Google Sheet Products and is included in Backup/Restore and Excel Inventory export.
+- No change to stock quantity, average-cost calculation, FIFO, History, sale/repair logic or sync architecture.
+- Google Sheet Schema upgraded to CANONICAL-4 by appending the new Products column at the far right only.
+- Run Apps Script function upgradeProductsSchemaV54() once BEFORE deploying V5.4 backend/frontend.
+- Baseline: stock 1,132 / inventory value RM667,101.48.

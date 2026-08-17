@@ -748,7 +748,7 @@ function repairLegacyImportDates() {
       }
     });
 
-    // V5.3: keep V5.3 data model unchanged. Legacy/non-array items are
+    // V5.4: keep V5.4 data model unchanged. Legacy/non-array items are
     // skipped here instead of being parsed or rewritten during startup.
     // This prevents the V4.24 compatibility repair from mutating synced data.
     const batchItems = Array.isArray(batch.items) ? batch.items : [];
@@ -1127,6 +1127,7 @@ function renderInventoryList(products) {
   list.innerHTML = products.map(item => {
     const stock = Number(item.stock) || 0;
     const averageCost = Number(item.averageCost) || 0;
+    const minimumPrice = Math.max(0, Number(item.minimumPrice) || 0);
     const value = stock * averageCost;
 
     return `
@@ -1134,6 +1135,11 @@ function renderInventoryList(products) {
         <h4>${escapeHTML(item.name || "未命名产品")}</h4>
         <div class="inventory-meta">
           <div><span>库存</span><strong>${formatNumber(stock)}</strong></div>
+          <button class="inventory-minimum-price-btn" type="button"
+            data-product-id="${escapeHTML(item.id || "")}"
+            aria-label="长按修改最低售价" title="长按修改最低售价">
+            <span>最低售价</span><strong>${formatMoney(minimumPrice, "RM ")}</strong>
+          </button>
           <div><span>平均成本</span><strong>${formatMoney(averageCost, "RM ")}</strong></div>
           <div><span>库存成本</span><strong>${formatMoney(value, "RM ")}</strong></div>
           <div><span>最后进口</span><strong>${escapeHTML(item.lastImport || "-")}</strong></div>
@@ -1141,6 +1147,8 @@ function renderInventoryList(products) {
       </article>
     `;
   }).join("");
+
+  bindDashboardMinimumPriceLongPress();
 }
 
 function setupProductModule() {
@@ -1196,7 +1204,10 @@ function setupProductModule() {
 }
 
 function getProducts() {
-  return loadJSON("importSystemProducts", []);
+  return loadJSON("importSystemProducts", []).map(product => ({
+    ...product,
+    minimumPrice: Math.max(0, Number(product?.minimumPrice) || 0)
+  }));
 }
 
 function saveProducts(products) {
@@ -1281,6 +1292,7 @@ function saveProduct() {
       remark,
       stock: 0,
       averageCost: 0,
+      minimumPrice: 0,
       lastImport: "",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -1565,7 +1577,7 @@ function setupImportModule(){
       alert("找不到这个进口编号或海外运输单号。");
     }
 
-    // V5.3: do not refocus/select the field after the alert.
+    // V5.4: do not refocus/select the field after the alert.
     // The typed value remains editable, so a wrong entry never becomes trapped.
     return false;
   };
@@ -1623,7 +1635,7 @@ function setupImportModule(){
 
   // iPhone 键盘工具栏的 ✓ / Done 会先结束输入或令输入框失焦。
   // change 与 blur 都接入同一函数，并以值去重，确保只载入一次。
-  // V5.3: change / blur only auto-load when the typed value is an exact
+  // V5.4: change / blur only auto-load when the typed value is an exact
   // saved import number or overseas tracking number. An incomplete or wrong
   // value must remain editable and must never trap the user in an alert loop.
   batchLookupInput?.addEventListener("change", () => {
@@ -1975,7 +1987,7 @@ function getBatchItemsForDisplay(batch) {
   const batchId = String(batch?.id || "").trim();
   const importNumber = String(batch?.importNumber || "").trim().toLowerCase();
 
-  // V5.3 canonical-data rule:
+  // V5.4 canonical-data rule:
   // Imports Sheet is the authoritative source for item fields. Batches.items
   // is only a legacy/order fallback. This prevents stale JSON (for example an
   // old test originalQuantity=80) from overriding a corrected Imports row.
@@ -2839,7 +2851,7 @@ function loadBatchByNumber() {
       batch = partialMatches[0];
     } else if (partialMatches.length > 1) {
       alert("找到多个符合的进口记录，请输入更完整的进口编号或海外运输单号。");
-      // V5.3: do not force focus/select after closing the alert.
+      // V5.4: do not force focus/select after closing the alert.
       // The user can tap back into the field and correct the value normally.
       return;
     }
@@ -2847,7 +2859,7 @@ function loadBatchByNumber() {
 
   if (!batch) {
     alert("找不到这个进口编号或海外运输单号。");
-    // V5.3: never force focus/select here. On iPhone this previously caused
+    // V5.4: never force focus/select here. On iPhone this previously caused
     // the invalid value to immediately trigger lookup again and appear "locked".
     return;
   }
@@ -2921,7 +2933,7 @@ function loadBatchByNumber() {
             : 0
         );
 
-  // V5.3: never reconstruct inland cost from total cost.
+  // V5.4: never reconstruct inland cost from total cost.
   // Only use values explicitly saved in this import record.
   // This prevents old VND/CNY batches from inheriting incorrect costs.
   const recoveredChinaTransportCost = 0;
@@ -2942,7 +2954,7 @@ function loadBatchByNumber() {
   document.getElementById("batchChinaTransportCost").value =
     chinaTransportCost ? formatMoney(chinaTransportCost) : "";
 
-  // V5.3: old batches without explicit inland cost stay empty.
+  // V5.4: old batches without explicit inland cost stay empty.
   // Do not show recovery warning because it is not reliable.
   if (document.getElementById("batchStatusText")) {
     document.getElementById("batchStatusText").textContent = "";
@@ -3530,7 +3542,7 @@ function repairInventoryConsistencyForProduct(productId) {
 
   if (!confirmed) return;
 
-  // V5.3: repair only the stale lot-level remaining quantities. Products is the truth
+  // V5.4: repair only the stale lot-level remaining quantities. Products is the truth
   // and remains untouched; no stock adjustment is created, so sales/history are not duplicated.
   localStorage.setItem("importSystemImports", JSON.stringify(allocation.nextImports));
   localStorage.setItem("importSystemBatches", JSON.stringify(allocation.nextBatches));
@@ -3712,7 +3724,7 @@ function getHistoryAdjustmentType(adjustment) {
   const override = getHistorySalesOverride(adjustment);
   if (override) return override;
 
-  // V5.3 historical-sales rule:
+  // V5.4 historical-sales rule:
   // legacy records without an explicit type are UNKNOWN, not sales.
   // They must be confirmed in Settings > Historical Sales Repair before they
   // can affect sold quantity / sold cost. This prevents old test entries,
@@ -4098,7 +4110,7 @@ function getTrustedHistoryUnitCost(item) {
 }
 
 function getHistorySoldAdjustmentUnitCost(adjustment) {
-  // V5.3: new sale records lock the unit cost at the moment of sale.
+  // V5.4: new sale records lock the unit cost at the moment of sale.
   const locked = Number(adjustment?.soldUnitCost);
   if (Number.isFinite(locked) && locked > 0) return locked;
 
@@ -4194,7 +4206,7 @@ function getHistoryRelevantAdjustments(options = {}) {
 }
 
 function getHistoryNetSoldLots(options = {}) {
-  // V5.3: first resolve sale/correction pairs against COMPLETE history, then apply
+  // V5.4: first resolve sale/correction pairs against COMPLETE history, then apply
   // the selected date range to the surviving real-sale events. This prevents a
   // correction outside the selected range from making a historical period wrong.
   // Example: -3, +3, -3, +3, -7 => net sold 7.
@@ -4332,7 +4344,7 @@ function buildHistorySoldCostSummary(options = {}) {
   `;
 }
 
-// V5.3 History transaction-date rule:
+// V5.4 History transaction-date rule:
 // Date filtering for an import is based on the date the import record was saved
 // into this system (Imports.date / Batches.date), not arrival/container date.
 // Arrival/container dates remain logistics metadata only. Legacy records without
@@ -5156,7 +5168,7 @@ function renderImportHistory() {
     return;
   }
 
-  // V5.3 History lookup safety: resolve the typed product against the current
+  // V5.4 History lookup safety: resolve the typed product against the current
   // Products collection first. This keeps product search working even when an
   // older Batches.items snapshot still contains a previous product name.
   const exactHistoryProduct = String(
@@ -5240,7 +5252,7 @@ function renderImportHistory() {
       summary.productNames
     );
 
-  // V5.3: product-name History uses Products.stock as the final truth for total remaining.
+  // V5.4: product-name History uses Products.stock as the final truth for total remaining.
   // Import-number rows still keep each Imports.remainingQuantity for batch-level history.
   const normalizedHistoryLookup = String(keyword || "").trim().toLowerCase();
   const isExactImportNumberLookup = getBatches().some(batch =>
@@ -6114,7 +6126,7 @@ function calculateBatch() {
     chinaForeign +
     potForeign;
 
-  // V5.3 mapping field: inland miscellaneous cost is the two explicit
+  // V5.4 mapping field: inland miscellaneous cost is the two explicit
   // mainland cost items divided by the complete foreign-side batch total.
   // Keep this separate from inventory/Average Cost so stock movements never
   // rewrite the original import-cost mapping.
@@ -6278,7 +6290,7 @@ function calculateBatch() {
       formatMoney(grandTotal, "RM ");
   }
 
-  // V5.3: inventory movement is NOT an import-cost recalculation.
+  // V5.4: inventory movement is NOT an import-cost recalculation.
   // When editing an existing import number, always restore the original paid
   // batch snapshot for inland-misc ratio, overseas-shipping ratio, foreign
   // totals and unit costs. Only remaining inventory may change.
@@ -6471,7 +6483,7 @@ function saveBatchImport() {
       if (!imports.some(record => String(record.id || "") === String(item.id || ""))) imports.push(item);
     });
 
-    // V5.3: ordinary metadata updates always save. Cost fields only update when
+    // V5.4: ordinary metadata updates always save. Cost fields only update when
     // Cost Repair Mode is explicitly enabled. This prevents accidental changes
     // while still allowing manual repair of historical batch-cost data.
     const repairEnabled = getCostRepairModeEnabled();
@@ -6614,12 +6626,12 @@ function saveBatchImport() {
     rackQuantity: Math.max(0, Math.floor(parseAmount(document.getElementById("batchRackQuantity").value))),
     trackingNumber: document.getElementById("batchTrackingNumber").value.trim(),
     overseasTrackingNumber: document.getElementById("batchOverseasTrackingNumber").value.trim(),
-    // V5.3: batch costs only come from current input. Never inherit from previous currency/product.
+    // V5.4: batch costs only come from current input. Never inherit from previous currency/product.
     chinaTransportCost: Number(parseAmount(document.getElementById("batchChinaTransportCost").value)) || 0,
     chinaTransportRM: 0,
     potCost: Number(parseAmount(document.getElementById("batchPotCost").value)) || 0,
     potRM: 0,
-    // V5.3: explicit mapping fields for Pricing Suite.
+    // V5.4: explicit mapping fields for Pricing Suite.
     inlandMiscForeign: result.inlandMiscForeign,
     inlandMiscRate: result.inlandMiscRate,
     inlandMiscPercent: result.inlandMiscRate,
@@ -6989,6 +7001,15 @@ function renderBatchProductStockResults() {
       </button>
 
       <button
+        class="product-stock-minimum-price-btn"
+        type="button"
+        data-product-id="${escapeHTML(product.id || "")}"
+        data-edit-type="minimumPrice"
+        aria-label="长按修改最低售价" title="长按修改最低售价">
+        最低售价：<strong>${formatMoney(Math.max(0, Number(product.minimumPrice) || 0), "RM ")}</strong>
+      </button>
+
+      <button
         class="product-stock-cost-btn"
         type="button"
         data-product-id="${escapeHTML(product.id || "")}"
@@ -7004,7 +7025,7 @@ function renderBatchProductStockResults() {
 
 
 function bindProductStockLongPress() {
-  // V5.3 safety mode: follow the proven V4.20 interaction.
+  // V5.4 safety mode: follow the proven V4.20 interaction.
   // Name / stock / average cost require a deliberate 650ms long press.
   // Moving more than 12px cancels the action, and ordinary click/tap never edits.
   const output = document.getElementById("batchProductStockResults");
@@ -7030,7 +7051,7 @@ function bindProductStockLongPress() {
 
   const start = event => {
     const button = event.target.closest(
-      ".product-stock-name-btn, .product-stock-qty-btn, .product-stock-cost-btn"
+      ".product-stock-name-btn, .product-stock-qty-btn, .product-stock-minimum-price-btn, .product-stock-cost-btn"
     );
     if (!button) return;
 
@@ -7053,6 +7074,8 @@ function bindProductStockLongPress() {
         editProductNameFromImportPage(productId);
       } else if (editType === "stock") {
         editProductStockFromImportPage(productId);
+      } else if (editType === "minimumPrice") {
+        editProductMinimumPrice(productId);
       } else if (editType === "averageCost") {
         editProductAverageCostFromImportPage(productId);
       }
@@ -7085,7 +7108,7 @@ function bindProductStockLongPress() {
   output.addEventListener("contextmenu", event => {
     if (
       event.target.closest(
-        ".product-stock-name-btn, .product-stock-qty-btn, .product-stock-cost-btn"
+        ".product-stock-name-btn, .product-stock-qty-btn, .product-stock-minimum-price-btn, .product-stock-cost-btn"
       )
     ) {
       event.preventDefault();
@@ -7094,7 +7117,7 @@ function bindProductStockLongPress() {
 
   output.addEventListener("click", event => {
     const button = event.target.closest(
-      ".product-stock-name-btn, .product-stock-qty-btn, .product-stock-cost-btn"
+      ".product-stock-name-btn, .product-stock-qty-btn, .product-stock-minimum-price-btn, .product-stock-cost-btn"
     );
     if (!button) return;
 
@@ -7407,7 +7430,7 @@ function allocateProductRemainingFIFO(productId, productName, targetStock, adjus
 }
 
 function saveInventoryConsistencySnapshot(previousProducts, nextProducts, previousImports, nextImports, previousBatches, nextBatches) {
-  // V5.3: write the three related collections to localStorage first, then mark one sync snapshot.
+  // V5.4: write the three related collections to localStorage first, then mark one sync snapshot.
   // This prevents the sync timer from observing a half-updated Products / Imports / Batches state.
   localStorage.setItem("importSystemProducts", JSON.stringify(nextProducts));
   localStorage.setItem("importSystemImports", JSON.stringify(nextImports));
@@ -7571,6 +7594,119 @@ async function editProductStockFromImportPage(productId) {
   }
 }
 
+
+function normalizeMinimumPriceInput(value) {
+  const normalized = String(value ?? "")
+    .replace(/RM/gi, "")
+    .replace(/,/g, "")
+    .trim();
+
+  if (normalized === "" || !/^\d+(?:\.\d{1,2})?$/.test(normalized)) {
+    return null;
+  }
+
+  const number = Number(normalized);
+  if (!Number.isFinite(number) || number < 0) return null;
+  return Math.round((number + Number.EPSILON) * 100) / 100;
+}
+
+function editProductMinimumPrice(productId) {
+  const id = String(productId || "").trim();
+  const products = getProducts();
+  const productIndex = products.findIndex(product => String(product.id || "") === id);
+  if (productIndex === -1) {
+    alert("找不到这个产品。");
+    return;
+  }
+
+  const product = products[productIndex];
+  const currentMinimumPrice = Math.max(0, Number(product.minimumPrice) || 0);
+  const entered = window.prompt(
+    `修改最低售价：${product.name}\n\n目前最低售价：${formatMoney(currentMinimumPrice, "RM ")}\n请输入新的最低售价（最多2位小数）`,
+    currentMinimumPrice.toFixed(2)
+  );
+  if (entered === null) return;
+
+  const nextMinimumPrice = normalizeMinimumPriceInput(entered);
+  if (nextMinimumPrice === null) {
+    alert("最低售价必须是0或正数，最多2位小数。");
+    return;
+  }
+  if (Math.abs(nextMinimumPrice - currentMinimumPrice) < 0.005) {
+    const status = document.getElementById("batchProductStockStatus");
+    if (status) status.textContent = "最低售价没有改变";
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `确认修改最低售价？\n\n产品：${product.name}\n目前：${formatMoney(currentMinimumPrice, "RM ")}\n修改为：${formatMoney(nextMinimumPrice, "RM ")}\n\n最低售价只作为销售底价资料，不会改变库存数量、平均成本或库存总值。`
+  );
+  if (!confirmed) return;
+
+  products[productIndex] = {
+    ...product,
+    minimumPrice: nextMinimumPrice,
+    updatedAt: new Date().toISOString()
+  };
+  saveProducts(products);
+  renderBatchProductStockResults();
+  renderInventoryManagementList();
+  renderDashboard();
+
+  const status = document.getElementById("batchProductStockStatus");
+  if (status) status.textContent = `已更新：${product.name} 最低售价 ${formatMoney(nextMinimumPrice, "RM ")}`;
+}
+
+function bindDashboardMinimumPriceLongPress() {
+  const list = document.getElementById("inventoryList");
+  if (!list || list.dataset.minimumPriceLongPressBound === "1") return;
+  list.dataset.minimumPriceLongPressBound = "1";
+
+  let timer = null;
+  let activeButton = null;
+  let startX = 0;
+  let startY = 0;
+
+  const cancel = () => {
+    if (timer) window.clearTimeout(timer);
+    timer = null;
+    activeButton?.classList.remove("long-press-active");
+    activeButton = null;
+  };
+
+  const start = event => {
+    const button = event.target.closest(".inventory-minimum-price-btn");
+    if (!button) return;
+    const point = event.touches?.[0] || event;
+    startX = Number(point.clientX) || 0;
+    startY = Number(point.clientY) || 0;
+    activeButton = button;
+    button.classList.add("long-press-active");
+    timer = window.setTimeout(() => {
+      timer = null;
+      button.classList.remove("long-press-active");
+      editProductMinimumPrice(String(button.dataset.productId || ""));
+    }, 650);
+  };
+
+  const move = event => {
+    if (!timer) return;
+    const point = event.touches?.[0] || event;
+    if (Math.abs((Number(point.clientX) || 0) - startX) > 12 || Math.abs((Number(point.clientY) || 0) - startY) > 12) cancel();
+  };
+
+  list.addEventListener("touchstart", start, { passive: true });
+  list.addEventListener("touchmove", move, { passive: true });
+  list.addEventListener("touchend", cancel, { passive: true });
+  list.addEventListener("touchcancel", cancel, { passive: true });
+  list.addEventListener("mousedown", event => { if (event.button === 0) start(event); });
+  list.addEventListener("mousemove", move);
+  list.addEventListener("mouseup", cancel);
+  list.addEventListener("mouseleave", cancel);
+  list.addEventListener("contextmenu", event => {
+    if (event.target.closest(".inventory-minimum-price-btn")) event.preventDefault();
+  });
+}
 
 function editProductAverageCostFromImportPage(productId) {
   const id = String(productId || "").trim();
@@ -8014,7 +8150,68 @@ function setupInventoryModule() {
     }
   });
 
+  bindInventoryMinimumPriceLongPress();
   renderInventoryManagementList();
+}
+
+function bindInventoryMinimumPriceLongPress() {
+  const list = document.getElementById("inventoryManagementList");
+  if (!list || list.dataset.minimumPriceLongPressBound === "1") return;
+  list.dataset.minimumPriceLongPressBound = "1";
+
+  let timer = null;
+  let activeButton = null;
+  let startX = 0;
+  let startY = 0;
+  let triggered = false;
+
+  const cancel = () => {
+    if (timer) window.clearTimeout(timer);
+    timer = null;
+    activeButton?.classList.remove("long-press-active");
+    activeButton = null;
+  };
+
+  const start = event => {
+    const button = event.target.closest(".inventory-manage-minimum-price-btn");
+    if (!button) return;
+    const point = event.touches?.[0] || event;
+    startX = Number(point.clientX) || 0;
+    startY = Number(point.clientY) || 0;
+    triggered = false;
+    activeButton = button;
+    button.classList.add("long-press-active");
+    timer = window.setTimeout(() => {
+      timer = null;
+      triggered = true;
+      button.classList.remove("long-press-active");
+      editProductMinimumPrice(String(button.dataset.productId || ""));
+    }, 650);
+  };
+
+  const move = event => {
+    if (!timer) return;
+    const point = event.touches?.[0] || event;
+    if (Math.abs((Number(point.clientX) || 0) - startX) > 12 || Math.abs((Number(point.clientY) || 0) - startY) > 12) cancel();
+  };
+
+  list.addEventListener("touchstart", start, { passive: true });
+  list.addEventListener("touchmove", move, { passive: true });
+  list.addEventListener("touchend", cancel, { passive: true });
+  list.addEventListener("touchcancel", cancel, { passive: true });
+  list.addEventListener("mousedown", event => { if (event.button === 0) start(event); });
+  list.addEventListener("mousemove", move);
+  list.addEventListener("mouseup", cancel);
+  list.addEventListener("mouseleave", cancel);
+  list.addEventListener("contextmenu", event => {
+    if (event.target.closest(".inventory-manage-minimum-price-btn")) event.preventDefault();
+  });
+  list.addEventListener("click", event => {
+    if (!event.target.closest(".inventory-manage-minimum-price-btn")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (triggered) triggered = false;
+  });
 }
 
 function renameInventoryProduct(productId) {
@@ -8439,6 +8636,7 @@ function renderInventoryManagementList() {
   list.innerHTML = products.map(product => {
     const stock = Number(product.stock) || 0;
     const averageCost = Number(product.averageCost) || 0;
+    const minimumPrice = Math.max(0, Number(product.minimumPrice) || 0);
     const inventoryValue = stock * averageCost;
 
     return `
@@ -8473,6 +8671,11 @@ function renderInventoryManagementList() {
 
         <div class="inventory-summary-grid">
           <div><span>当前库存</span><strong>${formatNumber(stock)}</strong></div>
+          <button class="inventory-manage-minimum-price-btn" type="button"
+                  data-product-id="${escapeHTML(product.id || "")}"
+                  aria-label="长按修改最低售价" title="长按修改最低售价">
+            <span>最低售价</span><strong>${formatMoney(minimumPrice, "RM ")}</strong>
+          </button>
           <div><span>平均成本</span><strong>${formatMoney(averageCost, "RM ")}</strong></div>
           <div><span>库存成本总值</span><strong>${formatMoney(inventoryValue, "RM ")}</strong></div>
           <div><span>最后进口</span><strong>${escapeHTML(normalizeDateToDDMMYYYY(product.displayLastImport) || "-")}</strong></div>
@@ -8618,7 +8821,7 @@ function getThreeMonthsAgoTime() {
 }
 
 function getStaleZeroStockProducts() {
-  // V5.3: user-confirmed cleanup rule. Every product whose canonical
+  // V5.4: user-confirmed cleanup rule. Every product whose canonical
   // Products.stock is exactly 0 is eligible, regardless of age/activity.
   // Nothing is deleted automatically; the user must select rows and type DELETE.
   const imports = getImports();
@@ -8807,7 +9010,7 @@ function deleteSelectedStaleZeroStockProducts() {
   }));
   const nextSettings = { ...settings, historySalesOverrides: nextOverrides };
 
-  // V5.3 atomic local snapshot: write all related collections first, then mark one cloud sync set.
+  // V5.4 atomic local snapshot: write all related collections first, then mark one cloud sync set.
   localStorage.setItem("importSystemProducts", JSON.stringify(nextProducts));
   localStorage.setItem("importSystemImports", JSON.stringify(nextImports));
   localStorage.setItem("importSystemBatches", JSON.stringify(nextBatches));
@@ -8924,6 +9127,7 @@ function exportSystemExcel() {
     product.category || "",
     Number(product.stock) || 0,
     Number(product.averageCost) || 0,
+    Math.max(0, Number(product.minimumPrice) || 0),
     (Number(product.stock) || 0) * (Number(product.averageCost) || 0),
     product.lastImport || "",
     "当前库存"
@@ -8979,9 +9183,9 @@ function exportSystemExcel() {
     `</Styles>` +
     excelWorksheet(
       "Inventory",
-      ["产品编号", "产品名称", "类别", "当前库存", "平均成本", "库存成本总值", "最后进口", "状态"],
+      ["产品编号", "产品名称", "类别", "当前库存", "平均成本", "最低售价", "库存成本总值", "最后进口", "状态"],
       inventoryRows,
-      ["text", "text", "text", "integer", "money", "money", "text", "text"]
+      ["text", "text", "text", "integer", "money", "money", "money", "text", "text"]
     ) +
     excelWorksheet(
       "Imports",
@@ -9009,7 +9213,7 @@ function exportSystemExcel() {
 function backupSystemData() {
   const backup = {
     app: "Lover Legend Import Cost & Inventory System",
-    version: "5.3",
+    version: "5.4",
     exportedAt: new Date().toISOString(),
     settings: loadJSON("importSystemSettings", {}),
     products: getProducts(),
@@ -9076,7 +9280,10 @@ function normalizeRestoreBackup(rawData) {
 
   return {
     settings: rawData.settings && typeof rawData.settings === "object" ? rawData.settings : {},
-    products: rawData.products.map(item => ({ ...item })),
+    products: rawData.products.map(item => ({
+      ...item,
+      minimumPrice: Math.max(0, Number(item?.minimumPrice) || 0)
+    })),
     imports: rawData.imports.map(item => ({ ...item })),
     batches
   };

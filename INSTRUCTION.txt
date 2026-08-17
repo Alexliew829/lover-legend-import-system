@@ -1,16 +1,13 @@
-Lover Legend 进口成本与库存系统 — 正式版 V5.3 Stable
+Lover Legend 进口成本与库存系统 — 正式版 V5.4 Stable
 
-同步：V4.20 快速流程 + V5.3 安全保护。
-业务：保留 V4.25 最新逻辑。
-数据库：只认最新确认的 Lover Legend Import Cost Database Canonical Schema。
+V5.4 基于 V5.3 完美运行版，只新增「最低售价」。
 
-成本售价映射：
-1. 整批货款总额+运费 = 整批货款 + 内地运输＋打木架费用 + 搭配花盆总费用。
-2. 内地杂费比例 =（内地运输＋打木架费用 + 搭配花盆总费用）/ 整批货款总额+运费。
-3. 整批货款总额折合RM = 整批货款总额+运费 / 对应汇率。
-4. 海外运费比例 = 海外到大马运费（RM）/ 整批货款总额折合RM。
-5. 卖出只影响库存相关资料，不应改写原进口成本资料。
+重要部署：
+1. 先把 V5.4 Code.gs 放进 Apps Script 并 Save。
+2. 手动运行 upgradeProductsSchemaV54() 一次。它只会在 Products 最右边追加「最低售价」，现有产品填 0.00，不移动旧栏。
+3. 运行 validateDatabaseBaseline()，确认 stock 1132 / inventoryValue 667101.48 / schemaOk true。
+4. Deploy New Version。
+5. 最后上传 V5.4 Frontend。
 
-
-V5.3 首次启动安全规则：
-第一次打开网页只会从正式 Google Sheet 完整 Pull。旧版本浏览器残留的 dirty/deleted 队列会先清除。首次 Pull 成功前禁止 Push；成功后才开放正常新增/修改同步。
+最低售价：Products.minimumPrice，默认0，显示2位小数；只影响底价资料，不参与库存成本计算。
+Backup/Restore/Excel 均保留最低售价。
