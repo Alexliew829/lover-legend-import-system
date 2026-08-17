@@ -1,12 +1,7 @@
-V5.4 Stable — Minimum Sale Price
+V5.5 Stable — Minimum Price Visual Cue
 
-- Stable base: V5.3 perfect-running version.
-- Products adds minimumPrice / 最低售价, default RM0.00, 2 decimal display.
-- Dashboard inventory cards show 最低售价 above 平均成本.
-- Long press 最低售价 to edit; save requires confirmation.
-- Product/import stock search also shows/edit 最低售价 by long press.
-- minimumPrice syncs to Google Sheet Products and is included in Backup/Restore and Excel Inventory export.
-- No change to stock quantity, average-cost calculation, FIFO, History, sale/repair logic or sync architecture.
-- Google Sheet Schema upgraded to CANONICAL-4 by appending the new Products column at the far right only.
-- Run Apps Script function upgradeProductsSchemaV54() once BEFORE deploying V5.4 backend/frontend.
-- Baseline: stock 1,132 / inventory value RM667,101.48.
+- Based strictly on V5.4 Stable.
+- Minimum sale price label and amount are red for easier identification as editable data.
+- Minimum sale price amount remains RM format with 2 decimals.
+- Long-press edit, confirmation, sync, Backup/Restore and Excel behavior unchanged.
+- No inventory, cost, FIFO, History or Sheet Schema logic changed.

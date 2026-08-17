@@ -1,13 +1,11 @@
-Lover Legend Import Cost & Inventory System V5.4 Stable
+Lover Legend Import Cost & Inventory System V5.5 Stable
 
-部署顺序（必须照做）：
-1. 替换 Apps Script Code.gs 为 V5.4，Save。
-2. 在 Apps Script 函数下拉选择 upgradeProductsSchemaV54()，Run 一次。
-   - 正常结果：Products 最右侧新增「最低售价」；现有产品为 0.00。
-   - 不会移动、重排或覆盖原有 Products 栏位。
-3. Run validateDatabaseBaseline()：stock 1132 / inventoryValue 667101.48 / schemaOk true。
-4. Deploy > Manage deployments > Edit > New version > Deploy。
-5. 上传 Frontend 全部文件。
-6. 第一次打开 V5.4 等待「已同步」后再编辑最低售价。
+V5.5 仅修改最低售价视觉颜色，Schema 不变。
 
-注意：V5.4 使用 CANONICAL-4。未先运行 upgradeProductsSchemaV54()，新后端会因为 Products 缺少「最低售价」栏而停止读取/写入，这是刻意的防错保护。
+如果 V5.4 已经完成最低售价 Schema：
+1. 不要再次运行 upgradeProductsSchemaV54()。
+2. 替换 V5.5 Apps Script Code.gs 并 Save。
+3. Deploy → Manage deployments → Edit → New version → Deploy。
+4. 再上传 V5.5 Frontend。
+
+Google Sheet 无需新增或移动任何栏位。

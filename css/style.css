@@ -3417,3 +3417,18 @@ html, body {
 .inventory-manage-minimum-price-btn.long-press-active {
   outline: 2px solid rgba(31, 93, 58, .35);
 }
+
+/* V5.5 minimum sale price visual cue: editable field shown in red */
+.inventory-minimum-price-btn span,
+.inventory-minimum-price-btn strong,
+.product-stock-minimum-price-btn,
+.product-stock-minimum-price-btn strong,
+.inventory-manage-minimum-price-btn,
+.inventory-manage-minimum-price-btn strong {
+  color: #c62828;
+}
+.inventory-minimum-price-btn strong,
+.product-stock-minimum-price-btn strong,
+.inventory-manage-minimum-price-btn strong {
+  font-weight: 700;
+}
