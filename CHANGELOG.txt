@@ -1,3 +1,10 @@
+V5.9 Stable — Tooltip Correction
+- 基于 V5.8 完美运行版。
+- 删除库存产品卡片错误的「长按可修改产品名称」悬停提示。
+- 保留产品名称点击复制、进口编号点击复制。
+- 保留最低售价长按修改及快速同步。
+- 不修改库存、成本、FIFO、History、Google Sheet Schema 或同步主逻辑。
+
 V5.8 Stable — Product Name Display Safety
 - 基于 V5.7 完美运行版。
 - 库存产品卡片的产品名称改为纯显示，不再支持长按修改。
