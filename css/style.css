@@ -3058,7 +3058,7 @@ body.access-locked {
 .wide-tracking{grid-column:span 2;}
 .small-rack input{max-width:90px;}
 
-/* V5.2 batch import layout refinement */
+/* V5.3 batch import layout refinement */
 .tracking-input { min-width: 180px !important; }
 .small-rack input, .field-rack input { max-width: 70px !important; }
 /* Keep inland costs together and move grand total with misc rate area */
@@ -3067,10 +3067,10 @@ body.access-locked {
 .compact-batch-grid .field-foreign-total,
 .compact-batch-grid .field-inland-rate { min-width: 160px; }
 
-/* V5.2 layout */
+/* V5.3 layout */
 .compact-batch-grid .second-row{grid-column:span 1;}
 
-/* V5.2 Import layout final override */
+/* V5.3 Import layout final override */
 .compact-batch-grid{display:grid!important;grid-template-columns:2fr .45fr 1fr 1fr!important;gap:12px!important;align-items:end!important;}
 .compact-batch-grid .field-tracking{grid-column:1!important;}
 .compact-batch-grid .field-rack{grid-column:2!important;}
@@ -3082,7 +3082,7 @@ body.access-locked {
 #batchRackQuantity{max-width:100%!important;}
 
 
-/* V5.2 final import cost layout */
+/* V5.3 final import cost layout */
 .compact-batch-grid{
   grid-template-columns: minmax(260px,2fr) 80px minmax(160px,1fr) minmax(160px,1fr) minmax(170px,1fr) !important;
   gap:12px !important;
@@ -3097,7 +3097,7 @@ body.access-locked {
 #batchRackQuantity{max-width:80px!important;}
 #batchTrackingNumber{width:100%!important;}
 
-/* V5.2 Cost Repair / revision history */
+/* V5.3 Cost Repair / revision history */
 .cost-repair-control-row {
   display: flex;
   align-items: center;
@@ -3150,7 +3150,7 @@ body.access-locked {
 }
 
 
-/* V5.2 Mobile Layout Fix */
+/* V5.3 Mobile Layout Fix */
 html, body {
   overflow-x: hidden;
   width: 100%;
@@ -3225,7 +3225,7 @@ html, body {
   }
 }
 
-/* V5.2 History sold cost total */
+/* V5.3 History sold cost total */
 .history-sold-cost-summary,
 .history-sold-quantity-summary {
   margin-top: 14px;
@@ -3245,7 +3245,7 @@ html, body {
   .history-sold-cost-summary strong { font-size: 20px; }
 }
 
-/* V5.2 History sold record product identification */
+/* V5.3 History sold record product identification */
 .product-history-adjustment-product{
   min-width:0;
   overflow-wrap:anywhere;
@@ -3261,7 +3261,7 @@ html, body {
 }
 
 
-/* V5.2 History import number: tap/click to copy */
+/* V5.3 History import number: tap/click to copy */
 .history-adjustment-meta .history-copy-import-number{
   display:inline-flex;
   align-items:center;
@@ -3281,7 +3281,7 @@ html, body {
 }
 
 
-/* V5.2 History sold quantity summary - visual only */
+/* V5.3 History sold quantity summary - visual only */
 .history-sold-quantity-summary .history-sold-cost-label {
   font-weight: 700;
   color: #7a271a;
@@ -3302,7 +3302,7 @@ html, body {
 }
 
 
-/* V5.2 safer stock decrease classification */
+/* V5.3 safer stock decrease classification */
 .stock-decrease-overlay{position:fixed;inset:0;background:rgba(0,0,0,.38);display:flex;align-items:center;justify-content:center;padding:20px;z-index:10000}
 .stock-decrease-dialog{width:min(520px,100%);background:#fff;border-radius:18px;padding:22px;box-shadow:0 18px 60px rgba(0,0,0,.24)}
 .stock-decrease-title{font-size:20px;font-weight:800;margin-bottom:12px;color:#153d2b}
@@ -3314,7 +3314,7 @@ html, body {
 .stock-decrease-repair{background:#fff7e8;color:#8a5700;border:1px solid #d6a54b}
 .stock-decrease-cancel{grid-column:1/-1;background:#f4f4f4;color:#444;border:1px solid #ccc}
 
-/* V5.2 Historical Sales Repair */
+/* V5.3 Historical Sales Repair */
 .history-sales-repair-box{margin-top:14px;border:1px solid #d7e5da;border-radius:14px;padding:14px;background:#fbfdfb}
 .history-sales-repair-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
 .history-sales-repair-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:12px}
@@ -3329,7 +3329,7 @@ html, body {
 @media(max-width:720px){.history-sales-repair-summary{grid-template-columns:1fr 1fr}.history-sales-repair-row{align-items:flex-start;flex-direction:column}.history-sales-repair-actions{width:100%;justify-content:flex-start}}
 
 
-/* V5.2 History selected-period summary */
+/* V5.3 History selected-period summary */
 .history-selected-period {
   margin-top: 14px;
   padding: 12px 14px;
@@ -3345,7 +3345,7 @@ html, body {
 }
 
 
-/* V5.2 legacy history records are excluded until confirmed */
+/* V5.3 legacy history records are excluded until confirmed */
 .history-pending-legacy-note {
   margin-top: 10px;
   padding: 10px 12px;
