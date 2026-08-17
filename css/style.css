@@ -1817,7 +1817,7 @@ input::placeholder {
   cursor: pointer;
 }
 
-.product-stock-name-btn,
+.product-stock-name-display,
 .product-stock-qty-btn,
 .product-stock-cost-btn {
   min-height: 46px;
@@ -1829,11 +1829,12 @@ input::placeholder {
   cursor: pointer;
 }
 
-.product-stock-name-btn {
+.product-stock-name-display {
   background: #fff;
   color: var(--green);
   text-align: left;
   word-break: break-word;
+  cursor: default;
 }
 
 .product-stock-qty-btn {
@@ -1903,7 +1904,7 @@ input::placeholder {
     grid-template-columns: minmax(0, 1fr) 135px;
   }
 
-  .product-stock-name-btn,
+  .product-stock-name-display,
   .product-stock-qty-btn,
   .product-stock-cost-btn {
     padding: 9px 10px;
@@ -1921,10 +1922,8 @@ input::placeholder {
 }
 
 /* V3.5：产品名称及库存仅长按编辑，禁止 iPhone 文字选择菜单 */
-.product-stock-name-btn,
 .product-stock-qty-btn,
 .product-stock-cost-btn,
-.product-stock-name-btn *,
 .product-stock-qty-btn *,
 .product-stock-cost-btn * {
   -webkit-user-select: none !important;
@@ -1933,7 +1932,6 @@ input::placeholder {
   touch-action: manipulation;
 }
 
-.product-stock-name-btn.long-press-active,
 .product-stock-qty-btn.long-press-active {
   transform: scale(0.985);
   box-shadow: 0 0 0 2px rgba(31, 93, 58, 0.2);
@@ -3418,7 +3416,7 @@ html, body {
   outline: 2px solid rgba(31, 93, 58, .35);
 }
 
-/* V5.7 minimum sale price visual cue: editable field shown in red */
+/* V5.8 minimum sale price visual cue: editable field shown in red */
 .inventory-minimum-price-btn span,
 .inventory-minimum-price-btn strong,
 .product-stock-minimum-price-btn,
@@ -3434,7 +3432,7 @@ html, body {
 }
 
 
-/* V5.7 original purchase cost: latest import unit price in original currency */
+/* V5.8 original purchase cost: latest import unit price in original currency */
 .inventory-original-cost span,
 .inventory-original-cost strong {
   color: #0b63ce;

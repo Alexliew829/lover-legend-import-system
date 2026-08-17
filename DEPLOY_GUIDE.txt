@@ -1,12 +1,12 @@
-Lover Legend Import Cost & Inventory System V5.7 Stable
+Lover Legend Import Cost & Inventory System V5.8 Stable
 
-V5.7 基于 V5.6 完美运行版，只新增库存卡片「原成本」显示；Google Sheet Schema 不变。
+V5.8 基于 V5.7 完美运行版，只移除库存产品卡片「产品名称」的长按修改入口；Google Sheet Schema 不变。
 
 部署：
-1. 先替换 Apps Script 的 V5.7 Code.gs 并 Save。
+1. 先替换 Apps Script 的 V5.8 Code.gs 并 Save。
 2. Deploy > Manage deployments > Edit > New version > Deploy。
-3. 再上传 V5.7 Frontend 到 GitHub。
-4. 第一次打开等「已同步」后检查库存卡片：当前库存旁应显示原成本及 CNY/VND/NTD/IDR。
+3. 再上传 V5.8 Frontend 到 GitHub。
+4. 打开系统等待「已同步」，确认产品名称长按不再触发修改；当前库存、最低售价、平均成本原有操作不变。
 
 不需要运行任何 Schema upgrade。
-最低售价快速同步继续沿用 V5.6 的专用 updateMinimumPrice API。
+最低售价快速同步继续沿用专用 updateMinimumPrice API。
