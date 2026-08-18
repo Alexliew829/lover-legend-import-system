@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=6.1" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=6.1" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=6.1" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=6.1" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=6.1" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=6.1" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=6.1" />
+  <link rel="manifest" href="./manifest.json?v=6.3" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=6.3" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=6.3" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=6.3" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=6.3" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=6.3" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=6.3" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=6.1" />
-  <link rel="stylesheet" href="./css/style.css?v=6.1" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=6.3" />
+  <link rel="stylesheet" href="./css/style.css?v=6.3" />
 </head>
 <body>
   <div id="accessLock"
@@ -84,7 +84,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 6.2 Stable</div>
+          <div class="app-header-version">正式版 6.3 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -632,17 +632,17 @@
         </section>
 
         <section class="panel cost-repair-panel">
-          <h3>成本修改 / Cost Repair</h3>
+          <h3>资料修改 / Data Repair</h3>
           <p class="settings-help">
-            正常情况下保持关闭。只有需要补回或纠正旧进口编号的成本资料时才开启；所有成本修改都会记录在“成本修改记录”。
+            正常情况下保持关闭。需要修正旧进口编号的成本或不会改变库存数量的资料（例如类别、运输资料）时才开启；成本修改仍会记录在“成本修改记录”。
           </p>
 
           <div class="cost-repair-control-row">
             <div>
-              <strong>成本修改模式</strong>
+              <strong>修改模式</strong>
               <span id="costRepairModeStatus">OFF · 已锁定</span>
             </div>
-            <button id="toggleCostRepairModeBtn" class="secondary-btn" type="button">开启成本修改模式</button>
+            <button id="toggleCostRepairModeBtn" class="secondary-btn" type="button">开启修改模式</button>
           </div>
 
           <div class="settings-tools-grid cost-revision-tools">
@@ -665,7 +665,7 @@
 
         <section class="panel">
           <h3>系统资料</h3>
-          <div class="info-row"><span>版本</span><strong>正式版 6.2 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong>正式版 6.3 Stable</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
           <div class="info-row"><span>Google Sheet</span><strong>已连接 Google Web App</strong></div>
         </section>
@@ -688,8 +688,8 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=6.1"></script>
-  <script src="./js/sync.js?v=6.1"></script>
-  <script src="./js/app.js?v=6.1"></script>
+  <script src="./js/common.js?v=6.3"></script>
+  <script src="./js/sync.js?v=6.3"></script>
+  <script src="./js/app.js?v=6.3"></script>
 </body>
 </html>

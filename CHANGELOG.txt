@@ -1,3 +1,12 @@
+V6.3 Stable — Data Repair Category Correction
+- 以 V6.2 完美运行版本为基准。
+- 设置中的「成本修改模式」扩展为「修改模式 / Data Repair」。
+- 载入旧进口编号后，开启修改模式即可修正产品类别（盆栽 / 花盆 / 周边产品）。
+- 类别修正保持原 productId，不重新入库、不改变当前库存、不改变 Average Cost、不改变原成本。
+- 类别会按同一 productId 同步修正 Products / Imports / Batches，避免前后资料不一致。
+- 普通模式继续锁定旧进口类别；开启修改模式后才解锁。
+- Google Sheet Schema 不变。
+
 V6.2 Stable — Original Cost List Filter / Collapse / Minimum Price Edit
 - 原成本清单跟随库存管理当前筛选结果。
 - Excel 只导出当前筛选结果。
@@ -5,14 +14,14 @@ V6.2 Stable — Original Cost List Filter / Collapse / Minimum Price Edit
 - 清单最低售价可点击修改，复用既有快速同步。
 - 不改变库存、FIFO、成本、History 或同步架构。
 
-V6.2 Stable — Original Cost List Product Copy
+V6.1 Stable — Original Cost List Product Copy
 
 - 原成本清单内「产品名」现在可点击复制。
 - 复制成功后暂时显示「✓ 已复制」，随后恢复产品名称。
 - 只新增前端复制交互；不触发 Pull / Push，不改变库存、成本、FIFO、History 或同步逻辑。
 - 保留上一版原成本清单、Excel 导出与全部稳定功能。
 
-V6.2 Stable — Original Cost List
+V6.0 Stable — Original Cost List
 
 - 首页点击任何产品卡片「原成本」可展开 / 收起原成本清单。
 - 清单同一行显示：产品名、当前库存、原成本、平均成本、最低售价。
