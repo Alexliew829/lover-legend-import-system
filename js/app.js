@@ -7104,10 +7104,10 @@ function renderBatchProductStockResults() {
 }
 
 function bindProductStockNameEdit() {
-  // V6.9 Import/Edit bottom product search ONLY:
-  // ordinary click/tap = copy; deliberate 650ms long press = rename.
-  // Copy is handled by the native click event for reliable desktop + mobile taps.
-  // A completed long press suppresses the synthetic click that follows it.
+  // V7.0 Import/Edit bottom product search ONLY:
+  // release before 650ms = copy; hold for 650ms = rename.
+  // The action is decided on pointer timing itself instead of relying on a
+  // synthetic click, which is unreliable after touch/long-press on mobile.
   const output = document.getElementById("batchProductStockResults");
   if (!output || output.dataset.nameEditBound === "1") return;
   output.dataset.nameEditBound = "1";
@@ -7118,7 +7118,7 @@ function bindProductStockNameEdit() {
   let startX = 0;
   let startY = 0;
   let moved = false;
-  let suppressNextClick = false;
+  let longPressed = false;
 
   const clearTimer = () => {
     if (timer !== null) {
@@ -7133,6 +7133,7 @@ function bindProductStockNameEdit() {
     activeButton = null;
     activePointerId = null;
     moved = false;
+    longPressed = false;
   };
 
   const copyButtonName = async button => {
@@ -7158,7 +7159,6 @@ function bindProductStockNameEdit() {
     const button = event.target.closest(".product-stock-name-edit-btn");
     if (!button || (event.pointerType === "mouse" && event.button !== 0)) return;
     resetPress();
-    suppressNextClick = false;
     activeButton = button;
     activePointerId = event.pointerId;
     startX = Number(event.clientX) || 0;
@@ -7167,11 +7167,9 @@ function bindProductStockNameEdit() {
     timer = window.setTimeout(() => {
       timer = null;
       if (!activeButton || moved) return;
-      suppressNextClick = true;
-      const id = String(button.dataset.productId || "");
-      button.classList.remove("long-press-active");
-      activeButton = null;
-      activePointerId = null;
+      longPressed = true;
+      const id = String(activeButton.dataset.productId || "");
+      activeButton.classList.remove("long-press-active");
       editProductNameFromImportPage(id);
     }, 650);
   });
@@ -7188,12 +7186,15 @@ function bindProductStockNameEdit() {
 
   output.addEventListener("pointerup", event => {
     if (!activeButton || event.pointerId !== activePointerId) return;
+    const button = activeButton;
+    const shouldCopy = !moved && !longPressed;
     clearTimer();
-    activeButton.classList.remove("long-press-active");
+    button.classList.remove("long-press-active");
     activeButton = null;
     activePointerId = null;
     moved = false;
-    // Do not copy here. The following native click is the single short-tap path.
+    longPressed = false;
+    if (shouldCopy) copyButtonName(button);
   });
 
   output.addEventListener("pointercancel", event => {
@@ -7205,16 +7206,11 @@ function bindProductStockNameEdit() {
     if (event.target.closest(".product-stock-name-edit-btn")) event.preventDefault();
   });
 
+  // Prevent the browser's follow-up click from becoming a second action.
   output.addEventListener("click", event => {
-    const button = event.target.closest(".product-stock-name-edit-btn");
-    if (!button) return;
+    if (!event.target.closest(".product-stock-name-edit-btn")) return;
     event.preventDefault();
     event.stopPropagation();
-    if (suppressNextClick) {
-      suppressNextClick = false;
-      return;
-    }
-    copyButtonName(button);
   });
 }
 
