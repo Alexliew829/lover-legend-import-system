@@ -3416,7 +3416,7 @@ html, body {
   outline: 2px solid rgba(31, 93, 58, .35);
 }
 
-/* V5.9 minimum sale price visual cue: editable field shown in red */
+/* V6.0 minimum sale price visual cue: editable field shown in red */
 .inventory-minimum-price-btn span,
 .inventory-minimum-price-btn strong,
 .product-stock-minimum-price-btn,
@@ -3432,11 +3432,95 @@ html, body {
 }
 
 
-/* V5.9 original purchase cost: latest import unit price in original currency */
+/* V6.0 original purchase cost: latest import unit price in original currency */
 .inventory-original-cost span,
 .inventory-original-cost strong {
   color: #0b63ce;
 }
 .inventory-original-cost strong {
   font-weight: 800;
+}
+
+
+/* V6.0 原成本清单：纯前端展开，不触发任何云端同步。 */
+.inventory-original-cost-toggle {
+  width: 100%;
+  min-width: 0;
+  padding: 9px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--green-soft);
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.inventory-original-cost-toggle:active {
+  transform: translateY(1px);
+}
+
+.original-cost-panel {
+  margin: 12px 0 16px;
+  padding: 12px;
+  border: 1px solid var(--border-color, #d7e6db);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.original-cost-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.original-cost-panel-head > div {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.original-cost-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.original-cost-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.original-cost-table th,
+.original-cost-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e6eee8;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.original-cost-table th {
+  background: #eef6f0;
+  color: #185c3a;
+  font-weight: 700;
+}
+
+.original-cost-table .number-cell,
+.original-cost-table .money-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.original-cost-table .original-currency-cell {
+  color: #0563c1;
+  font-weight: 700;
+}
+
+.original-cost-table .minimum-price-cell {
+  color: #c81e1e;
+  font-weight: 700;
 }

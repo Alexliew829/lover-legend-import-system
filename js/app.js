@@ -748,7 +748,7 @@ function repairLegacyImportDates() {
       }
     });
 
-    // V5.9: keep V5.9 data model unchanged. Legacy/non-array items are
+    // V6.0: keep V6.0 data model unchanged. Legacy/non-array items are
     // skipped here instead of being parsed or rewritten during startup.
     // This prevents the V4.24 compatibility repair from mutating synced data.
     const batchItems = Array.isArray(batch.items) ? batch.items : [];
@@ -1577,7 +1577,7 @@ function setupImportModule(){
       alert("找不到这个进口编号或海外运输单号。");
     }
 
-    // V5.9: do not refocus/select the field after the alert.
+    // V6.0: do not refocus/select the field after the alert.
     // The typed value remains editable, so a wrong entry never becomes trapped.
     return false;
   };
@@ -1635,7 +1635,7 @@ function setupImportModule(){
 
   // iPhone 键盘工具栏的 ✓ / Done 会先结束输入或令输入框失焦。
   // change 与 blur 都接入同一函数，并以值去重，确保只载入一次。
-  // V5.9: change / blur only auto-load when the typed value is an exact
+  // V6.0: change / blur only auto-load when the typed value is an exact
   // saved import number or overseas tracking number. An incomplete or wrong
   // value must remain editable and must never trap the user in an alert loop.
   batchLookupInput?.addEventListener("change", () => {
@@ -1987,7 +1987,7 @@ function getBatchItemsForDisplay(batch) {
   const batchId = String(batch?.id || "").trim();
   const importNumber = String(batch?.importNumber || "").trim().toLowerCase();
 
-  // V5.9 canonical-data rule:
+  // V6.0 canonical-data rule:
   // Imports Sheet is the authoritative source for item fields. Batches.items
   // is only a legacy/order fallback. This prevents stale JSON (for example an
   // old test originalQuantity=80) from overriding a corrected Imports row.
@@ -2851,7 +2851,7 @@ function loadBatchByNumber() {
       batch = partialMatches[0];
     } else if (partialMatches.length > 1) {
       alert("找到多个符合的进口记录，请输入更完整的进口编号或海外运输单号。");
-      // V5.9: do not force focus/select after closing the alert.
+      // V6.0: do not force focus/select after closing the alert.
       // The user can tap back into the field and correct the value normally.
       return;
     }
@@ -2859,7 +2859,7 @@ function loadBatchByNumber() {
 
   if (!batch) {
     alert("找不到这个进口编号或海外运输单号。");
-    // V5.9: never force focus/select here. On iPhone this previously caused
+    // V6.0: never force focus/select here. On iPhone this previously caused
     // the invalid value to immediately trigger lookup again and appear "locked".
     return;
   }
@@ -2933,7 +2933,7 @@ function loadBatchByNumber() {
             : 0
         );
 
-  // V5.9: never reconstruct inland cost from total cost.
+  // V6.0: never reconstruct inland cost from total cost.
   // Only use values explicitly saved in this import record.
   // This prevents old VND/CNY batches from inheriting incorrect costs.
   const recoveredChinaTransportCost = 0;
@@ -2954,7 +2954,7 @@ function loadBatchByNumber() {
   document.getElementById("batchChinaTransportCost").value =
     chinaTransportCost ? formatMoney(chinaTransportCost) : "";
 
-  // V5.9: old batches without explicit inland cost stay empty.
+  // V6.0: old batches without explicit inland cost stay empty.
   // Do not show recovery warning because it is not reliable.
   if (document.getElementById("batchStatusText")) {
     document.getElementById("batchStatusText").textContent = "";
@@ -3542,7 +3542,7 @@ function repairInventoryConsistencyForProduct(productId) {
 
   if (!confirmed) return;
 
-  // V5.9: repair only the stale lot-level remaining quantities. Products is the truth
+  // V6.0: repair only the stale lot-level remaining quantities. Products is the truth
   // and remains untouched; no stock adjustment is created, so sales/history are not duplicated.
   localStorage.setItem("importSystemImports", JSON.stringify(allocation.nextImports));
   localStorage.setItem("importSystemBatches", JSON.stringify(allocation.nextBatches));
@@ -3724,7 +3724,7 @@ function getHistoryAdjustmentType(adjustment) {
   const override = getHistorySalesOverride(adjustment);
   if (override) return override;
 
-  // V5.9 historical-sales rule:
+  // V6.0 historical-sales rule:
   // legacy records without an explicit type are UNKNOWN, not sales.
   // They must be confirmed in Settings > Historical Sales Repair before they
   // can affect sold quantity / sold cost. This prevents old test entries,
@@ -4110,7 +4110,7 @@ function getTrustedHistoryUnitCost(item) {
 }
 
 function getHistorySoldAdjustmentUnitCost(adjustment) {
-  // V5.9: new sale records lock the unit cost at the moment of sale.
+  // V6.0: new sale records lock the unit cost at the moment of sale.
   const locked = Number(adjustment?.soldUnitCost);
   if (Number.isFinite(locked) && locked > 0) return locked;
 
@@ -4206,7 +4206,7 @@ function getHistoryRelevantAdjustments(options = {}) {
 }
 
 function getHistoryNetSoldLots(options = {}) {
-  // V5.9: first resolve sale/correction pairs against COMPLETE history, then apply
+  // V6.0: first resolve sale/correction pairs against COMPLETE history, then apply
   // the selected date range to the surviving real-sale events. This prevents a
   // correction outside the selected range from making a historical period wrong.
   // Example: -3, +3, -3, +3, -7 => net sold 7.
@@ -4344,7 +4344,7 @@ function buildHistorySoldCostSummary(options = {}) {
   `;
 }
 
-// V5.9 History transaction-date rule:
+// V6.0 History transaction-date rule:
 // Date filtering for an import is based on the date the import record was saved
 // into this system (Imports.date / Batches.date), not arrival/container date.
 // Arrival/container dates remain logistics metadata only. Legacy records without
@@ -5168,7 +5168,7 @@ function renderImportHistory() {
     return;
   }
 
-  // V5.9 History lookup safety: resolve the typed product against the current
+  // V6.0 History lookup safety: resolve the typed product against the current
   // Products collection first. This keeps product search working even when an
   // older Batches.items snapshot still contains a previous product name.
   const exactHistoryProduct = String(
@@ -5252,7 +5252,7 @@ function renderImportHistory() {
       summary.productNames
     );
 
-  // V5.9: product-name History uses Products.stock as the final truth for total remaining.
+  // V6.0: product-name History uses Products.stock as the final truth for total remaining.
   // Import-number rows still keep each Imports.remainingQuantity for batch-level history.
   const normalizedHistoryLookup = String(keyword || "").trim().toLowerCase();
   const isExactImportNumberLookup = getBatches().some(batch =>
@@ -6126,7 +6126,7 @@ function calculateBatch() {
     chinaForeign +
     potForeign;
 
-  // V5.9 mapping field: inland miscellaneous cost is the two explicit
+  // V6.0 mapping field: inland miscellaneous cost is the two explicit
   // mainland cost items divided by the complete foreign-side batch total.
   // Keep this separate from inventory/Average Cost so stock movements never
   // rewrite the original import-cost mapping.
@@ -6290,7 +6290,7 @@ function calculateBatch() {
       formatMoney(grandTotal, "RM ");
   }
 
-  // V5.9: inventory movement is NOT an import-cost recalculation.
+  // V6.0: inventory movement is NOT an import-cost recalculation.
   // When editing an existing import number, always restore the original paid
   // batch snapshot for inland-misc ratio, overseas-shipping ratio, foreign
   // totals and unit costs. Only remaining inventory may change.
@@ -6483,7 +6483,7 @@ function saveBatchImport() {
       if (!imports.some(record => String(record.id || "") === String(item.id || ""))) imports.push(item);
     });
 
-    // V5.9: ordinary metadata updates always save. Cost fields only update when
+    // V6.0: ordinary metadata updates always save. Cost fields only update when
     // Cost Repair Mode is explicitly enabled. This prevents accidental changes
     // while still allowing manual repair of historical batch-cost data.
     const repairEnabled = getCostRepairModeEnabled();
@@ -6626,12 +6626,12 @@ function saveBatchImport() {
     rackQuantity: Math.max(0, Math.floor(parseAmount(document.getElementById("batchRackQuantity").value))),
     trackingNumber: document.getElementById("batchTrackingNumber").value.trim(),
     overseasTrackingNumber: document.getElementById("batchOverseasTrackingNumber").value.trim(),
-    // V5.9: batch costs only come from current input. Never inherit from previous currency/product.
+    // V6.0: batch costs only come from current input. Never inherit from previous currency/product.
     chinaTransportCost: Number(parseAmount(document.getElementById("batchChinaTransportCost").value)) || 0,
     chinaTransportRM: 0,
     potCost: Number(parseAmount(document.getElementById("batchPotCost").value)) || 0,
     potRM: 0,
-    // V5.9: explicit mapping fields for Pricing Suite.
+    // V6.0: explicit mapping fields for Pricing Suite.
     inlandMiscForeign: result.inlandMiscForeign,
     inlandMiscRate: result.inlandMiscRate,
     inlandMiscPercent: result.inlandMiscRate,
@@ -7020,7 +7020,7 @@ function renderBatchProductStockResults() {
 
 
 function bindProductStockLongPress() {
-  // V5.9 safety mode: product name is display-only.
+  // V6.0 safety mode: product name is display-only.
   // Stock / minimum price / average cost require a deliberate 650ms long press.
   // Moving more than 12px cancels the action, and ordinary click/tap never edits.
   const output = document.getElementById("batchProductStockResults");
@@ -7414,7 +7414,7 @@ function allocateProductRemainingFIFO(productId, productName, targetStock, adjus
 }
 
 function saveInventoryConsistencySnapshot(previousProducts, nextProducts, previousImports, nextImports, previousBatches, nextBatches) {
-  // V5.9: write the three related collections to localStorage first, then mark one sync snapshot.
+  // V6.0: write the three related collections to localStorage first, then mark one sync snapshot.
   // This prevents the sync timer from observing a half-updated Products / Imports / Batches state.
   localStorage.setItem("importSystemProducts", JSON.stringify(nextProducts));
   localStorage.setItem("importSystemImports", JSON.stringify(nextImports));
@@ -7639,7 +7639,7 @@ async function editProductMinimumPrice(productId) {
     updatedAt
   };
 
-  // V5.9 fast path: save one local Products value without marking
+  // V6.0 fast path: save one local Products value without marking
   // the whole database snapshot dirty. Server writes only two cells.
   saveJSON("importSystemProducts", products);
   renderBatchProductStockResults();
@@ -8171,8 +8171,21 @@ function setupInventoryModule() {
 
     if (importButton) {
       copyInventoryImportNumber(importButton);
+      return;
+    }
+
+    const originalCostButton =
+      event.target.closest(".inventory-original-cost-toggle");
+
+    if (originalCostButton) {
+      toggleOriginalCostPanel();
     }
   });
+
+  const exportOriginalCostButton = document.getElementById("exportOriginalCostExcelBtn");
+  if (exportOriginalCostButton) {
+    exportOriginalCostButton.addEventListener("click", exportOriginalCostExcel);
+  }
 
   bindInventoryMinimumPriceLongPress();
   renderInventoryManagementList();
@@ -8586,7 +8599,7 @@ function renderInventoryManagementList() {
 
         <div class="inventory-summary-grid">
           <div><span>当前库存</span><strong>${formatNumber(stock)}</strong></div>
-          <div class="inventory-original-cost"><span>原成本</span><strong>${originalCostText}</strong></div>
+          <button class="inventory-original-cost inventory-original-cost-toggle" type="button" title="点击展开 / 收起原成本清单"><span>原成本</span><strong>${originalCostText}</strong></button>
           <button class="inventory-manage-minimum-price-btn" type="button"
                   data-product-id="${escapeHTML(product.id || "")}"
                   aria-label="长按修改最低售价" title="长按修改最低售价">
@@ -8599,12 +8612,168 @@ function renderInventoryManagementList() {
       </article>
     `;
   }).join("");
+
+  const originalCostPanel = document.getElementById("originalCostPanel");
+  if (originalCostPanel && !originalCostPanel.hidden) {
+    renderOriginalCostPanel();
+  }
 }
 
 
 
 
 
+
+
+function getOriginalCostSummaryRows() {
+  const imports = getImports();
+  const batches = getBatches();
+  const batchByImportNumber = new Map(
+    batches
+      .filter(batch => String(batch.importNumber || "").trim())
+      .map(batch => [
+        String(batch.importNumber || "").trim().toLowerCase(),
+        batch
+      ])
+  );
+
+  return getProducts()
+    .filter(product => (Number(product.stock) || 0) > 0)
+    .map(product => {
+      const productName = String(product.name || "").trim().toLowerCase();
+      const matchingImports = imports
+        .filter(record => {
+          const sameProductId = product.id && record.productId && record.productId === product.id;
+          const sameProductName = String(record.productName || "").trim().toLowerCase() === productName;
+          return sameProductId || sameProductName;
+        })
+        .sort((a, b) => {
+          const batchA = batchByImportNumber.get(String(a.importNumber || "").trim().toLowerCase());
+          const batchB = batchByImportNumber.get(String(b.importNumber || "").trim().toLowerCase());
+          const dateDiff = parseDDMMYYYY(getImportDisplayDate(b, batchB)) - parseDDMMYYYY(getImportDisplayDate(a, batchA));
+          if (dateDiff) return dateDiff;
+          return String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
+        });
+
+      const activeImportNumbers = new Set();
+      matchingImports.forEach(record => {
+        const originalQuantity = getSafeDisplayOriginalQuantity(record);
+        const remainingRaw = Number(record.remainingQuantity ?? record.quantity);
+        const remainingQuantity = Number.isFinite(remainingRaw)
+          ? Math.min(originalQuantity, Math.max(0, Math.floor(remainingRaw)))
+          : originalQuantity;
+        if (remainingQuantity > 0 && String(record.importNumber || "").trim()) {
+          activeImportNumbers.add(String(record.importNumber || "").trim().toLowerCase());
+        }
+      });
+
+      const latestOriginalCostRecord =
+        matchingImports.find(record => activeImportNumbers.has(String(record.importNumber || "").trim().toLowerCase())) ||
+        matchingImports[0] ||
+        null;
+
+      const originalCost = Math.max(0, Number(latestOriginalCostRecord?.unitPrice) || 0);
+      const originalCurrency = String(
+        latestOriginalCostRecord?.currency ||
+        batchByImportNumber.get(String(latestOriginalCostRecord?.importNumber || "").trim().toLowerCase())?.currency ||
+        ""
+      ).trim().toUpperCase();
+
+      return {
+        name: String(product.name || ""),
+        stock: Math.max(0, Number(product.stock) || 0),
+        originalCost,
+        originalCurrency,
+        averageCost: Math.max(0, Number(product.averageCost) || 0),
+        minimumPrice: Math.max(0, Number(product.minimumPrice) || 0)
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, "zh"));
+}
+
+function renderOriginalCostPanel() {
+  const body = document.getElementById("originalCostTableBody");
+  const dateField = document.getElementById("originalCostPanelDate");
+  if (!body) return;
+
+  const rows = getOriginalCostSummaryRows();
+  if (dateField) dateField.textContent = `资料日期：${formatDateDDMMYYYY(new Date())}`;
+
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="5" class="empty-state">暂无库存资料</td></tr>';
+    return;
+  }
+
+  body.innerHTML = rows.map(row => {
+    const originalCostText = `${formatMoney(row.originalCost)}${row.originalCurrency ? ` ${escapeHTML(row.originalCurrency)}` : ""}`;
+    return `
+      <tr>
+        <td>${escapeHTML(row.name)}</td>
+        <td class="number-cell">${formatNumber(row.stock)}</td>
+        <td class="money-cell original-currency-cell">${originalCostText}</td>
+        <td class="money-cell">${formatMoney(row.averageCost, "RM ")}</td>
+        <td class="money-cell minimum-price-cell">${formatMoney(row.minimumPrice, "RM ")}</td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function toggleOriginalCostPanel() {
+  const panel = document.getElementById("originalCostPanel");
+  if (!panel) return;
+
+  const opening = panel.hidden;
+  panel.hidden = !opening;
+  if (opening) {
+    renderOriginalCostPanel();
+    panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+}
+
+function exportOriginalCostExcel() {
+  const rows = getOriginalCostSummaryRows();
+  if (!rows.length) {
+    alert("暂无库存资料可以导出");
+    return;
+  }
+
+  const excelRows = rows.map(row => [
+    row.name,
+    Math.round(row.stock),
+    `${Number(row.originalCost || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${row.originalCurrency ? ` ${row.originalCurrency}` : ""}`,
+    Number(row.averageCost) || 0,
+    Number(row.minimumPrice) || 0
+  ]);
+
+  const workbook =
+    `<?xml version="1.0"?>` +
+    `<?mso-application progid="Excel.Sheet"?>` +
+    `<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" ` +
+    `xmlns:o="urn:schemas-microsoft-com:office:office" ` +
+    `xmlns:x="urn:schemas-microsoft-com:office:excel" ` +
+    `xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">` +
+    `<Styles>` +
+      `<Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Center"/><Font ss:FontName="Arial" ss:Size="10"/></Style>` +
+      `<Style ss:ID="Header"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Arial" ss:Size="10" ss:Bold="1"/><Interior ss:Color="#D9EAD3" ss:Pattern="Solid"/></Style>` +
+      `<Style ss:ID="HeaderRow"><Alignment ss:Vertical="Center"/></Style>` +
+      `<Style ss:ID="Integer"><NumberFormat ss:Format="0"/></Style>` +
+      `<Style ss:ID="Number2"><NumberFormat ss:Format="#,##0.00"/></Style>` +
+      `<Style ss:ID="GeneralNumber"><NumberFormat ss:Format="General"/></Style>` +
+    `</Styles>` +
+    excelWorksheet(
+      "原成本清单",
+      ["产品名", "当前库存", "原成本", "平均成本", "最低售价"],
+      excelRows,
+      ["text", "integer", "text", "money", "money"]
+    ) +
+    `</Workbook>`;
+
+  downloadTextFile(
+    `Original_Cost_List_${formatDateDDMMYYYY(new Date())}.xls`,
+    workbook,
+    "application/vnd.ms-excel;charset=utf-8"
+  );
+}
 
 function parseDDMMYYYY(value) {
   const date = parseDateDDMMYYYY(value);
@@ -8737,7 +8906,7 @@ function getThreeMonthsAgoTime() {
 }
 
 function getStaleZeroStockProducts() {
-  // V5.9: user-confirmed cleanup rule. Every product whose canonical
+  // V6.0: user-confirmed cleanup rule. Every product whose canonical
   // Products.stock is exactly 0 is eligible, regardless of age/activity.
   // Nothing is deleted automatically; the user must select rows and type DELETE.
   const imports = getImports();
@@ -8926,7 +9095,7 @@ function deleteSelectedStaleZeroStockProducts() {
   }));
   const nextSettings = { ...settings, historySalesOverrides: nextOverrides };
 
-  // V5.9 atomic local snapshot: write all related collections first, then mark one cloud sync set.
+  // V6.0 atomic local snapshot: write all related collections first, then mark one cloud sync set.
   localStorage.setItem("importSystemProducts", JSON.stringify(nextProducts));
   localStorage.setItem("importSystemImports", JSON.stringify(nextImports));
   localStorage.setItem("importSystemBatches", JSON.stringify(nextBatches));
@@ -9129,7 +9298,7 @@ function exportSystemExcel() {
 function backupSystemData() {
   const backup = {
     app: "Lover Legend Import Cost & Inventory System",
-    version: "5.9",
+    version: "6.0",
     exportedAt: new Date().toISOString(),
     settings: loadJSON("importSystemSettings", {}),
     products: getProducts(),

@@ -1,30 +1,8 @@
-V5.9 Stable — Tooltip Correction
-- 基于 V5.8 完美运行版。
-- 删除库存产品卡片错误的「长按可修改产品名称」悬停提示。
-- 保留产品名称点击复制、进口编号点击复制。
-- 保留最低售价长按修改及快速同步。
-- 不修改库存、成本、FIFO、History、Google Sheet Schema 或同步主逻辑。
+V6.0 Stable — Original Cost List
 
-V5.8 Stable — Product Name Display Safety
-- 基于 V5.7 完美运行版。
-- 库存产品卡片的产品名称改为纯显示，不再支持长按修改。
-- 保留当前库存、最低售价、平均成本的既有长按操作。
-- 不修改库存、成本、FIFO、History、Google Sheet Schema 或同步主逻辑。
-
-V5.7 Stable — Original Cost Display
-- Based strictly on V5.6 perfect-running baseline.
-- Inventory cards now show 原成本 beside 当前库存.
-- 原成本 uses the latest import record unitPrice and preserves its original currency (CNY/VND/NTD/IDR).
-- Display-only change: no inventory/cost/history calculations are changed.
-- Minimum-price fast sync remains unchanged.
-
-V5.7 Stable — Minimum Price Fast Sync
-
-基于 V5.5 完美运行版，仅优化「最低售价」保存同步速度。
-
-- 最低售价不再触发完整 Products / Imports / Batches Snapshot Push。
-- 新增 updateMinimumPrice 快速写入：只更新 Products 对应产品的「最低售价」及「更新时间」。
-- 保留 Revision、Bootstrap Token、Schema、Write Guard 与 LockService 写入保护。
-- 若 Revision 冲突，阻止覆盖并恢复本地原价，再读取最新数据库。
-- 其他库存、进口、成本、FIFO、History 与完整同步逻辑保持 V5.5 不变。
-- Google Sheet Schema 不变：LL-IMPORT-2026-08-CANONICAL-4。
+- 首页点击任何产品卡片「原成本」可展开 / 收起原成本清单。
+- 清单同一行显示：产品名、当前库存、原成本、平均成本、最低售价。
+- 原成本保留 CNY / VND / NTD / IDR 原币种并固定 2 位小数。
+- 新增「导出 Excel」，文件名包含日期，数字 / 价钱格式正确并自动调整栏宽。
+- 清单完全使用已经同步到本机的 Products / Imports / Batches，不增加任何 Google Sheet 读取或同步请求。
+- 保留 V5.9 全部库存、FIFO、最低售价快速同步、History、Backup / Restore 与复制功能。
