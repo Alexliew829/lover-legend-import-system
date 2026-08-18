@@ -1,14 +1,19 @@
-V6.8 Stable — Import/Edit Product Name Tap/Long-Press Fix
+V6.9 Stable — Import/Edit Product Name Click Copy Fix
+- 只修产品/进口 修改/编辑页面最下面搜索结果的产品名称：普通点击/短按可靠复制；长按 650ms 修改。
+- 长按完成后抑制随后产生的 click，避免修改后又触发复制。
+- 不改变进口编号、库存、成本、最低售价、FIFO、History、同步与任何计算公式。
+
+V6.9 Stable — Import/Edit Product Name Tap/Long-Press Fix
 - 只调整产品/进口 修改/编辑页面最下面产品搜索结果的产品名称：短按/点击复制，长按修改。
 - 不改变进口编号、库存、成本、最低售价、FIFO、History、计算逻辑或公式。
 
-V6.8 Stable — Import/Edit Product Name Gesture Fix
+V6.9 Stable — Import/Edit Product Name Gesture Fix
 - 产品/进口 修改/编辑页最下面产品搜索结果：点击产品名称直接复制。
 - 长按产品名称 650ms 才进入修改名称，并保留修改前确认。
 - 不改变 productId / 进口编号 / 原成本 / 平均成本 / 最低售价 / 库存 / 任何计算公式。
 - 其他可修改项目继续维持长按修改逻辑。
 
-V6.8 Stable — Data Repair Category Correction
+V6.9 Stable — Data Repair Category Correction
 - 以 V6.2 完美运行版本为基准。
 - 设置中的「成本修改模式」扩展为「修改模式 / Data Repair」。
 - 载入旧进口编号后，开启修改模式即可修正产品类别（盆栽 / 花盆 / 周边产品）。
