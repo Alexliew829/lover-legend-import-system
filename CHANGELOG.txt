@@ -1,4 +1,4 @@
-V6.3 Stable — Data Repair Category Correction
+V6.4 Stable — Data Repair Category Correction
 - 以 V6.2 完美运行版本为基准。
 - 设置中的「成本修改模式」扩展为「修改模式 / Data Repair」。
 - 载入旧进口编号后，开启修改模式即可修正产品类别（盆栽 / 花盆 / 周边产品）。

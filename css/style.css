@@ -3416,7 +3416,7 @@ html, body {
   outline: 2px solid rgba(31, 93, 58, .35);
 }
 
-/* V6.3 minimum sale price visual cue: editable field shown in red */
+/* V6.4 minimum sale price visual cue: editable field shown in red */
 .inventory-minimum-price-btn span,
 .inventory-minimum-price-btn strong,
 .product-stock-minimum-price-btn,
@@ -3432,7 +3432,7 @@ html, body {
 }
 
 
-/* V6.3 original purchase cost: latest import unit price in original currency */
+/* V6.4 original purchase cost: latest import unit price in original currency */
 .inventory-original-cost span,
 .inventory-original-cost strong {
   color: #0b63ce;
@@ -3442,7 +3442,7 @@ html, body {
 }
 
 
-/* V6.3 原成本清单：纯前端展开，不触发任何云端同步。 */
+/* V6.4 原成本清单：纯前端展开，不触发任何云端同步。 */
 .inventory-original-cost-toggle {
   width: 100%;
   min-width: 0;
@@ -3525,7 +3525,7 @@ html, body {
   font-weight: 700;
 }
 
-/* V6.3 原成本清单：产品名称点击复制，仅本机 UI，不触发同步。 */
+/* V6.4 原成本清单：产品名称点击复制，仅本机 UI，不触发同步。 */
 .original-cost-product-copy {
   white-space: nowrap;
   font-weight: 500;
@@ -3535,7 +3535,19 @@ html, body {
 }
 
 
-/* V6.3 原成本清单：筛选跟随首页、清单内可收起、最低售价复用快速修改。 */
+/* V6.4 原成本清单：筛选跟随首页、清单内可收起、最低售价复用快速修改。 */
 .original-cost-panel-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
 .original-cost-minimum-price-btn { border:0; background:transparent; color:#c81e1e; font:inherit; font-weight:700; padding:4px 0; cursor:pointer; white-space:nowrap; }
 .original-cost-minimum-price-btn:active { transform:translateY(1px); }
+
+/* V6.4 Import/Edit product-name rename button keeps the original display appearance. */
+.product-stock-name-edit-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
