@@ -1,4 +1,10 @@
-V6.4 Stable — Data Repair Category Correction
+V6.5 Stable — Import/Edit Product Name Gesture Fix
+- 产品/进口 修改/编辑页最下面产品搜索结果：点击产品名称直接复制。
+- 长按产品名称 650ms 才进入修改名称，并保留修改前确认。
+- 不改变 productId / 进口编号 / 原成本 / 平均成本 / 最低售价 / 库存 / 任何计算公式。
+- 其他可修改项目继续维持长按修改逻辑。
+
+V6.5 Stable — Data Repair Category Correction
 - 以 V6.2 完美运行版本为基准。
 - 设置中的「成本修改模式」扩展为「修改模式 / Data Repair」。
 - 载入旧进口编号后，开启修改模式即可修正产品类别（盆栽 / 花盆 / 周边产品）。
