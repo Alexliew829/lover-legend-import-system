@@ -1,9 +1,9 @@
-Lover Legend Import Cost & Inventory System V6.6 Stable
+Lover Legend Import Cost & Inventory System V6.8 Stable
 
-V6.6 新增首页原成本清单及 Excel 导出。Google Sheet Schema 不变。
+V6.8 新增首页原成本清单及 Excel 导出。Google Sheet Schema 不变。
 
 部署：
-1. 替换 Apps Script 的 V6.6 Code.gs 并 Save。
+1. 替换 Apps Script 的 V6.8 Code.gs 并 Save。
 2. Deploy New Version。
-3. 上传 V6.6 Frontend 到 GitHub Pages。
+3. 上传 V6.8 Frontend 到 GitHub Pages。
 4. 不需要运行任何 Schema upgrade。

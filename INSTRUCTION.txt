@@ -1,4 +1,4 @@
-Lover Legend 进口成本与库存系统 — 正式版 V6.6 Stable
+Lover Legend 进口成本与库存系统 — 正式版 V6.8 Stable
 
 首页产品卡片点击「原成本」：
 1. 第一次点击展开原成本清单。
