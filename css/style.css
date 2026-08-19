@@ -3553,7 +3553,7 @@ html, body {
 }
 
 
-/* V7.1 原成本清单：固定五栏网格，让表头与每行数字严格对齐。 */
+/* V7.2 原成本清单：固定五栏网格，让表头与每行数字严格对齐。 */
 .original-cost-table { table-layout: fixed; }
 .original-cost-table th:nth-child(1), .original-cost-table td:nth-child(1) { width: 32%; text-align: left; }
 .original-cost-table th:nth-child(2), .original-cost-table td:nth-child(2) { width: 12%; text-align: center; }

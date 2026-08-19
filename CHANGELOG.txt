@@ -1,3 +1,10 @@
+V7.2 Stable — Latest Import = Arrival Date
+- 全系统「最近进口 / 最后进口」统一以抵达日期为唯一依据。
+- 未填写抵达日期时保持空白，不再使用装柜日期补值。
+- 首页总览、库存产品卡片、最近进口排序及 Inventory Excel 的「最后进口」统一采用抵达日期。
+- 不改变库存、FIFO、实际卖出、原成本、平均成本、最低售价、History 或任何成本计算/映射公式。
+- 更新运行版本号为 V7.2 Stable。
+
 V7.1 Stable — Sync Read Acceleration + Import/Edit Product Name Copy Fix
 - 保留 V7.0 全部库存、成本、FIFO、History、实际卖出、最低售价、类别修正及所有计算逻辑。
 - Apps Script：新增按 revision 区分的短期完整 Pull 只读缓存；revision 改变自动失效，缓存异常自动回退 Google Sheet 正常读取。

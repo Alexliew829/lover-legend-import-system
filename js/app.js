@@ -1114,18 +1114,13 @@ function renderDashboard() {
   document.getElementById("inventoryValue").textContent = formatMoney(inventoryValue, "RM ");
   const batches = getBatches();
   const latestBatchImportDate = batches
-    .map(batch =>
-      normalizeDateToDDMMYYYY(
-        batch.arrivalDate || batch.containerDate
-      )
-    )
+    .map(batch => normalizeDateToDDMMYYYY(batch.arrivalDate))
     .filter(value => parseDDMMYYYY(value) > 0)
     .sort((a, b) => parseDDMMYYYY(b) - parseDDMMYYYY(a))[0];
 
+  // V7.2: 首页「最近进口」只显示最新抵达日期；没有抵达日期则留空。
   document.getElementById("lastImport").textContent =
-    latestBatchImportDate ||
-    normalizeDateToDDMMYYYY(dates[0]) ||
-    "-";
+    latestBatchImportDate || "";
 
 }
 
@@ -1155,7 +1150,7 @@ function renderInventoryList(products) {
           </button>
           <div><span>平均成本</span><strong>${formatMoney(averageCost, "RM ")}</strong></div>
           <div><span>库存成本</span><strong>${formatMoney(value, "RM ")}</strong></div>
-          <div><span>最后进口</span><strong>${escapeHTML(item.lastImport || "-")}</strong></div>
+          <div><span>最后进口</span><strong>${escapeHTML(getLatestImportDateByProduct(item.id) || "")}</strong></div>
         </div>
       </article>
     `;
@@ -2400,13 +2395,15 @@ function recalculateProductLastImport(productId, remainingImports, productName =
         String(record.productName || "").trim().toLowerCase() === normalizedName &&
         String(record.category || "盆栽") === normalizedCategory;
 
-      return (sameProductId || sameProductIdentity) && record.containerDate;
+      // V7.2: 全系统「最近进口」统一以抵达日期为唯一依据。
+      // 未填写抵达日期时保持空白，不使用装柜日期补值。
+      return (sameProductId || sameProductIdentity) && record.arrivalDate;
     })
     .sort(
       (a, b) =>
-        parseDDMMYYYY(b.containerDate) -
-        parseDDMMYYYY(a.containerDate)
-    )[0]?.containerDate || "";
+        parseDDMMYYYY(b.arrivalDate) -
+        parseDDMMYYYY(a.arrivalDate)
+    )[0]?.arrivalDate || "";
 }
 
 
@@ -2439,6 +2436,9 @@ function getCanonicalInventoryImports(imports = getImports(), batches = getBatch
     const parentBatch = batchMap.get(String(record?.batchId || record?.importNumber || ""));
     addRecord({
       ...record,
+      // V7.2: 产品的「最近进口」只取抵达日期；旧明细若未复制该字段，
+      // 允许从所属批次读取抵达日期，但绝不使用装柜日期代替。
+      arrivalDate: record?.arrivalDate || parentBatch?.arrivalDate || "",
       unitCost: resolveImportUnitCost(record, parentBatch)
     });
   });
@@ -2448,6 +2448,7 @@ function getCanonicalInventoryImports(imports = getImports(), batches = getBatch
       batchId: item.batchId || batch.id,
       importNumber: item.importNumber || batch.importNumber,
       containerDate: item.containerDate || batch.containerDate,
+      arrivalDate: item.arrivalDate || batch.arrivalDate || "",
       unitCost: resolveImportUnitCost(item, batch)
     }));
   });
@@ -5650,11 +5651,11 @@ function normalizeDateToDDMMYYYY(value) {
 }
 
 function getImportDisplayDate(record, batch = null) {
+  // V7.2: 「最近进口」只代表抵达日期。
+  // 没有抵达日期时留空，绝不回退到装柜日期。
   const candidates = [
     record?.arrivalDate,
-    batch?.arrivalDate,
-    record?.containerDate,
-    batch?.containerDate
+    batch?.arrivalDate
   ];
 
   for (const value of candidates) {
@@ -6756,7 +6757,7 @@ function saveBatchImport() {
 
     products[productIndex] = {
       ...product, stock: newStock, averageCost: newAverage,
-      inventoryArchived: false, lastImport: batch.containerDate || today,
+      inventoryArchived: false, lastImport: batch.arrivalDate || "",
       updatedAt: new Date().toISOString()
     };
 
@@ -7104,7 +7105,7 @@ function renderBatchProductStockResults() {
 }
 
 function bindProductStockNameEdit() {
-  // V7.1 Import/Edit bottom product search ONLY:
+  // V7.2 Import/Edit bottom product search ONLY:
   // release before 650ms = copy; hold for 650ms = rename.
   // The action is decided on pointer timing itself instead of relying on a
   // synthetic click, which is unreliable after touch/long-press on mobile.
@@ -7143,7 +7144,7 @@ function bindProductStockNameEdit() {
     const productName = String(product?.name || button.textContent || "").trim();
     if (!productName) return;
 
-    // V7.1: execute the copy directly inside pointerup's user gesture.
+    // V7.2: execute the copy directly inside pointerup's user gesture.
     // Mobile browsers can reject an awaited Clipboard API call after the gesture ends.
     let copied = false;
     const textarea = document.createElement("textarea");
@@ -8727,7 +8728,6 @@ function renderInventoryManagementList() {
             return (
               getImportDisplayDate(latestRecord, latestBatch) ||
               getLatestImportDateByProduct(product.id) ||
-              normalizeDateToDDMMYYYY(product.lastImport) ||
               ""
             );
           })()
@@ -9562,7 +9562,7 @@ function exportSystemExcel() {
     Number(product.averageCost) || 0,
     Math.max(0, Number(product.minimumPrice) || 0),
     (Number(product.stock) || 0) * (Number(product.averageCost) || 0),
-    product.lastImport || "",
+    getLatestImportDateByProduct(product.id) || "",
     "当前库存"
   ]);
 
