@@ -1118,7 +1118,7 @@ function renderDashboard() {
     .filter(value => parseDDMMYYYY(value) > 0)
     .sort((a, b) => parseDDMMYYYY(b) - parseDDMMYYYY(a))[0];
 
-  // V7.2: 首页「最近进口」只显示最新抵达日期；没有抵达日期则留空。
+  // V7.3: 首页「最近进口」只显示最新抵达日期；没有抵达日期则留空。
   document.getElementById("lastImport").textContent =
     latestBatchImportDate || "";
 
@@ -2395,7 +2395,7 @@ function recalculateProductLastImport(productId, remainingImports, productName =
         String(record.productName || "").trim().toLowerCase() === normalizedName &&
         String(record.category || "盆栽") === normalizedCategory;
 
-      // V7.2: 全系统「最近进口」统一以抵达日期为唯一依据。
+      // V7.3: 全系统「最近进口」统一以抵达日期为唯一依据。
       // 未填写抵达日期时保持空白，不使用装柜日期补值。
       return (sameProductId || sameProductIdentity) && record.arrivalDate;
     })
@@ -2436,7 +2436,7 @@ function getCanonicalInventoryImports(imports = getImports(), batches = getBatch
     const parentBatch = batchMap.get(String(record?.batchId || record?.importNumber || ""));
     addRecord({
       ...record,
-      // V7.2: 产品的「最近进口」只取抵达日期；旧明细若未复制该字段，
+      // V7.3: 产品的「最近进口」只取抵达日期；旧明细若未复制该字段，
       // 允许从所属批次读取抵达日期，但绝不使用装柜日期代替。
       arrivalDate: record?.arrivalDate || parentBatch?.arrivalDate || "",
       unitCost: resolveImportUnitCost(record, parentBatch)
@@ -3973,12 +3973,17 @@ function getDailyStockAdjustments(selectedDate, keyword = "") {
           normalizeDateToDDMMYYYY(adjustment.date) ===
           normalizedDate
         )
-        .map(adjustment => ({
-          ...adjustment,
-          productId: product.id || "",
-          productName: product.name || "未命名产品",
-          category: product.category || "盆栽"
-        }))
+        .map(adjustment => {
+          const transition = getProductTotalStockTransitionMap(product).get(String(adjustment?.id || ""));
+          return {
+            ...adjustment,
+            productId: product.id || "",
+            productName: product.name || "未命名产品",
+            category: product.category || "盆栽",
+            displayStockBefore: transition?.before,
+            displayStockAfter: transition?.after
+          };
+        })
     )
     .filter(adjustment =>
       historyProductMatchesKeyword(adjustment, keyword)
@@ -3988,6 +3993,42 @@ function getDailyStockAdjustments(selectedDate, keyword = "") {
         String(b.createdAt || "")
       )
     );
+}
+
+// V7.3 History display rule: "修改前 / 修改后" means the PRODUCT'S total stock,
+// never the remaining quantity of only one import number. Existing V7.2-and-earlier
+// records are reconstructed from the product's current stock + chronological deltas;
+// new V7.3 records also persist productStockBefore/productStockAfter explicitly.
+function getProductTotalStockTransitionMap(product) {
+  const adjustments = getProductStockAdjustments(product)
+    .slice()
+    .sort((a, b) => {
+      const timeA = Date.parse(String(a?.createdAt || ""));
+      const timeB = Date.parse(String(b?.createdAt || ""));
+      if (Number.isFinite(timeA) && Number.isFinite(timeB) && timeA !== timeB) return timeA - timeB;
+      const dateA = parseDDMMYYYY(a?.date) || 0;
+      const dateB = parseDDMMYYYY(b?.date) || 0;
+      if (dateA !== dateB) return dateA - dateB;
+      return String(a?.id || "").localeCompare(String(b?.id || ""));
+    });
+
+  const map = new Map();
+  const totalDelta = adjustments.reduce((sum, item) => sum + Math.trunc(Number(item?.delta) || 0), 0);
+  let runningStock = Math.max(0, Math.trunc(Number(product?.stock) || 0) - totalDelta);
+
+  adjustments.forEach(item => {
+    const explicitBefore = Number(item?.productStockBefore);
+    const explicitAfter = Number(item?.productStockAfter);
+    const hasExplicit = Number.isFinite(explicitBefore) && Number.isFinite(explicitAfter);
+    const before = hasExplicit ? Math.max(0, Math.trunc(explicitBefore)) : runningStock;
+    const after = hasExplicit
+      ? Math.max(0, Math.trunc(explicitAfter))
+      : Math.max(0, before + Math.trunc(Number(item?.delta) || 0));
+    map.set(String(item?.id || ""), { before, after });
+    runningStock = after;
+  });
+
+  return map;
 }
 
 function buildDailyStockAdjustmentHtml(adjustments) {
@@ -4027,8 +4068,8 @@ function buildDailyStockAdjustmentHtml(adjustments) {
         </div>
 
         <div class="history-adjustment-meta">
-          <span>修改前 ${formatNumber(Number(adjustment.before) || 0)}</span>
-          <span>修改后 ${formatNumber(Number(adjustment.after) || 0)}</span>
+          <span>修改前 ${formatNumber(Number.isFinite(Number(adjustment.displayStockBefore)) ? Number(adjustment.displayStockBefore) : (Number(adjustment.productStockBefore) || Number(adjustment.before) || 0))}</span>
+          <span>修改后 ${formatNumber(Number.isFinite(Number(adjustment.displayStockAfter)) ? Number(adjustment.displayStockAfter) : (Number(adjustment.productStockAfter) || Number(adjustment.after) || 0))}</span>
           ${
             adjustment.importNumber
               ? `<span>进口编号 ${buildHistoryImportNumberButton(adjustment.importNumber)}</span>`
@@ -5651,7 +5692,7 @@ function normalizeDateToDDMMYYYY(value) {
 }
 
 function getImportDisplayDate(record, batch = null) {
-  // V7.2: 「最近进口」只代表抵达日期。
+  // V7.3: 「最近进口」只代表抵达日期。
   // 没有抵达日期时留空，绝不回退到装柜日期。
   const candidates = [
     record?.arrivalDate,
@@ -7105,7 +7146,7 @@ function renderBatchProductStockResults() {
 }
 
 function bindProductStockNameEdit() {
-  // V7.2 Import/Edit bottom product search ONLY:
+  // V7.3 Import/Edit bottom product search ONLY:
   // release before 650ms = copy; hold for 650ms = rename.
   // The action is decided on pointer timing itself instead of relying on a
   // synthetic click, which is unreliable after touch/long-press on mobile.
@@ -7144,7 +7185,7 @@ function bindProductStockNameEdit() {
     const productName = String(product?.name || button.textContent || "").trim();
     if (!productName) return;
 
-    // V7.2: execute the copy directly inside pointerup's user gesture.
+    // V7.3: execute the copy directly inside pointerup's user gesture.
     // Mobile browsers can reject an awaited Clipboard API call after the gesture ends.
     let copied = false;
     const textarea = document.createElement("textarea");
@@ -7412,10 +7453,16 @@ function getProductStockAdjustments(product) {
   }
 }
 
-function appendProductStockAdjustments(product, changes, changedAt) {
+function appendProductStockAdjustments(product, changes, changedAt, productStockBefore = null, productStockAfter = null) {
   const existing = getProductStockAdjustments(product);
   const timestamp = changedAt || new Date().toISOString();
   const date = formatDateDDMMYYYY(new Date(timestamp));
+  const normalizedProductStockBefore = Number.isFinite(Number(productStockBefore))
+    ? Math.max(0, Math.trunc(Number(productStockBefore)))
+    : null;
+  const normalizedProductStockAfter = Number.isFinite(Number(productStockAfter))
+    ? Math.max(0, Math.trunc(Number(productStockAfter)))
+    : null;
 
   const additions = (changes || [])
     .filter(change => Number(change?.delta) !== 0)
@@ -7426,8 +7473,12 @@ function appendProductStockAdjustments(product, changes, changedAt) {
       createdAt: timestamp,
       importNumber: String(change.importNumber || "").trim(),
       delta: Math.trunc(Number(change.delta) || 0),
+      // V7.3: before/after remain the FIFO import-batch quantities for accounting.
+      // productStockBefore/productStockAfter record the product's TOTAL inventory for History display only.
       before: Math.max(0, Math.trunc(Number(change.before) || 0)),
       after: Math.max(0, Math.trunc(Number(change.after) || 0)),
+      productStockBefore: normalizedProductStockBefore,
+      productStockAfter: normalizedProductStockAfter,
       adjustmentType: String(change.adjustmentType || "modify").trim().toLowerCase(),
       reason: String(change.reason || "").trim(),
       soldUnitCost: String(change.adjustmentType || "").trim().toLowerCase() === "sale"
@@ -7814,7 +7865,9 @@ async function editProductStockFromImportPage(productId) {
   const adjustmentData = appendProductStockAdjustments(
     product,
     allocation.changes,
-    allocation.changedAt
+    allocation.changedAt,
+    currentStock,
+    nextStock
   );
 
   products[productIndex] = {

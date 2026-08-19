@@ -1,3 +1,11 @@
+V7.3 Stable — History Total Stock Before / After
+
+- History 的「修改前 / 修改后」统一显示产品总库存，不再显示单一进口编号的批次剩余数量。
+- V7.3 新记录额外保存 productStockBefore / productStockAfter，仅用于 History 显示。
+- V7.2 及之前旧记录会按产品当前库存与历史 delta 重建总库存前后值，不改写旧数据。
+- FIFO、进口编号、Imports remainingQuantity、库存、卖出成本、平均成本、最低售价及所有成本公式完全不变。
+- 更新运行版本号为 V7.3 Stable。
+
 V7.2 Stable — Latest Import = Arrival Date
 - 全系统「最近进口 / 最后进口」统一以抵达日期为唯一依据。
 - 未填写抵达日期时保持空白，不再使用装柜日期补值。
