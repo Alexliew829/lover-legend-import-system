@@ -7104,7 +7104,7 @@ function renderBatchProductStockResults() {
 }
 
 function bindProductStockNameEdit() {
-  // V7.0 Import/Edit bottom product search ONLY:
+  // V7.1 Import/Edit bottom product search ONLY:
   // release before 650ms = copy; hold for 650ms = rename.
   // The action is decided on pointer timing itself instead of relying on a
   // synthetic click, which is unreliable after touch/long-press on mobile.
@@ -7136,23 +7136,50 @@ function bindProductStockNameEdit() {
     longPressed = false;
   };
 
-  const copyButtonName = async button => {
+  const copyButtonName = button => {
     if (!button) return;
     const productId = String(button.dataset.productId || "");
     const product = getProducts().find(item => String(item.id || "") === productId);
     const productName = String(product?.name || button.textContent || "").trim();
     if (!productName) return;
-    const copied = await copyTextToClipboard(productName);
-    if (!copied) return;
-    button.textContent = "✓ 已复制";
-    button.classList.add("copied");
-    window.setTimeout(() => {
-      if (document.body.contains(button)) {
-        const latest = getProducts().find(item => String(item.id || "") === productId);
-        button.textContent = String(latest?.name || productName);
-        button.classList.remove("copied");
-      }
-    }, 1200);
+
+    // V7.1: execute the copy directly inside pointerup's user gesture.
+    // Mobile browsers can reject an awaited Clipboard API call after the gesture ends.
+    let copied = false;
+    const textarea = document.createElement("textarea");
+    textarea.value = productName;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.left = "-9999px";
+    textarea.style.top = "0";
+    document.body.appendChild(textarea);
+    textarea.focus({ preventScroll: true });
+    textarea.select();
+    textarea.setSelectionRange(0, textarea.value.length);
+    try { copied = document.execCommand("copy"); } catch (error) { copied = false; }
+    textarea.remove();
+
+    const showCopied = () => {
+      button.textContent = "✓ 已复制";
+      button.classList.add("copied");
+      window.setTimeout(() => {
+        if (document.body.contains(button)) {
+          const latest = getProducts().find(item => String(item.id || "") === productId);
+          button.textContent = String(latest?.name || productName);
+          button.classList.remove("copied");
+        }
+      }, 1200);
+    };
+
+    if (copied) {
+      showCopied();
+      return;
+    }
+
+    // Modern Clipboard fallback is still invoked immediately, without awaiting first.
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(productName).then(showCopied).catch(() => {});
+    }
   };
 
   output.addEventListener("pointerdown", event => {
