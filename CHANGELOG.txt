@@ -1,3 +1,11 @@
+V7.4 Stable — History Date-Range Product Filter
+
+- 历史查询选择日期范围后，产品标签只显示该期间真正发生过进口、卖出或库存修改的产品。
+- 例如筛选「黄杨」+ 16-08-2026 至 20-08-2026，不再显示期间完全没有进出/修改的全部黄杨。
+- 日期清空后，恢复原本的全历史产品搜索行为。
+- 只修改 History Search 的候选产品显示筛选；不改变库存、FIFO、Imports/Batches、卖出成本、平均成本、最低售价或任何计算公式。
+- 更新所有运行版本号为 V7.4 Stable。
+
 V7.3 Stable — History Total Stock Before / After
 
 - History 的「修改前 / 修改后」统一显示产品总库存，不再显示单一进口编号的批次剩余数量。

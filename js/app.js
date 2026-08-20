@@ -4852,9 +4852,26 @@ function renderCompactProductHistoryByRange(
     return false;
   }
 
-  // 摘要始终使用该产品全部批次的累计资料，
-  // 不会因为日期范围而变成局部数量。
-  const summary = allMatchingEntries.reduce(
+  // V7.4：日期范围存在时，上方产品标签只显示该期间真正发生过
+  // 「进口 / 实际卖出 / 库存修改」的产品。累计进口与当前库存仍然
+  // 使用这些相关产品的全部历史批次计算，不把日期范围误当成库存范围。
+  const historyProductKey = item => {
+    const productId = String(item?.productId || "").trim();
+    if (productId) return `id:${productId}`;
+    return `name:${String(item?.productName || item?.name || "").trim().toLowerCase()}`;
+  };
+
+  const activeProductKeys = new Set(
+    productMatches.flatMap(match =>
+      match.itemEntries.map(entry => historyProductKey(entry.item))
+    )
+  );
+
+  const summaryEntries = allMatchingEntries.filter(entry =>
+    activeProductKeys.has(historyProductKey(entry.item))
+  );
+
+  const summary = summaryEntries.reduce(
     (result, entry) => {
       const quantities =
         getHistoryItemQuantities(entry.item);

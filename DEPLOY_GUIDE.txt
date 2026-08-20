@@ -1,9 +1,9 @@
-Lover Legend Import Cost & Inventory System V7.3 Stable
+Lover Legend Import Cost & Inventory System V7.4 Stable
 
-V7.3 统一全系统「最近进口 / 最后进口」为抵达日期；未填写抵达日期时保持空白。Google Sheet Schema 不变。
+V7.4 仅修正 History Search 日期范围下的产品候选显示：只列出期间有进口、卖出或库存修改的产品。Google Sheet Schema 不变。
 
 部署：
-1. 替换 Apps Script 的 V7.3 Code.gs 并 Save。
+1. 替换 Apps Script 的 V7.4 Code.gs 并 Save。
 2. Deploy New Version。
-3. 上传 V7.3 Frontend 到 GitHub Pages。
+3. 上传 V7.4 Frontend 到 GitHub Pages。
 4. 不需要运行任何 Schema upgrade。
