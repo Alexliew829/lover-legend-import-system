@@ -3563,3 +3563,36 @@ html, body {
 .original-cost-table td:nth-child(n+2), .original-cost-table th:nth-child(n+2) { font-variant-numeric: tabular-nums; }
 .original-cost-table .original-cost-product-copy { display:block; width:100%; overflow:hidden; text-overflow:ellipsis; text-align:left; }
 .original-cost-table .original-cost-minimum-price-btn { display:inline-block; min-width:92px; text-align:right; }
+
+
+/* V7.5 Backup / Restore persistent job status */
+.data-operation-status {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid #d6b45b;
+  border-radius: 12px;
+  background: #fff7dd;
+  color: #7a5500;
+  display: grid;
+  gap: 5px;
+  line-height: 1.45;
+}
+.data-operation-status[hidden] { display: none !important; }
+.data-operation-status strong { font-size: 14px; }
+.data-operation-status span { font-weight: 700; }
+.data-operation-status small { color: inherit; opacity: .82; }
+.data-operation-status.is-success {
+  border-color: #85c69b;
+  background: #edf9f1;
+  color: #175c32;
+}
+.data-operation-status.is-failed {
+  border-color: #ef9a92;
+  background: #fff0ee;
+  color: #a92318;
+}
+.data-operation-status.is-running {
+  border-color: #e0b236;
+  background: #fff5d2;
+  color: #805900;
+}

@@ -1,10 +1,18 @@
-V7.4 Stable — History Date-Range Product Filter
+V7.5 Stable
+- Backup / Restore 新增明确的进行中、成功、失败状态。
+- Backup / Restore 进行中关闭、刷新或离开页面时触发浏览器警告。
+- Restore 改为服务器端完整 Job：持久化 Job ID、开始时间、当前步骤、成功/失败、完成时间和失败原因。
+- 页面重新打开后会读取上一次 Restore Job 状态并继续显示/轮询。
+- Restore 使用精确快照覆盖 Products / Imports / Batches / Settings；不改任何库存、成本、FIFO、History 或计算公式。
+- Restore Job 状态检查延后执行，不阻塞正常启动同步。
+
+V7.5 Stable — History Date-Range Product Filter
 
 - 历史查询选择日期范围后，产品标签只显示该期间真正发生过进口、卖出或库存修改的产品。
 - 例如筛选「黄杨」+ 16-08-2026 至 20-08-2026，不再显示期间完全没有进出/修改的全部黄杨。
 - 日期清空后，恢复原本的全历史产品搜索行为。
 - 只修改 History Search 的候选产品显示筛选；不改变库存、FIFO、Imports/Batches、卖出成本、平均成本、最低售价或任何计算公式。
-- 更新所有运行版本号为 V7.4 Stable。
+- 更新所有运行版本号为 V7.5 Stable。
 
 V7.3 Stable — History Total Stock Before / After
 

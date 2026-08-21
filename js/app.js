@@ -10,6 +10,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupGlobalMobilePullDownClear();
   registerServiceWorker();
   setupCloudSync();
+  setupDataOperationSafety();
 });
 
 
@@ -21,6 +22,9 @@ const ACCESS_UNLOCK_SESSION_KEY =
   "loverLegendImportSystemUnlocked";
 const DESKTOP_SAVED_PASSWORD_KEY =
   "loverLegendDesktopSavedPassword";
+const RESTORE_JOB_LOCAL_KEY = "loverLegendRestoreJobV75";
+let dataOperationActive = false;
+let restoreJobPollTimer = null;
 
 async function hashAccessPassword(value) {
   const bytes = new TextEncoder().encode(String(value || ""));
@@ -4852,7 +4856,7 @@ function renderCompactProductHistoryByRange(
     return false;
   }
 
-  // V7.4：日期范围存在时，上方产品标签只显示该期间真正发生过
+  // V7.5：日期范围存在时，上方产品标签只显示该期间真正发生过
   // 「进口 / 实际卖出 / 库存修改」的产品。累计进口与当前库存仍然
   // 使用这些相关产品的全部历史批次计算，不把日期范围误当成库存范围。
   const historyProductKey = item => {
@@ -9713,24 +9717,40 @@ function exportSystemExcel() {
   showDataToolsStatus(`Excel 已导出：${activeInventoryProducts.length} 项当前库存；金额已格式化为 2 位小数`);
 }
 
-function backupSystemData() {
-  const backup = {
-    app: "Lover Legend Import Cost & Inventory System",
-    version: "6.7",
-    exportedAt: new Date().toISOString(),
-    settings: loadJSON("importSystemSettings", {}),
-    products: getProducts(),
-    imports: getImports(),
-    batches: getBatches()
-  };
+async function backupSystemData() {
+  setDataOperationRunning("Backup", "正在建立 Backup 文件，请勿关闭、刷新或离开页面");
+  setDataToolButtonsBusy(true);
 
-  downloadTextFile(
-    `Import_Inventory_Backup_${formatDateDDMMYYYY(new Date())}.json`,
-    JSON.stringify(backup, null, 2),
-    "application/json;charset=utf-8"
-  );
+  // Allow the visible “进行中” state to paint before building the file.
+  await new Promise(resolve => window.requestAnimationFrame(() => resolve()));
 
-  showDataToolsStatus("Backup 已完成");
+  try {
+    const backup = {
+      app: "Lover Legend Import Cost & Inventory System",
+      version: "7.5",
+      exportedAt: new Date().toISOString(),
+      settings: loadJSON("importSystemSettings", {}),
+      products: getProducts(),
+      imports: getImports(),
+      batches: getBatches()
+    };
+
+    downloadTextFile(
+      `Import_Inventory_Backup_${formatDateDDMMYYYY(new Date())}.json`,
+      JSON.stringify(backup, null, 2),
+      "application/json;charset=utf-8"
+    );
+
+    setDataOperationFinal("Backup", true, "Backup 成功", "文件已建立并开始下载");
+    showDataToolsStatus("Backup 成功");
+  } catch (error) {
+    console.error("Backup failed", error);
+    setDataOperationFinal("Backup", false, "Backup 失败", error.message || "无法建立 Backup 文件");
+    showDataToolsStatus(`Backup 失败：${error.message || "无法建立 Backup 文件"}`, true);
+  } finally {
+    setDataToolButtonsBusy(false);
+    dataOperationActive = false;
+  }
 }
 
 function normalizeRestoreBackup(rawData) {
@@ -9849,65 +9869,240 @@ function applyRestoreSnapshot(restored) {
   }
 }
 
-function restoreSystemData(event) {
+function createRestoreJobId() {
+  if (window.crypto && typeof window.crypto.randomUUID === "function") {
+    return window.crypto.randomUUID();
+  }
+  return `restore-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function saveLocalRestoreJob(job) {
+  try {
+    if (job) localStorage.setItem(RESTORE_JOB_LOCAL_KEY, JSON.stringify(job));
+    else localStorage.removeItem(RESTORE_JOB_LOCAL_KEY);
+  } catch (error) {}
+}
+
+function getLocalRestoreJob() {
+  return loadJSON(RESTORE_JOB_LOCAL_KEY, null);
+}
+
+function formatJobTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("en-GB", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false
+  }).replaceAll("/", "-");
+}
+
+function renderRestoreJob(job) {
+  if (!job) return;
+  saveLocalRestoreJob(job);
+
+  const panel = document.getElementById("dataOperationStatus");
+  const title = document.getElementById("dataOperationTitle");
+  const step = document.getElementById("dataOperationStep");
+  const meta = document.getElementById("dataOperationMeta");
+  if (!panel || !title || !step || !meta) return;
+
+  panel.hidden = false;
+  panel.classList.remove("is-running", "is-success", "is-failed");
+  panel.classList.add(job.state === "success" ? "is-success" : job.state === "failed" ? "is-failed" : "is-running");
+
+  if (job.state === "success") {
+    title.textContent = "✓ Restore 成功";
+    step.textContent = job.step || "Restore 已完成";
+    meta.textContent = `完成时间：${formatJobTime(job.completedAt || job.updatedAt)}`;
+    dataOperationActive = false;
+    setDataToolButtonsBusy(false);
+  } else if (job.state === "failed") {
+    title.textContent = "✕ Restore 失败";
+    step.textContent = `${job.step || "Restore"}：${job.error || "未知原因"}`;
+    meta.textContent = `失败时间：${formatJobTime(job.completedAt || job.updatedAt)}`;
+    dataOperationActive = false;
+    setDataToolButtonsBusy(false);
+  } else {
+    title.textContent = "↻ Restore 进行中，请勿关闭或刷新页面";
+    step.textContent = `当前步骤：${job.step || "处理中"}`;
+    meta.textContent = `开始时间：${formatJobTime(job.startedAt || job.updatedAt)}`;
+    dataOperationActive = true;
+    setDataToolButtonsBusy(true);
+  }
+}
+
+function setDataOperationRunning(type, step) {
+  dataOperationActive = true;
+  const panel = document.getElementById("dataOperationStatus");
+  const title = document.getElementById("dataOperationTitle");
+  const stepEl = document.getElementById("dataOperationStep");
+  const meta = document.getElementById("dataOperationMeta");
+  if (!panel || !title || !stepEl || !meta) return;
+  panel.hidden = false;
+  panel.classList.remove("is-success", "is-failed");
+  panel.classList.add("is-running");
+  title.textContent = `↻ ${type} 进行中，请勿关闭或刷新页面`;
+  stepEl.textContent = `当前步骤：${step}`;
+  meta.textContent = `开始时间：${formatJobTime(new Date().toISOString())}`;
+}
+
+function setDataOperationFinal(type, success, titleText, detail) {
+  const panel = document.getElementById("dataOperationStatus");
+  const title = document.getElementById("dataOperationTitle");
+  const step = document.getElementById("dataOperationStep");
+  const meta = document.getElementById("dataOperationMeta");
+  if (!panel || !title || !step || !meta) return;
+  panel.hidden = false;
+  panel.classList.remove("is-running", "is-success", "is-failed");
+  panel.classList.add(success ? "is-success" : "is-failed");
+  title.textContent = `${success ? "✓" : "✕"} ${titleText}`;
+  step.textContent = detail || "";
+  meta.textContent = `时间：${formatJobTime(new Date().toISOString())}`;
+}
+
+function setDataToolButtonsBusy(busy) {
+  ["backupDataBtn", "restoreDataBtn"].forEach(id => {
+    const button = document.getElementById(id);
+    if (button) button.disabled = Boolean(busy);
+  });
+}
+
+async function fetchRestoreJobStatus() {
+  try {
+    const data = await callGoogleApi({ action: "restoreJobStatus" });
+    if (data && data.job) {
+      renderRestoreJob(data.job);
+      if (data.job.state === "running") scheduleRestoreJobPoll();
+    }
+    return data?.job || null;
+  } catch (error) {
+    console.warn("Unable to read Restore Job status", error);
+    return null;
+  }
+}
+
+function scheduleRestoreJobPoll() {
+  window.clearTimeout(restoreJobPollTimer);
+  restoreJobPollTimer = window.setTimeout(async () => {
+    const job = await fetchRestoreJobStatus();
+    if (job && job.state === "running") scheduleRestoreJobPoll();
+  }, 2500);
+}
+
+function setupDataOperationSafety() {
+  const localJob = getLocalRestoreJob();
+  if (localJob) renderRestoreJob(localJob);
+
+  window.addEventListener("beforeunload", event => {
+    if (!dataOperationActive) return;
+    event.preventDefault();
+    event.returnValue = "Backup / Restore 正在进行，请勿关闭或刷新页面。";
+    return event.returnValue;
+  });
+
+  // Do not add any request to a normal startup.  Only a browser that already
+  // has a Restore Job marker performs the status check after reopen.
+  if (localJob) {
+    window.setTimeout(() => fetchRestoreJobStatus(), 500);
+  }
+}
+
+async function restoreSystemData(event) {
   const file = event.target.files?.[0];
   event.target.value = "";
   if (!file) return;
 
-  const reader = new FileReader();
+  let restored;
+  try {
+    setDataOperationRunning("Restore", "读取并验证 Backup 文件");
+    setDataToolButtonsBusy(true);
+    const text = String(await file.text()).replace(/^\uFEFF/, "").trim();
+    restored = normalizeRestoreBackup(JSON.parse(text));
+  } catch (error) {
+    console.error("Restore parse/validation failed", error);
+    dataOperationActive = false;
+    setDataToolButtonsBusy(false);
+    setDataOperationFinal("Restore", false, "Restore 失败", error.message || "文件格式不正确");
+    showDataToolsStatus(`Restore 失败：${error.message || "文件格式不正确"}`, true);
+    return;
+  }
 
-  reader.onload = () => {
-    let restored;
-    try {
-      // Accept UTF-8 JSON with or without BOM.
-      const text = String(reader.result || "").replace(/^\uFEFF/, "").trim();
-      restored = normalizeRestoreBackup(JSON.parse(text));
-    } catch (error) {
-      console.error("Restore parse/validation failed", error);
-      showDataToolsStatus(`Restore 失败：${error.message || "文件格式不正确"}`, true);
-      return;
-    }
+  const confirmed = confirm(
+    `Restore 会完整覆盖 Google Sheet 当前产品、库存和进口记录。\n\n` +
+    `Products：${restored.products.length}\nImports：${restored.imports.length}\nBatches：${restored.batches.length}\n\n` +
+    `Restore 进行中请勿关闭、刷新或离开页面；即使意外关闭，重新打开后仍可读取 Restore Job 状态。\n\n确定继续？`
+  );
+  if (!confirmed) {
+    dataOperationActive = false;
+    setDataToolButtonsBusy(false);
+    setDataOperationFinal("Restore", false, "Restore 已取消", "没有修改任何资料");
+    return;
+  }
 
-    const confirmed = confirm(
-      `Restore 会覆盖当前产品、库存和进口记录，并同步至 Google Sheet。\n\n` +
-      `Products：${restored.products.length}\nImports：${restored.imports.length}\nBatches：${restored.batches.length}\n\n确定继续？`
-    );
-    if (!confirmed) return;
+  if (typeof isCloudBootstrapComplete === "function" && !isCloudBootstrapComplete()) {
+    dataOperationActive = false;
+    setDataToolButtonsBusy(false);
+    setDataOperationFinal("Restore", false, "Restore 失败", "Google Sheet 首次同步尚未完成，请等待显示「已同步」后再 Restore");
+    return;
+  }
 
-    try {
-      applyRestoreSnapshot(restored);
-    } catch (error) {
-      console.error("Restore apply failed", error);
-      showDataToolsStatus(`Restore 失败：${error.message || "无法写入本机资料"}`, true);
-      return;
-    }
+  const config = getCloudConfig();
+  const jobId = createRestoreJobId();
+  const localJob = {
+    jobId,
+    type: "restore",
+    state: "running",
+    step: "上传 Restore 快照至 Google Sheet",
+    startedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    counts: { products: restored.products.length, imports: restored.imports.length, batches: restored.batches.length }
+  };
+  renderRestoreJob(localJob);
 
-    // 画面刷新错误不再误报为「文件格式不正确」。
-    [
-      "renderBatchSuggestions",
-      "renderBatchList",
-      "renderInventoryManagementList",
-      "renderProductList",
-      "renderDashboard",
-      "updatePasswordHintDisplays"
-    ].forEach(name => {
-      try {
-        if (typeof window[name] === "function") window[name]();
-      } catch (error) {
-        console.warn(`${name} refresh skipped after Restore`, error);
-      }
+  try {
+    const data = await callGoogleApi({
+      action: "restoreSnapshot",
+      clientVersion: APP_VERSION,
+      schemaVersion: CLOUD_SCHEMA_VERSION,
+      baseRevision: Number(config.revision) || 0,
+      bootstrapToken: String(config.bootstrapToken || ""),
+      bootstrapRevision: Number(config.bootstrapRevision) || 0,
+      updatedBy: "System V7.5 Stable",
+      jobId,
+      settings: restored.settings,
+      products: restored.products,
+      imports: restored.imports,
+      batches: restored.batches
     });
 
-    showDataToolsStatus(
-      `Restore 已读取：Products ${restored.products.length} / Imports ${restored.imports.length} / Batches ${restored.batches.length}，正在同步 Google Sheet`
-    );
-  };
+    if (data.job) renderRestoreJob(data.job);
 
-  reader.onerror = () => {
-    showDataToolsStatus("Restore 失败：无法读取 JSON 文件", true);
-  };
-
-  reader.readAsText(file, "utf-8");
+    // Update the browser only after the server confirms the full Restore.
+    // Normal cloud formulas/logic are untouched; this is a fresh canonical Pull.
+    await pullLatestSnapshot(true);
+    saveCloudQueue({
+      dirty: false,
+      changedAt: "",
+      deleted: { products: [], imports: [], batches: [] }
+    });
+    dataOperationActive = false;
+    setDataToolButtonsBusy(false);
+    showDataToolsStatus("Restore 成功：Google Sheet 与本机资料已更新");
+  } catch (error) {
+    console.error("Restore failed", error);
+    // The request may have reached Apps Script even if the browser lost the
+    // response. Read the persisted server job before declaring a final failure.
+    const job = await fetchRestoreJobStatus();
+    if (!job || job.state !== "running") {
+      dataOperationActive = false;
+      setDataToolButtonsBusy(false);
+    }
+    if (!job) {
+      setDataOperationFinal("Restore", false, "Restore 失败", error.message || "无法完成 Restore");
+    }
+    showDataToolsStatus(`Restore 状态：${job?.state === "running" ? "服务器仍在处理，请勿重复 Restore" : (job?.error || error.message || "失败")}`, true);
+  }
 }
 
 function showDataToolsStatus(message, isError = false) {
@@ -9917,10 +10112,11 @@ function showDataToolsStatus(message, isError = false) {
   status.textContent = message;
   status.classList.toggle("error-status", isError);
 
-  setTimeout(() => {
+  window.clearTimeout(status._clearTimer);
+  status._clearTimer = window.setTimeout(() => {
     status.textContent = "";
     status.classList.remove("error-status");
-  }, 2500);
+  }, 4500);
 }
 
 
