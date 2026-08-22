@@ -3682,3 +3682,101 @@ html, body {
 /* V7.8 compact note panel + metadata-only standalone notes */
 .product-stock-note-add-wrap{padding:10px 12px;border-top:1px solid var(--border);text-align:right}
 .product-stock-note-add-btn{border:1px solid #9bc9aa;background:#eef8f1;color:#176b3a;border-radius:10px;padding:8px 12px;font-weight:700;cursor:pointer}
+
+
+/* ================= V8.1 Sales -> Import 确认销售并扣库存 ================= */
+.sales-startup-overlay-v81{
+  position:fixed;
+  inset:0;
+  z-index:99999;
+  background:rgba(0,0,0,.48);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:16px;
+}
+.sales-startup-dialog-v81{
+  width:min(620px,100%);
+  max-height:min(82vh,760px);
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  background:#fffdf8;
+  border:2px solid #d79a16;
+  border-radius:18px;
+  box-shadow:0 18px 55px rgba(0,0,0,.28);
+}
+.sales-startup-head-v81{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  padding:18px 18px 12px;
+  border-bottom:1px solid #ead8aa;
+}
+.sales-startup-head-v81 strong{font-size:18px}
+.sales-startup-summary-v81{margin-top:5px;font-weight:700}
+.sales-startup-close-v81{
+  border:0;
+  background:transparent;
+  font-size:28px;
+  line-height:1;
+  cursor:pointer;
+}
+.sales-startup-body-v81{
+  overflow:auto;
+  padding:12px 16px;
+}
+.sales-startup-item-v81{
+  border:1px solid #e7d8b5;
+  border-radius:14px;
+  padding:14px;
+  margin-bottom:12px;
+  background:#fff;
+}
+.sales-startup-product-v81{
+  font-size:17px;
+  font-weight:800;
+  margin-bottom:6px;
+}
+.sales-startup-meta-v81{
+  font-size:13px;
+  color:#5d5d5d;
+  margin-bottom:8px;
+}
+.sales-startup-stock-v81{
+  margin-bottom:12px;
+  line-height:1.6;
+}
+.sales-startup-confirm-v81{
+  width:100%;
+  border:0;
+  border-radius:10px;
+  padding:12px 14px;
+  background:#146b3a;
+  color:#fff;
+  font-weight:800;
+  font-size:16px;
+  cursor:pointer;
+}
+.sales-startup-confirm-v81:disabled{opacity:.55;cursor:wait}
+.sales-startup-foot-v81{
+  border-top:1px solid #ead8aa;
+  padding:12px 16px 16px;
+  display:grid;
+  gap:10px;
+}
+.sales-startup-foot-v81 small{line-height:1.45;color:#666}
+.sales-startup-later-v81{
+  border:1px solid #aaa;
+  border-radius:10px;
+  padding:10px 14px;
+  background:#fff;
+  font-weight:700;
+  cursor:pointer;
+}
+.sales-startup-empty-v81{
+  padding:22px;
+  text-align:center;
+  font-weight:800;
+}
