@@ -30,6 +30,36 @@ let salesInventoryFeedLoadedV77 = false;
 let salesInventoryFeedBusyV77 = false;
 let salesInventoryRefreshTimerV77 = null;
 let preferredSalesInventoryKeyV77 = "";
+let preferredSalesInventoryTxnV85 = "";
+
+function getSalesInventoryDeepLinkTargetV85(){
+  const params=new URLSearchParams(window.location.search||"");
+  return {
+    transactionId:String(params.get("salesTxn")||"").trim(),
+    linkId:String(params.get("salesLink")||"").trim(),
+    type:String(params.get("salesType")||"").trim().toLowerCase(),
+    date:String(params.get("salesDate")||"").trim(),
+    location:String(params.get("salesLocation")||"").trim()
+  };
+}
+
+function salesInventoryAgeDaysV85(item){
+  const d=parseDateDDMMYYYY(String(item?.saleDate||""));
+  if(!d)return 0;
+  const today=new Date();
+  const a=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();
+  const b=new Date(today.getFullYear(),today.getMonth(),today.getDate()).getTime();
+  return Math.max(0,Math.floor((b-a)/86400000));
+}
+
+function isPreferredSalesInventoryItemV85(item,target){
+  if(!target)return false;
+  const saleId=String(item?.saleId||item?.transactionId||"").trim();
+  const linkId=String(item?.linkId||"").trim();
+  if(target.transactionId && saleId===target.transactionId)return true;
+  if(target.linkId && linkId===target.linkId)return true;
+  return false;
+}
 
 function normalizeSalesInventoryTextV77(value) {
   return String(value || "").trim().toLowerCase().replace(/\s+/g, "");
@@ -91,6 +121,10 @@ function recomputeSalesInventoryPendingV77() {
     })
     .filter(Boolean)
     .sort((a, b) => {
+      const target=getSalesInventoryDeepLinkTargetV85();
+      const ap=isPreferredSalesInventoryItemV85(a,target)?0:1;
+      const bp=isPreferredSalesInventoryItemV85(b,target)?0:1;
+      if(ap!==bp)return ap-bp;
       const da = parseDateDDMMYYYY(a.saleDate)?.getTime() || 0;
       const db = parseDateDDMMYYYY(b.saleDate)?.getTime() || 0;
       if (da !== db) return da - db;
@@ -160,7 +194,7 @@ function buildSalesInventoryMessageV77(item) {
 }
 
 function renderSalesInventoryReminderV77() {
-  // V8.4: no persistent/page-level Sales reminder UI.
+  // V8.5: no persistent/page-level Sales reminder UI.
   const panel = document.getElementById("salesInventoryReminderPanel");
   const list = document.getElementById("salesInventoryReminderList");
   if (panel) panel.hidden = true;
@@ -230,7 +264,7 @@ async function executeSalesInventoryDeductionV81(item) {
   }
 
   if (typeof commitSalesInventoryToCloudV83 !== "function") {
-    return { ok: false, message: "V8.4 云端库存确认模块未载入，请强制刷新网页后再试。" };
+    return { ok: false, message: "V8.5 云端库存确认模块未载入，请强制刷新网页后再试。" };
   }
 
   const previousProducts = getProducts();
@@ -266,14 +300,14 @@ async function executeSalesInventoryDeductionV81(item) {
     `库存：${formatNumber(currentStock)} → ${formatNumber(nextStock)}\n` +
     `记录类型：实际卖出\n` +
     `备注：${note}\n\n` +
-    `V8.4 会等 Google Sheet 真正保存成功后才显示完成。`
+    `V8.5 会等 Google Sheet 真正保存成功后才显示完成。`
   );
   if (!confirmed) return { ok: false, cancelled: true };
 
   const previousImports = getImports();
   const previousBatches = getBatches();
 
-  // V8.4 continues to reuse the existing FIFO + actual-sale accounting logic.
+  // V8.5 continues to reuse the existing FIFO + actual-sale accounting logic.
   // Calculation happens locally first, but NOTHING is committed locally until
   // Google Sheet confirms the transaction.
   const allocation = allocateProductRemainingFIFO(
@@ -339,7 +373,7 @@ async function executeSalesInventoryDeductionV81(item) {
       batches: changedBatches
     });
   } catch (error) {
-    // V8.4 hard safety: the browser stays at the ORIGINAL inventory when cloud
+    // V8.5 hard safety: the browser stays at the ORIGINAL inventory when cloud
     // commit fails. No fake 33→32 success, no Sales confirmation, no local queue.
     return {
       ok: false,
@@ -462,15 +496,19 @@ function renderStartupSalesInventoryReminderV81() {
     const source = getSalesSourceNameV77(item);
     const when = [String(item.saleDate || ""), formatSalesTimeV77(item.saleTime)].filter(Boolean).join(" ");
     const channel = String(item.type || "").toLowerCase() === "live" ? "Live" : "Fair";
+    const ageDays=salesInventoryAgeDaysV85(item);
+    const ageText=ageDays>0?` · 待处理 ${ageDays} 天`:"";
+    const target=getSalesInventoryDeepLinkTargetV85();
+    const preferred=isPreferredSalesInventoryItemV85(item,target);
 
     if (item.v82Processed) {
       return `
-        <div class="sales-startup-item-v81 processed-v82" data-sales-key="${escapeHTML(item.key)}">
+        <div class="sales-startup-item-v81 processed-v82${preferred?" preferred-v85":""}" data-sales-key="${escapeHTML(item.key)}">
           <button type="button"
             class="sales-startup-product-v81 copyable-v82"
             title="点击复制产品名称"
             onclick='copySalesStartupProductNameV82(${JSON.stringify(productName)}, this)'>${escapeHTML(productName)}</button>
-          <div class="sales-startup-meta-v81">Sales · ${escapeHTML(channel)} · ${escapeHTML(source)} · ${escapeHTML(when)}</div>
+          <div class="sales-startup-meta-v81">Sales · ${escapeHTML(channel)} · ${escapeHTML(source)} · ${escapeHTML(when)}${escapeHTML(ageText)}</div>
           <div class="sales-startup-stock-v81">
             销售：<strong>${formatNumber(item.v82Qty)} 棵</strong>　
             库存：<strong>${formatNumber(item.v82StockBefore)}</strong> → <strong>${formatNumber(item.v82StockAfter)}</strong>
@@ -486,12 +524,12 @@ function renderStartupSalesInventoryReminderV81() {
     const qty = Math.max(1, Math.trunc(Number(item.remainingQty) || 0));
     const after = Math.max(0, stock - qty);
     return `
-      <div class="sales-startup-item-v81" data-sales-key="${escapeHTML(item.key)}">
+      <div class="sales-startup-item-v81${preferred?" preferred-v85":""}" data-sales-key="${escapeHTML(item.key)}">
         <button type="button"
           class="sales-startup-product-v81 copyable-v82"
           title="点击复制产品名称"
           onclick='copySalesStartupProductNameV82(${JSON.stringify(productName)}, this)'>${escapeHTML(productName)}</button>
-        <div class="sales-startup-meta-v81">Sales · ${escapeHTML(channel)} · ${escapeHTML(source)} · ${escapeHTML(when)}</div>
+        <div class="sales-startup-meta-v81">Sales · ${escapeHTML(channel)} · ${escapeHTML(source)} · ${escapeHTML(when)}${escapeHTML(ageText)}</div>
         <div class="sales-startup-stock-v81">
           销售：<strong>${formatNumber(qty)} 棵</strong>　
           当前库存：<strong>${formatNumber(stock)}</strong> → <strong>${formatNumber(after)}</strong>
@@ -510,7 +548,7 @@ function showStartupSalesInventoryReminderV80() {
   recomputeSalesInventoryPendingV77();
   if (!salesInventoryPendingV77.length) return;
 
-  // V8.4: freeze the current reminder list for this open popup session.
+  // V8.5: freeze the current reminder list for this open popup session.
   // Processed rows stay visible and locked until the user closes the window.
   salesStartupSessionItemsV82 = salesInventoryPendingV77.map(item => ({ ...item, v82Processed: false }));
 
@@ -572,7 +610,7 @@ function showStartupSalesInventoryReminderV80() {
         return;
       }
 
-      // V8.4: do NOT remove the row after success.
+      // V8.5: do NOT remove the row after success.
       // Lock it permanently in this currently-open reminder window.
       sessionItem.v82Processed = true;
       sessionItem.v82Qty = result.qty;
@@ -602,6 +640,10 @@ function showStartupSalesInventoryReminderV80() {
 
   document.body.appendChild(overlay);
   renderStartupSalesInventoryReminderV81();
+  window.setTimeout(()=>{
+    const preferredRow=overlay.querySelector(".sales-startup-item-v81.preferred-v85");
+    if(preferredRow)preferredRow.scrollIntoView({block:"center",behavior:"smooth"});
+  },120);
 }
 
 function getPendingSalesForProductV77(product) {
@@ -610,7 +652,7 @@ function getPendingSalesForProductV77(product) {
 }
 
 function buildProductPendingSalesHtmlV77(product) {
-  // V8.4: Sales 库存提醒由首次打开 / 回到前台触发。
+  // V8.5: Sales 库存提醒由首次打开 / 回到前台触发。
   // 产品/进口修改页以及其他页面仍不显示嵌入式 Sales 待处理提示。
   return "";
 }
@@ -681,11 +723,11 @@ async function checkSalesInventoryOnResumeV84(reason = "resume") {
     if (document.getElementById("salesInventoryStartupOverlayV81")) return;
     if (!salesInventoryPendingV77.length) return;
 
-    // V8.4: every genuine resume/focus may remind again when pending inventory exists.
+    // V8.5: every genuine resume/focus may remind again when pending inventory exists.
     window.__salesStartupReminderShownV80 = false;
     showStartupSalesInventoryReminderV80();
   } catch (error) {
-    console.warn(`V8.4 Sales inventory ${reason} check failed`, error);
+    console.warn(`V8.5 Sales inventory ${reason} check failed`, error);
   } finally {
     salesInventoryResumeCheckBusyV84 = false;
   }
@@ -701,7 +743,7 @@ function scheduleSalesInventoryResumeCheckV84(reason = "resume") {
 }
 
 function setupSalesInventoryReminder() {
-  // V8.4:
+  // V8.5:
   // 1) first page open -> check and remind;
   // 2) iPhone switches away and returns -> check and remind again if still pending;
   // 3) desktop tab/app loses focus and returns -> same behaviour;
@@ -8689,7 +8731,7 @@ function chooseStockDecreaseType({ productName, currentStock, nextStock }) {
       overlay.remove();
       resolve(value);
     };
-    // V8.4: choosing the decrease type is not the final save confirmation.
+    // V8.5: choosing the decrease type is not the final save confirmation.
     // The user must be able to enter the remark before the one final confirmation.
     overlay.querySelector(".stock-decrease-sale").addEventListener("click", () => finish("sale"));
     overlay.querySelector(".stock-decrease-repair").addEventListener("click", () => finish("repair"));
@@ -8740,7 +8782,7 @@ async function editProductStockFromImportPage(productId) {
     return;
   }
 
-  // V8.4: do not confirm the quantity before choosing the action / entering the remark.
+  // V8.5: do not confirm the quantity before choosing the action / entering the remark.
   // There is one final confirmation after the remark is entered.
   let adjustmentType = "modify";
   let adjustmentReason = nextStock > currentStock ? "库存新增" : "库存修改";
@@ -10665,7 +10707,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "8.4",
+      version: "8.5",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11006,7 +11048,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V8.4 Stable",
+      updatedBy: "System V8.5 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
