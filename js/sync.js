@@ -276,21 +276,85 @@ function scheduleGoogleSync(delay = 25) {
   cloudSyncTimer = window.setTimeout(() => runCloudSync(), delay);
 }
 
-function scheduleCloudRetryAfterInventoryV82(delay = 2200) {
-  window.setTimeout(() => {
-    const status = document.getElementById("googleSyncStatus");
-    const queue = getCloudQueue();
-    if (
-      navigator.onLine &&
-      queue?.dirty &&
-      status?.classList?.contains("failed") &&
-      !cloudSyncBusy
-    ) {
-      runCloudSync();
+async function waitForCloudIdleV83(timeoutMs = 30000) {
+  const started = Date.now();
+  while (cloudSyncBusy) {
+    if (Date.now() - started > timeoutMs) {
+      throw new Error("云端同步仍在进行，超过安全等待时间。请稍后再试。");
     }
-  }, delay);
+    await new Promise(resolve => window.setTimeout(resolve, 100));
+  }
 }
-window.scheduleCloudRetryAfterInventoryV82 = scheduleCloudRetryAfterInventoryV82;
+
+async function flushCloudQueueStrictV83() {
+  if (!navigator.onLine) throw new Error("目前离线，库存没有扣除。");
+  if (!isCloudBootstrapComplete()) {
+    throw new Error("首次同步尚未完成，请等显示「已同步」后再确认销售库存。");
+  }
+
+  window.clearTimeout(cloudSyncTimer);
+  await waitForCloudIdleV83();
+
+  const queue = getCloudQueue();
+  if (!queue?.dirty) return getCloudConfig();
+
+  cloudSyncBusy = true;
+  setCloudState("syncing");
+  try {
+    await pushPendingSnapshot(queue);
+    if (getCloudQueue()?.dirty) {
+      throw new Error("仍有资料等待同步，已停止销售库存扣除。");
+    }
+    return getCloudConfig();
+  } catch (error) {
+    setCloudState("failed");
+    throw error;
+  } finally {
+    cloudSyncBusy = false;
+  }
+}
+
+async function commitSalesInventoryToCloudV83(payload) {
+  await flushCloudQueueStrictV83();
+  const config = getCloudConfig();
+  setCloudState("syncing");
+
+  try {
+    const data = await callGoogleApi({
+      action: "commitSalesInventoryV83",
+      clientVersion: APP_VERSION,
+      schemaVersion: CLOUD_SCHEMA_VERSION,
+      baseRevision: Number(config.revision) || 0,
+      bootstrapToken: String(config.bootstrapToken || ""),
+      bootstrapRevision: Number(config.bootstrapRevision) || 0,
+      updatedBy: "System V8.3 Stable",
+      ...payload
+    });
+
+    if (data.conflict || data.stockChanged) {
+      throw new Error(data.message || "Google Sheet 资料已改变，库存没有扣除。请同步后重试。");
+    }
+
+    config.revision = Number(data.revision) || Number(config.revision) || 0;
+    config.lastSyncAt = new Date().toISOString();
+    config.bootstrapToken = String(data.bootstrapToken || config.bootstrapToken || "");
+    config.bootstrapRevision = Number(data.revision) || Number(config.bootstrapRevision) || 0;
+    saveCloudConfig(config);
+    renderCloudMeta(config);
+    setCloudState("synced");
+    return data;
+  } catch (error) {
+    setCloudState("failed");
+    throw error;
+  }
+}
+window.commitSalesInventoryToCloudV83 = commitSalesInventoryToCloudV83;
+
+async function pullLatestAfterSalesCommitV83() {
+  await waitForCloudIdleV83();
+  return pullLatestSnapshot();
+}
+window.pullLatestAfterSalesCommitV83 = pullLatestAfterSalesCommitV83;
 
 async function runCloudSync() {
   if (!navigator.onLine) {
@@ -315,7 +379,7 @@ async function runCloudSync() {
       (snapshot.imports || []).length > 0 ||
       (snapshot.batches || []).length > 0;
 
-    // V8.2 hard bootstrap: this version's first successful sync is ALWAYS a full Pull.
+    // V8.3 hard bootstrap: this version's first successful sync is ALWAYS a full Pull.
     // Legacy V4.20/V4.25/V4.26 dirty flags are discarded before any write can happen.
     // No Push is allowed until the canonical Sheet has been pulled successfully.
     let remoteUpdated = false;
@@ -451,7 +515,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt)
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V8.2 Stable",
+    updatedBy: "System V8.3 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     updatedAt: String(updatedAt || new Date().toISOString())
@@ -493,7 +557,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V8.2 Stable",
+    updatedBy: "System V8.3 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,

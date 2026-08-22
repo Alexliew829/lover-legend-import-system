@@ -160,7 +160,7 @@ function buildSalesInventoryMessageV77(item) {
 }
 
 function renderSalesInventoryReminderV77() {
-  // V8.2: no persistent/page-level Sales reminder UI.
+  // V8.3: no persistent/page-level Sales reminder UI.
   const panel = document.getElementById("salesInventoryReminderPanel");
   const list = document.getElementById("salesInventoryReminderList");
   if (panel) panel.hidden = true;
@@ -229,7 +229,12 @@ async function executeSalesInventoryDeductionV81(item) {
     return { ok: false, message: "这项 Sales 库存已经处理或不再需要处理。" };
   }
 
-  const products = getProducts();
+  if (typeof commitSalesInventoryToCloudV83 !== "function") {
+    return { ok: false, message: "V8.3 云端库存确认模块未载入，请强制刷新网页后再试。" };
+  }
+
+  const previousProducts = getProducts();
+  const products = previousProducts.map(product => ({ ...product }));
   const productIndex = products.findIndex(
     product => String(product?.id || "") === String(currentPending.importProductId || "")
   );
@@ -260,14 +265,17 @@ async function executeSalesInventoryDeductionV81(item) {
     `销售数量：${formatNumber(qty)} 棵\n` +
     `库存：${formatNumber(currentStock)} → ${formatNumber(nextStock)}\n` +
     `记录类型：实际卖出\n` +
-    `备注：${note}`
+    `备注：${note}\n\n` +
+    `V8.3 会等 Google Sheet 真正保存成功后才显示完成。`
   );
   if (!confirmed) return { ok: false, cancelled: true };
 
   const previousImports = getImports();
   const previousBatches = getBatches();
 
-  // V8.2 hard rule: reuse the existing FIFO + "actual sale" accounting path.
+  // V8.3 continues to reuse the existing FIFO + actual-sale accounting logic.
+  // Calculation happens locally first, but NOTHING is committed locally until
+  // Google Sheet confirms the transaction.
   const allocation = allocateProductRemainingFIFO(
     product.id,
     product.name,
@@ -304,30 +312,62 @@ async function executeSalesInventoryDeductionV81(item) {
     salesLinks
   );
 
-  products[productIndex] = {
+  const nextProduct = {
     ...product,
     ...adjustmentData,
     stock: nextStock,
     inventoryArchived: nextStock > 0 ? false : product.inventoryArchived,
     updatedAt: allocation.changedAt || new Date().toISOString()
   };
+  products[productIndex] = nextProduct;
 
-  saveInventoryConsistencySnapshot(
-    getProducts(),
-    products,
-    previousImports,
-    allocation.nextImports,
-    previousBatches,
-    allocation.nextBatches
+  const changedImports = allocation.nextImports.filter((row, index) =>
+    JSON.stringify(row) !== JSON.stringify(previousImports[index])
+  );
+  const changedBatches = allocation.nextBatches.filter((row, index) =>
+    JSON.stringify(row) !== JSON.stringify(previousBatches[index])
   );
 
-  // V8.2: if the normal cloud push hits a transient failure, retry the queued
-  // snapshot once later. This NEVER repeats the inventory deduction.
-  if (typeof scheduleCloudRetryAfterInventoryV82 === "function") {
-    scheduleCloudRetryAfterInventoryV82();
+  let cloudResult;
+  try {
+    cloudResult = await commitSalesInventoryToCloudV83({
+      salesKey: key,
+      expectedStockBefore: currentStock,
+      expectedStockAfter: nextStock,
+      product: nextProduct,
+      imports: changedImports,
+      batches: changedBatches
+    });
+  } catch (error) {
+    // V8.3 hard safety: the browser stays at the ORIGINAL inventory when cloud
+    // commit fails. No fake 33→32 success, no Sales confirmation, no local queue.
+    return {
+      ok: false,
+      cloudFailed: true,
+      message:
+        `❌ 扣库存失败，Google Sheet 未确认保存。\n\n` +
+        `产品：${product.name}\n` +
+        `库存仍视为：${formatNumber(currentStock)}\n\n` +
+        `${String(error?.message || error || "云端保存失败")}\n\n` +
+        `请不要手动重复扣库存；同步正常后再按一次确认。`
+    };
   }
 
-  // Local source of truth is already safely written. Then try to mark the Sales link confirmed.
+  if (cloudResult?.alreadyProcessed) {
+    // The server had committed this salesKey before the response reached this
+    // browser. Pull the canonical data; this is idempotent and never deducts twice.
+    if (typeof pullLatestAfterSalesCommitV83 === "function") {
+      await pullLatestAfterSalesCommitV83();
+    }
+  } else {
+    // Only AFTER server confirmation do we mirror the committed canonical state
+    // into localStorage. Do not mark the generic full-snapshot queue dirty.
+    localStorage.setItem("importSystemProducts", JSON.stringify(products));
+    localStorage.setItem("importSystemImports", JSON.stringify(allocation.nextImports));
+    localStorage.setItem("importSystemBatches", JSON.stringify(allocation.nextBatches));
+  }
+
+  // Only after Import cloud commit succeeds do we mark the Sales link confirmed.
   let remoteConfirmed = true;
   let remoteError = "";
   try {
@@ -353,7 +393,8 @@ async function executeSalesInventoryDeductionV81(item) {
     nextStock,
     note,
     remoteConfirmed,
-    remoteError
+    remoteError,
+    alreadyProcessed: Boolean(cloudResult?.alreadyProcessed)
   };
 }
 
@@ -469,7 +510,7 @@ function showStartupSalesInventoryReminderV80() {
   recomputeSalesInventoryPendingV77();
   if (!salesInventoryPendingV77.length) return;
 
-  // V8.2: freeze the opening reminder list for this page session.
+  // V8.3: freeze the opening reminder list for this page session.
   // Processed rows stay visible and locked until the user closes the window.
   salesStartupSessionItemsV82 = salesInventoryPendingV77.map(item => ({ ...item, v82Processed: false }));
 
@@ -525,13 +566,13 @@ function showStartupSalesInventoryReminderV80() {
         return;
       }
       if (!result?.ok) {
-        alert(result?.message || "处理失败。");
+        alert(result?.message || "处理失败；Google Sheet 未确认保存，库存没有扣除。");
         button.disabled = false;
         button.textContent = originalText;
         return;
       }
 
-      // V8.2: do NOT remove the row after success.
+      // V8.3: do NOT remove the row after success.
       // Lock it permanently in this currently-open reminder window.
       sessionItem.v82Processed = true;
       sessionItem.v82Qty = result.qty;
@@ -569,7 +610,7 @@ function getPendingSalesForProductV77(product) {
 }
 
 function buildProductPendingSalesHtmlV77(product) {
-  // V8.2: Sales 库存提醒只在打开网页时弹出一次。
+  // V8.3: Sales 库存提醒只在打开网页时弹出一次。
   // 产品/进口修改页以及其他页面不再显示 Sales 待处理提示。
   return "";
 }
@@ -617,7 +658,7 @@ function describeSalesAllocationsV77(allocations) {
 }
 
 function setupSalesInventoryReminder() {
-  // V8.2: only remind once when the webpage is opened.
+  // V8.3: only remind once when the webpage is opened.
   // Feed refresh remains active in the background so actual-sale matching keeps working,
   // but no reminder is rendered on Home / Import / History / Settings pages.
   const panel = document.getElementById("salesInventoryReminderPanel");
@@ -8595,7 +8636,7 @@ function chooseStockDecreaseType({ productName, currentStock, nextStock }) {
       overlay.remove();
       resolve(value);
     };
-    // V8.2: choosing the decrease type is not the final save confirmation.
+    // V8.3: choosing the decrease type is not the final save confirmation.
     // The user must be able to enter the remark before the one final confirmation.
     overlay.querySelector(".stock-decrease-sale").addEventListener("click", () => finish("sale"));
     overlay.querySelector(".stock-decrease-repair").addEventListener("click", () => finish("repair"));
@@ -8646,7 +8687,7 @@ async function editProductStockFromImportPage(productId) {
     return;
   }
 
-  // V8.2: do not confirm the quantity before choosing the action / entering the remark.
+  // V8.3: do not confirm the quantity before choosing the action / entering the remark.
   // There is one final confirmation after the remark is entered.
   let adjustmentType = "modify";
   let adjustmentReason = nextStock > currentStock ? "库存新增" : "库存修改";
@@ -10571,7 +10612,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "8.2",
+      version: "8.3",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -10912,7 +10953,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V8.2 Stable",
+      updatedBy: "System V8.3 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
