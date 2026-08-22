@@ -1,4 +1,4 @@
-V8.3 Stable — Stock Change Remark Flow
+V8.4 Stable — Stock Change Remark Flow
 - 产品/进口 修改/编辑：修改库存后，先选择「实际卖出 / 库存修正」，再输入备注，最后一次确认保存。
 - 不再先确认数量、保存后才补备注；库存变动与该次备注在同一保存流程完成。
 - 备注可留空；Cancel 会取消整次库存修改。

@@ -3684,7 +3684,7 @@ html, body {
 .product-stock-note-add-btn{border:1px solid #9bc9aa;background:#eef8f1;color:#176b3a;border-radius:10px;padding:8px 12px;font-weight:700;cursor:pointer}
 
 
-/* ================= V8.3 Sales -> Import 确认销售并扣库存 ================= */
+/* ================= V8.4 Sales -> Import 确认销售并扣库存 ================= */
 .sales-startup-overlay-v81{
   position:fixed;
   inset:0;
@@ -3782,7 +3782,7 @@ html, body {
 }
 
 
-/* ================= V8.3 Sales reminder safety ================= */
+/* ================= V8.4 Sales reminder safety ================= */
 .sales-startup-product-v81.copyable-v82{
   display:block;
   width:100%;
@@ -3817,4 +3817,31 @@ html, body {
   font-size:12px;
   color:#3d6948;
   font-weight:700;
+}
+
+
+/* ================= V8.4 History product-name layout ================= */
+/* Desktop/tablet: product name + code stays on one line when horizontal space exists. */
+.product-history-adjustment-product.history-copy-product-inline{
+  flex:0 0 auto;
+  max-width:none;
+  white-space:nowrap;
+  overflow-wrap:normal;
+  word-break:normal;
+}
+
+/* Let the note take remaining/wrapped space instead of breaking a normal product name. */
+.product-history-adjustment-note{
+  min-width:0;
+}
+
+/* Mobile: width is genuinely limited, so wrapping is allowed. */
+@media(max-width:768px){
+  .product-history-adjustment-product.history-copy-product-inline{
+    flex:1 1 100%;
+    max-width:100%;
+    white-space:normal;
+    overflow-wrap:anywhere;
+    word-break:break-word;
+  }
 }

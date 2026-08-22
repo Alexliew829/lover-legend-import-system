@@ -160,7 +160,7 @@ function buildSalesInventoryMessageV77(item) {
 }
 
 function renderSalesInventoryReminderV77() {
-  // V8.3: no persistent/page-level Sales reminder UI.
+  // V8.4: no persistent/page-level Sales reminder UI.
   const panel = document.getElementById("salesInventoryReminderPanel");
   const list = document.getElementById("salesInventoryReminderList");
   if (panel) panel.hidden = true;
@@ -230,7 +230,7 @@ async function executeSalesInventoryDeductionV81(item) {
   }
 
   if (typeof commitSalesInventoryToCloudV83 !== "function") {
-    return { ok: false, message: "V8.3 云端库存确认模块未载入，请强制刷新网页后再试。" };
+    return { ok: false, message: "V8.4 云端库存确认模块未载入，请强制刷新网页后再试。" };
   }
 
   const previousProducts = getProducts();
@@ -266,14 +266,14 @@ async function executeSalesInventoryDeductionV81(item) {
     `库存：${formatNumber(currentStock)} → ${formatNumber(nextStock)}\n` +
     `记录类型：实际卖出\n` +
     `备注：${note}\n\n` +
-    `V8.3 会等 Google Sheet 真正保存成功后才显示完成。`
+    `V8.4 会等 Google Sheet 真正保存成功后才显示完成。`
   );
   if (!confirmed) return { ok: false, cancelled: true };
 
   const previousImports = getImports();
   const previousBatches = getBatches();
 
-  // V8.3 continues to reuse the existing FIFO + actual-sale accounting logic.
+  // V8.4 continues to reuse the existing FIFO + actual-sale accounting logic.
   // Calculation happens locally first, but NOTHING is committed locally until
   // Google Sheet confirms the transaction.
   const allocation = allocateProductRemainingFIFO(
@@ -339,7 +339,7 @@ async function executeSalesInventoryDeductionV81(item) {
       batches: changedBatches
     });
   } catch (error) {
-    // V8.3 hard safety: the browser stays at the ORIGINAL inventory when cloud
+    // V8.4 hard safety: the browser stays at the ORIGINAL inventory when cloud
     // commit fails. No fake 33→32 success, no Sales confirmation, no local queue.
     return {
       ok: false,
@@ -510,7 +510,7 @@ function showStartupSalesInventoryReminderV80() {
   recomputeSalesInventoryPendingV77();
   if (!salesInventoryPendingV77.length) return;
 
-  // V8.3: freeze the opening reminder list for this page session.
+  // V8.4: freeze the current reminder list for this open popup session.
   // Processed rows stay visible and locked until the user closes the window.
   salesStartupSessionItemsV82 = salesInventoryPendingV77.map(item => ({ ...item, v82Processed: false }));
 
@@ -572,7 +572,7 @@ function showStartupSalesInventoryReminderV80() {
         return;
       }
 
-      // V8.3: do NOT remove the row after success.
+      // V8.4: do NOT remove the row after success.
       // Lock it permanently in this currently-open reminder window.
       sessionItem.v82Processed = true;
       sessionItem.v82Qty = result.qty;
@@ -610,8 +610,8 @@ function getPendingSalesForProductV77(product) {
 }
 
 function buildProductPendingSalesHtmlV77(product) {
-  // V8.3: Sales 库存提醒只在打开网页时弹出一次。
-  // 产品/进口修改页以及其他页面不再显示 Sales 待处理提示。
+  // V8.4: Sales 库存提醒由首次打开 / 回到前台触发。
+  // 产品/进口修改页以及其他页面仍不显示嵌入式 Sales 待处理提示。
   return "";
 }
 
@@ -657,10 +657,56 @@ function describeSalesAllocationsV77(allocations) {
   }).join("\n");
 }
 
+let salesInventoryResumeTimerV84 = null;
+let salesInventoryLastResumeCheckV84 = 0;
+let salesInventoryResumeCheckBusyV84 = false;
+
+async function checkSalesInventoryOnResumeV84(reason = "resume") {
+  if (document.hidden || salesInventoryResumeCheckBusyV84) return;
+
+  const now = Date.now();
+  // Safari/Chrome may emit visibilitychange + focus + pageshow together.
+  // One actual return to the app/tab should cause only one Feed request/reminder.
+  if (now - salesInventoryLastResumeCheckV84 < 1200) return;
+  salesInventoryLastResumeCheckV84 = now;
+  salesInventoryResumeCheckBusyV84 = true;
+
+  try {
+    if (typeof cloudInitialSyncComplete !== "undefined" && !cloudInitialSyncComplete) return;
+
+    await refreshSalesInventoryFeedV77({ silent: true });
+    recomputeSalesInventoryPendingV77();
+
+    // If the reminder is already open, do not create a duplicate.
+    if (document.getElementById("salesInventoryStartupOverlayV81")) return;
+    if (!salesInventoryPendingV77.length) return;
+
+    // V8.4: every genuine resume/focus may remind again when pending inventory exists.
+    window.__salesStartupReminderShownV80 = false;
+    showStartupSalesInventoryReminderV80();
+  } catch (error) {
+    console.warn(`V8.4 Sales inventory ${reason} check failed`, error);
+  } finally {
+    salesInventoryResumeCheckBusyV84 = false;
+  }
+}
+
+function scheduleSalesInventoryResumeCheckV84(reason = "resume") {
+  if (document.hidden) return;
+  window.clearTimeout(salesInventoryResumeTimerV84);
+  salesInventoryResumeTimerV84 = window.setTimeout(
+    () => checkSalesInventoryOnResumeV84(reason),
+    650
+  );
+}
+
 function setupSalesInventoryReminder() {
-  // V8.3: only remind once when the webpage is opened.
-  // Feed refresh remains active in the background so actual-sale matching keeps working,
-  // but no reminder is rendered on Home / Import / History / Settings pages.
+  // V8.4:
+  // 1) first page open -> check and remind;
+  // 2) iPhone switches away and returns -> check and remind again if still pending;
+  // 3) desktop tab/app loses focus and returns -> same behaviour;
+  // 4) no pending Sales -> no popup;
+  // 5) processed links never reappear because Feed/Import status is the source of truth.
   const panel = document.getElementById("salesInventoryReminderPanel");
   if (panel) panel.hidden = true;
 
@@ -671,6 +717,7 @@ function setupSalesInventoryReminder() {
     }
 
     await refreshSalesInventoryFeedV77({ silent: true });
+    window.__salesStartupReminderShownV80 = false;
     showStartupSalesInventoryReminderV80();
 
     window.clearInterval(salesInventoryRefreshTimerV77);
@@ -682,9 +729,15 @@ function setupSalesInventoryReminder() {
   window.setTimeout(start, 1200);
 
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && salesInventoryFeedLoadedV77) {
-      refreshSalesInventoryFeedV77({ silent: true });
-    }
+    if (!document.hidden) scheduleSalesInventoryResumeCheckV84("visibilitychange");
+  });
+
+  window.addEventListener("focus", () => {
+    scheduleSalesInventoryResumeCheckV84("focus");
+  });
+
+  window.addEventListener("pageshow", () => {
+    scheduleSalesInventoryResumeCheckV84("pageshow");
   });
 }
 
@@ -8636,7 +8689,7 @@ function chooseStockDecreaseType({ productName, currentStock, nextStock }) {
       overlay.remove();
       resolve(value);
     };
-    // V8.3: choosing the decrease type is not the final save confirmation.
+    // V8.4: choosing the decrease type is not the final save confirmation.
     // The user must be able to enter the remark before the one final confirmation.
     overlay.querySelector(".stock-decrease-sale").addEventListener("click", () => finish("sale"));
     overlay.querySelector(".stock-decrease-repair").addEventListener("click", () => finish("repair"));
@@ -8687,7 +8740,7 @@ async function editProductStockFromImportPage(productId) {
     return;
   }
 
-  // V8.3: do not confirm the quantity before choosing the action / entering the remark.
+  // V8.4: do not confirm the quantity before choosing the action / entering the remark.
   // There is one final confirmation after the remark is entered.
   let adjustmentType = "modify";
   let adjustmentReason = nextStock > currentStock ? "库存新增" : "库存修改";
@@ -10612,7 +10665,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "8.3",
+      version: "8.4",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -10953,7 +11006,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V8.3 Stable",
+      updatedBy: "System V8.4 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
