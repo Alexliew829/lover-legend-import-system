@@ -3565,7 +3565,7 @@ html, body {
 .original-cost-table .original-cost-minimum-price-btn { display:inline-block; min-width:92px; text-align:right; }
 
 
-/* V7.5 Backup / Restore persistent job status */
+/* V7.6 Backup / Restore persistent job status */
 .data-operation-status {
   margin-top: 12px;
   padding: 12px 14px;
@@ -3595,4 +3595,86 @@ html, body {
   border-color: #e0b236;
   background: #fff5d2;
   color: #805900;
+}
+
+
+/* V7.6 Import/Edit bottom product search: stock-adjustment notes. */
+.product-stock-notes-panel {
+  grid-column: 1 / -1;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: #f7fbf8;
+  overflow: hidden;
+}
+.product-stock-notes-title {
+  padding: 10px 12px;
+  color: var(--green);
+  font-weight: 800;
+  cursor: pointer;
+  list-style: none;
+}
+.product-stock-notes-title::-webkit-details-marker { display: none; }
+.product-stock-notes-title span { font-weight: 700; opacity: .75; margin-left: 4px; }
+.product-stock-notes-list { border-top: 1px solid var(--border); }
+.product-stock-note-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 10px;
+  border-bottom: 1px dashed var(--border);
+}
+.product-stock-note-row:last-child { border-bottom: 0; }
+.product-stock-note-main { display: flex; gap: 7px; align-items: baseline; flex-wrap: wrap; }
+.product-stock-note-main small { color: var(--muted); }
+.product-stock-note-text { color: #333; word-break: break-word; }
+.product-stock-note-text.is-empty { color: var(--muted); }
+.product-stock-note-edit-btn {
+  border: 1px solid #9fc9ae;
+  border-radius: 9px;
+  background: #eef8f1;
+  color: var(--green);
+  font: inherit;
+  font-weight: 800;
+  padding: 7px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.product-stock-notes-empty { padding: 10px 12px; color: var(--muted); border-top: 1px solid var(--border); }
+.history-adjustment-note {
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px dashed rgba(0,0,0,.12);
+  color: #6a4c00;
+  word-break: break-word;
+}
+.product-history-adjustment-note {
+  flex-basis: 100%;
+  margin-top: 4px;
+  color: #6a4c00;
+  font-weight: 700;
+}
+@media (max-width: 700px) {
+  .product-stock-note-row { grid-template-columns: 1fr auto; }
+  .product-stock-note-main { grid-column: 1 / -1; }
+  .product-stock-note-text { min-width: 0; }
+}
+
+
+/* V7.7 Sales System inventory reminder (read-only feed; no impact on cloud sync). */
+.sales-inventory-reminder-panel{
+  margin:12px 0 16px;padding:12px 14px;border:1px solid #f0b34f;border-radius:12px;background:#fff8e8;color:#6c4700;
+}
+.sales-inventory-reminder-head{display:flex;gap:8px 14px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:8px}
+.sales-inventory-reminder-head strong{color:#a65300}
+.sales-inventory-reminder-list{display:grid;gap:8px}
+.sales-inventory-reminder-item{display:grid;grid-template-columns:1fr auto;gap:5px 10px;align-items:center;padding:9px 10px;border-radius:10px;background:#fff;border:1px solid #f3d08e}
+.sales-inventory-reminder-text{font-weight:700;line-height:1.45}
+.sales-inventory-reminder-progress{font-size:12px;color:#8a6500}
+.sales-inventory-go-btn{grid-column:2;grid-row:1 / span 2;border:0;border-radius:9px;padding:8px 11px;background:#d97706;color:#fff;font-weight:700;cursor:pointer}
+.product-pending-sales-warning{margin-top:8px;padding:8px 10px;border-radius:9px;background:#fff4d6;border:1px solid #efc36c;color:#8a5300;font-weight:700;line-height:1.4}
+.product-pending-sales-warning small{font-weight:600;color:#805f20}
+@media(max-width:700px){
+  .sales-inventory-reminder-item{grid-template-columns:1fr}
+  .sales-inventory-go-btn{grid-column:1;grid-row:auto;width:100%}
 }

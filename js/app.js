@@ -10,10 +10,270 @@ document.addEventListener("DOMContentLoaded", () => {
   setupGlobalMobilePullDownClear();
   registerServiceWorker();
   setupCloudSync();
+  setupSalesInventoryReminder();
   setupDataOperationSafety();
 });
 
 
+
+
+// ================= V7.7 Sales System -> Import Inventory Reminder =================
+// Read-only integration. Sales System never writes Import inventory automatically.
+// A reminder disappears only after this Import System records the matching quantity
+// as adjustmentType="sale" and stores the Sales link key in stockAdjustments.
+const SALES_INVENTORY_FEED_URL_V77 =
+  "https://script.google.com/macros/s/AKfycby1OwDIiVf5quXKiD9AG8s2ppM942sLFdJSfyePp--yZtDjYY8jBtkOYLwD9c3WiC_KNw/exec";
+const SALES_INVENTORY_REFRESH_MS_V77 = 60000;
+let salesInventoryFeedV77 = [];
+let salesInventoryPendingV77 = [];
+let salesInventoryFeedLoadedV77 = false;
+let salesInventoryFeedBusyV77 = false;
+let salesInventoryRefreshTimerV77 = null;
+let preferredSalesInventoryKeyV77 = "";
+
+function normalizeSalesInventoryTextV77(value) {
+  return String(value || "").trim().toLowerCase().replace(/\s+/g, "");
+}
+
+function getSalesInventoryItemKeyV77(item) {
+  return [
+    String(item?.linkId || "").trim(),
+    String(item?.productId || "").trim() || normalizeSalesInventoryTextV77(item?.productName)
+  ].join("|");
+}
+
+function findImportProductForSalesItemV77(item) {
+  const products = getProducts();
+  const productId = String(item?.productId || "").trim();
+  if (productId) {
+    const exact = products.find(product => String(product?.id || "").trim() === productId);
+    if (exact) return exact;
+  }
+  const targetName = normalizeSalesInventoryTextV77(item?.productName);
+  if (!targetName) return null;
+  return products.find(product => normalizeSalesInventoryTextV77(product?.name) === targetName) || null;
+}
+
+function getProcessedSalesInventoryQuantitiesV77() {
+  const processed = new Map();
+  getProducts().forEach(product => {
+    getProductStockAdjustments(product).forEach(adjustment => {
+      if (String(adjustment?.adjustmentType || "").toLowerCase() !== "sale") return;
+      const links = Array.isArray(adjustment?.salesLinks) ? adjustment.salesLinks : [];
+      links.forEach(link => {
+        const key = String(link?.key || "").trim() || [
+          String(link?.linkId || "").trim(),
+          String(link?.productId || "").trim() || normalizeSalesInventoryTextV77(link?.productName)
+        ].join("|");
+        const qty = Math.max(0, Math.trunc(Number(link?.processedQty) || 0));
+        if (!key || !qty) return;
+        processed.set(key, (processed.get(key) || 0) + qty);
+      });
+    });
+  });
+  return processed;
+}
+
+function recomputeSalesInventoryPendingV77() {
+  const processed = getProcessedSalesInventoryQuantitiesV77();
+  salesInventoryPendingV77 = salesInventoryFeedV77
+    .filter(item => !["deleted", "cancelled"].includes(String(item?.status || "active").toLowerCase()))
+    .filter(item => String(item?.importSyncStatus || "").toUpperCase() !== "INVENTORY_CONFIRMED")
+    .map(item => {
+      const product = findImportProductForSalesItemV77(item);
+      if (!product) return null;
+      const key = getSalesInventoryItemKeyV77(item);
+      const soldQty = Math.max(0, Math.trunc(Number(item?.quantity) || 0));
+      const processedQty = Math.max(0, Math.trunc(Number(processed.get(key)) || 0));
+      const remainingQty = Math.max(0, soldQty - processedQty);
+      if (!remainingQty) return null;
+      return { ...item, key, importProductId: String(product.id || ""), importProductName: String(product.name || ""), processedQty, remainingQty };
+    })
+    .filter(Boolean)
+    .sort((a, b) => {
+      const da = parseDateDDMMYYYY(a.saleDate)?.getTime() || 0;
+      const db = parseDateDDMMYYYY(b.saleDate)?.getTime() || 0;
+      if (da !== db) return da - db;
+      return String(a.saleTime || "").localeCompare(String(b.saleTime || ""));
+    });
+  return salesInventoryPendingV77;
+}
+
+function callSalesInventoryFeedV77() {
+  return new Promise((resolve, reject) => {
+    const callbackName = `loverLegendSalesFeedV77_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const script = document.createElement("script");
+    const cleanup = () => {
+      window.clearTimeout(timeoutId);
+      try { delete window[callbackName]; } catch (_) { window[callbackName] = undefined; }
+      script.remove();
+    };
+    window[callbackName] = data => {
+      cleanup();
+      if (!data?.ok) reject(new Error(data?.error || "Sales Inventory Feed 读取失败"));
+      else resolve(data);
+    };
+    const params = new URLSearchParams({ action: "getSalesInventoryFeed", callback: callbackName, _: String(Date.now()) });
+    script.src = `${SALES_INVENTORY_FEED_URL_V77}?${params.toString()}`;
+    script.async = true;
+    script.onerror = () => { cleanup(); reject(new Error("无法连接 Sales System")); };
+    const timeoutId = window.setTimeout(() => { cleanup(); reject(new Error("Sales System 提醒读取超时")); }, 12000);
+    document.head.appendChild(script);
+  });
+}
+
+async function refreshSalesInventoryFeedV77({ silent = true } = {}) {
+  if (salesInventoryFeedBusyV77 || !navigator.onLine) return salesInventoryPendingV77;
+  salesInventoryFeedBusyV77 = true;
+  try {
+    const data = await callSalesInventoryFeedV77();
+    salesInventoryFeedV77 = Array.isArray(data?.items) ? data.items : [];
+    salesInventoryFeedLoadedV77 = true;
+    recomputeSalesInventoryPendingV77();
+    renderSalesInventoryReminderV77();
+    if (document.getElementById("batchProductStockSearch")?.value?.trim()) renderBatchProductStockResults();
+  } catch (error) {
+    if (!silent) alert(String(error?.message || error));
+  } finally {
+    salesInventoryFeedBusyV77 = false;
+  }
+  return salesInventoryPendingV77;
+}
+
+function formatSalesTimeV77(value) {
+  const text = String(value || "").trim();
+  const match = text.match(/^(\d{1,2}):(\d{2})/);
+  return match ? `${match[1].padStart(2, "0")}:${match[2]}` : text;
+}
+
+function getSalesSourceNameV77(item) {
+  return String(item?.type || "").toLowerCase() === "live"
+    ? String(item?.host || item?.location || "Live").trim()
+    : String(item?.fairLocation || item?.location || "Fair").trim();
+}
+
+function buildSalesInventoryMessageV77(item) {
+  const source = getSalesSourceNameV77(item);
+  const time = formatSalesTimeV77(item?.saleTime);
+  const when = [String(item?.saleDate || "").trim(), time].filter(Boolean).join(" ");
+  return `${source} 于${when}卖出 ${item.importProductName || item.productName} -${formatNumber(item.remainingQty)}，请修改库存数量`;
+}
+
+function renderSalesInventoryReminderV77() {
+  const panel = document.getElementById("salesInventoryReminderPanel");
+  const list = document.getElementById("salesInventoryReminderList");
+  const summary = document.getElementById("salesInventoryReminderSummary");
+  if (!panel || !list || !summary) return;
+  recomputeSalesInventoryPendingV77();
+  if (!salesInventoryPendingV77.length) {
+    panel.hidden = true;
+    list.innerHTML = "";
+    return;
+  }
+  const totalQty = salesInventoryPendingV77.reduce((sum, item) => sum + item.remainingQty, 0);
+  summary.textContent = `Sales System 有 ${salesInventoryPendingV77.length} 笔 / ${formatNumber(totalQty)} 棵销售库存待处理`;
+  list.innerHTML = salesInventoryPendingV77.map(item => `
+    <div class="sales-inventory-reminder-item">
+      <div class="sales-inventory-reminder-text">⚠️ ${escapeHTML(buildSalesInventoryMessageV77(item))}</div>
+      ${item.processedQty > 0 ? `<div class="sales-inventory-reminder-progress">已处理 ${formatNumber(item.processedQty)} / 销售 ${formatNumber(item.quantity)}</div>` : ""}
+      <button type="button" class="sales-inventory-go-btn" data-sales-key="${escapeHTML(item.key)}">去修改库存</button>
+    </div>`).join("");
+}
+
+function getPendingSalesForProductV77(product) {
+  recomputeSalesInventoryPendingV77();
+  return salesInventoryPendingV77.filter(item => String(item.importProductId || "") === String(product?.id || ""));
+}
+
+function buildProductPendingSalesHtmlV77(product) {
+  const pending = getPendingSalesForProductV77(product);
+  if (!pending.length) return "";
+  const qty = pending.reduce((sum, item) => sum + item.remainingQty, 0);
+  return `<div class="product-pending-sales-warning">⚠️ Sales 待处理：${formatNumber(pending.length)} 笔 / ${formatNumber(qty)} 棵<br><small>${escapeHTML(buildSalesInventoryMessageV77(pending[0]))}</small></div>`;
+}
+
+function allocatePendingSalesForProductV77(product, quantity) {
+  let left = Math.max(0, Math.trunc(Number(quantity) || 0));
+  if (!left) return [];
+  const pending = getPendingSalesForProductV77(product).slice();
+  pending.sort((a, b) => {
+    const ap = a.key === preferredSalesInventoryKeyV77 ? 0 : 1;
+    const bp = b.key === preferredSalesInventoryKeyV77 ? 0 : 1;
+    if (ap !== bp) return ap - bp;
+    const da = parseDateDDMMYYYY(a.saleDate)?.getTime() || 0;
+    const db = parseDateDDMMYYYY(b.saleDate)?.getTime() || 0;
+    return da - db || String(a.saleTime || "").localeCompare(String(b.saleTime || ""));
+  });
+  const allocations = [];
+  pending.forEach(item => {
+    if (!left) return;
+    const used = Math.min(left, item.remainingQty);
+    if (!used) return;
+    allocations.push({
+      key: item.key,
+      linkId: String(item.linkId || ""),
+      saleId: String(item.saleId || ""),
+      productId: String(item.productId || ""),
+      productName: String(item.productName || item.importProductName || ""),
+      processedQty: used,
+      saleDate: String(item.saleDate || ""),
+      saleTime: String(item.saleTime || ""),
+      type: String(item.type || ""),
+      location: String(item.location || ""),
+      source: getSalesSourceNameV77(item)
+    });
+    left -= used;
+  });
+  return allocations;
+}
+
+function describeSalesAllocationsV77(allocations) {
+  return (allocations || []).map(link => {
+    const when = [link.saleDate, formatSalesTimeV77(link.saleTime)].filter(Boolean).join(" ");
+    return `• ${link.source || link.location || "Sales"} · ${when} · ${link.productName} ×${formatNumber(link.processedQty)}`;
+  }).join("\n");
+}
+
+function setupSalesInventoryReminder() {
+  const panel = document.getElementById("salesInventoryReminderPanel");
+  if (panel && panel.dataset.bound !== "1") {
+    panel.dataset.bound = "1";
+    panel.addEventListener("click", event => {
+      const button = event.target.closest(".sales-inventory-go-btn");
+      if (!button) return;
+      const key = String(button.dataset.salesKey || "");
+      const item = salesInventoryPendingV77.find(row => row.key === key);
+      if (!item) return;
+      preferredSalesInventoryKeyV77 = key;
+      const nav = document.querySelector('.nav-btn[data-page="importPage"]');
+      nav?.click();
+      window.setTimeout(() => {
+        const search = document.getElementById("batchProductStockSearch");
+        if (!search) return;
+        search.value = item.importProductName || item.productName || "";
+        renderBatchProductStockResults();
+        search.focus();
+        document.getElementById("batchProductStockResults")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 80);
+    });
+  }
+
+  const start = () => {
+    if (typeof cloudInitialSyncComplete !== "undefined" && !cloudInitialSyncComplete) {
+      window.setTimeout(start, 1000);
+      return;
+    }
+    refreshSalesInventoryFeedV77({ silent: true });
+    window.clearInterval(salesInventoryRefreshTimerV77);
+    salesInventoryRefreshTimerV77 = window.setInterval(() => {
+      if (!document.hidden) refreshSalesInventoryFeedV77({ silent: true });
+    }, SALES_INVENTORY_REFRESH_MS_V77);
+  };
+  window.setTimeout(start, 2500);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && salesInventoryFeedLoadedV77) refreshSalesInventoryFeedV77({ silent: true });
+  });
+}
 
 const DEFAULT_ACCESS_PASSWORD_HASH =
   "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92";
@@ -4046,8 +4306,9 @@ function buildDailyStockAdjustmentHtml(adjustments) {
 
   return adjustments.map(adjustment => {
     const delta = Math.trunc(Number(adjustment.delta) || 0);
-    const action = delta < 0 ? "卖出" : "修改";
+    const action = getHistoryAdjustmentLabel(adjustment);
     const deltaText = delta > 0 ? `+${delta}` : String(delta);
+    const note = String(adjustment?.note || adjustment?.remark || "").trim();
 
     return `
       <article class="history-adjustment-card ${delta < 0 ? "out" : "in"}">
@@ -4080,6 +4341,7 @@ function buildDailyStockAdjustmentHtml(adjustments) {
               : ""
           }
         </div>
+        ${note ? `<div class="history-adjustment-note"><strong>备注：</strong>${escapeHTML(note)}</div>` : ""}
       </article>
     `;
   }).join("");
@@ -4856,7 +5118,7 @@ function renderCompactProductHistoryByRange(
     return false;
   }
 
-  // V7.5：日期范围存在时，上方产品标签只显示该期间真正发生过
+  // V7.6：日期范围存在时，上方产品标签只显示该期间真正发生过
   // 「进口 / 实际卖出 / 库存修改」的产品。累计进口与当前库存仍然
   // 使用这些相关产品的全部历史批次计算，不把日期范围误当成库存范围。
   const historyProductKey = item => {
@@ -5405,6 +5667,7 @@ function renderImportHistory() {
                 : formatNumber(delta);
 
               const actionLabel = getHistoryAdjustmentLabel(adjustment);
+              const note = String(adjustment?.note || adjustment?.remark || "").trim();
 
               return `
                 <div class="product-history-adjustment ${delta >= 0 ? "increase" : "decrease"}">
@@ -5426,6 +5689,7 @@ function renderImportHistory() {
                   )}</button>
                   <span class="product-history-adjustment-action">${actionLabel}</span>
                   <strong class="product-history-adjustment-quantity">${signedDelta}</strong>
+                  ${note ? `<span class="product-history-adjustment-note">备注：${escapeHTML(note)}</span>` : ""}
                 </div>
               `;
             }).join("")}
@@ -7159,11 +7423,131 @@ function renderBatchProductStockResults() {
         aria-label="长按修改平均成本" title="长按修改平均成本">
         平均成本：<strong>${formatMoney(Number(product.averageCost) || 0, "RM ")}</strong>
       </button>
+
+      ${buildProductPendingSalesHtmlV77(product)}
+      ${buildProductAdjustmentNotesPanel(product)}
     </div>
   `).join("");
 
   bindProductStockNameEdit();
   bindProductStockLongPress();
+  bindProductAdjustmentNoteEdit();
+}
+
+
+function buildProductAdjustmentNotesPanel(product) {
+  const adjustments = getProductStockAdjustments(product)
+    .slice()
+    .sort((a, b) => String(b?.createdAt || "").localeCompare(String(a?.createdAt || "")));
+
+  if (!adjustments.length) {
+    return `<div class="product-stock-notes-panel"><div class="product-stock-notes-title">备注记录</div><div class="product-stock-notes-empty">暂无库存变动记录</div></div>`;
+  }
+
+  const groups = [];
+  const byKey = new Map();
+  adjustments.forEach(adjustment => {
+    const key = String(adjustment?.createdAt || adjustment?.id || "").trim();
+    let group = byKey.get(key);
+    if (!group) {
+      group = { key, items: [] };
+      byKey.set(key, group);
+      groups.push(group);
+    }
+    group.items.push(adjustment);
+  });
+
+  const rows = groups.map(group => {
+    const first = group.items[0] || {};
+    const totalDelta = group.items.reduce((sum, item) => sum + Math.trunc(Number(item?.delta) || 0), 0);
+    const deltaText = totalDelta > 0 ? `+${formatNumber(totalDelta)}` : formatNumber(totalDelta);
+    const note = String(group.items.find(item => String(item?.note || item?.remark || "").trim())?.note || group.items.find(item => String(item?.note || item?.remark || "").trim())?.remark || "").trim();
+    const importNumbers = [...new Set(group.items.map(item => String(item?.importNumber || "").trim()).filter(Boolean))];
+    return `
+      <div class="product-stock-note-row">
+        <div class="product-stock-note-main">
+          <strong>${escapeHTML(first?.date || "-")}</strong>
+          <span>${escapeHTML(getHistoryAdjustmentLabel(first))} ${escapeHTML(deltaText)}</span>
+          ${importNumbers.length ? `<small>进口编号 ${escapeHTML(importNumbers.join(" / "))}</small>` : ""}
+        </div>
+        <div class="product-stock-note-text ${note ? "" : "is-empty"}">${note ? escapeHTML(note) : "未填写备注"}</div>
+        <button type="button"
+                class="product-stock-note-edit-btn"
+                data-product-id="${escapeHTML(product?.id || "")}"
+                data-adjustment-id="${escapeHTML(first?.id || "")}">
+          修改备注
+        </button>
+      </div>`;
+  }).join("");
+
+  return `
+    <details class="product-stock-notes-panel">
+      <summary class="product-stock-notes-title">备注记录 <span>${formatNumber(groups.length)} 笔</span></summary>
+      <div class="product-stock-notes-list">${rows}</div>
+    </details>`;
+}
+
+function editProductAdjustmentNote(productId, adjustmentId) {
+  const id = String(productId || "").trim();
+  const adjId = String(adjustmentId || "").trim();
+  const products = getProducts();
+  const productIndex = products.findIndex(item => String(item?.id || "") === id);
+  if (productIndex < 0) { alert("找不到这个产品。"); return; }
+
+  const product = products[productIndex];
+  const adjustments = getProductStockAdjustments(product);
+  const adjustmentIndex = adjustments.findIndex(item => String(item?.id || "") === adjId);
+  if (adjustmentIndex < 0) { alert("找不到这笔库存记录。"); return; }
+
+  const adjustment = adjustments[adjustmentIndex];
+  const currentNote = String(adjustment?.note || adjustment?.remark || "").trim();
+  const entered = window.prompt(
+    `修改备注（只修改文字，不会改变库存）\n\n产品：${product.name}\n日期：${adjustment.date || "-"}\n类型：${getHistoryAdjustmentLabel(adjustment)} ${Math.trunc(Number(adjustment.delta) || 0)}\n\n请输入备注；留空可清除备注。`,
+    currentNote
+  );
+  if (entered === null) return;
+  const nextNote = String(entered || "").trim();
+  if (nextNote === currentNote) {
+    const status = document.getElementById("batchProductStockStatus");
+    if (status) status.textContent = "备注没有改变";
+    return;
+  }
+
+  if (!window.confirm(`确认只修改这笔备注？\n\n${currentNote || "（空白）"}\n→ ${nextNote || "（空白）"}\n\n不会改变当前库存、Imports、Batches、FIFO、卖出数量、卖出成本或平均成本。`)) return;
+
+  const eventCreatedAt = String(adjustment?.createdAt || "").trim();
+  const now = new Date().toISOString();
+  const nextAdjustments = adjustments.map((item, index) => {
+    const sameEvent = eventCreatedAt
+      ? String(item?.createdAt || "").trim() === eventCreatedAt
+      : index === adjustmentIndex;
+    return sameEvent ? { ...item, note: nextNote, updatedAt: now } : item;
+  });
+  const nextProducts = products.map((item, index) => index === productIndex
+    ? { ...item, stockAdjustments: nextAdjustments, stockAdjustmentsJson: JSON.stringify(nextAdjustments), updatedAt: new Date().toISOString() }
+    : item
+  );
+
+  saveProducts(nextProducts);
+  renderBatchProductStockResults();
+  renderInventoryManagementList();
+  renderDashboard();
+  renderImportHistory();
+  const status = document.getElementById("batchProductStockStatus");
+  if (status) status.textContent = `已更新备注：${product.name}（库存数量未改变）`;
+}
+
+function bindProductAdjustmentNoteEdit() {
+  const output = document.getElementById("batchProductStockResults");
+  if (!output || output.dataset.noteEditBound === "1") return;
+  output.dataset.noteEditBound = "1";
+  output.addEventListener("click", event => {
+    const button = event.target.closest(".product-stock-note-edit-btn");
+    if (!button) return;
+    event.preventDefault();
+    event.stopPropagation();
+    editProductAdjustmentNote(button.dataset.productId, button.dataset.adjustmentId);
+  });
 }
 
 function bindProductStockNameEdit() {
@@ -7474,7 +7858,7 @@ function getProductStockAdjustments(product) {
   }
 }
 
-function appendProductStockAdjustments(product, changes, changedAt, productStockBefore = null, productStockAfter = null) {
+function appendProductStockAdjustments(product, changes, changedAt, productStockBefore = null, productStockAfter = null, salesLinks = []) {
   const existing = getProductStockAdjustments(product);
   const timestamp = changedAt || new Date().toISOString();
   const date = formatDateDDMMYYYY(new Date(timestamp));
@@ -7487,7 +7871,7 @@ function appendProductStockAdjustments(product, changes, changedAt, productStock
 
   const additions = (changes || [])
     .filter(change => Number(change?.delta) !== 0)
-    .map(change => ({
+    .map((change, changeIndex) => ({
       id:
         `ADJ${Date.now()}${Math.random().toString(36).slice(2, 7)}`,
       date,
@@ -7502,6 +7886,12 @@ function appendProductStockAdjustments(product, changes, changedAt, productStock
       productStockAfter: normalizedProductStockAfter,
       adjustmentType: String(change.adjustmentType || "modify").trim().toLowerCase(),
       reason: String(change.reason || "").trim(),
+      note: String(change.note || change.remark || "").trim(),
+      // V7.7: link Sales System sale quantities only to the first FIFO adjustment row
+      // of this inventory event, preventing double counting when one sale spans batches.
+      salesLinks: changeIndex === 0 && Array.isArray(salesLinks)
+        ? salesLinks.map(link => ({ ...link }))
+        : [],
       soldUnitCost: String(change.adjustmentType || "").trim().toLowerCase() === "sale"
         ? Math.max(0, Number(change.soldUnitCost) || 0)
         : 0
@@ -7515,7 +7905,7 @@ function appendProductStockAdjustments(product, changes, changedAt, productStock
   };
 }
 
-function allocateProductRemainingFIFO(productId, productName, targetStock, adjustmentType = "modify", adjustmentReason = "") {
+function allocateProductRemainingFIFO(productId, productName, targetStock, adjustmentType = "modify", adjustmentReason = "", adjustmentNote = "") {
   const normalizedProductId = String(productId || "").trim();
   const normalizedProductName =
     String(productName || "").trim().toLowerCase();
@@ -7664,6 +8054,7 @@ function allocateProductRemainingFIFO(productId, productName, targetStock, adjus
       delta: 0,
       adjustmentType,
       reason: adjustmentReason,
+      note: String(adjustmentNote || "").trim(),
       soldUnitCost: 0
     };
 
@@ -7855,7 +8246,7 @@ async function editProductStockFromImportPage(productId) {
   if (!confirmed) return;
 
   let adjustmentType = "modify";
-  let adjustmentReason = "库存修改";
+  let adjustmentReason = nextStock > currentStock ? "库存新增" : "库存修改";
 
   if (nextStock < currentStock) {
     const classification = await chooseStockDecreaseType({
@@ -7868,6 +8259,38 @@ async function editProductStockFromImportPage(productId) {
     adjustmentReason = classification === "sale" ? "实际卖出" : "库存修正";
   }
 
+  let matchedSalesLinksV77 = [];
+  if (adjustmentType === "sale") {
+    if (!salesInventoryFeedLoadedV77) {
+      await refreshSalesInventoryFeedV77({ silent: true });
+    }
+    if (!salesInventoryFeedLoadedV77) {
+      const continueWithoutLinkV77 = window.confirm(
+        "目前无法读取 Sales System 待处理销售。\n\n继续保存『实际卖出』不会影响库存，但这次记录暂时无法自动核销 Sales 提醒。\n\n是否继续？"
+      );
+      if (!continueWithoutLinkV77) return;
+    }
+    const decreaseQtyV77 = Math.max(0, currentStock - nextStock);
+    matchedSalesLinksV77 = allocatePendingSalesForProductV77(product, decreaseQtyV77);
+    if (matchedSalesLinksV77.length) {
+      const matchedQtyV77 = matchedSalesLinksV77.reduce((sum, link) => sum + Math.max(0, Number(link.processedQty) || 0), 0);
+      const extraTextV77 = matchedQtyV77 < decreaseQtyV77
+        ? `\n\n其中 ${formatNumber(matchedQtyV77)} 棵会核销 Sales System 提醒；另外 ${formatNumber(decreaseQtyV77 - matchedQtyV77)} 棵没有对应 Sales 记录。`
+        : "";
+      const salesConfirmedV77 = window.confirm(
+        `检测到 Sales System 待处理销售：\n\n${describeSalesAllocationsV77(matchedSalesLinksV77)}${extraTextV77}\n\n确认把这次「实际卖出」与以上 Sales 记录对应？`
+      );
+      if (!salesConfirmedV77) return;
+    }
+  }
+
+  const noteEntered = window.prompt(
+    `备注（可选）\n\n产品：${product.name}\n类型：${adjustmentReason}\n库存：${formatNumber(currentStock)} → ${formatNumber(nextStock)}\n\n可输入：直播卖出、门市、Fair、送礼物给ABC 等。\n留空后按 OK = 不填写备注；Cancel = 取消本次库存修改。`,
+    ""
+  );
+  if (noteEntered === null) return;
+  const adjustmentNote = String(noteEntered || "").trim();
+
   const previousImports = getImports();
   const previousBatches = getBatches();
   const allocation = allocateProductRemainingFIFO(
@@ -7875,7 +8298,8 @@ async function editProductStockFromImportPage(productId) {
     product.name,
     nextStock,
     adjustmentType,
-    adjustmentReason
+    adjustmentReason,
+    adjustmentNote
   );
 
   if (!allocation.ok) {
@@ -7888,7 +8312,8 @@ async function editProductStockFromImportPage(productId) {
     allocation.changes,
     allocation.changedAt,
     currentStock,
-    nextStock
+    nextStock,
+    matchedSalesLinksV77
   );
 
   products[productIndex] = {
@@ -7912,6 +8337,8 @@ async function editProductStockFromImportPage(productId) {
   renderInventoryManagementList();
   renderDashboard();
   renderBatchList();
+  recomputeSalesInventoryPendingV77();
+  renderSalesInventoryReminderV77();
 
   const status = document.getElementById("batchProductStockStatus");
   if (status) {
@@ -9727,7 +10154,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "7.5",
+      version: "7.7",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -10068,7 +10495,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V7.5 Stable",
+      updatedBy: "System V7.7 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,

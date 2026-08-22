@@ -1,89 +1,11 @@
-V7.5 Stable
-- Backup / Restore 新增明确的进行中、成功、失败状态。
-- Backup / Restore 进行中关闭、刷新或离开页面时触发浏览器警告。
-- Restore 改为服务器端完整 Job：持久化 Job ID、开始时间、当前步骤、成功/失败、完成时间和失败原因。
-- 页面重新打开后会读取上一次 Restore Job 状态并继续显示/轮询。
-- Restore 使用精确快照覆盖 Products / Imports / Batches / Settings；不改任何库存、成本、FIFO、History 或计算公式。
-- Restore Job 状态检查延后执行，不阻塞正常启动同步。
+V7.7 Stable — Sales Inventory Pending Reminder
 
-V7.5 Stable — History Date-Range Product Filter
-
-- 历史查询选择日期范围后，产品标签只显示该期间真正发生过进口、卖出或库存修改的产品。
-- 例如筛选「黄杨」+ 16-08-2026 至 20-08-2026，不再显示期间完全没有进出/修改的全部黄杨。
-- 日期清空后，恢复原本的全历史产品搜索行为。
-- 只修改 History Search 的候选产品显示筛选；不改变库存、FIFO、Imports/Batches、卖出成本、平均成本、最低售价或任何计算公式。
-- 更新所有运行版本号为 V7.5 Stable。
-
-V7.3 Stable — History Total Stock Before / After
-
-- History 的「修改前 / 修改后」统一显示产品总库存，不再显示单一进口编号的批次剩余数量。
-- V7.3 新记录额外保存 productStockBefore / productStockAfter，仅用于 History 显示。
-- V7.2 及之前旧记录会按产品当前库存与历史 delta 重建总库存前后值，不改写旧数据。
-- FIFO、进口编号、Imports remainingQuantity、库存、卖出成本、平均成本、最低售价及所有成本公式完全不变。
-- 更新运行版本号为 V7.3 Stable。
-
-V7.2 Stable — Latest Import = Arrival Date
-- 全系统「最近进口 / 最后进口」统一以抵达日期为唯一依据。
-- 未填写抵达日期时保持空白，不再使用装柜日期补值。
-- 首页总览、库存产品卡片、最近进口排序及 Inventory Excel 的「最后进口」统一采用抵达日期。
-- 不改变库存、FIFO、实际卖出、原成本、平均成本、最低售价、History 或任何成本计算/映射公式。
-- 更新运行版本号为 V7.2 Stable。
-
-V7.1 Stable — Sync Read Acceleration + Import/Edit Product Name Copy Fix
-- 保留 V7.0 全部库存、成本、FIFO、History、实际卖出、最低售价、类别修正及所有计算逻辑。
-- Apps Script：新增按 revision 区分的短期完整 Pull 只读缓存；revision 改变自动失效，缓存异常自动回退 Google Sheet 正常读取。
-- 不改变 Google Sheet Schema，不改变 Products / Imports / Batches / Settings 写入公式与资料结构。
-- 产品/进口 修改/编辑页面最下面搜索结果：短按/点击产品名称直接复制；长按 650ms 继续修改产品名称。
-- 更新所有版本号为 V7.1 Stable。
-
-V7.1 Stable — Original Cost Layout + Import/Edit Product Name Gesture Fix
-- 首页原成本清单五栏固定对齐：产品名、当前库存、原成本、平均成本、最低售价。
-- 产品/进口 修改/编辑最下面搜索结果：短按/点击复制产品名；长按650ms修改产品名。
-- 不改变进口编号、库存、原成本、平均成本、最低售价、FIFO、History、同步及任何计算公式。
-
-V7.1 Stable — Import/Edit Product Name Click Copy Fix
-- 只修产品/进口 修改/编辑页面最下面搜索结果的产品名称：普通点击/短按可靠复制；长按 650ms 修改。
-- 长按完成后抑制随后产生的 click，避免修改后又触发复制。
-- 不改变进口编号、库存、成本、最低售价、FIFO、History、同步与任何计算公式。
-
-V7.1 Stable — Import/Edit Product Name Tap/Long-Press Fix
-- 只调整产品/进口 修改/编辑页面最下面产品搜索结果的产品名称：短按/点击复制，长按修改。
-- 不改变进口编号、库存、成本、最低售价、FIFO、History、计算逻辑或公式。
-
-V7.1 Stable — Import/Edit Product Name Gesture Fix
-- 产品/进口 修改/编辑页最下面产品搜索结果：点击产品名称直接复制。
-- 长按产品名称 650ms 才进入修改名称，并保留修改前确认。
-- 不改变 productId / 进口编号 / 原成本 / 平均成本 / 最低售价 / 库存 / 任何计算公式。
-- 其他可修改项目继续维持长按修改逻辑。
-
-V7.1 Stable — Data Repair Category Correction
-- 以 V6.2 完美运行版本为基准。
-- 设置中的「成本修改模式」扩展为「修改模式 / Data Repair」。
-- 载入旧进口编号后，开启修改模式即可修正产品类别（盆栽 / 花盆 / 周边产品）。
-- 类别修正保持原 productId，不重新入库、不改变当前库存、不改变 Average Cost、不改变原成本。
-- 类别会按同一 productId 同步修正 Products / Imports / Batches，避免前后资料不一致。
-- 普通模式继续锁定旧进口类别；开启修改模式后才解锁。
-- Google Sheet Schema 不变。
-
-V6.2 Stable — Original Cost List Filter / Collapse / Minimum Price Edit
-- 原成本清单跟随库存管理当前筛选结果。
-- Excel 只导出当前筛选结果。
-- 清单顶部新增「收起 ▲」。
-- 清单最低售价可点击修改，复用既有快速同步。
-- 不改变库存、FIFO、成本、History 或同步架构。
-
-V6.1 Stable — Original Cost List Product Copy
-
-- 原成本清单内「产品名」现在可点击复制。
-- 复制成功后暂时显示「✓ 已复制」，随后恢复产品名称。
-- 只新增前端复制交互；不触发 Pull / Push，不改变库存、成本、FIFO、History 或同步逻辑。
-- 保留上一版原成本清单、Excel 导出与全部稳定功能。
-
-V6.0 Stable — Original Cost List
-
-- 首页点击任何产品卡片「原成本」可展开 / 收起原成本清单。
-- 清单同一行显示：产品名、当前库存、原成本、平均成本、最低售价。
-- 原成本保留 CNY / VND / NTD / IDR 原币种并固定 2 位小数。
-- 新增「导出 Excel」，文件名包含日期，数字 / 价钱格式正确并自动调整栏宽。
-- 清单完全使用已经同步到本机的 Products / Imports / Batches，不增加任何 Google Sheet 读取或同步请求。
-- 保留 V5.9 全部库存、FIFO、最低售价快速同步、History、Backup / Restore 与复制功能。
+1. 对接 Sales System V25.6 P4 Inventory Feed（只读）。
+2. 首页新增「销售库存待处理」持续提醒。
+3. 提醒显示主播/Fair、日期、时间、产品、未处理数量。
+4. 可跳到产品/进口 修改/编辑对应产品。
+5. 实际卖出会记录 Sales link / saleId / processedQty，并按数量核销。
+6. 库存修正不会核销 Sales 提醒。
+7. Sales Card 数量变更后自动按差额重新提醒；删除/取消不再提醒。
+8. 不新增 Google Sheet Schema；不改变 FIFO、成本、平均成本、卖出成本或其他公式。
+9. 正常云端同步流程没有新增 Sales Feed 请求；Sales Feed 在首次 Import 同步完成后独立读取。
