@@ -1,4 +1,10 @@
-V7.7 Stable — Sales Inventory Pending Reminder
+V7.8 Stable — Remark Safety & Compact Notes
+- 修改库存变动备注只更新文字，不重新执行库存变化。
+- 强制保留当前库存与平均成本；不会重跑 FIFO、卖出成本或 Sales 核销。
+- 备注记录默认收起，未填写显示「—」。
+- 新增「＋ 新增备注」，可建立不影响库存的独立产品备注。
+
+V7.8 Stable — Sales Inventory Pending Reminder
 
 1. 对接 Sales System V25.6 P4 Inventory Feed（只读）。
 2. 首页新增「销售库存待处理」持续提醒。

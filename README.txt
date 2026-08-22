@@ -1,6 +1,6 @@
-Lover Legend 进口成本与库存系统 — 正式版 V7.7 Stable
+Lover Legend 进口成本与库存系统 — 正式版 V7.8 Stable
 
-V7.7 以 V7.6 Stable 为唯一基础，新增 Sales System 销售库存待处理提醒。
+V7.8 以 V7.6 Stable 为唯一基础，新增 Sales System 销售库存待处理提醒。
 
 - 只读 Sales V25.6 getSalesInventoryFeed；Sales 不会自动扣 Import 库存。
 - 首页持续提示尚未在 Import System 记录为「实际卖出」的对应销售。

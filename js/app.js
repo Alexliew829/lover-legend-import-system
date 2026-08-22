@@ -17,7 +17,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 
-// ================= V7.7 Sales System -> Import Inventory Reminder =================
+// ================= V7.8 Sales System -> Import Inventory Reminder =================
 // Read-only integration. Sales System never writes Import inventory automatically.
 // A reminder disappears only after this Import System records the matching quantity
 // as adjustmentType="sale" and stores the Sales link key in stockAdjustments.
@@ -7440,10 +7440,6 @@ function buildProductAdjustmentNotesPanel(product) {
     .slice()
     .sort((a, b) => String(b?.createdAt || "").localeCompare(String(a?.createdAt || "")));
 
-  if (!adjustments.length) {
-    return `<div class="product-stock-notes-panel"><div class="product-stock-notes-title">备注记录</div><div class="product-stock-notes-empty">暂无库存变动记录</div></div>`;
-  }
-
   const groups = [];
   const byKey = new Map();
   adjustments.forEach(adjustment => {
@@ -7460,30 +7456,37 @@ function buildProductAdjustmentNotesPanel(product) {
   const rows = groups.map(group => {
     const first = group.items[0] || {};
     const totalDelta = group.items.reduce((sum, item) => sum + Math.trunc(Number(item?.delta) || 0), 0);
+    const isNoteOnly = String(first?.adjustmentType || "").toLowerCase() === "note" && totalDelta === 0;
     const deltaText = totalDelta > 0 ? `+${formatNumber(totalDelta)}` : formatNumber(totalDelta);
-    const note = String(group.items.find(item => String(item?.note || item?.remark || "").trim())?.note || group.items.find(item => String(item?.note || item?.remark || "").trim())?.remark || "").trim();
+    const notedItem = group.items.find(item => String(item?.note || item?.remark || "").trim());
+    const note = String(notedItem?.note || notedItem?.remark || "").trim();
     const importNumbers = [...new Set(group.items.map(item => String(item?.importNumber || "").trim()).filter(Boolean))];
     return `
       <div class="product-stock-note-row">
         <div class="product-stock-note-main">
           <strong>${escapeHTML(first?.date || "-")}</strong>
-          <span>${escapeHTML(getHistoryAdjustmentLabel(first))} ${escapeHTML(deltaText)}</span>
-          ${importNumbers.length ? `<small>进口编号 ${escapeHTML(importNumbers.join(" / "))}</small>` : ""}
+          <span>${isNoteOnly ? "备注" : `${escapeHTML(getHistoryAdjustmentLabel(first))} ${escapeHTML(deltaText)}`}</span>
+          ${!isNoteOnly && importNumbers.length ? `<small>进口编号 ${escapeHTML(importNumbers.join(" / "))}</small>` : ""}
         </div>
-        <div class="product-stock-note-text ${note ? "" : "is-empty"}">${note ? escapeHTML(note) : "未填写备注"}</div>
+        <div class="product-stock-note-text ${note ? "" : "is-empty"}">${note ? escapeHTML(note) : "—"}</div>
         <button type="button"
                 class="product-stock-note-edit-btn"
                 data-product-id="${escapeHTML(product?.id || "")}"
                 data-adjustment-id="${escapeHTML(first?.id || "")}">
-          修改备注
+          修改
         </button>
       </div>`;
   }).join("");
 
   return `
     <details class="product-stock-notes-panel">
-      <summary class="product-stock-notes-title">备注记录 <span>${formatNumber(groups.length)} 笔</span></summary>
-      <div class="product-stock-notes-list">${rows}</div>
+      <summary class="product-stock-notes-title">📝 备注记录 <span>${formatNumber(groups.length)} 笔 · 查看 / 修改</span></summary>
+      <div class="product-stock-notes-list">
+        ${rows || `<div class="product-stock-notes-empty">暂无备注记录</div>`}
+        <div class="product-stock-note-add-wrap">
+          <button type="button" class="product-stock-note-add-btn" data-product-id="${escapeHTML(product?.id || "")}">＋ 新增备注</button>
+        </div>
+      </div>
     </details>`;
 }
 
@@ -7495,46 +7498,74 @@ function editProductAdjustmentNote(productId, adjustmentId) {
   if (productIndex < 0) { alert("找不到这个产品。"); return; }
 
   const product = products[productIndex];
+  const stockSnapshot = Math.max(0, Math.trunc(Number(product?.stock) || 0));
+  const averageCostSnapshot = Number(product?.averageCost) || 0;
   const adjustments = getProductStockAdjustments(product);
   const adjustmentIndex = adjustments.findIndex(item => String(item?.id || "") === adjId);
-  if (adjustmentIndex < 0) { alert("找不到这笔库存记录。"); return; }
+  if (adjustmentIndex < 0) { alert("找不到这笔记录。"); return; }
 
   const adjustment = adjustments[adjustmentIndex];
   const currentNote = String(adjustment?.note || adjustment?.remark || "").trim();
   const entered = window.prompt(
-    `修改备注（只修改文字，不会改变库存）\n\n产品：${product.name}\n日期：${adjustment.date || "-"}\n类型：${getHistoryAdjustmentLabel(adjustment)} ${Math.trunc(Number(adjustment.delta) || 0)}\n\n请输入备注；留空可清除备注。`,
+    `修改备注（只修改文字，不会改变库存）\n\n产品：${product.name}\n日期：${adjustment.date || "-"}\n\n请输入备注；留空可清除备注。`,
     currentNote
   );
   if (entered === null) return;
   const nextNote = String(entered || "").trim();
-  if (nextNote === currentNote) {
-    const status = document.getElementById("batchProductStockStatus");
-    if (status) status.textContent = "备注没有改变";
-    return;
-  }
-
-  if (!window.confirm(`确认只修改这笔备注？\n\n${currentNote || "（空白）"}\n→ ${nextNote || "（空白）"}\n\n不会改变当前库存、Imports、Batches、FIFO、卖出数量、卖出成本或平均成本。`)) return;
+  if (nextNote === currentNote) return;
 
   const eventCreatedAt = String(adjustment?.createdAt || "").trim();
   const now = new Date().toISOString();
   const nextAdjustments = adjustments.map((item, index) => {
-    const sameEvent = eventCreatedAt
-      ? String(item?.createdAt || "").trim() === eventCreatedAt
-      : index === adjustmentIndex;
+    const sameEvent = eventCreatedAt ? String(item?.createdAt || "").trim() === eventCreatedAt : index === adjustmentIndex;
     return sameEvent ? { ...item, note: nextNote, updatedAt: now } : item;
   });
+
+  // V7.8 hard safety: note editing is metadata-only. Preserve inventory/accounting fields exactly.
   const nextProducts = products.map((item, index) => index === productIndex
-    ? { ...item, stockAdjustments: nextAdjustments, stockAdjustmentsJson: JSON.stringify(nextAdjustments), updatedAt: new Date().toISOString() }
+    ? { ...item, stock: stockSnapshot, averageCost: averageCostSnapshot,
+        stockAdjustments: nextAdjustments, stockAdjustmentsJson: JSON.stringify(nextAdjustments), updatedAt: now }
     : item
   );
-
   saveProducts(nextProducts);
   renderBatchProductStockResults();
   renderInventoryManagementList();
   renderDashboard();
   renderImportHistory();
   const status = document.getElementById("batchProductStockStatus");
-  if (status) status.textContent = `已更新备注：${product.name}（库存数量未改变）`;
+  if (status) status.textContent = `已更新备注：${product.name}（库存仍为 ${stockSnapshot}）`;
+}
+
+function addStandaloneProductNote(productId) {
+  const id = String(productId || "").trim();
+  const products = getProducts();
+  const productIndex = products.findIndex(item => String(item?.id || "") === id);
+  if (productIndex < 0) { alert("找不到这个产品。"); return; }
+  const product = products[productIndex];
+  const entered = window.prompt(`新增产品备注（不会改变库存）\n\n产品：${product.name}\n\n请输入备注：`, "");
+  if (entered === null) return;
+  const note = String(entered || "").trim();
+  if (!note) { alert("备注不能为空。"); return; }
+  const now = new Date();
+  const iso = now.toISOString();
+  const existing = getProductStockAdjustments(product);
+  const noteItem = {
+    id: `NOTE${Date.now()}${Math.random().toString(36).slice(2, 7)}`,
+    date: formatDateDDMMYYYY(now), createdAt: iso, updatedAt: iso,
+    importNumber: "", delta: 0, before: 0, after: 0,
+    productStockBefore: Math.max(0, Math.trunc(Number(product.stock) || 0)),
+    productStockAfter: Math.max(0, Math.trunc(Number(product.stock) || 0)),
+    adjustmentType: "note", reason: "", note, salesLinks: [], soldUnitCost: 0
+  };
+  const nextAdjustments = [...existing, noteItem];
+  const nextProducts = products.map((item, index) => index === productIndex
+    ? { ...item, stockAdjustments: nextAdjustments, stockAdjustmentsJson: JSON.stringify(nextAdjustments), updatedAt: iso }
+    : item
+  );
+  saveProducts(nextProducts);
+  renderBatchProductStockResults();
+  const status = document.getElementById("batchProductStockStatus");
+  if (status) status.textContent = `已新增备注：${product.name}（库存数量未改变）`;
 }
 
 function bindProductAdjustmentNoteEdit() {
@@ -7542,11 +7573,17 @@ function bindProductAdjustmentNoteEdit() {
   if (!output || output.dataset.noteEditBound === "1") return;
   output.dataset.noteEditBound = "1";
   output.addEventListener("click", event => {
-    const button = event.target.closest(".product-stock-note-edit-btn");
-    if (!button) return;
-    event.preventDefault();
-    event.stopPropagation();
-    editProductAdjustmentNote(button.dataset.productId, button.dataset.adjustmentId);
+    const editButton = event.target.closest(".product-stock-note-edit-btn");
+    if (editButton) {
+      event.preventDefault(); event.stopPropagation();
+      editProductAdjustmentNote(editButton.dataset.productId, editButton.dataset.adjustmentId);
+      return;
+    }
+    const addButton = event.target.closest(".product-stock-note-add-btn");
+    if (addButton) {
+      event.preventDefault(); event.stopPropagation();
+      addStandaloneProductNote(addButton.dataset.productId);
+    }
   });
 }
 
@@ -7887,7 +7924,7 @@ function appendProductStockAdjustments(product, changes, changedAt, productStock
       adjustmentType: String(change.adjustmentType || "modify").trim().toLowerCase(),
       reason: String(change.reason || "").trim(),
       note: String(change.note || change.remark || "").trim(),
-      // V7.7: link Sales System sale quantities only to the first FIFO adjustment row
+      // V7.8: link Sales System sale quantities only to the first FIFO adjustment row
       // of this inventory event, preventing double counting when one sale spans batches.
       salesLinks: changeIndex === 0 && Array.isArray(salesLinks)
         ? salesLinks.map(link => ({ ...link }))
@@ -10154,7 +10191,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "7.7",
+      version: "7.8",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -10495,7 +10532,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V7.7 Stable",
+      updatedBy: "System V7.8 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
