@@ -160,7 +160,7 @@ function buildSalesInventoryMessageV77(item) {
 }
 
 function renderSalesInventoryReminderV77() {
-  // V8.1: no persistent/page-level Sales reminder UI.
+  // V8.2: no persistent/page-level Sales reminder UI.
   const panel = document.getElementById("salesInventoryReminderPanel");
   const list = document.getElementById("salesInventoryReminderList");
   if (panel) panel.hidden = true;
@@ -267,7 +267,7 @@ async function executeSalesInventoryDeductionV81(item) {
   const previousImports = getImports();
   const previousBatches = getBatches();
 
-  // V8.1 hard rule: reuse the existing FIFO + "actual sale" accounting path.
+  // V8.2 hard rule: reuse the existing FIFO + "actual sale" accounting path.
   const allocation = allocateProductRemainingFIFO(
     product.id,
     product.name,
@@ -321,6 +321,12 @@ async function executeSalesInventoryDeductionV81(item) {
     allocation.nextBatches
   );
 
+  // V8.2: if the normal cloud push hits a transient failure, retry the queued
+  // snapshot once later. This NEVER repeats the inventory deduction.
+  if (typeof scheduleCloudRetryAfterInventoryV82 === "function") {
+    scheduleCloudRetryAfterInventoryV82();
+  }
+
   // Local source of truth is already safely written. Then try to mark the Sales link confirmed.
   let remoteConfirmed = true;
   let remoteError = "";
@@ -351,45 +357,100 @@ async function executeSalesInventoryDeductionV81(item) {
   };
 }
 
+let salesStartupSessionItemsV82 = [];
+
+function copySalesStartupProductNameV82(name, element) {
+  const text = String(name || "").trim();
+  if (!text) return;
+  const original = element?.textContent || text;
+  const done = () => {
+    if (element) {
+      element.textContent = "已复制";
+      element.classList.add("copied-v82");
+      window.setTimeout(() => {
+        element.textContent = original;
+        element.classList.remove("copied-v82");
+      }, 900);
+    }
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(done).catch(() => {});
+    return;
+  }
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand("copy"); done(); } catch (_) {}
+  ta.remove();
+}
+window.copySalesStartupProductNameV82 = copySalesStartupProductNameV82;
+
 function closeStartupSalesInventoryReminderV81() {
   document.getElementById("salesInventoryStartupOverlayV81")?.remove();
+}
+
+function getSalesStartupSessionItemV82(key) {
+  return salesStartupSessionItemsV82.find(item => String(item.key || "") === String(key || ""));
 }
 
 function renderStartupSalesInventoryReminderV81() {
   const overlay = document.getElementById("salesInventoryStartupOverlayV81");
   if (!overlay) return;
 
-  recomputeSalesInventoryPendingV77();
   const body = overlay.querySelector(".sales-startup-body-v81");
   const summary = overlay.querySelector(".sales-startup-summary-v81");
   if (!body || !summary) return;
 
-  const totalQty = salesInventoryPendingV77.reduce(
-    (sum, item) => sum + Math.max(0, Number(item.remainingQty) || 0),
-    0
-  );
+  const totalCount = salesStartupSessionItemsV82.length;
+  const processedCount = salesStartupSessionItemsV82.filter(item => item.v82Processed).length;
+  const pendingCount = totalCount - processedCount;
+  const pendingQty = salesStartupSessionItemsV82
+    .filter(item => !item.v82Processed)
+    .reduce((sum, item) => sum + Math.max(0, Number(item.remainingQty) || 0), 0);
 
-  summary.textContent = salesInventoryPendingV77.length
-    ? `共有 ${formatNumber(salesInventoryPendingV77.length)} 笔 / ${formatNumber(totalQty)} 棵`
-    : "所有 Sales 库存已处理";
+  summary.textContent = processedCount
+    ? `已处理 ${formatNumber(processedCount)} / ${formatNumber(totalCount)}；待处理 ${formatNumber(pendingCount)} 笔 / ${formatNumber(pendingQty)} 棵`
+    : `共有 ${formatNumber(totalCount)} 笔 / ${formatNumber(pendingQty)} 棵`;
 
-  if (!salesInventoryPendingV77.length) {
-    body.innerHTML = `<div class="sales-startup-empty-v81">✅ 所有 Sales 库存待处理项目已完成。</div>`;
-    window.setTimeout(closeStartupSalesInventoryReminderV81, 800);
-    return;
-  }
-
-  body.innerHTML = salesInventoryPendingV77.map(item => {
+  body.innerHTML = salesStartupSessionItemsV82.map(item => {
     const product = findImportProductForSalesItemV77(item);
+    const productName = String(item.importProductName || item.productName || product?.name || "").trim();
+    const source = getSalesSourceNameV77(item);
+    const when = [String(item.saleDate || ""), formatSalesTimeV77(item.saleTime)].filter(Boolean).join(" ");
+    const channel = String(item.type || "").toLowerCase() === "live" ? "Live" : "Fair";
+
+    if (item.v82Processed) {
+      return `
+        <div class="sales-startup-item-v81 processed-v82" data-sales-key="${escapeHTML(item.key)}">
+          <button type="button"
+            class="sales-startup-product-v81 copyable-v82"
+            title="点击复制产品名称"
+            onclick='copySalesStartupProductNameV82(${JSON.stringify(productName)}, this)'>${escapeHTML(productName)}</button>
+          <div class="sales-startup-meta-v81">Sales · ${escapeHTML(channel)} · ${escapeHTML(source)} · ${escapeHTML(when)}</div>
+          <div class="sales-startup-stock-v81">
+            销售：<strong>${formatNumber(item.v82Qty)} 棵</strong>　
+            库存：<strong>${formatNumber(item.v82StockBefore)}</strong> → <strong>${formatNumber(item.v82StockAfter)}</strong>
+          </div>
+          <button type="button" class="sales-startup-confirm-v81 processed-button-v82" disabled>
+            ✓ 已扣库存 ${formatNumber(item.v82StockBefore)} → ${formatNumber(item.v82StockAfter)}
+          </button>
+          <div class="sales-startup-processed-note-v82">已记录为「实际卖出」；本次打开网页不会再次扣除。</div>
+        </div>`;
+    }
+
     const stock = Math.max(0, Math.trunc(Number(product?.stock) || 0));
     const qty = Math.max(1, Math.trunc(Number(item.remainingQty) || 0));
     const after = Math.max(0, stock - qty);
-    const source = getSalesSourceNameV77(item);
-    const when = [String(item.saleDate || ""), formatSalesTimeV77(item.saleTime)].filter(Boolean).join(" ");
     return `
       <div class="sales-startup-item-v81" data-sales-key="${escapeHTML(item.key)}">
-        <div class="sales-startup-product-v81">${escapeHTML(item.importProductName || item.productName || "")}</div>
-        <div class="sales-startup-meta-v81">Sales · ${escapeHTML(String(item.type || "").toLowerCase() === "live" ? "Live" : "Fair")} · ${escapeHTML(source)} · ${escapeHTML(when)}</div>
+        <button type="button"
+          class="sales-startup-product-v81 copyable-v82"
+          title="点击复制产品名称"
+          onclick='copySalesStartupProductNameV82(${JSON.stringify(productName)}, this)'>${escapeHTML(productName)}</button>
+        <div class="sales-startup-meta-v81">Sales · ${escapeHTML(channel)} · ${escapeHTML(source)} · ${escapeHTML(when)}</div>
         <div class="sales-startup-stock-v81">
           销售：<strong>${formatNumber(qty)} 棵</strong>　
           当前库存：<strong>${formatNumber(stock)}</strong> → <strong>${formatNumber(after)}</strong>
@@ -408,6 +469,10 @@ function showStartupSalesInventoryReminderV80() {
   recomputeSalesInventoryPendingV77();
   if (!salesInventoryPendingV77.length) return;
 
+  // V8.2: freeze the opening reminder list for this page session.
+  // Processed rows stay visible and locked until the user closes the window.
+  salesStartupSessionItemsV82 = salesInventoryPendingV77.map(item => ({ ...item, v82Processed: false }));
+
   document.getElementById("salesInventoryStartupOverlayV81")?.remove();
 
   const overlay = document.createElement("div");
@@ -424,7 +489,7 @@ function showStartupSalesInventoryReminderV80() {
       </div>
       <div class="sales-startup-body-v81"></div>
       <div class="sales-startup-foot-v81">
-        <small>只有你点击「确认销售并扣库存」后，Import Cost System 才会按现有 FIFO「实际卖出」逻辑扣库存并写入 History。</small>
+        <small>点击产品名称可复制。只有点击「确认销售并扣库存」并完成最后确认后，系统才会按现有 FIFO「实际卖出」逻辑扣库存并写入 History。</small>
         <button type="button" class="sales-startup-later-v81">稍后处理</button>
       </div>
     </div>`;
@@ -434,13 +499,17 @@ function showStartupSalesInventoryReminderV80() {
 
   overlay.addEventListener("click", async event => {
     const button = event.target.closest(".sales-startup-confirm-v81");
-    if (!button) return;
+    if (!button || button.disabled) return;
 
     const key = String(button.dataset.salesKey || "");
+    const sessionItem = getSalesStartupSessionItemV82(key);
+    if (!sessionItem || sessionItem.v82Processed) return;
+
+    // Always resolve against the live pending list before deducting.
     recomputeSalesInventoryPendingV77();
-    const item = salesInventoryPendingV77.find(row => row.key === key);
-    if (!item) {
-      renderStartupSalesInventoryReminderV81();
+    const liveItem = salesInventoryPendingV77.find(row => row.key === key);
+    if (!liveItem) {
+      alert("这项 Sales 库存已经处理或不再需要处理，系统不会再次扣库存。");
       return;
     }
 
@@ -449,7 +518,7 @@ function showStartupSalesInventoryReminderV80() {
     button.textContent = "处理中…";
 
     try {
-      const result = await executeSalesInventoryDeductionV81(item);
+      const result = await executeSalesInventoryDeductionV81(liveItem);
       if (result?.cancelled) {
         button.disabled = false;
         button.textContent = originalText;
@@ -462,14 +531,27 @@ function showStartupSalesInventoryReminderV80() {
         return;
       }
 
+      // V8.2: do NOT remove the row after success.
+      // Lock it permanently in this currently-open reminder window.
+      sessionItem.v82Processed = true;
+      sessionItem.v82Qty = result.qty;
+      sessionItem.v82StockBefore = result.currentStock;
+      sessionItem.v82StockAfter = result.nextStock;
+      sessionItem.v82Note = result.note;
+      sessionItem.v82RemoteConfirmed = result.remoteConfirmed;
+      sessionItem.v82RemoteError = result.remoteError || "";
+
+      renderStartupSalesInventoryReminderV81();
+
       if (!result.remoteConfirmed) {
         alert(
-          `Import 库存已经成功扣除并写入「实际卖出」。\n\n` +
-          `但 Sales System 的库存确认状态暂时回写失败：${result.remoteError || "未知原因"}\n\n` +
-          `Import 不会重复扣这笔库存；Sales 端如仍显示提醒，可稍后手动点「我已处理库存」。`
+          `✅ Import 库存已经成功扣除并写入「实际卖出」。\n\n` +
+          `产品：${result.productName}\n` +
+          `库存：${formatNumber(result.currentStock)} → ${formatNumber(result.nextStock)}\n\n` +
+          `Sales System 的库存确认状态暂时回写失败：${result.remoteError || "未知原因"}。\n` +
+          `本页按钮已经锁死，Import 不会重复扣这笔库存。`
         );
       }
-      renderStartupSalesInventoryReminderV81();
     } catch (error) {
       alert("确认销售并扣库存失败：" + String(error?.message || error));
       button.disabled = false;
@@ -487,7 +569,7 @@ function getPendingSalesForProductV77(product) {
 }
 
 function buildProductPendingSalesHtmlV77(product) {
-  // V8.1: Sales 库存提醒只在打开网页时弹出一次。
+  // V8.2: Sales 库存提醒只在打开网页时弹出一次。
   // 产品/进口修改页以及其他页面不再显示 Sales 待处理提示。
   return "";
 }
@@ -535,7 +617,7 @@ function describeSalesAllocationsV77(allocations) {
 }
 
 function setupSalesInventoryReminder() {
-  // V8.1: only remind once when the webpage is opened.
+  // V8.2: only remind once when the webpage is opened.
   // Feed refresh remains active in the background so actual-sale matching keeps working,
   // but no reminder is rendered on Home / Import / History / Settings pages.
   const panel = document.getElementById("salesInventoryReminderPanel");
@@ -8513,7 +8595,7 @@ function chooseStockDecreaseType({ productName, currentStock, nextStock }) {
       overlay.remove();
       resolve(value);
     };
-    // V8.1: choosing the decrease type is not the final save confirmation.
+    // V8.2: choosing the decrease type is not the final save confirmation.
     // The user must be able to enter the remark before the one final confirmation.
     overlay.querySelector(".stock-decrease-sale").addEventListener("click", () => finish("sale"));
     overlay.querySelector(".stock-decrease-repair").addEventListener("click", () => finish("repair"));
@@ -8564,7 +8646,7 @@ async function editProductStockFromImportPage(productId) {
     return;
   }
 
-  // V8.1: do not confirm the quantity before choosing the action / entering the remark.
+  // V8.2: do not confirm the quantity before choosing the action / entering the remark.
   // There is one final confirmation after the remark is entered.
   let adjustmentType = "modify";
   let adjustmentReason = nextStock > currentStock ? "库存新增" : "库存修改";
@@ -10489,7 +10571,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "8.1",
+      version: "8.2",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -10830,7 +10912,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V8.1 Stable",
+      updatedBy: "System V8.2 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,

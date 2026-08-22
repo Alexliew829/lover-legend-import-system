@@ -1,13 +1,13 @@
-Lover Legend Import Cost & Inventory System V8.1 Stable
+Lover Legend Import Cost & Inventory System V8.2 Stable
 
-Apps Script / Code.gs：需要更新（版本握手 V8.1）。
+Apps Script / Code.gs：需要更新（版本握手 V8.2）。
 appsscript.json：不需要更新。
 Google Sheet Schema：不需要升级。
 
 部署顺序：
-1. 替换 Import System Apps Script 的 V8.1 Code.gs 并 Save。
+1. 替换 Import System Apps Script 的 V8.2 Code.gs 并 Save。
 2. Deploy New Version。
-3. 上传 V8.1 Frontend 到 GitHub Pages。
+3. 上传 V8.2 Frontend 到 GitHub Pages。
 4. Sales System 必须已部署 V25.6 P4 Inventory Feed，且 getSalesInventoryFeed 可读取。
 
-V8.1 Sales Feed 为独立只读请求，不修改原本 Import cloud sync / Pull / Push。
+V8.2 Sales Feed 为独立只读请求，不修改原本 Import cloud sync / Pull / Push。
