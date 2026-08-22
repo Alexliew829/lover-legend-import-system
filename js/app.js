@@ -8223,12 +8223,10 @@ function chooseStockDecreaseType({ productName, currentStock, nextStock }) {
       overlay.remove();
       resolve(value);
     };
-    overlay.querySelector(".stock-decrease-sale").addEventListener("click", () => {
-      if (window.confirm(`确认记录为「实际卖出」？\n\n产品：${productName}\n卖出数量：${formatNumber(decrease)}\n库存：${formatNumber(currentStock)} → ${formatNumber(nextStock)}\n\n确认后会计入 History 的卖出数量与卖出成本。`)) finish("sale");
-    });
-    overlay.querySelector(".stock-decrease-repair").addEventListener("click", () => {
-      if (window.confirm(`确认记录为「库存修正」？\n\n产品：${productName}\n修正数量：-${formatNumber(decrease)}\n库存：${formatNumber(currentStock)} → ${formatNumber(nextStock)}\n\n确认后不会计入卖出数量与卖出成本。`)) finish("repair");
-    });
+    // V7.9: choosing the decrease type is not the final save confirmation.
+    // The user must be able to enter the remark before the one final confirmation.
+    overlay.querySelector(".stock-decrease-sale").addEventListener("click", () => finish("sale"));
+    overlay.querySelector(".stock-decrease-repair").addEventListener("click", () => finish("repair"));
     overlay.querySelector(".stock-decrease-cancel").addEventListener("click", () => finish(null));
     overlay.addEventListener("click", event => { if (event.target === overlay) finish(null); });
     document.body.appendChild(overlay);
@@ -8276,12 +8274,8 @@ async function editProductStockFromImportPage(productId) {
     return;
   }
 
-  const confirmed = window.confirm(
-    `确认修改？\n\n产品：${product.name}\n目前库存：${formatNumber(currentStock)}\n修改为：${formatNumber(nextStock)}`
-  );
-
-  if (!confirmed) return;
-
+  // V7.9: do not confirm the quantity before choosing the action / entering the remark.
+  // There is one final confirmation after the remark is entered.
   let adjustmentType = "modify";
   let adjustmentReason = nextStock > currentStock ? "库存新增" : "库存修改";
 
@@ -8327,6 +8321,20 @@ async function editProductStockFromImportPage(productId) {
   );
   if (noteEntered === null) return;
   const adjustmentNote = String(noteEntered || "").trim();
+
+  const quantityChange = nextStock - currentStock;
+  const actionText = adjustmentType === "sale"
+    ? `实际卖出 -${formatNumber(Math.abs(quantityChange))}`
+    : adjustmentType === "repair"
+      ? `库存修正 -${formatNumber(Math.abs(quantityChange))}`
+      : quantityChange > 0
+        ? `库存新增 +${formatNumber(quantityChange)}`
+        : `库存修改 ${formatNumber(quantityChange)}`;
+  const noteText = adjustmentNote || "—";
+  const finalConfirmed = window.confirm(
+    `确认保存？\n\n产品：${product.name}\n操作：${actionText}\n库存：${formatNumber(currentStock)} → ${formatNumber(nextStock)}\n备注：${noteText}`
+  );
+  if (!finalConfirmed) return;
 
   const previousImports = getImports();
   const previousBatches = getBatches();
@@ -10191,7 +10199,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "7.8",
+      version: "7.9",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -10532,7 +10540,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V7.8 Stable",
+      updatedBy: "System V7.9 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
