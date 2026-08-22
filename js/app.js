@@ -194,7 +194,7 @@ function buildSalesInventoryMessageV77(item) {
 }
 
 function renderSalesInventoryReminderV77() {
-  // V8.5: no persistent/page-level Sales reminder UI.
+  // V8.6: no persistent/page-level Sales reminder UI.
   const panel = document.getElementById("salesInventoryReminderPanel");
   const list = document.getElementById("salesInventoryReminderList");
   if (panel) panel.hidden = true;
@@ -264,7 +264,7 @@ async function executeSalesInventoryDeductionV81(item) {
   }
 
   if (typeof commitSalesInventoryToCloudV83 !== "function") {
-    return { ok: false, message: "V8.5 云端库存确认模块未载入，请强制刷新网页后再试。" };
+    return { ok: false, message: "V8.6 云端库存确认模块未载入，请强制刷新网页后再试。" };
   }
 
   const previousProducts = getProducts();
@@ -300,14 +300,14 @@ async function executeSalesInventoryDeductionV81(item) {
     `库存：${formatNumber(currentStock)} → ${formatNumber(nextStock)}\n` +
     `记录类型：实际卖出\n` +
     `备注：${note}\n\n` +
-    `V8.5 会等 Google Sheet 真正保存成功后才显示完成。`
+    `V8.6 会等 Google Sheet 真正保存成功后才显示完成。`
   );
   if (!confirmed) return { ok: false, cancelled: true };
 
   const previousImports = getImports();
   const previousBatches = getBatches();
 
-  // V8.5 continues to reuse the existing FIFO + actual-sale accounting logic.
+  // V8.6 continues to reuse the existing FIFO + actual-sale accounting logic.
   // Calculation happens locally first, but NOTHING is committed locally until
   // Google Sheet confirms the transaction.
   const allocation = allocateProductRemainingFIFO(
@@ -373,7 +373,7 @@ async function executeSalesInventoryDeductionV81(item) {
       batches: changedBatches
     });
   } catch (error) {
-    // V8.5 hard safety: the browser stays at the ORIGINAL inventory when cloud
+    // V8.6 hard safety: the browser stays at the ORIGINAL inventory when cloud
     // commit fails. No fake 33→32 success, no Sales confirmation, no local queue.
     return {
       ok: false,
@@ -548,7 +548,7 @@ function showStartupSalesInventoryReminderV80() {
   recomputeSalesInventoryPendingV77();
   if (!salesInventoryPendingV77.length) return;
 
-  // V8.5: freeze the current reminder list for this open popup session.
+  // V8.6: freeze the current reminder list for this open popup session.
   // Processed rows stay visible and locked until the user closes the window.
   salesStartupSessionItemsV82 = salesInventoryPendingV77.map(item => ({ ...item, v82Processed: false }));
 
@@ -610,7 +610,7 @@ function showStartupSalesInventoryReminderV80() {
         return;
       }
 
-      // V8.5: do NOT remove the row after success.
+      // V8.6: do NOT remove the row after success.
       // Lock it permanently in this currently-open reminder window.
       sessionItem.v82Processed = true;
       sessionItem.v82Qty = result.qty;
@@ -652,7 +652,7 @@ function getPendingSalesForProductV77(product) {
 }
 
 function buildProductPendingSalesHtmlV77(product) {
-  // V8.5: Sales 库存提醒由首次打开 / 回到前台触发。
+  // V8.6: Sales 库存提醒由首次打开 / 回到前台触发。
   // 产品/进口修改页以及其他页面仍不显示嵌入式 Sales 待处理提示。
   return "";
 }
@@ -723,11 +723,11 @@ async function checkSalesInventoryOnResumeV84(reason = "resume") {
     if (document.getElementById("salesInventoryStartupOverlayV81")) return;
     if (!salesInventoryPendingV77.length) return;
 
-    // V8.5: every genuine resume/focus may remind again when pending inventory exists.
+    // V8.6: every genuine resume/focus may remind again when pending inventory exists.
     window.__salesStartupReminderShownV80 = false;
     showStartupSalesInventoryReminderV80();
   } catch (error) {
-    console.warn(`V8.5 Sales inventory ${reason} check failed`, error);
+    console.warn(`V8.6 Sales inventory ${reason} check failed`, error);
   } finally {
     salesInventoryResumeCheckBusyV84 = false;
   }
@@ -743,7 +743,7 @@ function scheduleSalesInventoryResumeCheckV84(reason = "resume") {
 }
 
 function setupSalesInventoryReminder() {
-  // V8.5:
+  // V8.6:
   // 1) first page open -> check and remind;
   // 2) iPhone switches away and returns -> check and remind again if still pending;
   // 3) desktop tab/app loses focus and returns -> same behaviour;
@@ -8731,7 +8731,7 @@ function chooseStockDecreaseType({ productName, currentStock, nextStock }) {
       overlay.remove();
       resolve(value);
     };
-    // V8.5: choosing the decrease type is not the final save confirmation.
+    // V8.6: choosing the decrease type is not the final save confirmation.
     // The user must be able to enter the remark before the one final confirmation.
     overlay.querySelector(".stock-decrease-sale").addEventListener("click", () => finish("sale"));
     overlay.querySelector(".stock-decrease-repair").addEventListener("click", () => finish("repair"));
@@ -8782,7 +8782,7 @@ async function editProductStockFromImportPage(productId) {
     return;
   }
 
-  // V8.5: do not confirm the quantity before choosing the action / entering the remark.
+  // V8.6: do not confirm the quantity before choosing the action / entering the remark.
   // There is one final confirmation after the remark is entered.
   let adjustmentType = "modify";
   let adjustmentReason = nextStock > currentStock ? "库存新增" : "库存修改";
@@ -10707,7 +10707,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "8.5",
+      version: "8.6",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11048,7 +11048,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V8.5 Stable",
+      updatedBy: "System V8.6 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -11107,3 +11107,41 @@ function registerServiceWorker() {
     });
   }
 }
+
+
+// V8.6 History query quick navigation: jump to bottom / top
+(function(){
+  function setupHistoryScrollButton(){
+    if(document.getElementById("historyScrollToggleV86")) return;
+    const btn=document.createElement("button");
+    btn.id="historyScrollToggleV86";
+    btn.className="history-scroll-toggle-v86";
+    btn.type="button";
+    btn.textContent="↓ 到底部";
+    document.body.appendChild(btn);
+
+    let atBottom=false;
+    btn.onclick=function(){
+      if(!atBottom){
+        window.scrollTo({top:document.documentElement.scrollHeight,behavior:"smooth"});
+        btn.textContent="↑ 回顶部";
+        atBottom=true;
+      }else{
+        window.scrollTo({top:0,behavior:"smooth"});
+        btn.textContent="↓ 到底部";
+        atBottom=false;
+      }
+    };
+
+    const observer=new MutationObserver(()=>{
+      const history=document.getElementById("historyPage");
+      const visible=history && history.style.display!=="none";
+      const hasResult=history && history.innerText && history.innerText.includes("进口记录");
+      btn.classList.toggle("show",!!(visible&&hasResult));
+    });
+    observer.observe(document.body,{childList:true,subtree:true,attributes:true});
+  }
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",setupHistoryScrollButton);
+  }else setupHistoryScrollButton();
+})();
