@@ -160,24 +160,35 @@ function buildSalesInventoryMessageV77(item) {
 }
 
 function renderSalesInventoryReminderV77() {
+  // V8.0: no persistent/page-level Sales reminder UI.
   const panel = document.getElementById("salesInventoryReminderPanel");
   const list = document.getElementById("salesInventoryReminderList");
-  const summary = document.getElementById("salesInventoryReminderSummary");
-  if (!panel || !list || !summary) return;
+  if (panel) panel.hidden = true;
+  if (list) list.innerHTML = "";
+}
+
+function showStartupSalesInventoryReminderV80() {
+  if (window.__salesStartupReminderShownV80) return;
+  window.__salesStartupReminderShownV80 = true;
+
   recomputeSalesInventoryPendingV77();
-  if (!salesInventoryPendingV77.length) {
-    panel.hidden = true;
-    list.innerHTML = "";
-    return;
-  }
-  const totalQty = salesInventoryPendingV77.reduce((sum, item) => sum + item.remainingQty, 0);
-  summary.textContent = `Sales System 有 ${salesInventoryPendingV77.length} 笔 / ${formatNumber(totalQty)} 棵销售库存待处理`;
-  list.innerHTML = salesInventoryPendingV77.map(item => `
-    <div class="sales-inventory-reminder-item">
-      <div class="sales-inventory-reminder-text">⚠️ ${escapeHTML(buildSalesInventoryMessageV77(item))}</div>
-      ${item.processedQty > 0 ? `<div class="sales-inventory-reminder-progress">已处理 ${formatNumber(item.processedQty)} / 销售 ${formatNumber(item.quantity)}</div>` : ""}
-      <button type="button" class="sales-inventory-go-btn" data-sales-key="${escapeHTML(item.key)}">去修改库存</button>
-    </div>`).join("");
+  if (!salesInventoryPendingV77.length) return;
+
+  const totalQty = salesInventoryPendingV77.reduce(
+    (sum, item) => sum + Math.max(0, Number(item.remainingQty) || 0),
+    0
+  );
+
+  const lines = salesInventoryPendingV77.map((item, index) =>
+    `${index + 1}. ${buildSalesInventoryMessageV77(item)}`
+  );
+
+  window.alert(
+    `⚠️ Sales System 销售库存待处理\n\n` +
+    `共有 ${formatNumber(salesInventoryPendingV77.length)} 笔 / ${formatNumber(totalQty)} 棵\n\n` +
+    lines.join("\n") +
+    `\n\n请到「产品/进口 修改/编辑」修改对应产品库存，并选择「实际卖出」。`
+  );
 }
 
 function getPendingSalesForProductV77(product) {
@@ -186,10 +197,9 @@ function getPendingSalesForProductV77(product) {
 }
 
 function buildProductPendingSalesHtmlV77(product) {
-  const pending = getPendingSalesForProductV77(product);
-  if (!pending.length) return "";
-  const qty = pending.reduce((sum, item) => sum + item.remainingQty, 0);
-  return `<div class="product-pending-sales-warning">⚠️ Sales 待处理：${formatNumber(pending.length)} 笔 / ${formatNumber(qty)} 棵<br><small>${escapeHTML(buildSalesInventoryMessageV77(pending[0]))}</small></div>`;
+  // V8.0: Sales 库存提醒只在打开网页时弹出一次。
+  // 产品/进口修改页以及其他页面不再显示 Sales 待处理提示。
+  return "";
 }
 
 function allocatePendingSalesForProductV77(product, quantity) {
@@ -235,43 +245,33 @@ function describeSalesAllocationsV77(allocations) {
 }
 
 function setupSalesInventoryReminder() {
+  // V8.0: only remind once when the webpage is opened.
+  // Feed refresh remains active in the background so actual-sale matching keeps working,
+  // but no reminder is rendered on Home / Import / History / Settings pages.
   const panel = document.getElementById("salesInventoryReminderPanel");
-  if (panel && panel.dataset.bound !== "1") {
-    panel.dataset.bound = "1";
-    panel.addEventListener("click", event => {
-      const button = event.target.closest(".sales-inventory-go-btn");
-      if (!button) return;
-      const key = String(button.dataset.salesKey || "");
-      const item = salesInventoryPendingV77.find(row => row.key === key);
-      if (!item) return;
-      preferredSalesInventoryKeyV77 = key;
-      const nav = document.querySelector('.nav-btn[data-page="importPage"]');
-      nav?.click();
-      window.setTimeout(() => {
-        const search = document.getElementById("batchProductStockSearch");
-        if (!search) return;
-        search.value = item.importProductName || item.productName || "";
-        renderBatchProductStockResults();
-        search.focus();
-        document.getElementById("batchProductStockResults")?.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 80);
-    });
-  }
+  if (panel) panel.hidden = true;
 
-  const start = () => {
+  const start = async () => {
     if (typeof cloudInitialSyncComplete !== "undefined" && !cloudInitialSyncComplete) {
       window.setTimeout(start, 1000);
       return;
     }
-    refreshSalesInventoryFeedV77({ silent: true });
+
+    await refreshSalesInventoryFeedV77({ silent: true });
+    showStartupSalesInventoryReminderV80();
+
     window.clearInterval(salesInventoryRefreshTimerV77);
     salesInventoryRefreshTimerV77 = window.setInterval(() => {
       if (!document.hidden) refreshSalesInventoryFeedV77({ silent: true });
     }, SALES_INVENTORY_REFRESH_MS_V77);
   };
-  window.setTimeout(start, 2500);
+
+  window.setTimeout(start, 1200);
+
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && salesInventoryFeedLoadedV77) refreshSalesInventoryFeedV77({ silent: true });
+    if (!document.hidden && salesInventoryFeedLoadedV77) {
+      refreshSalesInventoryFeedV77({ silent: true });
+    }
   });
 }
 
@@ -8223,7 +8223,7 @@ function chooseStockDecreaseType({ productName, currentStock, nextStock }) {
       overlay.remove();
       resolve(value);
     };
-    // V7.9: choosing the decrease type is not the final save confirmation.
+    // V8.0: choosing the decrease type is not the final save confirmation.
     // The user must be able to enter the remark before the one final confirmation.
     overlay.querySelector(".stock-decrease-sale").addEventListener("click", () => finish("sale"));
     overlay.querySelector(".stock-decrease-repair").addEventListener("click", () => finish("repair"));
@@ -8274,7 +8274,7 @@ async function editProductStockFromImportPage(productId) {
     return;
   }
 
-  // V7.9: do not confirm the quantity before choosing the action / entering the remark.
+  // V8.0: do not confirm the quantity before choosing the action / entering the remark.
   // There is one final confirmation after the remark is entered.
   let adjustmentType = "modify";
   let adjustmentReason = nextStock > currentStock ? "库存新增" : "库存修改";
@@ -10199,7 +10199,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "7.9",
+      version: "8.0",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -10540,7 +10540,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V7.9 Stable",
+      updatedBy: "System V8.0 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
