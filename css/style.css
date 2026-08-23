@@ -3684,7 +3684,7 @@ html, body {
 .product-stock-note-add-btn{border:1px solid #9bc9aa;background:#eef8f1;color:#176b3a;border-radius:10px;padding:8px 12px;font-weight:700;cursor:pointer}
 
 
-/* ================= V8.6 Sales -> Import 确认销售并扣库存 ================= */
+/* ================= V8.7 Sales -> Import 确认销售并扣库存 ================= */
 .sales-startup-overlay-v81{
   position:fixed;
   inset:0;
@@ -3782,7 +3782,7 @@ html, body {
 }
 
 
-/* ================= V8.6 Sales reminder safety ================= */
+/* ================= V8.7 Sales reminder safety ================= */
 .sales-startup-product-v81.copyable-v82{
   display:block;
   width:100%;
@@ -3820,7 +3820,7 @@ html, body {
 }
 
 
-/* ================= V8.6 History product-name layout ================= */
+/* ================= V8.7 History product-name layout ================= */
 /* Desktop/tablet: product name + code stays on one line when horizontal space exists. */
 .product-history-adjustment-product.history-copy-product-inline{
   flex:0 0 auto;
@@ -3847,7 +3847,7 @@ html, body {
 }
 
 
-/* ================= V8.6 Sales deep-link + age ================= */
+/* ================= V8.7 Sales deep-link + age ================= */
 .sales-startup-item-v81.preferred-v85{
   border:2px solid #2e7d4f;
   box-shadow:0 0 0 3px rgba(46,125,79,.10);
@@ -3862,7 +3862,7 @@ html, body {
 }
 
 
-/* ================= V8.6 History quick bottom/top button ================= */
+/* ================= V8.7 History quick bottom/top button ================= */
 .history-scroll-toggle-v86{
   position:fixed;
   right:16px;
