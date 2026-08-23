@@ -1,4 +1,4 @@
-V8.9 Stable — Per-Adjustment Remark Display
+V9.0 Stable — Per-Adjustment Remark Display
 
 - History Search now shows the remark directly under every individual stock-change record in every filtering mode.
 - Exact product + date-range views now use the same per-record remark rule as the all-history/date-grouped view.

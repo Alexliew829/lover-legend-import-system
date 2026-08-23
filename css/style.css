@@ -3878,3 +3878,44 @@ html, body {
   display:none;
 }
 .history-scroll-toggle-v86.show{display:block;}
+
+/* ================= V9.0 Remark visibility / mobile-safe wrapping ================= */
+/* UI-only: make stock-change remarks easy to notice without changing inventory logic. */
+.history-adjustment-note,
+.product-history-adjustment-note,
+.product-stock-note-text:not(.is-empty) {
+  color: #b42318;
+  font-weight: 800;
+  line-height: 1.45;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.history-adjustment-note,
+.product-history-adjustment-note {
+  font-size: 1.02em;
+}
+.product-stock-note-text:not(.is-empty) {
+  font-size: 1.02em;
+}
+/* Empty remarks remain visually quiet. */
+.product-stock-note-text.is-empty { color: var(--muted); font-weight: 600; }
+@media (max-width: 700px) {
+  .product-stock-note-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  .product-stock-note-main,
+  .product-stock-note-text,
+  .history-adjustment-note,
+  .product-history-adjustment-note {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .product-stock-note-text { font-size: 1em; }
+}
