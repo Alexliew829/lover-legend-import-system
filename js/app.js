@@ -4803,6 +4803,25 @@ function getProductTotalStockTransitionMap(product) {
   return map;
 }
 
+function isInternalSystemAdjustmentNote(value) {
+  const text = String(value || "").trim();
+  if (!text) return false;
+  return /^system\s+auto\s+repair$/i.test(text);
+}
+
+// V8.8: History / 备注 UI only shows genuine user remarks.
+// Legacy internal markers such as "System Auto Repair" remain stored untouched
+// because they may describe historical repair provenance, but they are not user remarks.
+function getUserVisibleAdjustmentNote(adjustment) {
+  const remark = String(adjustment?.remark || "").trim();
+  if (remark && !isInternalSystemAdjustmentNote(remark)) return remark;
+
+  const note = String(adjustment?.note || "").trim();
+  if (note && !isInternalSystemAdjustmentNote(note)) return note;
+
+  return "";
+}
+
 function buildDailyStockAdjustmentHtml(adjustments) {
   if (!adjustments.length) {
     return `
@@ -4816,7 +4835,7 @@ function buildDailyStockAdjustmentHtml(adjustments) {
     const delta = Math.trunc(Number(adjustment.delta) || 0);
     const action = getHistoryAdjustmentLabel(adjustment);
     const deltaText = delta > 0 ? `+${delta}` : String(delta);
-    const note = String(adjustment?.note || adjustment?.remark || "").trim();
+    const note = getUserVisibleAdjustmentNote(adjustment);
 
     return `
       <article class="history-adjustment-card ${delta < 0 ? "out" : "in"}">
@@ -6175,7 +6194,7 @@ function renderImportHistory() {
                 : formatNumber(delta);
 
               const actionLabel = getHistoryAdjustmentLabel(adjustment);
-              const note = String(adjustment?.note || adjustment?.remark || "").trim();
+              const note = getUserVisibleAdjustmentNote(adjustment);
 
               return `
                 <div class="product-history-adjustment ${delta >= 0 ? "increase" : "decrease"}">
@@ -7966,8 +7985,8 @@ function buildProductAdjustmentNotesPanel(product) {
     const totalDelta = group.items.reduce((sum, item) => sum + Math.trunc(Number(item?.delta) || 0), 0);
     const isNoteOnly = String(first?.adjustmentType || "").toLowerCase() === "note" && totalDelta === 0;
     const deltaText = totalDelta > 0 ? `+${formatNumber(totalDelta)}` : formatNumber(totalDelta);
-    const notedItem = group.items.find(item => String(item?.note || item?.remark || "").trim());
-    const note = String(notedItem?.note || notedItem?.remark || "").trim();
+    const notedItem = group.items.find(item => getUserVisibleAdjustmentNote(item));
+    const note = getUserVisibleAdjustmentNote(notedItem);
     const importNumbers = [...new Set(group.items.map(item => String(item?.importNumber || "").trim()).filter(Boolean))];
     return `
       <div class="product-stock-note-row">
@@ -8013,7 +8032,7 @@ function editProductAdjustmentNote(productId, adjustmentId) {
   if (adjustmentIndex < 0) { alert("找不到这笔记录。"); return; }
 
   const adjustment = adjustments[adjustmentIndex];
-  const currentNote = String(adjustment?.note || adjustment?.remark || "").trim();
+  const currentNote = getUserVisibleAdjustmentNote(adjustment);
   const entered = window.prompt(
     `修改备注（只修改文字，不会改变库存）\n\n产品：${product.name}\n日期：${adjustment.date || "-"}\n\n请输入备注；留空可清除备注。`,
     currentNote
@@ -8026,7 +8045,11 @@ function editProductAdjustmentNote(productId, adjustmentId) {
   const now = new Date().toISOString();
   const nextAdjustments = adjustments.map((item, index) => {
     const sameEvent = eventCreatedAt ? String(item?.createdAt || "").trim() === eventCreatedAt : index === adjustmentIndex;
-    return sameEvent ? { ...item, note: nextNote, updatedAt: now } : item;
+    if (!sameEvent) return item;
+    if (isInternalSystemAdjustmentNote(item?.note)) {
+      return { ...item, remark: nextNote, updatedAt: now };
+    }
+    return { ...item, note: nextNote, remark: String(item?.remark || ""), updatedAt: now };
   });
 
   // V7.8 hard safety: note editing is metadata-only. Preserve inventory/accounting fields exactly.
@@ -10707,7 +10730,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "8.7",
+      version: "8.8",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11048,7 +11071,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V8.7 Stable",
+      updatedBy: "System V8.8 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
