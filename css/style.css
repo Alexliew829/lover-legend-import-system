@@ -3919,3 +3919,23 @@ html, body {
   }
   .product-stock-note-text { font-size: 1em; }
 }
+
+/* V9.2 最近进口：编号本身点击复制，取消独立 Copy 按钮 */
+.recent-batch-copy-value{
+  appearance:none;
+  border:0;
+  padding:0;
+  margin:0;
+  background:transparent;
+  color:var(--green);
+  font:inherit;
+  font-weight:800;
+  text-align:left;
+  cursor:pointer;
+  max-width:100%;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
+.recent-batch-copy-value.copied{opacity:.62;}
+.import-number-line .recent-batch-copy-value{font-size:14px;}
+.import-card-meta .recent-batch-copy-value{display:block;font-size:13px;}

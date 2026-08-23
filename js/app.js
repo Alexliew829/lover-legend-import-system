@@ -2767,6 +2767,50 @@ function copyBatchNumber(importNumber, button) {
 }
 
 
+// V9.2: 最近进口记录直接点击进口编号/运输单号复制；运输单号若含说明文字，只复制末尾实际单号。
+function extractTrackingNumberForCopy(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const tokens = text.split(/\s+/).filter(Boolean);
+  const codeLike = tokens.filter(token => /[A-Za-z]/.test(token) && /\d/.test(token));
+  return codeLike.length ? codeLike[codeLike.length - 1] : text;
+}
+
+function copyRecentBatchValue(element, label) {
+  if (!element) return;
+  const value = String(element.dataset.copyValue || "").trim();
+  if (!value) return;
+
+  const done = () => {
+    element.classList.add("copied");
+    if (typeof showHistoryCopyToast === "function") {
+      showHistoryCopyToast(`✓ 已复制：${value}`);
+    }
+    window.clearTimeout(element._recentBatchCopyTimer);
+    element._recentBatchCopyTimer = window.setTimeout(() => element.classList.remove("copied"), 1200);
+  };
+
+  const fallback = () => {
+    const temp = document.createElement("textarea");
+    temp.value = value;
+    temp.setAttribute("readonly", "");
+    temp.style.position = "fixed";
+    temp.style.opacity = "0";
+    document.body.appendChild(temp);
+    temp.select();
+    document.execCommand("copy");
+    temp.remove();
+    done();
+  };
+
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(value).then(done).catch(fallback);
+  } else {
+    fallback();
+  }
+}
+
+
 function getBatchItemsForDisplay(batch) {
   const storedItems = Array.isArray(batch?.items)
     ? batch.items.filter(Boolean)
@@ -4817,7 +4861,7 @@ function isInternalSystemAdjustmentNote(value) {
   return /^system\s+auto\s+repair$/i.test(text);
 }
 
-// V9.1: History / 备注 UI only shows genuine user remarks.
+// V9.2: History / 备注 UI only shows genuine user remarks.
 // Legacy internal markers such as "System Auto Repair" remain stored untouched
 // because they may describe historical repair provenance, but they are not user remarks.
 function getUserVisibleAdjustmentNote(adjustment) {
@@ -5750,7 +5794,7 @@ function renderCompactProductHistoryByRange(
                 ? `+${formatNumber(delta)}`
                 : formatNumber(delta);
               const actionLabel = getHistoryAdjustmentLabel(adjustment);
-              // V9.1: every visible stock adjustment carries its own remark,
+              // V9.2: every visible stock adjustment carries its own remark,
               // including exact-product + date-range History views.
               const note = getUserVisibleAdjustmentNote(adjustment);
 
@@ -7848,10 +7892,9 @@ function renderBatchList() {
       <div class="batch-card-title-row">
         <div>
           <h4>${escapeHTML(batch.containerDate || batch.date || "-")} · ${Number(batch.itemCount) || items.length} 种产品</h4>
-          <div class="import-number-line"><span>进口编号</span><strong>${escapeHTML(batch.importNumber || "-")}</strong></div>
+          <div class="import-number-line"><span>进口编号</span>${batch.importNumber ? `<button class="recent-batch-copy-value" type="button" data-copy-value="${escapeHTML(batch.importNumber)}" onclick="copyRecentBatchValue(this, '进口编号')" title="点击复制进口编号">${escapeHTML(batch.importNumber)}</button>` : `<strong>-</strong>`}</div>
         </div>
         <div class="batch-card-buttons">
-          ${batch.importNumber ? `<button class="copy-number-btn" type="button" onclick="copyBatchNumber('${escapeHTML(batch.importNumber)}', this)">Copy</button>` : ""}
           ${batch.importNumber ? `<button class="small-btn edit-btn" type="button" onclick="openBatchForEdit('${escapeHTML(batch.importNumber)}')">载入</button>` : ""}
           ${batch.importNumber ? `<button class="small-btn delete-btn" type="button" onclick="deleteBatchByNumber('${escapeHTML(batch.importNumber)}')">删除</button>` : ""}
         </div>
@@ -7868,7 +7911,7 @@ function renderBatchList() {
         <div><span>运输天数</span><strong>${batch.transitDays ? `${batch.transitDays} 天` : "-"}</strong></div>
         <div><span>海外运费比例</span><strong>${formatMoney(getBatchShippingRate(batch))}%</strong></div>
         <div><span>进口总成本</span><strong>${formatMoney(batch.grandTotal, "RM ")}</strong></div>
-        <div><span>运输单号</span><strong>${escapeHTML(batch.overseasTrackingNumber || batch.trackingNumber || "-")}</strong></div>
+        <div><span>运输单号</span>${(batch.overseasTrackingNumber || batch.trackingNumber) ? `<button class="recent-batch-copy-value recent-batch-tracking-copy" type="button" data-copy-value="${escapeHTML(extractTrackingNumberForCopy(batch.overseasTrackingNumber || batch.trackingNumber))}" onclick="copyRecentBatchValue(this, '运输单号')" title="点击只复制运输单号">${escapeHTML(batch.overseasTrackingNumber || batch.trackingNumber)}</button>` : `<strong>-</strong>`}</div>
       </div>
     </article>`;
   }).join("");
@@ -10742,7 +10785,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "9.1",
+      version: "9.2",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11083,7 +11126,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V9.1 Stable",
+      updatedBy: "System V9.2 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
