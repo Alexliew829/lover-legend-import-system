@@ -1,7 +1,9 @@
-V9.0 Stable — Per-Adjustment Remark Display
+V9.1 Stable — Sales / Fair / Live Source Label Fix
 
-- History Search now shows the remark directly under every individual stock-change record in every filtering mode.
-- Exact product + date-range views now use the same per-record remark rule as the all-history/date-grouped view.
-- A genuine user remark is shown as entered; if no user remark exists, the record shows “备注：—”.
-- Internal markers such as “System Auto Repair” remain hidden from the user remark field.
-- No changes to inventory quantities, FIFO, average cost, sell-cost calculation, Sales reconciliation, Google Sheet schema, or sync architecture.
+1. Sales inventory reminders now show exactly one true source channel.
+2. Sales -> Sales · location · date time.
+3. Fair -> Fair · fair location · date time.
+4. Live -> Live · host · date time.
+5. The same source format is used for automatic Import History remarks.
+6. No changes to FIFO, stock deduction, average cost, cost formulas, Sales matching, or sync logic.
+7. All active system/client/cache/version labels updated to V9.1.

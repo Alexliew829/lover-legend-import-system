@@ -180,10 +180,18 @@ function formatSalesTimeV77(value) {
   return match ? `${match[1].padStart(2, "0")}:${match[2]}` : text;
 }
 
+function getSalesChannelV91(item) {
+  const type = String(item?.type || "").trim().toLowerCase();
+  if (type === "live") return "Live";
+  if (type === "fair") return "Fair";
+  return "Sales";
+}
+
 function getSalesSourceNameV77(item) {
-  return String(item?.type || "").toLowerCase() === "live"
-    ? String(item?.host || item?.location || "Live").trim()
-    : String(item?.fairLocation || item?.location || "Fair").trim();
+  const channel = getSalesChannelV91(item);
+  if (channel === "Live") return String(item?.host || item?.location || "Live").trim();
+  if (channel === "Fair") return String(item?.fairLocation || item?.location || "Fair").trim();
+  return String(item?.location || item?.fairLocation || item?.host || "Sales").trim();
 }
 
 function buildSalesInventoryMessageV77(item) {
@@ -202,10 +210,10 @@ function renderSalesInventoryReminderV77() {
 }
 
 function buildSalesInventoryAutoNoteV81(item) {
-  const channel = String(item?.type || "").toLowerCase() === "live" ? "Live" : "Fair";
+  const channel = getSalesChannelV91(item);
   const source = getSalesSourceNameV77(item);
   const when = [String(item?.saleDate || "").trim(), formatSalesTimeV77(item?.saleTime)].filter(Boolean).join(" ");
-  return `Sales · ${channel} · ${source} · ${when}`.trim();
+  return `${channel} · ${source} · ${when}`.trim();
 }
 
 function confirmSalesInventoryLinkRemoteV81(item) {
@@ -495,7 +503,7 @@ function renderStartupSalesInventoryReminderV81() {
     const productName = String(item.importProductName || item.productName || product?.name || "").trim();
     const source = getSalesSourceNameV77(item);
     const when = [String(item.saleDate || ""), formatSalesTimeV77(item.saleTime)].filter(Boolean).join(" ");
-    const channel = String(item.type || "").toLowerCase() === "live" ? "Live" : "Fair";
+    const channel = getSalesChannelV91(item);
     const ageDays=salesInventoryAgeDaysV85(item);
     const ageText=ageDays>0?` · 待处理 ${ageDays} 天`:"";
     const target=getSalesInventoryDeepLinkTargetV85();
@@ -508,7 +516,7 @@ function renderStartupSalesInventoryReminderV81() {
             class="sales-startup-product-v81 copyable-v82"
             title="点击复制产品名称"
             onclick='copySalesStartupProductNameV82(${JSON.stringify(productName)}, this)'>${escapeHTML(productName)}</button>
-          <div class="sales-startup-meta-v81">Sales · ${escapeHTML(channel)} · ${escapeHTML(source)} · ${escapeHTML(when)}${escapeHTML(ageText)}</div>
+          <div class="sales-startup-meta-v81">${escapeHTML(channel)} · ${escapeHTML(source)} · ${escapeHTML(when)}${escapeHTML(ageText)}</div>
           <div class="sales-startup-stock-v81">
             销售：<strong>${formatNumber(item.v82Qty)} 棵</strong>　
             库存：<strong>${formatNumber(item.v82StockBefore)}</strong> → <strong>${formatNumber(item.v82StockAfter)}</strong>
@@ -529,7 +537,7 @@ function renderStartupSalesInventoryReminderV81() {
           class="sales-startup-product-v81 copyable-v82"
           title="点击复制产品名称"
           onclick='copySalesStartupProductNameV82(${JSON.stringify(productName)}, this)'>${escapeHTML(productName)}</button>
-        <div class="sales-startup-meta-v81">Sales · ${escapeHTML(channel)} · ${escapeHTML(source)} · ${escapeHTML(when)}${escapeHTML(ageText)}</div>
+        <div class="sales-startup-meta-v81">${escapeHTML(channel)} · ${escapeHTML(source)} · ${escapeHTML(when)}${escapeHTML(ageText)}</div>
         <div class="sales-startup-stock-v81">
           销售：<strong>${formatNumber(qty)} 棵</strong>　
           当前库存：<strong>${formatNumber(stock)}</strong> → <strong>${formatNumber(after)}</strong>
@@ -4809,7 +4817,7 @@ function isInternalSystemAdjustmentNote(value) {
   return /^system\s+auto\s+repair$/i.test(text);
 }
 
-// V9.0: History / 备注 UI only shows genuine user remarks.
+// V9.1: History / 备注 UI only shows genuine user remarks.
 // Legacy internal markers such as "System Auto Repair" remain stored untouched
 // because they may describe historical repair provenance, but they are not user remarks.
 function getUserVisibleAdjustmentNote(adjustment) {
@@ -5742,7 +5750,7 @@ function renderCompactProductHistoryByRange(
                 ? `+${formatNumber(delta)}`
                 : formatNumber(delta);
               const actionLabel = getHistoryAdjustmentLabel(adjustment);
-              // V9.0: every visible stock adjustment carries its own remark,
+              // V9.1: every visible stock adjustment carries its own remark,
               // including exact-product + date-range History views.
               const note = getUserVisibleAdjustmentNote(adjustment);
 
@@ -10734,7 +10742,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "9.0",
+      version: "9.1",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11075,7 +11083,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V9.0 Stable",
+      updatedBy: "System V9.1 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,

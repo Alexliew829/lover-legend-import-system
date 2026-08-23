@@ -3879,7 +3879,7 @@ html, body {
 }
 .history-scroll-toggle-v86.show{display:block;}
 
-/* ================= V9.0 Remark visibility / mobile-safe wrapping ================= */
+/* ================= V9.1 Remark visibility / mobile-safe wrapping ================= */
 /* UI-only: make stock-change remarks easy to notice without changing inventory logic. */
 .history-adjustment-note,
 .product-history-adjustment-note,
