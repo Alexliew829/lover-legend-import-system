@@ -4809,7 +4809,7 @@ function isInternalSystemAdjustmentNote(value) {
   return /^system\s+auto\s+repair$/i.test(text);
 }
 
-// V8.8: History / 备注 UI only shows genuine user remarks.
+// V8.9: History / 备注 UI only shows genuine user remarks.
 // Legacy internal markers such as "System Auto Repair" remain stored untouched
 // because they may describe historical repair provenance, but they are not user remarks.
 function getUserVisibleAdjustmentNote(adjustment) {
@@ -5742,6 +5742,9 @@ function renderCompactProductHistoryByRange(
                 ? `+${formatNumber(delta)}`
                 : formatNumber(delta);
               const actionLabel = getHistoryAdjustmentLabel(adjustment);
+              // V8.9: every visible stock adjustment carries its own remark,
+              // including exact-product + date-range History views.
+              const note = getUserVisibleAdjustmentNote(adjustment);
 
               return `
                 <div class="product-history-adjustment ${
@@ -5777,6 +5780,7 @@ function renderCompactProductHistoryByRange(
                   <strong class="product-history-adjustment-quantity">
                     ${signedDelta}
                   </strong>
+                  <span class="product-history-adjustment-note">备注：${escapeHTML(note || "—")}</span>
                 </div>
               `;
             }).join("")}
@@ -10730,7 +10734,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "8.8",
+      version: "8.9",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11071,7 +11075,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V8.8 Stable",
+      updatedBy: "System V8.9 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,

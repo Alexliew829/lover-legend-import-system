@@ -1,37 +1,7 @@
-V8.8 Stable — Genuine Remark Display
-- 历史查询：任何筛选条件下都只显示真正的用户备注。
-- 旧资料内部标记「System Auto Repair」不再当成备注显示；无真实备注统一显示「备注：—」。
-- 内部修复标记继续保留在原数据，不删除、不改写，不影响历史修复来源。
-- 产品/进口修改页备注记录同样不把内部修复标记当成用户备注。
-- 修改这种旧记录的备注时，用户备注独立写入，不覆盖内部 System Auto Repair 标记。
-- 不改变库存、FIFO、实际卖出、平均成本、卖出成本、Sales 核销、Google Sheet Schema 或同步架构。
+V8.9 Stable — Per-Adjustment Remark Display
 
-V8.7 Stable — History Remark Display
-- 历史查询：任何筛选条件下，只要记录显示，就固定显示备注。
-- 有备注显示实际内容；无备注显示「备注：—」。
-- 只修改 History 显示层，不改变库存、实际卖出、FIFO、平均成本、成本映射、Sales 提醒或同步逻辑。
-
-V8.7 Stable — Stock Change Remark Flow
-- 产品/进口 修改/编辑：修改库存后，先选择「实际卖出 / 库存修正」，再输入备注，最后一次确认保存。
-- 不再先确认数量、保存后才补备注；库存变动与该次备注在同一保存流程完成。
-- 备注可留空；Cancel 会取消整次库存修改。
-- 修改既有备注仍然只修改文字，不重新执行库存变化。
-- 不改变 FIFO、平均成本、卖出成本、进口编号、库存公式、Sales 核销或同步架构。
-
-V7.8 Stable — Remark Safety & Compact Notes
-- 修改库存变动备注只更新文字，不重新执行库存变化。
-- 强制保留当前库存与平均成本；不会重跑 FIFO、卖出成本或 Sales 核销。
-- 备注记录默认收起，未填写显示「—」。
-- 新增「＋ 新增备注」，可建立不影响库存的独立产品备注。
-
-V7.8 Stable — Sales Inventory Pending Reminder
-
-1. 对接 Sales System V25.6 P4 Inventory Feed（只读）。
-2. 首页新增「销售库存待处理」持续提醒。
-3. 提醒显示主播/Fair、日期、时间、产品、未处理数量。
-4. 可跳到产品/进口 修改/编辑对应产品。
-5. 实际卖出会记录 Sales link / saleId / processedQty，并按数量核销。
-6. 库存修正不会核销 Sales 提醒。
-7. Sales Card 数量变更后自动按差额重新提醒；删除/取消不再提醒。
-8. 不新增 Google Sheet Schema；不改变 FIFO、成本、平均成本、卖出成本或其他公式。
-9. 正常云端同步流程没有新增 Sales Feed 请求；Sales Feed 在首次 Import 同步完成后独立读取。
+- History Search now shows the remark directly under every individual stock-change record in every filtering mode.
+- Exact product + date-range views now use the same per-record remark rule as the all-history/date-grouped view.
+- A genuine user remark is shown as entered; if no user remark exists, the record shows “备注：—”.
+- Internal markers such as “System Auto Repair” remain hidden from the user remark field.
+- No changes to inventory quantities, FIFO, average cost, sell-cost calculation, Sales reconciliation, Google Sheet schema, or sync architecture.
