@@ -1,4 +1,4 @@
-V9.4 Stable
+V9.5 Stable
 
 - Sales card atomic inventory transaction (All-or-Nothing).
 - Revision conflict stops the whole card.

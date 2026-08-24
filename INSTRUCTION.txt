@@ -1,1 +1,1 @@
-V9.4 Stable - 请先更新并重新部署 Apps Script/Code.gs，再上传 Frontend。appsscript.json 与 Sheet Schema 不需修改。
+V9.5 Stable - 请先更新并重新部署 Apps Script/Code.gs，再上传 Frontend。appsscript.json 与 Sheet Schema 不需修改。
