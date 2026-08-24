@@ -1,4 +1,4 @@
-V9.8 Stable — V9.2 Sync Baseline + Sales Card Atomic Inventory
+V9.9 Stable — V9.2 Sync Baseline + Sales Card Atomic Inventory
 
 1. Rebuilt directly from the proven V9.2 perfect-running baseline; normal Pull/Push/bootstrap sync flow remains V9.2 structure.
 2. One Sales/Fair/Live sales card (transactionId) is one All-or-Nothing inventory transaction.
@@ -12,7 +12,7 @@ V9.8 Stable — V9.2 Sync Baseline + Sales Card Atomic Inventory
 10. Non-inventory Sales changes cannot cause a second deduction when the same Sales links are already fully processed.
 11. Source labels: Sales · Belimbing; Sales · Fair · location; Sales · Live · host.
 12. FIFO algorithm, average-cost logic, inventory truth rules, History definitions and Google Sheet schema are unchanged.
-13. All active frontend/backend/cache/version labels updated to V9.8.
+13. All active frontend/backend/cache/version labels updated to V9.9.
 
 V9.2 Stable — Sales / Fair / Live Source Label Fix
 

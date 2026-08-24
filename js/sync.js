@@ -40,6 +40,12 @@ function getCloudQueue() {
   return {
     dirty: Boolean(saved.dirty),
     changedAt: saved.changedAt || "",
+    settingsChanged: Boolean(saved.settingsChanged),
+    changed: {
+      products: Array.isArray(saved.changed?.products) ? saved.changed.products : [],
+      imports: Array.isArray(saved.changed?.imports) ? saved.changed.imports : [],
+      batches: Array.isArray(saved.changed?.batches) ? saved.changed.batches : []
+    },
     deleted: {
       products: Array.isArray(saved.deleted?.products) ? saved.deleted.products : [],
       imports: Array.isArray(saved.deleted?.imports) ? saved.deleted.imports : [],
@@ -62,6 +68,8 @@ function clearLegacyPendingCloudState() {
   saveCloudQueue({
     dirty: false,
     changedAt: "",
+    settingsChanged: false,
+    changed: { products: [], imports: [], batches: [] },
     deleted: { products: [], imports: [], batches: [] }
   });
 }
@@ -182,12 +190,12 @@ async function refreshLatestCloudData() {
 
 window.refreshLatestCloudData = refreshLatestCloudData;
 
-const CLOUD_API_TIMEOUT_MS_V98 = 15000;
-const CLOUD_API_MAX_RETRY_V98 = 1;
+const CLOUD_API_TIMEOUT_MS_V99 = 15000;
+const CLOUD_API_MAX_RETRY_V99 = 1;
 
 async function callGoogleApi(payload, attempt = 0) {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), CLOUD_API_TIMEOUT_MS_V98);
+  const timeoutId = window.setTimeout(() => controller.abort(), CLOUD_API_TIMEOUT_MS_V99);
 
   try {
     const response = await fetch(DEFAULT_GOOGLE_SCRIPT_URL, {
@@ -208,7 +216,7 @@ async function callGoogleApi(payload, attempt = 0) {
   } catch (error) {
     const retryable =
       navigator.onLine &&
-      attempt < CLOUD_API_MAX_RETRY_V98 &&
+      attempt < CLOUD_API_MAX_RETRY_V99 &&
       (error?.name === "AbortError" || error instanceof TypeError || /connection failed/i.test(String(error?.message || error)));
 
     if (retryable) {
@@ -239,15 +247,32 @@ function markCloudCollectionSaved(collection, previousItems, nextItems) {
   if (JSON.stringify(previousItems || []) === JSON.stringify(nextItems || [])) return;
 
   const queue = getCloudQueue();
-  const oldIds = new Set((previousItems || []).map(item => String(item?.id || "")).filter(Boolean));
-  const newIds = new Set((nextItems || []).map(item => String(item?.id || "")).filter(Boolean));
+  const previousById = new Map((previousItems || [])
+    .map(item => [String(item?.id || ""), item])
+    .filter(([id]) => Boolean(id)));
+  const nextById = new Map((nextItems || [])
+    .map(item => [String(item?.id || ""), item])
+    .filter(([id]) => Boolean(id)));
+
+  const changed = new Set(queue.changed[collection] || []);
   const deleted = new Set(queue.deleted[collection] || []);
 
-  oldIds.forEach(id => {
-    if (!newIds.has(id)) deleted.add(id);
+  previousById.forEach((oldItem, id) => {
+    if (!nextById.has(id)) {
+      deleted.add(id);
+      changed.delete(id);
+    }
   });
-  newIds.forEach(id => deleted.delete(id));
 
+  nextById.forEach((nextItem, id) => {
+    const oldItem = previousById.get(id);
+    if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(nextItem)) {
+      changed.add(id);
+    }
+    deleted.delete(id);
+  });
+
+  queue.changed[collection] = [...changed];
   queue.deleted[collection] = [...deleted];
   queue.dirty = true;
   queue.changedAt = new Date().toISOString();
@@ -258,6 +283,7 @@ function markCloudCollectionSaved(collection, previousItems, nextItems) {
 function markCloudSettingsSaved() {
   if (cloudApplyingRemote || !isCloudBootstrapComplete()) return;
   const queue = getCloudQueue();
+  queue.settingsChanged = true;
   queue.dirty = true;
   queue.changedAt = new Date().toISOString();
   saveCloudQueue(queue);
@@ -330,7 +356,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V9.8 Stable",
+      updatedBy: "System V9.9 Stable",
       ...payload
     });
 
@@ -355,7 +381,7 @@ window.commitSalesInventoryToCloudV83 = commitSalesInventoryToCloudV83;
 
 
 async function commitSalesCardInventoryToCloudV97(payload) {
-  // IMPORTANT: V9.8 keeps the proven V9.2 normal Pull/Push/bootstrap structure and caps network retry wait.
+  // IMPORTANT: V9.9 keeps the proven V9.2 normal Pull/Push/bootstrap structure and caps network retry wait.
   // This function is invoked ONLY after the user confirms one whole Sales card.
   await flushCloudQueueStrictV83();
   const config = getCloudConfig();
@@ -368,7 +394,7 @@ async function commitSalesCardInventoryToCloudV97(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V9.8 Stable",
+      updatedBy: "System V9.9 Stable",
       ...payload
     });
     if (data.conflict || data.transactionFailed || data.stockChanged) {
@@ -395,8 +421,8 @@ async function pullLatestAfterSalesCommitV83() {
 }
 window.pullLatestAfterSalesCommitV83 = pullLatestAfterSalesCommitV83;
 
-let cloudLastSyncDurationMsV98 = 0;
-let cloudLastSyncStartedAtV98 = 0;
+let cloudLastSyncDurationMsV99 = 0;
+let cloudLastSyncStartedAtV99 = 0;
 
 async function runCloudSync() {
   if (!navigator.onLine) {
@@ -411,7 +437,7 @@ async function runCloudSync() {
 
   cloudSyncBusy = true;
   cloudSyncRequestedWhileBusy = false;
-  cloudLastSyncStartedAtV98 = Date.now();
+  cloudLastSyncStartedAtV99 = Date.now();
   setCloudState("syncing");
 
   try {
@@ -434,6 +460,8 @@ async function runCloudSync() {
       saveCloudQueue({
         dirty: false,
         changedAt: "",
+        settingsChanged: false,
+        changed: { products: [], imports: [], batches: [] },
         deleted: { products: [], imports: [], batches: [] }
       });
       remoteUpdated = await pullLatestSnapshot();
@@ -456,8 +484,8 @@ async function runCloudSync() {
     setCloudState("failed");
     console.error("Google sync failed:", error);
   } finally {
-    cloudLastSyncDurationMsV98 = Math.max(0, Date.now() - cloudLastSyncStartedAtV98);
-    window.__loverImportLastSyncMs = cloudLastSyncDurationMsV98;
+    cloudLastSyncDurationMsV99 = Math.max(0, Date.now() - cloudLastSyncStartedAtV99);
+    window.__loverImportLastSyncMs = cloudLastSyncDurationMsV99;
     cloudSyncBusy = false;
     if (cloudSyncRequestedWhileBusy || getCloudQueue().dirty) {
       cloudSyncTimer = window.setTimeout(() => runCloudSync(), 40);
@@ -560,7 +588,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt)
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V9.8 Stable",
+    updatedBy: "System V9.9 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     updatedAt: String(updatedAt || new Date().toISOString())
@@ -589,12 +617,44 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt)
 
 window.updateProductMinimumPriceFast = updateProductMinimumPriceFast;
 
+
+function pickChangedItemsV99(items, ids) {
+  const wanted = new Set((ids || []).map(String));
+  return (items || []).filter(item => wanted.has(String(item?.id || "")));
+}
+
+function queueHasDeltaV99(queue) {
+  return Boolean(queue?.settingsChanged) ||
+    ["products","imports","batches"].some(name =>
+      (queue?.changed?.[name] || []).length || (queue?.deleted?.[name] || []).length
+    );
+}
+
 async function pushPendingSnapshot(queue, retryCount = 0) {
   const config = getCloudConfig();
   const snapshot = makeLocalSnapshot();
   const sentChangedAt = queue.changedAt || "";
 
-  const data = await callGoogleApi({
+  // V9.9: normal saves send only changed IDs. Full snapshot push is retained only
+  // as a compatibility fallback for an impossible/legacy dirty queue.
+  const hasDelta = queueHasDeltaV99(queue);
+  const payload = hasDelta ? {
+    action: "pushDeltaV99",
+    clientVersion: APP_VERSION,
+    schemaVersion: CLOUD_SCHEMA_VERSION,
+    baseRevision: Number(config.revision) || 0,
+    bootstrapToken: String(config.bootstrapToken || ""),
+    bootstrapRevision: Number(config.bootstrapRevision) || 0,
+    updatedBy: "System V9.9 Stable",
+    settingsChanged: Boolean(queue.settingsChanged),
+    settings: queue.settingsChanged ? snapshot.settings : undefined,
+    changed: {
+      products: pickChangedItemsV99(snapshot.products, queue.changed.products),
+      imports: pickChangedItemsV99(snapshot.imports, queue.changed.imports),
+      batches: pickChangedItemsV99(snapshot.batches, queue.changed.batches)
+    },
+    deleted: queue.deleted
+  } : {
     action: "push",
     clientVersion: APP_VERSION,
     schemaVersion: CLOUD_SCHEMA_VERSION,
@@ -602,12 +662,22 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V9.8 Stable",
+    updatedBy: "System V9.9 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
     batches: snapshot.batches
-  });
+  };
+
+  const data = await callGoogleApi(payload);
+
+  if (data.busy) {
+    // Keep the exact dirty queue; do not block the user behind a 30-second lock wait.
+    setCloudState("syncing");
+    window.clearTimeout(cloudSyncTimer);
+    cloudSyncTimer = window.setTimeout(() => runCloudSync(), 1200);
+    return;
+  }
 
   if (data.conflict) {
     if (retryCount >= 1) throw new Error("资料冲突仍未解决，请重新打开系统再同步");
@@ -620,7 +690,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     config.bootstrapRevision = Number(data.revision) || 0;
     saveCloudConfig(config);
 
-    // Keep dirty state and retry exactly once with the merged snapshot.
+    // The changed/deleted ID queue is still valid after merging; retry once.
     return pushPendingSnapshot(queue, retryCount + 1);
   }
 
@@ -635,6 +705,8 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     saveCloudQueue({
       dirty: false,
       changedAt: "",
+      settingsChanged: false,
+      changed: { products: [], imports: [], batches: [] },
       deleted: { products: [], imports: [], batches: [] }
     });
   }

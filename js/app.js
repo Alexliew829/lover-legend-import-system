@@ -23,7 +23,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // as adjustmentType="sale" and stores the Sales link key in stockAdjustments.
 const SALES_INVENTORY_FEED_URL_V77 =
   "https://script.google.com/macros/s/AKfycby1OwDIiVf5quXKiD9AG8s2ppM942sLFdJSfyePp--yZtDjYY8jBtkOYLwD9c3WiC_KNw/exec";
-// V9.8: Sales reminder feed is secondary information, not part of the database sync.
+// V9.9: Sales reminder feed is secondary information, not part of the database sync.
 const SALES_INVENTORY_REFRESH_MS_V77 = 300000;
 const SALES_INVENTORY_FEED_MIN_GAP_V98 = 30000;
 let salesInventoryLastFeedAtV98 = 0;
@@ -154,7 +154,7 @@ function recomputeSalesInventoryPendingV77() {
       const soldQty = Math.max(0, Math.trunc(Number(item?.quantity) || 0));
       const processedQty = Math.max(0, Math.trunc(Number(processed.get(key)) || 0));
       const remainingQty = Math.max(0, soldQty - processedQty);
-      // V9.8: if Import already committed the full quantity but Sales has not yet
+      // V9.9: if Import already committed the full quantity but Sales has not yet
       // acknowledged INVENTORY_CONFIRMED, keep the card visible.  The retry path
       // only re-sends the Sales confirmation and NEVER deducts inventory again.
       const importCommitted = soldQty > 0 && processedQty >= soldQty;
@@ -300,7 +300,7 @@ function confirmSalesInventoryLinkRemoteV81(item) {
       date: String(item?.saleDate || ""),
       location: String(item?.location || item?.host || item?.fairLocation || ""),
       transactionId,
-      // V9.8 hard rule: a Sales card is one inventory transaction.  When a
+      // V9.9 hard rule: a Sales card is one inventory transaction.  When a
       // transactionId exists we deliberately do NOT send linkId, otherwise the
       // Sales API would confirm only one product row instead of the whole card.
       ...(transactionId ? {} : { linkId: String(item?.linkId || "") }),
@@ -381,12 +381,12 @@ async function executeSalesInventoryCardV97(transactionId) {
   if (committedRows.length) {
     return {
       ok: false,
-      message: "检测到这张 Sales 销售卡存在旧的部分处理状态。为防止重复扣库存，V9.8 已停止整张交易。请先核对 History 后再处理。"
+      message: "检测到这张 Sales 销售卡存在旧的部分处理状态。为防止重复扣库存，V9.9 已停止整张交易。请先核对 History 后再处理。"
     };
   }
 
   if (typeof commitSalesCardInventoryToCloudV97 !== "function") {
-    return { ok: false, message: "V9.8 整张销售卡云端事务模块未载入，请强制刷新网页后再试。" };
+    return { ok: false, message: "V9.9 整张销售卡云端事务模块未载入，请强制刷新网页后再试。" };
   }
 
   // Aggregate multiple rows of the same Import product inside the same Sales card.
@@ -541,7 +541,7 @@ async function executeSalesInventoryCardV97(transactionId) {
 }
 
 async function executeSalesInventoryDeductionV81(item) {
-  // Compatibility wrapper: V9.8 always escalates a product click to its whole Sales card.
+  // Compatibility wrapper: V9.9 always escalates a product click to its whole Sales card.
   return executeSalesInventoryCardV97(getSalesTransactionIdV97(item));
 }
 
@@ -664,7 +664,7 @@ function showStartupSalesInventoryReminderV80() {
   overlay.innerHTML = `<div class="sales-startup-dialog-v81" role="dialog" aria-modal="true" aria-labelledby="salesStartupTitleV81">
     <div class="sales-startup-head-v81"><div><strong id="salesStartupTitleV81">⚠️ Sales System 销售库存待处理</strong><div class="sales-startup-summary-v81"></div></div><button type="button" class="sales-startup-close-v81" aria-label="关闭">×</button></div>
     <div class="sales-startup-body-v81"></div>
-    <div class="sales-startup-foot-v81"><small>V9.8：首次正式销售仍按整张销售卡 All-or-Nothing 扣库存；已经处理过库存后若 Sales 修改产品/数量，只显示人工修正提醒，Import 不会再次自动扣库存。</small><button type="button" class="sales-startup-later-v81">稍后处理</button></div>
+    <div class="sales-startup-foot-v81"><small>V9.9：首次正式销售仍按整张销售卡 All-or-Nothing 扣库存；已经处理过库存后若 Sales 修改产品/数量，只显示人工修正提醒，Import 不会再次自动扣库存。</small><button type="button" class="sales-startup-later-v81">稍后处理</button></div>
   </div>`;
 
   overlay.querySelector(".sales-startup-close-v81")?.addEventListener("click", closeStartupSalesInventoryReminderV81);
@@ -2823,7 +2823,7 @@ function copyBatchNumber(importNumber, button) {
 }
 
 
-// V9.8: 最近进口记录直接点击进口编号/运输单号复制；运输单号若含说明文字，只复制末尾实际单号。
+// V9.9: 最近进口记录直接点击进口编号/运输单号复制；运输单号若含说明文字，只复制末尾实际单号。
 function extractTrackingNumberForCopy(value) {
   const text = String(value || "").trim();
   if (!text) return "";
@@ -4917,7 +4917,7 @@ function isInternalSystemAdjustmentNote(value) {
   return /^system\s+auto\s+repair$/i.test(text);
 }
 
-// V9.8: History / 备注 UI only shows genuine user remarks.
+// V9.9: History / 备注 UI only shows genuine user remarks.
 // Legacy internal markers such as "System Auto Repair" remain stored untouched
 // because they may describe historical repair provenance, but they are not user remarks.
 function getUserVisibleAdjustmentNote(adjustment) {
@@ -5850,7 +5850,7 @@ function renderCompactProductHistoryByRange(
                 ? `+${formatNumber(delta)}`
                 : formatNumber(delta);
               const actionLabel = getHistoryAdjustmentLabel(adjustment);
-              // V9.8: every visible stock adjustment carries its own remark,
+              // V9.9: every visible stock adjustment carries its own remark,
               // including exact-product + date-range History views.
               const note = getUserVisibleAdjustmentNote(adjustment);
 
@@ -8932,7 +8932,7 @@ async function editProductStockFromImportPage(productId) {
     adjustmentReason = classification === "sale" ? "实际卖出" : "库存修正";
   }
 
-  // V9.8: manual inventory edits never consume/confirm Sales reminders.
+  // V9.9: manual inventory edits never consume/confirm Sales reminders.
   // Sales / Fair / Live pending inventory can only be completed from the
   // whole-card atomic transaction popup.
   let matchedSalesLinksV77 = [];
@@ -10821,7 +10821,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "9.8",
+      version: "9.9",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11162,7 +11162,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V9.8 Stable",
+      updatedBy: "System V9.9 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
