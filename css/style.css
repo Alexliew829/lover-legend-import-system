@@ -3940,7 +3940,7 @@ html, body {
 .import-number-line .recent-batch-copy-value{font-size:14px;}
 .import-card-meta .recent-batch-copy-value{display:block;font-size:13px;}
 
-/* V9.7 Sales Card All-or-Nothing inventory transaction */
+/* V9.8 Sales Card All-or-Nothing inventory transaction */
 .sales-card-atomic-v97{overflow:hidden;max-width:100%;box-sizing:border-box}
 .sales-card-line-v97{padding:9px 0;border-top:1px dashed #d8dfd8;max-width:100%;overflow:hidden}
 .sales-card-line-v97:first-of-type{border-top:0}

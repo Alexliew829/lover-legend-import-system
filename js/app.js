@@ -23,7 +23,10 @@ document.addEventListener("DOMContentLoaded", () => {
 // as adjustmentType="sale" and stores the Sales link key in stockAdjustments.
 const SALES_INVENTORY_FEED_URL_V77 =
   "https://script.google.com/macros/s/AKfycby1OwDIiVf5quXKiD9AG8s2ppM942sLFdJSfyePp--yZtDjYY8jBtkOYLwD9c3WiC_KNw/exec";
-const SALES_INVENTORY_REFRESH_MS_V77 = 60000;
+// V9.8: Sales reminder feed is secondary information, not part of the database sync.
+const SALES_INVENTORY_REFRESH_MS_V77 = 300000;
+const SALES_INVENTORY_FEED_MIN_GAP_V98 = 30000;
+let salesInventoryLastFeedAtV98 = 0;
 let salesInventoryFeedV77 = [];
 let salesInventoryPendingV77 = [];
 let salesInventoryFeedLoadedV77 = false;
@@ -63,6 +66,41 @@ function isPreferredSalesInventoryItemV85(item,target){
 
 function normalizeSalesInventoryTextV77(value) {
   return String(value || "").trim().toLowerCase().replace(/\s+/g, "");
+}
+
+
+function isManualInventoryCorrectionV98(item) {
+  const type = String(item?.inventoryTaskType || item?.taskType || item?.inventoryAction || "").toUpperCase();
+  return type === "MANUAL_CORRECTION" ||
+    type === "MANUAL_INVENTORY_CORRECTION" ||
+    type === "MANUAL_ADJUSTMENT" ||
+    String(item?.importSyncStatus || "").toUpperCase() === "MANUAL_CORRECTION_PENDING";
+}
+
+function getManualCorrectionLinesV98(item) {
+  if (Array.isArray(item?.manualChanges)) return item.manualChanges;
+  if (Array.isArray(item?.inventoryChanges)) return item.inventoryChanges;
+  return [];
+}
+
+function buildManualCorrectionHtmlV98(item) {
+  const lines = getManualCorrectionLinesV98(item);
+  const detail = lines.length ? lines.map(change => {
+    const name = String(change?.productName || change?.name || change?.productId || "产品");
+    const before = Number(change?.beforeQty ?? change?.oldQty ?? 0) || 0;
+    const after = Number(change?.afterQty ?? change?.newQty ?? 0) || 0;
+    const delta = after - before;
+    const hint = delta > 0
+      ? `销售数量增加 ${formatNumber(delta)}，请人工检查是否需要扣库存`
+      : delta < 0
+        ? `销售数量减少 ${formatNumber(Math.abs(delta))}，请人工检查是否需要恢复库存`
+        : "产品/关联资料已修改，请人工核对";
+    return `<div class="sales-card-line-v97">
+      <button type="button" class="sales-startup-product-v81 copyable-v82" onclick='copySalesStartupProductNameV82(${JSON.stringify(name)}, this)'>${escapeHTML(name)}</button>
+      <div class="sales-startup-stock-v81">原 ${formatNumber(before)} → 现 ${formatNumber(after)} · ${escapeHTML(hint)}</div>
+    </div>`;
+  }).join("") : `<div class="sales-startup-stock-v81">${escapeHTML(String(item?.manualMessage || item?.message || "销售卡产品/数量已修改，请到产品/进口修改页面人工核对库存。"))}</div>`;
+  return detail;
 }
 
 function getSalesInventoryItemKeyV77(item) {
@@ -116,7 +154,7 @@ function recomputeSalesInventoryPendingV77() {
       const soldQty = Math.max(0, Math.trunc(Number(item?.quantity) || 0));
       const processedQty = Math.max(0, Math.trunc(Number(processed.get(key)) || 0));
       const remainingQty = Math.max(0, soldQty - processedQty);
-      // V9.7: if Import already committed the full quantity but Sales has not yet
+      // V9.8: if Import already committed the full quantity but Sales has not yet
       // acknowledged INVENTORY_CONFIRMED, keep the card visible.  The retry path
       // only re-sends the Sales confirmation and NEVER deducts inventory again.
       const importCommitted = soldQty > 0 && processedQty >= soldQty;
@@ -159,11 +197,19 @@ function callSalesInventoryFeedV77() {
   });
 }
 
-async function refreshSalesInventoryFeedV77({ silent = true } = {}) {
+async function refreshSalesInventoryFeedV77({ silent = true, force = false } = {}) {
   if (salesInventoryFeedBusyV77 || !navigator.onLine) return salesInventoryPendingV77;
+  const nowV98 = Date.now();
+  if (!force && salesInventoryFeedLoadedV77 && nowV98 - salesInventoryLastFeedAtV98 < SALES_INVENTORY_FEED_MIN_GAP_V98) {
+    return salesInventoryPendingV77;
+  }
+  // Do not compete with the primary Import Google sync. The reminder may wait a moment;
+  // inventory/database freshness has priority.
+  if (!force && typeof cloudSyncBusy !== "undefined" && cloudSyncBusy) return salesInventoryPendingV77;
   salesInventoryFeedBusyV77 = true;
   try {
     const data = await callSalesInventoryFeedV77();
+    salesInventoryLastFeedAtV98 = Date.now();
     salesInventoryFeedV77 = Array.isArray(data?.items) ? data.items : [];
     salesInventoryFeedLoadedV77 = true;
     recomputeSalesInventoryPendingV77();
@@ -254,7 +300,7 @@ function confirmSalesInventoryLinkRemoteV81(item) {
       date: String(item?.saleDate || ""),
       location: String(item?.location || item?.host || item?.fairLocation || ""),
       transactionId,
-      // V9.7 hard rule: a Sales card is one inventory transaction.  When a
+      // V9.8 hard rule: a Sales card is one inventory transaction.  When a
       // transactionId exists we deliberately do NOT send linkId, otherwise the
       // Sales API would confirm only one product row instead of the whole card.
       ...(transactionId ? {} : { linkId: String(item?.linkId || "") }),
@@ -335,12 +381,12 @@ async function executeSalesInventoryCardV97(transactionId) {
   if (committedRows.length) {
     return {
       ok: false,
-      message: "检测到这张 Sales 销售卡存在旧的部分处理状态。为防止重复扣库存，V9.7 已停止整张交易。请先核对 History 后再处理。"
+      message: "检测到这张 Sales 销售卡存在旧的部分处理状态。为防止重复扣库存，V9.8 已停止整张交易。请先核对 History 后再处理。"
     };
   }
 
   if (typeof commitSalesCardInventoryToCloudV97 !== "function") {
-    return { ok: false, message: "V9.7 整张销售卡云端事务模块未载入，请强制刷新网页后再试。" };
+    return { ok: false, message: "V9.8 整张销售卡云端事务模块未载入，请强制刷新网页后再试。" };
   }
 
   // Aggregate multiple rows of the same Import product inside the same Sales card.
@@ -495,7 +541,7 @@ async function executeSalesInventoryCardV97(transactionId) {
 }
 
 async function executeSalesInventoryDeductionV81(item) {
-  // Compatibility wrapper: V9.7 always escalates a product click to its whole Sales card.
+  // Compatibility wrapper: V9.8 always escalates a product click to its whole Sales card.
   return executeSalesInventoryCardV97(getSalesTransactionIdV97(item));
 }
 
@@ -568,7 +614,10 @@ function renderStartupSalesInventoryReminderV81() {
     const ageText = ageDays > 0 ? ` · 待处理 ${ageDays} 天` : "";
     const target = getSalesInventoryDeepLinkTargetV85();
     const preferred = group.rows.some(item => isPreferredSalesInventoryItemV85(item, target));
-    const productsHtml = group.rows.map(item => {
+    const manualCorrection = group.rows.some(isManualInventoryCorrectionV98);
+    const productsHtml = manualCorrection
+      ? group.rows.map(item => buildManualCorrectionHtmlV98(item)).join("")
+      : group.rows.map(item => {
       const product = findImportProductForSalesItemV77(item);
       const productName = String(item.importProductName || item.productName || product?.name || "").trim();
       const stock = Math.max(0, Math.trunc(Number(product?.stock) || 0));
@@ -584,13 +633,19 @@ function renderStartupSalesInventoryReminderV81() {
       </div>`;
     }).join("");
 
+    const manualOnlyNoteV98 = manualCorrection
+      ? '<div class="sales-startup-processed-note-v82">只读提醒：Import 不会自动修改库存。请到「产品/进口 修改/编辑」人工处理。</div>'
+      : "";
+
     return `<div class="sales-startup-item-v81 sales-card-atomic-v97${processed ? " processed-v82" : ""}${preferred ? " preferred-v85" : ""}" data-sales-txn="${escapeHTML(group.transactionId)}">
       <div class="sales-startup-meta-v81"><strong>${escapeHTML(channel)} · ${escapeHTML(source)}</strong> · ${escapeHTML(when)}${escapeHTML(ageText)}</div>
       ${productsHtml}
-      <button type="button" class="sales-startup-confirm-v81${processed ? " processed-button-v82" : ""}" data-sales-txn="${escapeHTML(group.transactionId)}" ${processed ? "disabled" : ""}>
-        ${processed ? "✓ 整张销售卡库存已完成" : (importCommitted ? "重试完成整张销售卡" : "确认整张销售卡并扣库存")}
-      </button>
-      ${processed ? '<div class="sales-startup-processed-note-v82">整张卡已完成；不会再次扣库存。</div>' : ''}
+      ${manualCorrection
+        ? `<button type="button" class="sales-startup-confirm-v81 processed-button-v82" disabled>请手动处理库存</button>${manualOnlyNoteV98}`
+        : `<button type="button" class="sales-startup-confirm-v81${processed ? " processed-button-v82" : ""}" data-sales-txn="${escapeHTML(group.transactionId)}" ${processed ? "disabled" : ""}>
+            ${processed ? "✓ 整张销售卡库存已完成" : (importCommitted ? "重试完成整张销售卡" : "确认整张销售卡并扣库存")}
+          </button>
+          ${processed ? '<div class="sales-startup-processed-note-v82">整张卡已完成；不会再次扣库存。</div>' : ''}`}
     </div>`;
   }).join("");
 }
@@ -609,7 +664,7 @@ function showStartupSalesInventoryReminderV80() {
   overlay.innerHTML = `<div class="sales-startup-dialog-v81" role="dialog" aria-modal="true" aria-labelledby="salesStartupTitleV81">
     <div class="sales-startup-head-v81"><div><strong id="salesStartupTitleV81">⚠️ Sales System 销售库存待处理</strong><div class="sales-startup-summary-v81"></div></div><button type="button" class="sales-startup-close-v81" aria-label="关闭">×</button></div>
     <div class="sales-startup-body-v81"></div>
-    <div class="sales-startup-foot-v81"><small>V9.7：同一张 Sales / Fair / Live 销售卡是一个完整库存事务。任何一个产品失败，整张卡 0 笔扣库存、0 笔 History，提醒继续保留。</small><button type="button" class="sales-startup-later-v81">稍后处理</button></div>
+    <div class="sales-startup-foot-v81"><small>V9.8：首次正式销售仍按整张销售卡 All-or-Nothing 扣库存；已经处理过库存后若 Sales 修改产品/数量，只显示人工修正提醒，Import 不会再次自动扣库存。</small><button type="button" class="sales-startup-later-v81">稍后处理</button></div>
   </div>`;
 
   overlay.querySelector(".sales-startup-close-v81")?.addEventListener("click", closeStartupSalesInventoryReminderV81);
@@ -719,6 +774,7 @@ async function checkSalesInventoryOnResumeV84(reason = "resume") {
 
   try {
     if (typeof cloudInitialSyncComplete !== "undefined" && !cloudInitialSyncComplete) return;
+    if (typeof cloudSyncBusy !== "undefined" && cloudSyncBusy) return;
 
     await refreshSalesInventoryFeedV77({ silent: true });
     recomputeSalesInventoryPendingV77();
@@ -758,11 +814,15 @@ function setupSalesInventoryReminder() {
 
   const start = async () => {
     if (typeof cloudInitialSyncComplete !== "undefined" && !cloudInitialSyncComplete) {
-      window.setTimeout(start, 1000);
+      window.setTimeout(start, 2200);
+      return;
+    }
+    if (typeof cloudSyncBusy !== "undefined" && cloudSyncBusy) {
+      window.setTimeout(start, 700);
       return;
     }
 
-    await refreshSalesInventoryFeedV77({ silent: true });
+    await refreshSalesInventoryFeedV77({ silent: true, force: true });
     window.__salesStartupReminderShownV80 = false;
     showStartupSalesInventoryReminderV80();
 
@@ -2763,7 +2823,7 @@ function copyBatchNumber(importNumber, button) {
 }
 
 
-// V9.7: 最近进口记录直接点击进口编号/运输单号复制；运输单号若含说明文字，只复制末尾实际单号。
+// V9.8: 最近进口记录直接点击进口编号/运输单号复制；运输单号若含说明文字，只复制末尾实际单号。
 function extractTrackingNumberForCopy(value) {
   const text = String(value || "").trim();
   if (!text) return "";
@@ -4857,7 +4917,7 @@ function isInternalSystemAdjustmentNote(value) {
   return /^system\s+auto\s+repair$/i.test(text);
 }
 
-// V9.7: History / 备注 UI only shows genuine user remarks.
+// V9.8: History / 备注 UI only shows genuine user remarks.
 // Legacy internal markers such as "System Auto Repair" remain stored untouched
 // because they may describe historical repair provenance, but they are not user remarks.
 function getUserVisibleAdjustmentNote(adjustment) {
@@ -5790,7 +5850,7 @@ function renderCompactProductHistoryByRange(
                 ? `+${formatNumber(delta)}`
                 : formatNumber(delta);
               const actionLabel = getHistoryAdjustmentLabel(adjustment);
-              // V9.7: every visible stock adjustment carries its own remark,
+              // V9.8: every visible stock adjustment carries its own remark,
               // including exact-product + date-range History views.
               const note = getUserVisibleAdjustmentNote(adjustment);
 
@@ -8872,7 +8932,7 @@ async function editProductStockFromImportPage(productId) {
     adjustmentReason = classification === "sale" ? "实际卖出" : "库存修正";
   }
 
-  // V9.7: manual inventory edits never consume/confirm Sales reminders.
+  // V9.8: manual inventory edits never consume/confirm Sales reminders.
   // Sales / Fair / Live pending inventory can only be completed from the
   // whole-card atomic transaction popup.
   let matchedSalesLinksV77 = [];
@@ -10761,7 +10821,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "9.7",
+      version: "9.8",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11102,7 +11162,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V9.7 Stable",
+      updatedBy: "System V9.8 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,

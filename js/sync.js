@@ -182,9 +182,12 @@ async function refreshLatestCloudData() {
 
 window.refreshLatestCloudData = refreshLatestCloudData;
 
+const CLOUD_API_TIMEOUT_MS_V98 = 15000;
+const CLOUD_API_MAX_RETRY_V98 = 1;
+
 async function callGoogleApi(payload, attempt = 0) {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), 25000);
+  const timeoutId = window.setTimeout(() => controller.abort(), CLOUD_API_TIMEOUT_MS_V98);
 
   try {
     const response = await fetch(DEFAULT_GOOGLE_SCRIPT_URL, {
@@ -205,11 +208,11 @@ async function callGoogleApi(payload, attempt = 0) {
   } catch (error) {
     const retryable =
       navigator.onLine &&
-      attempt < 2 &&
+      attempt < CLOUD_API_MAX_RETRY_V98 &&
       (error?.name === "AbortError" || error instanceof TypeError || /connection failed/i.test(String(error?.message || error)));
 
     if (retryable) {
-      await new Promise(resolve => window.setTimeout(resolve, attempt === 0 ? 150 : 450));
+      await new Promise(resolve => window.setTimeout(resolve, 180));
       return callGoogleApi(payload, attempt + 1);
     }
 
@@ -327,7 +330,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V9.7 Stable",
+      updatedBy: "System V9.8 Stable",
       ...payload
     });
 
@@ -352,7 +355,7 @@ window.commitSalesInventoryToCloudV83 = commitSalesInventoryToCloudV83;
 
 
 async function commitSalesCardInventoryToCloudV97(payload) {
-  // IMPORTANT: V9.7 leaves the proven V9.2 normal Pull/Push/bootstrap structure untouched.
+  // IMPORTANT: V9.8 keeps the proven V9.2 normal Pull/Push/bootstrap structure and caps network retry wait.
   // This function is invoked ONLY after the user confirms one whole Sales card.
   await flushCloudQueueStrictV83();
   const config = getCloudConfig();
@@ -365,7 +368,7 @@ async function commitSalesCardInventoryToCloudV97(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V9.7 Stable",
+      updatedBy: "System V9.8 Stable",
       ...payload
     });
     if (data.conflict || data.transactionFailed || data.stockChanged) {
@@ -392,6 +395,9 @@ async function pullLatestAfterSalesCommitV83() {
 }
 window.pullLatestAfterSalesCommitV83 = pullLatestAfterSalesCommitV83;
 
+let cloudLastSyncDurationMsV98 = 0;
+let cloudLastSyncStartedAtV98 = 0;
+
 async function runCloudSync() {
   if (!navigator.onLine) {
     setCloudState("failed");
@@ -405,6 +411,7 @@ async function runCloudSync() {
 
   cloudSyncBusy = true;
   cloudSyncRequestedWhileBusy = false;
+  cloudLastSyncStartedAtV98 = Date.now();
   setCloudState("syncing");
 
   try {
@@ -449,6 +456,8 @@ async function runCloudSync() {
     setCloudState("failed");
     console.error("Google sync failed:", error);
   } finally {
+    cloudLastSyncDurationMsV98 = Math.max(0, Date.now() - cloudLastSyncStartedAtV98);
+    window.__loverImportLastSyncMs = cloudLastSyncDurationMsV98;
     cloudSyncBusy = false;
     if (cloudSyncRequestedWhileBusy || getCloudQueue().dirty) {
       cloudSyncTimer = window.setTimeout(() => runCloudSync(), 40);
@@ -551,7 +560,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt)
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V9.7 Stable",
+    updatedBy: "System V9.8 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     updatedAt: String(updatedAt || new Date().toISOString())
@@ -593,7 +602,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V9.7 Stable",
+    updatedBy: "System V9.8 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
