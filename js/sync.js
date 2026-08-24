@@ -356,7 +356,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V9.9 Stable",
+      updatedBy: "System V10.0 Stable",
       ...payload
     });
 
@@ -381,7 +381,7 @@ window.commitSalesInventoryToCloudV83 = commitSalesInventoryToCloudV83;
 
 
 async function commitSalesCardInventoryToCloudV97(payload) {
-  // IMPORTANT: V9.9 keeps the proven V9.2 normal Pull/Push/bootstrap structure and caps network retry wait.
+  // IMPORTANT: V10.0 keeps the proven V9.2 normal Pull/Push/bootstrap structure and caps network retry wait.
   // This function is invoked ONLY after the user confirms one whole Sales card.
   await flushCloudQueueStrictV83();
   const config = getCloudConfig();
@@ -394,7 +394,7 @@ async function commitSalesCardInventoryToCloudV97(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V9.9 Stable",
+      updatedBy: "System V10.0 Stable",
       ...payload
     });
     if (data.conflict || data.transactionFailed || data.stockChanged) {
@@ -421,8 +421,9 @@ async function pullLatestAfterSalesCommitV83() {
 }
 window.pullLatestAfterSalesCommitV83 = pullLatestAfterSalesCommitV83;
 
-let cloudLastSyncDurationMsV99 = 0;
-let cloudLastSyncStartedAtV99 = 0;
+let cloudLastSyncDurationMsV100 = 0;
+let cloudLastSyncStartedAtV100 = 0;
+let cloudRetryNotBeforeV100 = 0;
 
 async function runCloudSync() {
   if (!navigator.onLine) {
@@ -437,7 +438,9 @@ async function runCloudSync() {
 
   cloudSyncBusy = true;
   cloudSyncRequestedWhileBusy = false;
-  cloudLastSyncStartedAtV99 = Date.now();
+  cloudLastSyncStartedAtV100 = Date.now();
+  let syncCycleSucceededV100 = false;
+  let syncCycleDeferredV100 = false;
   setCloudState("syncing");
 
   try {
@@ -466,10 +469,10 @@ async function runCloudSync() {
       });
       remoteUpdated = await pullLatestSnapshot();
     } else if (queue.dirty) {
-      // push 本身会以 baseRevision 做服务器端检查；
-      // 若电脑已经更新，服务器返回 conflict 后自动合并再重试，
-      // 不额外增加一次网络请求。
-      await pushPendingSnapshot(queue);
+      // Push uses revision conflict protection. V10.0 also treats a busy database
+      // as a deferred sync, instead of immediately re-entering the sync loop.
+      const pushResultV100 = await pushPendingSnapshot(queue);
+      syncCycleDeferredV100 = Boolean(pushResultV100?.deferred);
     } else {
       remoteUpdated = await pullLatestSnapshot();
     }
@@ -478,34 +481,53 @@ async function runCloudSync() {
       showLatestDataSyncedToast();
     }
 
+    if (!syncCycleDeferredV100) {
+      syncCycleSucceededV100 = true;
+    }
     cloudInitialSyncComplete = true;
-
-    // V9.9 Feed Fix:
-    // The primary Import sync has finished successfully. Sales inventory reminders
-    // are secondary and were intentionally blocked while cloudSyncBusy=true.
-    // Emit one completion event so the Sales Feed is checked immediately afterward.
-    window.setTimeout(() => {
-      try {
-        window.dispatchEvent(new CustomEvent("lover-import-cloud-sync-success-v99", {
-          detail: {
-            revision: Number(getCloudConfig().revision) || 0,
-            durationMs: Math.max(0, Date.now() - cloudLastSyncStartedAtV99)
-          }
-        }));
-      } catch (error) {
-        console.warn("V9.9 Sales Feed post-sync event skipped:", error);
-      }
-    }, 80);
   } catch (error) {
     cloudInitialSyncComplete = true;
     setCloudState("failed");
     console.error("Google sync failed:", error);
   } finally {
-    cloudLastSyncDurationMsV99 = Math.max(0, Date.now() - cloudLastSyncStartedAtV99);
-    window.__loverImportLastSyncMs = cloudLastSyncDurationMsV99;
+    cloudLastSyncDurationMsV100 = Math.max(0, Date.now() - cloudLastSyncStartedAtV100);
+    window.__loverImportLastSyncMs = cloudLastSyncDurationMsV100;
+
+    // IMPORTANT: release the main sync state before any Sales Feed work.
     cloudSyncBusy = false;
-    if (cloudSyncRequestedWhileBusy || getCloudQueue().dirty) {
-      cloudSyncTimer = window.setTimeout(() => runCloudSync(), 40);
+
+    const stillDirtyV100 = Boolean(getCloudQueue().dirty);
+    const needsAnotherSyncV100 = cloudSyncRequestedWhileBusy || stillDirtyV100;
+
+    if (needsAnotherSyncV100) {
+      const nowV100 = Date.now();
+      const waitV100 = cloudRetryNotBeforeV100 > nowV100
+        ? Math.max(150, cloudRetryNotBeforeV100 - nowV100)
+        : 120;
+      window.clearTimeout(cloudSyncTimer);
+      cloudSyncTimer = window.setTimeout(() => runCloudSync(), waitV100);
+    } else {
+      cloudRetryNotBeforeV100 = 0;
+    }
+
+    // Sales Inventory Feed is fully secondary. It runs only after:
+    // 1) the Import cloud cycle succeeded,
+    // 2) cloudSyncBusy is already false,
+    // 3) there is no pending Import write left.
+    // Feed success/failure never changes Import's sync state.
+    if (syncCycleSucceededV100 && !needsAnotherSyncV100) {
+      window.setTimeout(() => {
+        try {
+          window.dispatchEvent(new CustomEvent("lover-import-cloud-sync-success-v100", {
+            detail: {
+              revision: Number(getCloudConfig().revision) || 0,
+              durationMs: cloudLastSyncDurationMsV100
+            }
+          }));
+        } catch (error) {
+          console.warn("V10.0 post-sync Sales Feed event skipped:", error);
+        }
+      }, 300);
     }
   }
 }
@@ -605,7 +627,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt)
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V9.9 Stable",
+    updatedBy: "System V10.0 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     updatedAt: String(updatedAt || new Date().toISOString())
@@ -652,7 +674,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
   const snapshot = makeLocalSnapshot();
   const sentChangedAt = queue.changedAt || "";
 
-  // V9.9: normal saves send only changed IDs. Full snapshot push is retained only
+  // V10.0: normal saves send only changed IDs. Full snapshot push is retained only
   // as a compatibility fallback for an impossible/legacy dirty queue.
   const hasDelta = queueHasDeltaV99(queue);
   const payload = hasDelta ? {
@@ -662,7 +684,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V9.9 Stable",
+    updatedBy: "System V10.0 Stable",
     settingsChanged: Boolean(queue.settingsChanged),
     settings: queue.settingsChanged ? snapshot.settings : undefined,
     changed: {
@@ -679,7 +701,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V9.9 Stable",
+    updatedBy: "System V10.0 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
@@ -689,11 +711,10 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
   const data = await callGoogleApi(payload);
 
   if (data.busy) {
-    // Keep the exact dirty queue; do not block the user behind a 30-second lock wait.
-    setCloudState("syncing");
-    window.clearTimeout(cloudSyncTimer);
-    cloudSyncTimer = window.setTimeout(() => runCloudSync(), 1200);
-    return;
+    // Keep the exact dirty queue. V10.0 lets runCloudSync.finally schedule ONE delayed retry.
+    // This prevents the old 40ms busy-loop from keeping the UI permanently at "同步中...".
+    cloudRetryNotBeforeV100 = Date.now() + 1500;
+    return { deferred: true, busy: true };
   }
 
   if (data.conflict) {
@@ -730,6 +751,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
 
   renderCloudMeta(config);
   setCloudState("synced");
+  return { ok: true, deferred: false, revision: Number(config.revision) || 0 };
 }
 
 function mergeSnapshots(remote, local, queue) {
