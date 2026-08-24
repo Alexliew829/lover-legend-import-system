@@ -3939,3 +3939,29 @@ html, body {
 .recent-batch-copy-value.copied{opacity:.62;}
 .import-number-line .recent-batch-copy-value{font-size:14px;}
 .import-card-meta .recent-batch-copy-value{display:block;font-size:13px;}
+
+/* ================= V9.3 Sales-card All-or-Nothing transaction UI ================= */
+.sales-startup-card-v93{
+  display:block;
+}
+.sales-startup-products-v93{
+  display:grid;
+  gap:10px;
+  margin:10px 0 12px;
+}
+.sales-startup-product-line-v93{
+  padding:10px 0;
+  border-top:1px dashed rgba(31,93,58,.18);
+  min-width:0;
+}
+.sales-startup-product-line-v93:first-child{border-top:0;padding-top:0;}
+.sales-startup-product-line-v93 .sales-startup-product-v81{
+  max-width:100%;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
+@media(max-width:700px){
+  .sales-startup-products-v93{gap:8px;}
+  .sales-startup-product-line-v93{padding:8px 0;}
+}

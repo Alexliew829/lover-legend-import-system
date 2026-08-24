@@ -1,15 +1,19 @@
-Lover Legend Import Cost & Inventory System V9.2 Stable
+Lover Legend Import Cost & Inventory System V9.3 Stable
 
-Apps Script / Code.gs：需要更新（版本握手 V9.2）。
+Apps Script / Code.gs：需要更新（新增整张 Sales 销售卡 All-or-Nothing 库存事务）。
 appsscript.json：不需要更新。
 Google Sheet Schema：不需要升级。
 
 部署顺序：
-1. 替换 Import System Apps Script 的 V9.2 Code.gs 并 Save。
+1. 替换 Import System Apps Script 的 V9.3 Code.gs 并 Save。
 2. Deploy New Version。
-3. 上传 V9.2 Frontend 到 GitHub Pages。
-4. Sales System 必须已部署 V25.6 P4 Inventory Feed，且 getSalesInventoryFeed 可读取。
+3. 上传 V9.3 Frontend 到 GitHub Pages。
+4. Sales System 继续使用 V27.8；本版本只读取其 Inventory Feed，并在 Import 全部成功后按 transactionId 回写整张卡完成状态。
 
-V8.7 Sales Feed 为独立只读请求，不修改原本 Import cloud sync / Pull / Push。
-
-V9.2 note: remark visibility is UI-only. Code.gs business logic is unchanged; however REQUIRED_CLIENT_VERSION / version handshake is updated to 9.1, so deploy the included Code.gs together with Frontend.
+V9.3 核心安全规则：
+- 同一张 Sales 销售卡 = 一个完整库存事务。
+- 任一产品预检查 / Revision / 写入 / History 验证失败，整张卡不视为成功。
+- 写入途中失败会尝试恢复本次涉及的 Products / Imports / Batches 原始行；Revision 在完整验证成功前不会增加。
+- 成功后才更新 Revision，再回写 Sales 整张 transaction 状态。
+- Sales 回写失败时 Import 不会重复扣库存；提醒保留，下一次只重试 Sales 完成状态。
+- FIFO、平均成本、库存真值规则、History 既有定义、Google Sheet Schema 不变。
