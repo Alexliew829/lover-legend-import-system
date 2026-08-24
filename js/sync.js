@@ -356,7 +356,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V10.0 Stable",
+      updatedBy: "System V10.1 Stable",
       ...payload
     });
 
@@ -381,7 +381,7 @@ window.commitSalesInventoryToCloudV83 = commitSalesInventoryToCloudV83;
 
 
 async function commitSalesCardInventoryToCloudV97(payload) {
-  // IMPORTANT: V10.0 keeps the proven V9.2 normal Pull/Push/bootstrap structure and caps network retry wait.
+  // IMPORTANT: V10.1 keeps the proven V9.2 normal Pull/Push/bootstrap structure and caps network retry wait.
   // This function is invoked ONLY after the user confirms one whole Sales card.
   await flushCloudQueueStrictV83();
   const config = getCloudConfig();
@@ -394,7 +394,7 @@ async function commitSalesCardInventoryToCloudV97(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V10.0 Stable",
+      updatedBy: "System V10.1 Stable",
       ...payload
     });
     if (data.conflict || data.transactionFailed || data.stockChanged) {
@@ -469,7 +469,7 @@ async function runCloudSync() {
       });
       remoteUpdated = await pullLatestSnapshot();
     } else if (queue.dirty) {
-      // Push uses revision conflict protection. V10.0 also treats a busy database
+      // Push uses revision conflict protection. V10.1 also treats a busy database
       // as a deferred sync, instead of immediately re-entering the sync loop.
       const pushResultV100 = await pushPendingSnapshot(queue);
       syncCycleDeferredV100 = Boolean(pushResultV100?.deferred);
@@ -525,7 +525,7 @@ async function runCloudSync() {
             }
           }));
         } catch (error) {
-          console.warn("V10.0 post-sync Sales Feed event skipped:", error);
+          console.warn("V10.1 post-sync Sales Feed event skipped:", error);
         }
       }, 300);
     }
@@ -627,7 +627,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt)
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V10.0 Stable",
+    updatedBy: "System V10.1 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     updatedAt: String(updatedAt || new Date().toISOString())
@@ -674,7 +674,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
   const snapshot = makeLocalSnapshot();
   const sentChangedAt = queue.changedAt || "";
 
-  // V10.0: normal saves send only changed IDs. Full snapshot push is retained only
+  // V10.1: normal saves send only changed IDs. Full snapshot push is retained only
   // as a compatibility fallback for an impossible/legacy dirty queue.
   const hasDelta = queueHasDeltaV99(queue);
   const payload = hasDelta ? {
@@ -684,7 +684,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V10.0 Stable",
+    updatedBy: "System V10.1 Stable",
     settingsChanged: Boolean(queue.settingsChanged),
     settings: queue.settingsChanged ? snapshot.settings : undefined,
     changed: {
@@ -701,7 +701,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V10.0 Stable",
+    updatedBy: "System V10.1 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
@@ -711,7 +711,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
   const data = await callGoogleApi(payload);
 
   if (data.busy) {
-    // Keep the exact dirty queue. V10.0 lets runCloudSync.finally schedule ONE delayed retry.
+    // Keep the exact dirty queue. V10.1 lets runCloudSync.finally schedule ONE delayed retry.
     // This prevents the old 40ms busy-loop from keeping the UI permanently at "同步中...".
     cloudRetryNotBeforeV100 = Date.now() + 1500;
     return { deferred: true, busy: true };
