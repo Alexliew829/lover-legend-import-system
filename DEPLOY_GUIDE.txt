@@ -1,4 +1,4 @@
-Lover Legend Import Cost & Inventory System V9.3 Stable
+Lover Legend Import Cost & Inventory System V9.4 Stable
 
 Apps Script / Code.gs：需要更新（新增整张 Sales 销售卡 All-or-Nothing 库存事务）。
 appsscript.json：不需要更新。

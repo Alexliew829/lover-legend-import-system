@@ -184,7 +184,13 @@ window.refreshLatestCloudData = refreshLatestCloudData;
 
 async function callGoogleApi(payload, attempt = 0) {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), 25000);
+  // V9.4 startup recovery: a stalled read-only Pull must not leave a fresh browser
+  // showing 0 inventory for nearly a minute. Pull retries sooner; write actions keep
+  // the original conservative timeout/retry window. This does not change data logic.
+  const isPullRequest = String(payload?.action || "") === "pull";
+  const requestTimeoutMs = isPullRequest ? 15000 : 25000;
+  const maxRetries = isPullRequest ? 1 : 2;
+  const timeoutId = window.setTimeout(() => controller.abort(), requestTimeoutMs);
 
   try {
     const response = await fetch(DEFAULT_GOOGLE_SCRIPT_URL, {
@@ -205,7 +211,7 @@ async function callGoogleApi(payload, attempt = 0) {
   } catch (error) {
     const retryable =
       navigator.onLine &&
-      attempt < 2 &&
+      attempt < maxRetries &&
       (error?.name === "AbortError" || error instanceof TypeError || /connection failed/i.test(String(error?.message || error)));
 
     if (retryable) {
@@ -327,7 +333,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V9.3 Stable",
+      updatedBy: "System V9.4 Stable",
       ...payload
     });
 
@@ -364,7 +370,7 @@ async function commitSalesCardInventoryToCloudV93(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V9.3 Stable",
+      updatedBy: "System V9.4 Stable",
       ...payload
     });
 
@@ -552,7 +558,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt)
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V9.3 Stable",
+    updatedBy: "System V9.4 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     updatedAt: String(updatedAt || new Date().toISOString())
@@ -594,7 +600,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V9.3 Stable",
+    updatedBy: "System V9.4 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
