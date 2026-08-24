@@ -327,7 +327,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V9.6 Stable",
+      updatedBy: "System V9.7 Stable",
       ...payload
     });
 
@@ -351,27 +351,26 @@ async function commitSalesInventoryToCloudV83(payload) {
 window.commitSalesInventoryToCloudV83 = commitSalesInventoryToCloudV83;
 
 
-async function commitSalesCardInventoryToCloudV93(payload) {
+async function commitSalesCardInventoryToCloudV97(payload) {
+  // IMPORTANT: V9.7 leaves the proven V9.2 normal Pull/Push/bootstrap structure untouched.
+  // This function is invoked ONLY after the user confirms one whole Sales card.
   await flushCloudQueueStrictV83();
   const config = getCloudConfig();
   setCloudState("syncing");
-
   try {
     const data = await callGoogleApi({
-      action: "commitSalesCardInventoryV93",
+      action: "commitSalesCardInventoryV97",
       clientVersion: APP_VERSION,
       schemaVersion: CLOUD_SCHEMA_VERSION,
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V9.6 Stable",
+      updatedBy: "System V9.7 Stable",
       ...payload
     });
-
-    if (data.conflict || data.stockChanged || data.transactionFailed) {
-      throw new Error(data.message || "整张 Sales 销售卡库存事务失败，请同步后重试。");
+    if (data.conflict || data.transactionFailed || data.stockChanged) {
+      throw new Error(data.message || "整张销售卡事务失败；0 笔库存、0 笔 History。请同步后重试。");
     }
-
     config.revision = Number(data.revision) || Number(config.revision) || 0;
     config.lastSyncAt = new Date().toISOString();
     config.bootstrapToken = String(data.bootstrapToken || config.bootstrapToken || "");
@@ -385,8 +384,7 @@ async function commitSalesCardInventoryToCloudV93(payload) {
     throw error;
   }
 }
-window.commitSalesCardInventoryToCloudV93 = commitSalesCardInventoryToCloudV93;
-
+window.commitSalesCardInventoryToCloudV97 = commitSalesCardInventoryToCloudV97;
 
 async function pullLatestAfterSalesCommitV83() {
   await waitForCloudIdleV83();
@@ -553,7 +551,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt)
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V9.6 Stable",
+    updatedBy: "System V9.7 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     updatedAt: String(updatedAt || new Date().toISOString())
@@ -595,7 +593,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V9.6 Stable",
+    updatedBy: "System V9.7 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,

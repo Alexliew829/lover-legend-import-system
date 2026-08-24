@@ -1,4 +1,20 @@
-V9.6 Stable — Sales / Fair / Live Source Label Fix
+V9.7 Stable — V9.2 Sync Baseline + Sales Card Atomic Inventory
+
+1. Rebuilt directly from the proven V9.2 perfect-running baseline; normal Pull/Push/bootstrap sync flow remains V9.2 structure.
+2. One Sales/Fair/Live sales card (transactionId) is one All-or-Nothing inventory transaction.
+3. Every product is prechecked before any write. One failure = 0 Products / 0 Imports / 0 Batches / 0 History / no reminder completion.
+4. Revision conflict stops the whole card before writes.
+5. Cloud write is verified against final Products stock, Imports remaining, Batches remaining, and each product History/Sales link.
+6. Any write/verification/revision failure attempts rollback to the pre-transaction snapshot.
+7. Sales reminder is completed only after the whole Import transaction succeeds and Sales confirms the whole transactionId.
+8. If Import already committed but Sales acknowledgement fails, reminder stays and retry only resends Sales confirmation; inventory is never deducted twice.
+9. Manual inventory edits no longer consume Sales pending reminders; reminders are completed only through the whole-card button.
+10. Non-inventory Sales changes cannot cause a second deduction when the same Sales links are already fully processed.
+11. Source labels: Sales · Belimbing; Sales · Fair · location; Sales · Live · host.
+12. FIFO algorithm, average-cost logic, inventory truth rules, History definitions and Google Sheet schema are unchanged.
+13. All active frontend/backend/cache/version labels updated to V9.7.
+
+V9.2 Stable — Sales / Fair / Live Source Label Fix
 
 1. Sales inventory reminders now show exactly one true source channel.
 2. Sales -> Sales · location · date time.
@@ -6,4 +22,4 @@ V9.6 Stable — Sales / Fair / Live Source Label Fix
 4. Live -> Live · host · date time.
 5. The same source format is used for automatic Import History remarks.
 6. No changes to FIFO, stock deduction, average cost, cost formulas, Sales matching, or sync logic.
-7. All active system/client/cache/version labels updated to V9.6.
+7. All active system/client/cache/version labels updated to V9.2.
