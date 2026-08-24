@@ -479,6 +479,23 @@ async function runCloudSync() {
     }
 
     cloudInitialSyncComplete = true;
+
+    // V9.9 Feed Fix:
+    // The primary Import sync has finished successfully. Sales inventory reminders
+    // are secondary and were intentionally blocked while cloudSyncBusy=true.
+    // Emit one completion event so the Sales Feed is checked immediately afterward.
+    window.setTimeout(() => {
+      try {
+        window.dispatchEvent(new CustomEvent("lover-import-cloud-sync-success-v99", {
+          detail: {
+            revision: Number(getCloudConfig().revision) || 0,
+            durationMs: Math.max(0, Date.now() - cloudLastSyncStartedAtV99)
+          }
+        }));
+      } catch (error) {
+        console.warn("V9.9 Sales Feed post-sync event skipped:", error);
+      }
+    }, 80);
   } catch (error) {
     cloudInitialSyncComplete = true;
     setCloudState("failed");

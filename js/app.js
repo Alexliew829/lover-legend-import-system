@@ -774,7 +774,10 @@ async function checkSalesInventoryOnResumeV84(reason = "resume") {
 
   try {
     if (typeof cloudInitialSyncComplete !== "undefined" && !cloudInitialSyncComplete) return;
-    if (typeof cloudSyncBusy !== "undefined" && cloudSyncBusy) return;
+    if (typeof cloudSyncBusy !== "undefined" && cloudSyncBusy) {
+      scheduleSalesInventoryResumeCheckV84(`${reason}-after-cloud-sync`);
+      return;
+    }
 
     await refreshSalesInventoryFeedV77({ silent: true });
     recomputeSalesInventoryPendingV77();
@@ -802,7 +805,34 @@ function scheduleSalesInventoryResumeCheckV84(reason = "resume") {
   );
 }
 
+async function refreshSalesInventoryAfterImportSyncV99(event) {
+  if (document.hidden || !navigator.onLine) return;
+  try {
+    // Force bypasses the 30-second Feed throttle. This call happens only after
+    // a successful Import cloud sync, so it does not compete with the main sync.
+    await refreshSalesInventoryFeedV77({ silent: true, force: true });
+    recomputeSalesInventoryPendingV77();
+
+    if (!salesInventoryPendingV77.length) return;
+    if (document.getElementById("salesInventoryStartupOverlayV81")) return;
+
+    window.__salesStartupReminderShownV80 = false;
+    showStartupSalesInventoryReminderV80();
+  } catch (error) {
+    console.warn("V9.9 post-sync Sales inventory reminder check failed:", error);
+  }
+}
+
 function setupSalesInventoryReminder() {
+  // V9.9 Feed Fix: successful Import cloud sync must immediately refresh Sales reminders.
+  if (!window.__loverImportPostSyncSalesFeedListenerV99) {
+    window.__loverImportPostSyncSalesFeedListenerV99 = true;
+    window.addEventListener(
+      "lover-import-cloud-sync-success-v99",
+      refreshSalesInventoryAfterImportSyncV99
+    );
+  }
+
   // V8.7:
   // 1) first page open -> check and remind;
   // 2) iPhone switches away and returns -> check and remind again if still pending;
