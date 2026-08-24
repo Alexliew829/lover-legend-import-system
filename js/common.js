@@ -1,4 +1,5 @@
-const APP_VERSION = "9.5";
+const APP_VERSION = "9.2"; // Cloud protocol compatibility: do not change; V9.2 proven sync path.
+const APP_DISPLAY_VERSION = "9.6";
 
 function formatMoney(value, prefix = "") {
   const number = Number(value) || 0;

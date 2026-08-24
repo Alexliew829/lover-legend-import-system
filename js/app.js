@@ -116,7 +116,7 @@ function recomputeSalesInventoryPendingV77() {
       const soldQty = Math.max(0, Math.trunc(Number(item?.quantity) || 0));
       const processedQty = Math.max(0, Math.trunc(Number(processed.get(key)) || 0));
       const remainingQty = Math.max(0, soldQty - processedQty);
-      // V9.3: if Import already committed the whole card but Sales confirmation
+      // V9.6: if Import already committed the whole card but Sales confirmation
       // failed, KEEP the reminder visible. A retry will confirm Sales only and
       // will never deduct inventory twice.
       if (!remainingQty && soldQty > 0 && processedQty >= soldQty) {
@@ -341,7 +341,7 @@ function buildSalesTransactionPlanV93(seedItem) {
           `整张销售卡已停止，0 笔库存会被扣除。\n\n` +
           `Sales 产品身份已经改变：${String(item?.productName || product.name)}\n` +
           `这个 linkId 之前已从「${String(existingLink?.product?.name || "旧产品")}」扣过库存。\n\n` +
-          `为防止旧产品未回补、又扣新产品，V9.3 不会自动处理这种产品更换。请先人工核对旧库存。`
+          `为防止旧产品未回补、又扣新产品，V9.6 不会自动处理这种产品更换。请先人工核对旧库存。`
       };
     }
     if (!grouped.has(productId)) grouped.set(productId, { product, items: [], qty: 0 });
@@ -482,7 +482,7 @@ async function executeSalesInventoryDeductionV81(seedItem) {
     if (confirmOnlyCount !== liveTxnItems.length) {
       return {
         ok: false,
-        message: "检测到这张销售卡存在部分旧状态：有些产品已写入 Import、有些仍未写入。V9.3 已停止自动处理，请先核对 History。"
+        message: "检测到这张销售卡存在部分旧状态：有些产品已写入 Import、有些仍未写入。V9.6 已停止自动处理，请先核对 History。"
       };
     }
     try {
@@ -508,7 +508,7 @@ async function executeSalesInventoryDeductionV81(seedItem) {
   }
 
   if (typeof commitSalesCardInventoryToCloudV93 !== "function") {
-    return { ok: false, message: "V9.3 整张销售卡事务模块未载入，请强制刷新网页后再试。" };
+    return { ok: false, message: "V9.6 整张销售卡事务模块未载入，请强制刷新网页后再试。" };
   }
 
   const plan = buildSalesTransactionPlanV93(seedItem);
@@ -766,7 +766,7 @@ function showStartupSalesInventoryReminderV80() {
       </div>
       <div class="sales-startup-body-v81"></div>
       <div class="sales-startup-foot-v81">
-        <small>点击产品名称可复制。V9.3 以整张 Sales 销售卡作为一个 All-or-Nothing 库存事务；全部产品通过才会一起扣库存并写入 History。</small>
+        <small>点击产品名称可复制。V9.6 以整张 Sales 销售卡作为一个 All-or-Nothing 库存事务；全部产品通过才会一起扣库存并写入 History。</small>
         <button type="button" class="sales-startup-later-v81">稍后处理</button>
       </div>
     </div>`;
@@ -2949,7 +2949,7 @@ function copyBatchNumber(importNumber, button) {
 }
 
 
-// V9.3: 最近进口记录直接点击进口编号/运输单号复制；运输单号若含说明文字，只复制末尾实际单号。
+// V9.6: 最近进口记录直接点击进口编号/运输单号复制；运输单号若含说明文字，只复制末尾实际单号。
 function extractTrackingNumberForCopy(value) {
   const text = String(value || "").trim();
   if (!text) return "";
@@ -5043,7 +5043,7 @@ function isInternalSystemAdjustmentNote(value) {
   return /^system\s+auto\s+repair$/i.test(text);
 }
 
-// V9.3: History / 备注 UI only shows genuine user remarks.
+// V9.6: History / 备注 UI only shows genuine user remarks.
 // Legacy internal markers such as "System Auto Repair" remain stored untouched
 // because they may describe historical repair provenance, but they are not user remarks.
 function getUserVisibleAdjustmentNote(adjustment) {
@@ -5976,7 +5976,7 @@ function renderCompactProductHistoryByRange(
                 ? `+${formatNumber(delta)}`
                 : formatNumber(delta);
               const actionLabel = getHistoryAdjustmentLabel(adjustment);
-              // V9.3: every visible stock adjustment carries its own remark,
+              // V9.6: every visible stock adjustment carries its own remark,
               // including exact-product + date-range History views.
               const note = getUserVisibleAdjustmentNote(adjustment);
 
@@ -9063,7 +9063,7 @@ async function editProductStockFromImportPage(productId) {
     if (!salesInventoryFeedLoadedV77) {
       await refreshSalesInventoryFeedV77({ silent: true });
     }
-    // V9.3 hard rule: Sales reminders are resolved ONLY as a whole-card
+    // V9.6 hard rule: Sales reminders are resolved ONLY as a whole-card
     // All-or-Nothing transaction from the startup reminder. Manual product
     // stock edits must never partially complete / link one product of a Sales card.
     if (salesInventoryFeedLoadedV77) {
@@ -9072,7 +9072,7 @@ async function editProductStockFromImportPage(productId) {
       if (pendingForProductV93.length) {
         const continueManualV93 = window.confirm(
           `检测到这个产品属于 Sales System 待处理销售卡。\n\n` +
-          `V9.3 不允许从这里逐产品核销 Sales 提醒；Sales 卡必须在提醒窗口整张 All-or-Nothing 处理。\n\n` +
+          `V9.6 不允许从这里逐产品核销 Sales 提醒；Sales 卡必须在提醒窗口整张 All-or-Nothing 处理。\n\n` +
           `如果这次是另一笔独立的手动实际卖出，可以继续保存，但不会核销任何 Sales 提醒。\n\n是否继续这笔独立实际卖出？`
         );
         if (!continueManualV93) return;
@@ -10964,7 +10964,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "9.5",
+      version: "9.6",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11305,7 +11305,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V9.5 Stable",
+      updatedBy: "System V9.6 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,

@@ -182,7 +182,6 @@ async function refreshLatestCloudData() {
 
 window.refreshLatestCloudData = refreshLatestCloudData;
 
-// V9.5: startup/read sync path restored exactly to the proven V9.2 request timeout/retry behavior.
 async function callGoogleApi(payload, attempt = 0) {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), 25000);
@@ -328,7 +327,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V9.5 Stable",
+      updatedBy: "System V9.6 Stable",
       ...payload
     });
 
@@ -365,7 +364,7 @@ async function commitSalesCardInventoryToCloudV93(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V9.5 Stable",
+      updatedBy: "System V9.6 Stable",
       ...payload
     });
 
@@ -387,6 +386,7 @@ async function commitSalesCardInventoryToCloudV93(payload) {
   }
 }
 window.commitSalesCardInventoryToCloudV93 = commitSalesCardInventoryToCloudV93;
+
 
 async function pullLatestAfterSalesCommitV83() {
   await waitForCloudIdleV83();
@@ -553,7 +553,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt)
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V9.5 Stable",
+    updatedBy: "System V9.6 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     updatedAt: String(updatedAt || new Date().toISOString())
@@ -595,7 +595,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V9.5 Stable",
+    updatedBy: "System V9.6 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
