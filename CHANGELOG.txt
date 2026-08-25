@@ -1,4 +1,4 @@
-V10.9 Stable — Sales Correction Transaction Verification
+V11.0 Stable — Sales Correction Transaction Verification
 
 1. 修复 V10.8 可能出现「确认页面正确，但实际库存/History 未写入却把 Sales 提醒关闭」的问题。
 2. 后台幂等判断由 correctionKey 前缀匹配改为每一项精确 Line Key 匹配，避免误判已处理。
@@ -8,4 +8,4 @@ V10.9 Stable — Sales Correction Transaction Verification
 6. Frontend 在云端同步回来后再次核对每项实际库存与 History Line Key；验证失败绝不回写 Sales 完成状态。
 7. partialProcessed 状态明确视为失败，不允许继续关闭 Sales 提醒。
 8. 保留 V10.8 的 All-or-Nothing、FIFO、Modal、备注、复制产品名、按钮 Loading 与 800ms 同步成功提示。
-9. 所有活动版本号、缓存版本、页面版本、Frontend/Code.gs 版本握手统一更新为 V10.9。
+9. 所有活动版本号、缓存版本、页面版本、Frontend/Code.gs 版本握手统一更新为 V11.0。
