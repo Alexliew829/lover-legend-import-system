@@ -762,10 +762,25 @@ function getSalesStartupSessionItemV82(key) {
 }
 
 function salesItemAlreadyProcessedLocallyV104(item, product) {
-  const key=String(item?.key||getSalesInventoryItemKeyV77(item)).trim();
-  if(!key||!product)return false;
-  const rows=Array.isArray(product.stockAdjustments)?product.stockAdjustments:(()=>{try{return JSON.parse(String(product.stockAdjustmentsJson||"[]"))}catch(_){return[]}})();
-  return rows.some(adj=>Array.isArray(adj?.salesLinks)&&adj.salesLinks.some(link=>String(link?.key||"").trim()===key));
+  const key = String(item?.key || getSalesInventoryItemKeyV77(item)).trim();
+  if (!key || !product) return false;
+
+  let rows = [];
+  if (Array.isArray(product.stockAdjustments)) {
+    rows = product.stockAdjustments;
+  } else {
+    try {
+      const parsed = JSON.parse(String(product.stockAdjustmentsJson || "[]"));
+      rows = Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+      rows = [];
+    }
+  }
+
+  return rows.some(adj =>
+    Array.isArray(adj?.salesLinks) &&
+    adj.salesLinks.some(link => String(link?.key || "").trim() === key)
+  );
 }
 
 function salesCardGroupsV104(items){
