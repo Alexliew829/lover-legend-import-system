@@ -3991,3 +3991,19 @@ html, body {
   color:#fff;
   background:#176d3a;
 }
+
+
+/* ================= V10.6 Sales card confirmation preview ================= */
+.sales-startup-card-v106{border:1px solid #e0c57b;border-radius:14px;background:#fffdf7;padding:14px;margin:10px 0;display:grid;gap:12px}
+.sales-card-head-v106{font-weight:800;color:#5d5d5d;padding-bottom:8px;border-bottom:1px dashed #d8d8d8}
+.sales-card-line-v106{border:1px solid #d9e4dc;border-radius:12px;background:#fff;padding:12px;display:grid;gap:7px}
+.sales-card-line-no-v106{font-size:13px;font-weight:800;color:#6b6b6b}
+.sales-card-product-v106{appearance:none;border:0;background:transparent;padding:0;text-align:left;font-size:17px;font-weight:900;text-decoration:underline dotted;cursor:pointer;color:#111;white-space:normal}
+.sales-card-stock-v106{display:flex;gap:16px;flex-wrap:wrap;font-size:15px;line-height:1.45}
+.sales-card-stock-v106 strong{font-size:17px}
+.sales-card-stock-v106.legacy-v106{color:#246b3b;font-weight:800}
+.sales-card-stock-v106.error-v106{color:#b42318;font-weight:800}
+.sales-card-confirm-v104{width:100%;min-height:48px;border:0;border-radius:10px;background:#16733b;color:#fff;font-weight:900;font-size:16px;padding:10px 12px}
+.sales-card-confirm-v104:disabled{background:#888;opacity:.75;cursor:not-allowed}
+.sales-card-safety-v106{font-size:13px;color:#666;line-height:1.45}
+.error-card-v106{border-color:#e7a4a4;background:#fff5f5;color:#8d2020}

@@ -141,9 +141,9 @@ function recomputeSalesInventoryPendingV77() {
       const soldQty = Math.max(0, Math.trunc(Number(item?.quantity) || 0));
       const processedQty = Math.max(0, Math.trunc(Number(processed.get(key)) || 0));
       const remainingQty = Math.max(0, soldQty - processedQty);
-      // V10.5 legacy ACK repair: if Import already has this immutable Sales Key in
+      // V10.6 legacy ACK repair: if Import already has this immutable Sales Key in
       // stockAdjustments but Sales still says it is not INVENTORY_CONFIRMED, keep the
-      // row in the reminder as ACK-only.  V10.5 dropped it here, which created an
+      // row in the reminder as ACK-only.  V10.6 dropped it here, which created an
       // orphan reminder in Sales: Sales showed 1 pending item while Import showed none.
       // The popup will identify it through salesItemAlreadyProcessedLocallyV104() and
       // ONLY write the completion status back to Sales; inventory is never deducted again.
@@ -299,7 +299,7 @@ function completeSalesManualCorrectionRemoteV102(item) {
 }
 
 function openImportManualInventoryEditorV102(item) {
-  // V10.5 safety: this is navigation only. It NEVER adds/deducts/restores stock.
+  // V10.6 safety: this is navigation only. It NEVER adds/deducts/restores stock.
   const nav = document.querySelector('.nav-btn[data-page="importPage"]');
   if (nav) nav.click();
 
@@ -592,7 +592,7 @@ async function executeSalesInventoryDeductionV104NoPrompt(item) {
 
   const nextStock = currentStock - qty;
   const note = buildSalesInventoryAutoNoteV81(currentPending);
-  // V10.5 card-level confirmation already completed; do not prompt per product.
+  // V10.6 card-level confirmation already completed; do not prompt per product.
 
   const previousImports = getImports();
   const previousBatches = getBatches();
@@ -779,25 +779,88 @@ function salesCardGroupsV104(items){
 }
 
 function renderStartupSalesInventoryReminderV81() {
-  const overlay=document.getElementById("salesInventoryStartupOverlayV81");if(!overlay)return;
-  const body=overlay.querySelector(".sales-startup-body-v81"),summary=overlay.querySelector(".sales-startup-summary-v81");if(!body||!summary)return;
-  const groups=salesCardGroupsV104(salesStartupSessionItemsV82);
-  const processed=salesStartupSessionItemsV82.filter(x=>x.v82Processed).length;
-  const pending=salesStartupSessionItemsV82.length-processed;
-  summary.textContent=processed?`已处理 ${processed} / ${salesStartupSessionItemsV82.length}；待处理 ${pending} 项`:`共有 ${salesStartupSessionItemsV82.length} 项 · ${groups.length} 张销售卡`;
-  body.innerHTML=groups.map(group=>{
-    const first=group[0],manual=isSalesManualCorrectionTaskV102(first);
-    if(manual){
-      const changes=Array.isArray(first.inventoryChanges)?first.inventoryChanges:[];
-      return `<div class="sales-startup-item-v81" data-sales-key="${escapeHTML(first.key)}"><button type="button" class="sales-startup-product-name-v82" onclick='copySalesStartupProductNameV82(${JSON.stringify(String(first.productName||"库存差异"))},this)'>${escapeHTML(first.productName||"库存差异")}</button><div class="sales-startup-meta-v81">已确认销售后的产品/数量修改</div>${changes.map(c=>{const r=salesManualChangeTextV102(c);return `<div class="sales-manual-change-v102 ${r.actionClass}">${escapeHTML(r.name)}：${escapeHTML(r.label)}</div>`}).join("")}<button type="button" class="sales-manual-open-editor-v102" data-sales-key="${escapeHTML(first.key)}">前往产品/进口修改</button><button type="button" class="sales-manual-done-v102" data-sales-key="${escapeHTML(first.key)}">我已手动处理</button></div>`;
-    }
-    const active=group.filter(x=>!x.v82Processed);
-    const rows=group.map(item=>{const product=findImportProductForSalesItemV77(item);const name=String(item.importProductName||item.productName||product?.name||"");const qty=Math.max(1,Number(item.remainingQty||item.quantity||1));const stock=Math.max(0,Number(product?.stock||0));const legacy=salesItemAlreadyProcessedLocallyV104(item,product);return `<div class="sales-card-line-v104"><button type="button" class="sales-startup-product-name-v82" onclick='copySalesStartupProductNameV82(${JSON.stringify(name)},this)'>${escapeHTML(name)}</button><div>${legacy?`✓ Import 已扣库存 · 等待回写 Sales`:`销售：<strong>${formatNumber(qty)} 棵</strong>　当前库存：<strong>${formatNumber(stock)}</strong> → <strong>${formatNumber(Math.max(0,stock-qty))}</strong>`}</div></div>`}).join("");
-    const saleId=String(first.saleId||first.transactionId||"");
-    return `<div class="sales-startup-card-v104" data-sale-id="${escapeHTML(saleId)}"><div class="sales-startup-meta-v81">${escapeHTML(getSalesChannelV91(first))} · ${escapeHTML(getSalesSourceNameV77(first))} · ${escapeHTML(String(first.saleDate||""))}</div>${rows}${active.length?`<button type="button" class="sales-card-confirm-v104" data-sale-id="${escapeHTML(saleId)}">确认整张销售卡并扣库存（${active.length} 项）</button>`:`<button type="button" disabled>✓ 整张销售卡已处理</button>`}</div>`;
-  }).join("");
-}
+  const overlay = document.getElementById("salesInventoryStartupOverlayV81");
+  if (!overlay) return;
+  const body = overlay.querySelector(".sales-startup-body-v81");
+  const summary = overlay.querySelector(".sales-startup-summary-v81");
+  if (!body || !summary) return;
 
+  const groups = salesCardGroupsV104(salesStartupSessionItemsV82);
+  const processed = salesStartupSessionItemsV82.filter(x => x.v82Processed).length;
+  const pending = Math.max(0, salesStartupSessionItemsV82.length - processed);
+  summary.textContent = processed
+    ? `已处理 ${processed} / ${salesStartupSessionItemsV82.length}；待处理 ${pending} 项 · ${groups.length} 张销售卡`
+    : `共有 ${salesStartupSessionItemsV82.length} 项 · ${groups.length} 张销售卡`;
+
+  const cards = [];
+  for (const group of groups) {
+    try {
+      const first = group[0] || {};
+      const manual = isSalesManualCorrectionTaskV102(first);
+      if (manual) {
+        const changes = Array.isArray(first.inventoryChanges) ? first.inventoryChanges : [];
+        cards.push(`<div class="sales-startup-item-v81 manual-correction-v102" data-sales-key="${escapeHTML(first.key || "")}">
+          <div class="sales-manual-title-v102">⚠️ 已确认销售卡库存差异</div>
+          <div class="sales-startup-meta-v81">已确认销售后的产品/数量修改</div>
+          ${changes.map(c => { const r=salesManualChangeTextV102(c); return `<div class="sales-manual-change-v102 ${r.actionClass}">${escapeHTML(r.name)}：${escapeHTML(r.label)}</div>`; }).join("")}
+          <button type="button" class="sales-manual-open-editor-v102" data-sales-key="${escapeHTML(first.key || "")}">前往产品/进口修改</button>
+          <button type="button" class="sales-manual-done-v102" data-sales-key="${escapeHTML(first.key || "")}">我已手动处理</button>
+        </div>`);
+        continue;
+      }
+
+      const saleId = String(first.saleId || first.transactionId || "");
+      const channel = String(getSalesChannelV91(first) || first.type || "Sales");
+      const source = String(getSalesSourceNameV77(first) || first.location || "");
+      const saleDate = String(first.saleDate || "");
+      const active = group.filter(x => !x.v82Processed);
+      const lineHtml = [];
+      let groupBlocked = false;
+
+      group.forEach((item, index) => {
+        const product = findImportProductForSalesItemV77(item);
+        const name = String(item.importProductName || item.productName || product?.name || "未找到产品");
+        const qty = Math.max(1, Math.trunc(Number(item.remainingQty || item.quantity || 1)));
+        const stock = product ? Math.max(0, Math.trunc(Number(product.stock) || 0)) : 0;
+        const legacy = product ? salesItemAlreadyProcessedLocallyV104(item, product) : false;
+        const insufficient = !legacy && product && stock < qty;
+        if (!product || insufficient) groupBlocked = true;
+
+        let statusHtml = "";
+        if (!product) {
+          statusHtml = `<div class="sales-card-stock-v106 error-v106">❌ Import 找不到对应产品，整张销售卡禁止处理</div>`;
+        } else if (legacy) {
+          statusHtml = `<div class="sales-card-stock-v106 legacy-v106">✓ Import 已扣库存 · 只等待回写 Sales</div>`;
+        } else {
+          statusHtml = `<div class="sales-card-stock-v106${insufficient ? " error-v106" : ""}">
+            <span>销售：<strong>${formatNumber(qty)} 棵</strong></span>
+            <span>当前库存：<strong>${formatNumber(stock)}</strong> → <strong>${formatNumber(stock - qty)}</strong></span>
+          </div>`;
+        }
+
+        lineHtml.push(`<div class="sales-card-line-v106">
+          <div class="sales-card-line-no-v106">产品 ${index + 1}</div>
+          <button type="button" class="sales-card-product-v106" onclick='copySalesStartupProductNameV82(${JSON.stringify(name)}, this)'>${escapeHTML(name)}</button>
+          ${statusHtml}
+        </div>`);
+      });
+
+      cards.push(`<div class="sales-startup-card-v106" data-sale-id="${escapeHTML(saleId)}">
+        <div class="sales-card-head-v106">${escapeHTML(channel)} · ${escapeHTML(source)} · ${escapeHTML(saleDate)}</div>
+        ${lineHtml.join("")}
+        ${active.length
+          ? `<button type="button" class="sales-card-confirm-v104" data-sale-id="${escapeHTML(saleId)}" ${groupBlocked ? "disabled" : ""}>${groupBlocked ? "资料异常，整张销售卡已阻止处理" : `确认整张销售卡并扣库存（${active.length} 项）`}</button>`
+          : `<button type="button" class="sales-card-confirm-v104" disabled>✓ 整张销售卡已处理</button>`}
+        <div class="sales-card-safety-v106">确认前显示的是 Import 当前真实库存。任何一项找不到产品或库存不足，整张销售卡都会停止处理。</div>
+      </div>`);
+    } catch (error) {
+      console.error("V10.6 Sales card render failed", error, group);
+      cards.push(`<div class="sales-startup-card-v106 error-card-v106"><strong>❌ 销售卡资料显示失败</strong><div>${escapeHTML(String(error?.message || error))}</div><div>为安全起见，已禁止扣库存。请同步后重试。</div></div>`);
+    }
+  }
+
+  body.innerHTML = cards.join("");
+}
 function showStartupSalesInventoryReminderV80() {
   if (window.__salesStartupReminderShownV80) return;
   window.__salesStartupReminderShownV80 = true;
@@ -895,7 +958,7 @@ function showStartupSalesInventoryReminderV80() {
     if(!confirm(`确认整张销售卡并扣库存？\n\n${lines.map(x=>`${x.product.name} ×${x.qty}${x.legacy?"（已扣，仅回写状态）":""}`).join("\n")}\n\n共 ${totalQty} 棵。任何一项检查失败都会停止整张处理。`))return;
     button.disabled=true;button.textContent="整张处理中…";
     try{
-      // V10.5: legacy already-committed lines are ACK-only; never deduct twice.
+      // V10.6: legacy already-committed lines are ACK-only; never deduct twice.
       for(const x of lines.filter(x=>x.legacy)){await confirmSalesInventoryLinkRemoteV81(x.item);const session=getSalesStartupSessionItemV82(x.item.key);if(session)session.v82Processed=true;}
       // Remaining lines use the proven cloud-commit path. Preflight above ensures no known partial failure.
       // Each line is idempotent by immutable salesKey; a retry cannot deduct the same line twice.
@@ -1040,7 +1103,7 @@ function setupSalesInventoryReminder() {
     }, SALES_INVENTORY_REFRESH_MS_V77);
   };
 
-  // V10.5: Sales reminder feed is secondary. Let the main Import cloud sync/render finish first,
+  // V10.6: Sales reminder feed is secondary. Let the main Import cloud sync/render finish first,
   // then check Sales in the background so opening the system is not held up by the cross-system request.
   window.setTimeout(start, SALES_INVENTORY_BACKGROUND_START_DELAY_V103);
 
@@ -3033,7 +3096,7 @@ function copyBatchNumber(importNumber, button) {
 }
 
 
-// V10.5: 最近进口记录直接点击进口编号/运输单号复制；运输单号若含说明文字，只复制末尾实际单号。
+// V10.6: 最近进口记录直接点击进口编号/运输单号复制；运输单号若含说明文字，只复制末尾实际单号。
 function extractTrackingNumberForCopy(value) {
   const text = String(value || "").trim();
   if (!text) return "";
@@ -5127,7 +5190,7 @@ function isInternalSystemAdjustmentNote(value) {
   return /^system\s+auto\s+repair$/i.test(text);
 }
 
-// V10.5: History / 备注 UI only shows genuine user remarks.
+// V10.6: History / 备注 UI only shows genuine user remarks.
 // Legacy internal markers such as "System Auto Repair" remain stored untouched
 // because they may describe historical repair provenance, but they are not user remarks.
 function getUserVisibleAdjustmentNote(adjustment) {
@@ -6060,7 +6123,7 @@ function renderCompactProductHistoryByRange(
                 ? `+${formatNumber(delta)}`
                 : formatNumber(delta);
               const actionLabel = getHistoryAdjustmentLabel(adjustment);
-              // V10.5: every visible stock adjustment carries its own remark,
+              // V10.6: every visible stock adjustment carries its own remark,
               // including exact-product + date-range History views.
               const note = getUserVisibleAdjustmentNote(adjustment);
 
@@ -11051,7 +11114,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "10.5",
+      version: "10.6",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11392,7 +11455,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V10.5 Stable",
+      updatedBy: "System V10.6 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
