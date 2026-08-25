@@ -141,7 +141,17 @@ function recomputeSalesInventoryPendingV77() {
       const soldQty = Math.max(0, Math.trunc(Number(item?.quantity) || 0));
       const processedQty = Math.max(0, Math.trunc(Number(processed.get(key)) || 0));
       const remainingQty = Math.max(0, soldQty - processedQty);
-      if (!remainingQty) return null;
+      // V10.5 legacy ACK repair: if Import already has this immutable Sales Key in
+      // stockAdjustments but Sales still says it is not INVENTORY_CONFIRMED, keep the
+      // row in the reminder as ACK-only.  V10.5 dropped it here, which created an
+      // orphan reminder in Sales: Sales showed 1 pending item while Import showed none.
+      // The popup will identify it through salesItemAlreadyProcessedLocallyV104() and
+      // ONLY write the completion status back to Sales; inventory is never deducted again.
+      if (!remainingQty) {
+        const locallyCommitted = salesItemAlreadyProcessedLocallyV104({ ...item, key }, product);
+        if (!locallyCommitted) return null;
+        return { ...item, key, importProductId: String(product.id || ""), importProductName: String(product.name || ""), processedQty, remainingQty: soldQty, legacyAckOnlyV105: true };
+      }
       return { ...item, key, importProductId: String(product.id || ""), importProductName: String(product.name || ""), processedQty, remainingQty };
     })
     .filter(Boolean)
@@ -289,7 +299,7 @@ function completeSalesManualCorrectionRemoteV102(item) {
 }
 
 function openImportManualInventoryEditorV102(item) {
-  // V10.4 safety: this is navigation only. It NEVER adds/deducts/restores stock.
+  // V10.5 safety: this is navigation only. It NEVER adds/deducts/restores stock.
   const nav = document.querySelector('.nav-btn[data-page="importPage"]');
   if (nav) nav.click();
 
@@ -582,7 +592,7 @@ async function executeSalesInventoryDeductionV104NoPrompt(item) {
 
   const nextStock = currentStock - qty;
   const note = buildSalesInventoryAutoNoteV81(currentPending);
-  // V10.4 card-level confirmation already completed; do not prompt per product.
+  // V10.5 card-level confirmation already completed; do not prompt per product.
 
   const previousImports = getImports();
   const previousBatches = getBatches();
@@ -885,7 +895,7 @@ function showStartupSalesInventoryReminderV80() {
     if(!confirm(`确认整张销售卡并扣库存？\n\n${lines.map(x=>`${x.product.name} ×${x.qty}${x.legacy?"（已扣，仅回写状态）":""}`).join("\n")}\n\n共 ${totalQty} 棵。任何一项检查失败都会停止整张处理。`))return;
     button.disabled=true;button.textContent="整张处理中…";
     try{
-      // V10.4: legacy already-committed lines are ACK-only; never deduct twice.
+      // V10.5: legacy already-committed lines are ACK-only; never deduct twice.
       for(const x of lines.filter(x=>x.legacy)){await confirmSalesInventoryLinkRemoteV81(x.item);const session=getSalesStartupSessionItemV82(x.item.key);if(session)session.v82Processed=true;}
       // Remaining lines use the proven cloud-commit path. Preflight above ensures no known partial failure.
       // Each line is idempotent by immutable salesKey; a retry cannot deduct the same line twice.
@@ -1030,7 +1040,7 @@ function setupSalesInventoryReminder() {
     }, SALES_INVENTORY_REFRESH_MS_V77);
   };
 
-  // V10.4: Sales reminder feed is secondary. Let the main Import cloud sync/render finish first,
+  // V10.5: Sales reminder feed is secondary. Let the main Import cloud sync/render finish first,
   // then check Sales in the background so opening the system is not held up by the cross-system request.
   window.setTimeout(start, SALES_INVENTORY_BACKGROUND_START_DELAY_V103);
 
@@ -3023,7 +3033,7 @@ function copyBatchNumber(importNumber, button) {
 }
 
 
-// V10.4: 最近进口记录直接点击进口编号/运输单号复制；运输单号若含说明文字，只复制末尾实际单号。
+// V10.5: 最近进口记录直接点击进口编号/运输单号复制；运输单号若含说明文字，只复制末尾实际单号。
 function extractTrackingNumberForCopy(value) {
   const text = String(value || "").trim();
   if (!text) return "";
@@ -5117,7 +5127,7 @@ function isInternalSystemAdjustmentNote(value) {
   return /^system\s+auto\s+repair$/i.test(text);
 }
 
-// V10.4: History / 备注 UI only shows genuine user remarks.
+// V10.5: History / 备注 UI only shows genuine user remarks.
 // Legacy internal markers such as "System Auto Repair" remain stored untouched
 // because they may describe historical repair provenance, but they are not user remarks.
 function getUserVisibleAdjustmentNote(adjustment) {
@@ -6050,7 +6060,7 @@ function renderCompactProductHistoryByRange(
                 ? `+${formatNumber(delta)}`
                 : formatNumber(delta);
               const actionLabel = getHistoryAdjustmentLabel(adjustment);
-              // V10.4: every visible stock adjustment carries its own remark,
+              // V10.5: every visible stock adjustment carries its own remark,
               // including exact-product + date-range History views.
               const note = getUserVisibleAdjustmentNote(adjustment);
 
@@ -11041,7 +11051,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "10.4",
+      version: "10.5",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11382,7 +11392,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V10.4 Stable",
+      updatedBy: "System V10.5 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
