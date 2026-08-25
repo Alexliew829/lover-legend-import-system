@@ -1,15 +1,12 @@
-Lover Legend Import Cost & Inventory System V10.8 Stable
+Lover Legend Import Cost & Inventory System V10.9 Stable
 
-Apps Script / Code.gs：需要更新（版本握手 V10.8）。
-appsscript.json：不需要更新。
-Google Sheet Schema：不需要升级。
+Apps Script / Code.gs：需要更新并重新部署。
+appsscript.json：不需要修改（没有新增权限）。
 
-部署顺序：
-1. 替换 Import System Apps Script 的 V10.8 Code.gs 并 Save。
-2. Deploy New Version。
-3. 上传 V10.8 Frontend 到 GitHub Pages。
-4. Sales System 必须已部署 V25.6 P4 Inventory Feed，且 getSalesInventoryFeed 可读取。
+部署步骤：
+1. 用本包 Apps Script/Code.gs 替换现有 Code.gs 并保存。
+2. Deploy > Manage deployments > Edit > New version > Deploy。
+3. 上传 Frontend 全部文件到现有网站位置。
+4. iPhone/PWA 若仍显示旧缓存，重新打开网页并完成一次强制刷新。
 
-V8.7 Sales Feed 为独立只读请求，不修改原本 Import cloud sync / Pull / Push。
-
-V10.8 note: remark visibility is UI-only. Code.gs business logic is unchanged; however REQUIRED_CLIENT_VERSION / version handshake is updated to 9.1, so deploy the included Code.gs together with Frontend.
+V10.9 核心修复：Sales 销售卡修改后的整卡库存差异，只有在 Google Sheet 实际写入并重新读回验证库存与精确 Line Key 全部成功后，才允许回写 Sales 为已处理。

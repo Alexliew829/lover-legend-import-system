@@ -141,9 +141,9 @@ function recomputeSalesInventoryPendingV77() {
       const soldQty = Math.max(0, Math.trunc(Number(item?.quantity) || 0));
       const processedQty = Math.max(0, Math.trunc(Number(processed.get(key)) || 0));
       const remainingQty = Math.max(0, soldQty - processedQty);
-      // V10.8 legacy ACK repair: if Import already has this immutable Sales Key in
+      // V10.9 legacy ACK repair: if Import already has this immutable Sales Key in
       // stockAdjustments but Sales still says it is not INVENTORY_CONFIRMED, keep the
-      // row in the reminder as ACK-only.  V10.8 dropped it here, which created an
+      // row in the reminder as ACK-only.  V10.9 dropped it here, which created an
       // orphan reminder in Sales: Sales showed 1 pending item while Import showed none.
       // The popup will identify it through salesItemAlreadyProcessedLocallyV104() and
       // ONLY write the completion status back to Sales; inventory is never deducted again.
@@ -299,7 +299,7 @@ function completeSalesManualCorrectionRemoteV102(item) {
 }
 
 function openImportManualInventoryEditorV102(item) {
-  // V10.8: navigation only; close the modal/grey mask before opening editor.
+  // V10.9: navigation only; close the modal/grey mask before opening editor.
   closeStartupSalesInventoryReminderV81();
   const nav = document.querySelector('.nav-btn[data-page="importPage"]');
   if (nav) nav.click();
@@ -351,7 +351,7 @@ function findCorrectionProductV108(change){
     getProducts().find(p => name && String(p?.name||"").trim().toLowerCase()===name);
 }
 
-function openSalesCorrectionConfirmV108(item){
+function openSalesCorrectionConfirmV109(item){
   return new Promise(resolve=>{
     const parent=document.getElementById("salesInventoryStartupOverlayV81");
     if(parent) parent.classList.add("sales-startup-hidden-v108");
@@ -401,14 +401,14 @@ function openSalesCorrectionConfirmV108(item){
   });
 }
 
-async function executeSalesCorrectionBatchV108(item,note){
+async function executeSalesCorrectionBatchV109(item,note){
   const changes=Array.isArray(item?.inventoryChanges)?item.inventoryChanges:[];
   if(!changes.length) throw new Error("没有库存差异可处理。");
   const saleId=String(item?.saleId||item?.transactionId||"").trim();
   const taskKey=String(item?.key||"").trim();
   if(!saleId||!taskKey) throw new Error("Sales Key / Line ID 不完整，已停止整张处理。");
 
-  // V10.8 preflight: validate every line before mutating the browser staging snapshot.
+  // V10.9 preflight: validate every line before mutating the browser staging snapshot.
   const preflight=changes.map((c,i)=>{
     const row=salesManualChangeTextV102(c);
     const product=findCorrectionProductV108(c);
@@ -455,9 +455,25 @@ async function executeSalesCorrectionBatchV108(item,note){
     if(original.products===null)localStorage.removeItem("importSystemProducts");else localStorage.setItem("importSystemProducts",original.products);
     if(original.imports===null)localStorage.removeItem("importSystemImports");else localStorage.setItem("importSystemImports",original.imports);
     if(original.batches===null)localStorage.removeItem("importSystemBatches");else localStorage.setItem("importSystemBatches",original.batches);
-    const result=await commitSalesCorrectionBatchToCloudV108({correctionKey,saleId,taskKey,expected,products:touchedProducts,imports:touchedImports,batches:touchedBatches});
+    const result=await commitSalesCorrectionBatchToCloudV109({correctionKey,saleId,taskKey,expected,products:touchedProducts,imports:touchedImports,batches:touchedBatches});
     if(!result?.ok) throw new Error(result?.message||result?.error||"整张库存差异处理失败。");
+    if(result?.partialProcessed) throw new Error(result?.message||"检测到部分库存差异已处理，Sales 状态不会回写。请先检查 History。");
+
     await pullLatestAfterSalesCommitV83();
+
+    // V10.9 final client verification: canonical data pulled back from Google Sheet
+    // must contain every expected AFTER stock and exact Line Key before Sales is marked done.
+    const verifiedProducts=getProducts();
+    for(const e of expected){
+      const p=verifiedProducts.find(x=>String(x.id||"").trim()===String(e.productId||"").trim());
+      if(!p) throw new Error(`云端验证失败：找不到产品 ${e.productId}。Sales 提醒不会关闭。`);
+      const actual=Math.max(0,Math.trunc(Number(p.stock)||0));
+      if(actual!==Math.max(0,Math.trunc(Number(e.after)||0))) throw new Error(`云端验证失败：${p.name||e.productId} 当前库存 ${actual}，预期 ${e.after}。Sales 提醒不会关闭。`);
+      const rows=getProductStockAdjustments(p);
+      const hasLine=rows.some(a=>(Array.isArray(a?.salesLinks)?a.salesLinks:[]).some(l=>String(l?.key||"").trim()===String(e.lineKey||"").trim()));
+      if(!hasLine) throw new Error(`云端验证失败：${p.name||e.productId} 没有本次 History / Line Key。Sales 提醒不会关闭。`);
+    }
+
     await completeSalesManualCorrectionRemoteV102(item);
     return result;
   } catch(e){
@@ -730,7 +746,7 @@ async function executeSalesInventoryDeductionV104NoPrompt(item) {
 
   const nextStock = currentStock - qty;
   const note = buildSalesInventoryAutoNoteV81(currentPending);
-  // V10.8 card-level confirmation already completed; do not prompt per product.
+  // V10.9 card-level confirmation already completed; do not prompt per product.
 
   const previousImports = getImports();
   const previousBatches = getBatches();
@@ -1006,7 +1022,7 @@ function renderStartupSalesInventoryReminderV81() {
         <div class="sales-card-safety-v106">确认前显示的是 Import 当前真实库存。任何一项找不到产品或库存不足，整张销售卡都会停止处理。</div>
       </div>`);
     } catch (error) {
-      console.error("V10.8 Sales card render failed", error, group);
+      console.error("V10.9 Sales card render failed", error, group);
       cards.push(`<div class="sales-startup-card-v106 error-card-v106"><strong>❌ 销售卡资料显示失败</strong><div>${escapeHTML(String(error?.message || error))}</div><div>为安全起见，已禁止扣库存。请同步后重试。</div></div>`);
     }
   }
@@ -1055,9 +1071,9 @@ function showStartupSalesInventoryReminderV80() {
     const autoButton = event.target.closest(".sales-auto-correct-v108");
     if (autoButton && !autoButton.disabled) {
       const key=String(autoButton.dataset.salesKey||""); const sessionItem=getSalesStartupSessionItemV82(key); if(!sessionItem||sessionItem.v82Processed)return;
-      const confirmation=await openSalesCorrectionConfirmV108(sessionItem); if(!confirmation)return;
+      const confirmation=await openSalesCorrectionConfirmV109(sessionItem); if(!confirmation)return;
       try {
-        await executeSalesCorrectionBatchV108(sessionItem,confirmation.note);
+        await executeSalesCorrectionBatchV109(sessionItem,confirmation.note);
         sessionItem.v82Processed=true;
         await refreshSalesInventoryFeedV77({silent:true});
         salesStartupSessionItemsV82=salesStartupSessionItemsV82.filter(x=>String(x.key||"")!==key);
@@ -1083,7 +1099,7 @@ function showStartupSalesInventoryReminderV80() {
     if(!confirm(`确认整张销售卡并扣库存？\n\n${lines.map(x=>`${x.product.name} ×${x.qty}${x.legacy?"（已扣，仅回写状态）":""}`).join("\n")}\n\n共 ${totalQty} 棵。任何一项检查失败都会停止整张处理。`))return;
     button.disabled=true;button.textContent="整张处理中…";
     try{
-      // V10.8: legacy already-committed lines are ACK-only; never deduct twice.
+      // V10.9: legacy already-committed lines are ACK-only; never deduct twice.
       for(const x of lines.filter(x=>x.legacy)){await confirmSalesInventoryLinkRemoteV81(x.item);const session=getSalesStartupSessionItemV82(x.item.key);if(session)session.v82Processed=true;}
       // Remaining lines use the proven cloud-commit path. Preflight above ensures no known partial failure.
       // Each line is idempotent by immutable salesKey; a retry cannot deduct the same line twice.
@@ -1228,7 +1244,7 @@ function setupSalesInventoryReminder() {
     }, SALES_INVENTORY_REFRESH_MS_V77);
   };
 
-  // V10.8: Sales reminder feed is secondary. Let the main Import cloud sync/render finish first,
+  // V10.9: Sales reminder feed is secondary. Let the main Import cloud sync/render finish first,
   // then check Sales in the background so opening the system is not held up by the cross-system request.
   window.setTimeout(start, SALES_INVENTORY_BACKGROUND_START_DELAY_V103);
 
@@ -3221,7 +3237,7 @@ function copyBatchNumber(importNumber, button) {
 }
 
 
-// V10.8: 最近进口记录直接点击进口编号/运输单号复制；运输单号若含说明文字，只复制末尾实际单号。
+// V10.9: 最近进口记录直接点击进口编号/运输单号复制；运输单号若含说明文字，只复制末尾实际单号。
 function extractTrackingNumberForCopy(value) {
   const text = String(value || "").trim();
   if (!text) return "";
@@ -5317,7 +5333,7 @@ function isInternalSystemAdjustmentNote(value) {
   return /^system\s+auto\s+repair$/i.test(text);
 }
 
-// V10.8: History / 备注 UI only shows genuine user remarks.
+// V10.9: History / 备注 UI only shows genuine user remarks.
 // Legacy internal markers such as "System Auto Repair" remain stored untouched
 // because they may describe historical repair provenance, but they are not user remarks.
 function getUserVisibleAdjustmentNote(adjustment) {
@@ -6250,7 +6266,7 @@ function renderCompactProductHistoryByRange(
                 ? `+${formatNumber(delta)}`
                 : formatNumber(delta);
               const actionLabel = getHistoryAdjustmentLabel(adjustment);
-              // V10.8: every visible stock adjustment carries its own remark,
+              // V10.9: every visible stock adjustment carries its own remark,
               // including exact-product + date-range History views.
               const note = getUserVisibleAdjustmentNote(adjustment);
 
@@ -11241,7 +11257,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "10.8",
+      version: "10.9",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11582,7 +11598,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V10.8 Stable",
+      updatedBy: "System V10.9 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,

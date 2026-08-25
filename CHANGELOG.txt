@@ -1,14 +1,11 @@
-V10.8 Legacy ACK Repair
-- 修复 V10.2 已扣库存但 Sales 尚未核销的遗留项：Import 会显示「已扣，仅回写 Sales」并只回写完成状态，绝不再次扣库存。
-- 修复 Sales 显示 1 项待处理、Import 却没有弹窗的孤儿提醒。
-- 库存/库存成本不会因遗留核销而改变。
+V10.9 Stable — Sales Correction Transaction Verification
 
-V10.8 Stable — Sales / Fair / Live Source Label Fix
-
-1. Sales inventory reminders now show exactly one true source channel.
-2. Sales -> Sales · location · date time.
-3. Fair -> Fair · fair location · date time.
-4. Live -> Live · host · date time.
-5. The same source format is used for automatic Import History remarks.
-6. No changes to FIFO, stock deduction, average cost, cost formulas, Sales matching, or sync logic.
-7. All active system/client/cache/version labels updated to V10.8.
+1. 修复 V10.8 可能出现「确认页面正确，但实际库存/History 未写入却把 Sales 提醒关闭」的问题。
+2. 后台幂等判断由 correctionKey 前缀匹配改为每一项精确 Line Key 匹配，避免误判已处理。
+3. 写入前验证每个 Products payload：库存必须等于预期 after，且必须包含本次 History / stockAdjustment Line Key。
+4. 扣除项目必须形成 adjustmentType=sale 且 delta<0；恢复项目必须形成 delta>0 的撤销销售记录。
+5. Google Sheet 写入后重新读取 Products 验证库存与 Line Key；任一失败自动回滚整张销售卡。
+6. Frontend 在云端同步回来后再次核对每项实际库存与 History Line Key；验证失败绝不回写 Sales 完成状态。
+7. partialProcessed 状态明确视为失败，不允许继续关闭 Sales 提醒。
+8. 保留 V10.8 的 All-or-Nothing、FIFO、Modal、备注、复制产品名、按钮 Loading 与 800ms 同步成功提示。
+9. 所有活动版本号、缓存版本、页面版本、Frontend/Code.gs 版本握手统一更新为 V10.9。
