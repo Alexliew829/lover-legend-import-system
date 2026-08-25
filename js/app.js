@@ -289,7 +289,7 @@ function completeSalesManualCorrectionRemoteV102(item) {
 }
 
 function openImportManualInventoryEditorV102(item) {
-  // V10.3 safety: this is navigation only. It NEVER adds/deducts/restores stock.
+  // V10.4 safety: this is navigation only. It NEVER adds/deducts/restores stock.
   const nav = document.querySelector('.nav-btn[data-page="importPage"]');
   if (nav) nav.click();
 
@@ -544,6 +544,174 @@ async function executeSalesInventoryDeductionV81(item) {
   };
 }
 
+async function executeSalesInventoryDeductionV104NoPrompt(item) {
+  const key = String(item?.key || getSalesInventoryItemKeyV77(item));
+  recomputeSalesInventoryPendingV77();
+  const currentPending = salesInventoryPendingV77.find(row => row.key === key);
+  if (!currentPending) {
+    return { ok: false, message: "这项 Sales 库存已经处理或不再需要处理。" };
+  }
+
+  if (typeof commitSalesInventoryToCloudV83 !== "function") {
+    return { ok: false, message: "V8.7 云端库存确认模块未载入，请强制刷新网页后再试。" };
+  }
+
+  const previousProducts = getProducts();
+  const products = previousProducts.map(product => ({ ...product }));
+  const productIndex = products.findIndex(
+    product => String(product?.id || "") === String(currentPending.importProductId || "")
+  );
+  if (productIndex < 0) {
+    return { ok: false, message: "Import Cost System 找不到对应产品，无法自动扣库存。" };
+  }
+
+  const product = products[productIndex];
+  const currentStock = Math.max(0, Math.trunc(Number(product.stock) || 0));
+  const qty = Math.max(1, Math.trunc(Number(currentPending.remainingQty) || 0));
+
+  if (currentStock < qty) {
+    return {
+      ok: false,
+      message:
+        `库存不足，已阻止自动扣除。\n\n` +
+        `产品：${product.name}\n` +
+        `当前库存：${formatNumber(currentStock)}\n` +
+        `Sales 待扣：${formatNumber(qty)}`
+    };
+  }
+
+  const nextStock = currentStock - qty;
+  const note = buildSalesInventoryAutoNoteV81(currentPending);
+  // V10.4 card-level confirmation already completed; do not prompt per product.
+
+  const previousImports = getImports();
+  const previousBatches = getBatches();
+
+  // V8.7 continues to reuse the existing FIFO + actual-sale accounting logic.
+  // Calculation happens locally first, but NOTHING is committed locally until
+  // Google Sheet confirms the transaction.
+  const allocation = allocateProductRemainingFIFO(
+    product.id,
+    product.name,
+    nextStock,
+    "sale",
+    "实际卖出",
+    note
+  );
+
+  if (!allocation.ok) {
+    return { ok: false, message: allocation.message || "库存扣除失败。" };
+  }
+
+  const salesLinks = [{
+    key: currentPending.key,
+    linkId: String(currentPending.linkId || ""),
+    saleId: String(currentPending.saleId || ""),
+    productId: String(currentPending.productId || ""),
+    productName: String(currentPending.productName || currentPending.importProductName || ""),
+    processedQty: qty,
+    saleDate: String(currentPending.saleDate || ""),
+    saleTime: String(currentPending.saleTime || ""),
+    type: String(currentPending.type || ""),
+    location: String(currentPending.location || ""),
+    source: getSalesSourceNameV77(currentPending)
+  }];
+
+  const adjustmentData = appendProductStockAdjustments(
+    product,
+    allocation.changes,
+    allocation.changedAt,
+    currentStock,
+    nextStock,
+    salesLinks
+  );
+
+  const nextProduct = {
+    ...product,
+    ...adjustmentData,
+    stock: nextStock,
+    inventoryArchived: nextStock > 0 ? false : product.inventoryArchived,
+    updatedAt: allocation.changedAt || new Date().toISOString()
+  };
+  products[productIndex] = nextProduct;
+
+  const changedImports = allocation.nextImports.filter((row, index) =>
+    JSON.stringify(row) !== JSON.stringify(previousImports[index])
+  );
+  const changedBatches = allocation.nextBatches.filter((row, index) =>
+    JSON.stringify(row) !== JSON.stringify(previousBatches[index])
+  );
+
+  let cloudResult;
+  try {
+    cloudResult = await commitSalesInventoryToCloudV83({
+      salesKey: key,
+      expectedStockBefore: currentStock,
+      expectedStockAfter: nextStock,
+      product: nextProduct,
+      imports: changedImports,
+      batches: changedBatches
+    });
+  } catch (error) {
+    // V8.7 hard safety: the browser stays at the ORIGINAL inventory when cloud
+    // commit fails. No fake 33→32 success, no Sales confirmation, no local queue.
+    return {
+      ok: false,
+      cloudFailed: true,
+      message:
+        `❌ 扣库存失败，Google Sheet 未确认保存。\n\n` +
+        `产品：${product.name}\n` +
+        `库存仍视为：${formatNumber(currentStock)}\n\n` +
+        `${String(error?.message || error || "云端保存失败")}\n\n` +
+        `请不要手动重复扣库存；同步正常后再按一次确认。`
+    };
+  }
+
+  if (cloudResult?.alreadyProcessed) {
+    // The server had committed this salesKey before the response reached this
+    // browser. Pull the canonical data; this is idempotent and never deducts twice.
+    if (typeof pullLatestAfterSalesCommitV83 === "function") {
+      await pullLatestAfterSalesCommitV83();
+    }
+  } else {
+    // Only AFTER server confirmation do we mirror the committed canonical state
+    // into localStorage. Do not mark the generic full-snapshot queue dirty.
+    localStorage.setItem("importSystemProducts", JSON.stringify(products));
+    localStorage.setItem("importSystemImports", JSON.stringify(allocation.nextImports));
+    localStorage.setItem("importSystemBatches", JSON.stringify(allocation.nextBatches));
+  }
+
+  // Only after Import cloud commit succeeds do we mark the Sales link confirmed.
+  let remoteConfirmed = true;
+  let remoteError = "";
+  try {
+    await confirmSalesInventoryLinkRemoteV81(currentPending);
+  } catch (error) {
+    remoteConfirmed = false;
+    remoteError = String(error?.message || error || "");
+  }
+
+  recomputeSalesInventoryPendingV77();
+  renderDashboard();
+  renderInventoryManagementList();
+  renderBatchList();
+  if (document.getElementById("batchProductStockSearch")?.value?.trim()) {
+    renderBatchProductStockResults();
+  }
+
+  return {
+    ok: true,
+    productName: product.name,
+    qty,
+    currentStock,
+    nextStock,
+    note,
+    remoteConfirmed,
+    remoteError,
+    alreadyProcessed: Boolean(cloudResult?.alreadyProcessed)
+  };
+}
+
 let salesStartupSessionItemsV82 = [];
 
 function copySalesStartupProductNameV82(name, element) {
@@ -583,109 +751,40 @@ function getSalesStartupSessionItemV82(key) {
   return salesStartupSessionItemsV82.find(item => String(item.key || "") === String(key || ""));
 }
 
+function salesItemAlreadyProcessedLocallyV104(item, product) {
+  const key=String(item?.key||getSalesInventoryItemKeyV77(item)).trim();
+  if(!key||!product)return false;
+  const rows=Array.isArray(product.stockAdjustments)?product.stockAdjustments:(()=>{try{return JSON.parse(String(product.stockAdjustmentsJson||"[]"))}catch(_){return[]}})();
+  return rows.some(adj=>Array.isArray(adj?.salesLinks)&&adj.salesLinks.some(link=>String(link?.key||"").trim()===key));
+}
+
+function salesCardGroupsV104(items){
+  const map=new Map();
+  (items||[]).forEach(item=>{
+    const manual=isSalesManualCorrectionTaskV102(item);
+    const id=manual?`manual:${item.key}`:String(item.saleId||item.transactionId||item.key||"");
+    if(!map.has(id))map.set(id,[]);map.get(id).push(item);
+  });
+  return [...map.values()];
+}
+
 function renderStartupSalesInventoryReminderV81() {
-  const overlay = document.getElementById("salesInventoryStartupOverlayV81");
-  if (!overlay) return;
-
-  const body = overlay.querySelector(".sales-startup-body-v81");
-  const summary = overlay.querySelector(".sales-startup-summary-v81");
-  if (!body || !summary) return;
-
-  const totalCount = salesStartupSessionItemsV82.length;
-  const processedCount = salesStartupSessionItemsV82.filter(item => item.v82Processed).length;
-  const pendingCount = totalCount - processedCount;
-  const pendingQty = salesStartupSessionItemsV82
-    .filter(item => !item.v82Processed && !isSalesManualCorrectionTaskV102(item))
-    .reduce((sum, item) => sum + Math.max(0, Number(item.remainingQty) || 0), 0);
-  const manualPendingCount = salesStartupSessionItemsV82
-    .filter(item => !item.v82Processed && isSalesManualCorrectionTaskV102(item)).length;
-
-  const pendingParts = [];
-  if (pendingCount) pendingParts.push(`待处理 ${formatNumber(pendingCount)} 项`);
-  if (pendingQty) pendingParts.push(`${formatNumber(pendingQty)} 棵首次销售库存`);
-  if (manualPendingCount) pendingParts.push(`${formatNumber(manualPendingCount)} 项人工库存差异`);
-  summary.textContent = processedCount
-    ? `已处理 ${formatNumber(processedCount)} / ${formatNumber(totalCount)}；${pendingParts.join(" · ")}`
-    : `共有 ${formatNumber(totalCount)} 项${pendingParts.length ? " · " + pendingParts.join(" · ") : ""}`;
-
-  body.innerHTML = salesStartupSessionItemsV82.map(item => {
-    const product = findImportProductForSalesItemV77(item);
-    const productName = String(item.importProductName || item.productName || product?.name || "").trim();
-    const source = getSalesSourceNameV77(item);
-    const when = [String(item.saleDate || ""), formatSalesTimeV77(item.saleTime)].filter(Boolean).join(" ");
-    const channel = getSalesChannelV91(item);
-    const ageDays=salesInventoryAgeDaysV85(item);
-    const ageText=ageDays>0?` · 待处理 ${ageDays} 天`:"";
-    const target=getSalesInventoryDeepLinkTargetV85();
-    const preferred=isPreferredSalesInventoryItemV85(item,target);
-    const isManualV102 = isSalesManualCorrectionTaskV102(item);
-
-    if (isManualV102 && !item.v82Processed) {
-      const changes = Array.isArray(item.inventoryChanges) ? item.inventoryChanges : [];
-      const changeHtml = changes.map(change => {
-        const row = salesManualChangeTextV102(change);
-        return `
-          <div class="sales-manual-change-v102 ${row.actionClass}">
-            <button type="button"
-              class="sales-startup-product-v81 copyable-v82"
-              title="点击复制产品名称"
-              onclick='copySalesStartupProductNameV82(${JSON.stringify(row.name)}, this)'>${escapeHTML(row.name)}</button>
-            <strong>${escapeHTML(row.label)}</strong>
-          </div>`;
-      }).join("");
-      return `
-        <div class="sales-startup-item-v81 manual-correction-v102${preferred?" preferred-v85":""}" data-sales-key="${escapeHTML(item.key)}">
-          <div class="sales-manual-title-v102">⚠️ 已确认销售卡库存差异</div>
-          <div class="sales-startup-meta-v81">${escapeHTML(channel)} · ${escapeHTML(source)} · ${escapeHTML(when)}${escapeHTML(ageText)}</div>
-          <div class="sales-manual-note-v102">只显示与「最后一次已处理库存快照」真正不同的产品。未变化产品不会出现，也不会再次扣库存。</div>
-          <div class="sales-manual-list-v102">${changeHtml}</div>
-          <button type="button" class="sales-manual-open-editor-v102" data-sales-key="${escapeHTML(item.key)}">
-            前往产品/进口修改
-          </button>
-          <button type="button" class="sales-manual-done-v102" data-sales-key="${escapeHTML(item.key)}">
-            我已手动处理
-          </button>
-          <div class="sales-manual-warning-v102">「前往产品/进口修改」只负责导航，不会自动修改任何库存。</div>
-        </div>`;
+  const overlay=document.getElementById("salesInventoryStartupOverlayV81");if(!overlay)return;
+  const body=overlay.querySelector(".sales-startup-body-v81"),summary=overlay.querySelector(".sales-startup-summary-v81");if(!body||!summary)return;
+  const groups=salesCardGroupsV104(salesStartupSessionItemsV82);
+  const processed=salesStartupSessionItemsV82.filter(x=>x.v82Processed).length;
+  const pending=salesStartupSessionItemsV82.length-processed;
+  summary.textContent=processed?`已处理 ${processed} / ${salesStartupSessionItemsV82.length}；待处理 ${pending} 项`:`共有 ${salesStartupSessionItemsV82.length} 项 · ${groups.length} 张销售卡`;
+  body.innerHTML=groups.map(group=>{
+    const first=group[0],manual=isSalesManualCorrectionTaskV102(first);
+    if(manual){
+      const changes=Array.isArray(first.inventoryChanges)?first.inventoryChanges:[];
+      return `<div class="sales-startup-item-v81" data-sales-key="${escapeHTML(first.key)}"><button type="button" class="sales-startup-product-name-v82" onclick='copySalesStartupProductNameV82(${JSON.stringify(String(first.productName||"库存差异"))},this)'>${escapeHTML(first.productName||"库存差异")}</button><div class="sales-startup-meta-v81">已确认销售后的产品/数量修改</div>${changes.map(c=>{const r=salesManualChangeTextV102(c);return `<div class="sales-manual-change-v102 ${r.actionClass}">${escapeHTML(r.name)}：${escapeHTML(r.label)}</div>`}).join("")}<button type="button" class="sales-manual-open-editor-v102" data-sales-key="${escapeHTML(first.key)}">前往产品/进口修改</button><button type="button" class="sales-manual-done-v102" data-sales-key="${escapeHTML(first.key)}">我已手动处理</button></div>`;
     }
-
-    if (item.v82Processed) {
-      return `
-        <div class="sales-startup-item-v81 processed-v82${preferred?" preferred-v85":""}" data-sales-key="${escapeHTML(item.key)}">
-          <button type="button"
-            class="sales-startup-product-v81 copyable-v82"
-            title="点击复制产品名称"
-            onclick='copySalesStartupProductNameV82(${JSON.stringify(productName)}, this)'>${escapeHTML(productName)}</button>
-          <div class="sales-startup-meta-v81">${escapeHTML(channel)} · ${escapeHTML(source)} · ${escapeHTML(when)}${escapeHTML(ageText)}</div>
-          <div class="sales-startup-stock-v81">
-            销售：<strong>${formatNumber(item.v82Qty)} 棵</strong>　
-            库存：<strong>${formatNumber(item.v82StockBefore)}</strong> → <strong>${formatNumber(item.v82StockAfter)}</strong>
-          </div>
-          <button type="button" class="sales-startup-confirm-v81 processed-button-v82" disabled>
-            ✓ 已扣库存 ${formatNumber(item.v82StockBefore)} → ${formatNumber(item.v82StockAfter)}
-          </button>
-          <div class="sales-startup-processed-note-v82">已记录为「实际卖出」；本次打开网页不会再次扣除。</div>
-        </div>`;
-    }
-
-    const stock = Math.max(0, Math.trunc(Number(product?.stock) || 0));
-    const qty = Math.max(1, Math.trunc(Number(item.remainingQty) || 0));
-    const after = Math.max(0, stock - qty);
-    return `
-      <div class="sales-startup-item-v81${preferred?" preferred-v85":""}" data-sales-key="${escapeHTML(item.key)}">
-        <button type="button"
-          class="sales-startup-product-v81 copyable-v82"
-          title="点击复制产品名称"
-          onclick='copySalesStartupProductNameV82(${JSON.stringify(productName)}, this)'>${escapeHTML(productName)}</button>
-        <div class="sales-startup-meta-v81">${escapeHTML(channel)} · ${escapeHTML(source)} · ${escapeHTML(when)}${escapeHTML(ageText)}</div>
-        <div class="sales-startup-stock-v81">
-          销售：<strong>${formatNumber(qty)} 棵</strong>　
-          当前库存：<strong>${formatNumber(stock)}</strong> → <strong>${formatNumber(after)}</strong>
-        </div>
-        <button type="button" class="sales-startup-confirm-v81" data-sales-key="${escapeHTML(item.key)}">
-          确认销售并扣库存
-        </button>
-      </div>`;
+    const active=group.filter(x=>!x.v82Processed);
+    const rows=group.map(item=>{const product=findImportProductForSalesItemV77(item);const name=String(item.importProductName||item.productName||product?.name||"");const qty=Math.max(1,Number(item.remainingQty||item.quantity||1));const stock=Math.max(0,Number(product?.stock||0));const legacy=salesItemAlreadyProcessedLocallyV104(item,product);return `<div class="sales-card-line-v104"><button type="button" class="sales-startup-product-name-v82" onclick='copySalesStartupProductNameV82(${JSON.stringify(name)},this)'>${escapeHTML(name)}</button><div>${legacy?`✓ Import 已扣库存 · 等待回写 Sales`:`销售：<strong>${formatNumber(qty)} 棵</strong>　当前库存：<strong>${formatNumber(stock)}</strong> → <strong>${formatNumber(Math.max(0,stock-qty))}</strong>`}</div></div>`}).join("");
+    const saleId=String(first.saleId||first.transactionId||"");
+    return `<div class="sales-startup-card-v104" data-sale-id="${escapeHTML(saleId)}"><div class="sales-startup-meta-v81">${escapeHTML(getSalesChannelV91(first))} · ${escapeHTML(getSalesSourceNameV77(first))} · ${escapeHTML(String(first.saleDate||""))}</div>${rows}${active.length?`<button type="button" class="sales-card-confirm-v104" data-sale-id="${escapeHTML(saleId)}">确认整张销售卡并扣库存（${active.length} 项）</button>`:`<button type="button" disabled>✓ 整张销售卡已处理</button>`}</div>`;
   }).join("");
 }
 
@@ -773,65 +872,32 @@ function showStartupSalesInventoryReminderV80() {
       return;
     }
 
-    const button = event.target.closest(".sales-startup-confirm-v81");
-    if (!button || button.disabled) return;
-
-    const key = String(button.dataset.salesKey || "");
-    const sessionItem = getSalesStartupSessionItemV82(key);
-    if (!sessionItem || sessionItem.v82Processed) return;
-
-    // Always resolve against the live pending list before deducting.
+    const button=event.target.closest(".sales-card-confirm-v104");
+    if(!button||button.disabled)return;
+    const saleId=String(button.dataset.saleId||"");
+    const group=salesStartupSessionItemsV82.filter(x=>String(x.saleId||x.transactionId||"")===saleId&&!x.v82Processed&&!isSalesManualCorrectionTaskV102(x));
+    if(!group.length)return;
     recomputeSalesInventoryPendingV77();
-    const liveItem = salesInventoryPendingV77.find(row => row.key === key);
-    if (!liveItem) {
-      alert("这项 Sales 库存已经处理或不再需要处理，系统不会再次扣库存。");
-      return;
-    }
-
-    button.disabled = true;
-    const originalText = button.textContent;
-    button.textContent = "处理中…";
-
-    try {
-      const result = await executeSalesInventoryDeductionV81(liveItem);
-      if (result?.cancelled) {
-        button.disabled = false;
-        button.textContent = originalText;
-        return;
+    const live=group.map(x=>salesInventoryPendingV77.find(r=>String(r.key||"")===String(x.key||""))).filter(Boolean);
+    if(!live.length){alert("这张销售卡已经处理，系统不会再次扣库存。");return;}
+    const lines=[];let totalQty=0;
+    for(const item of live){const product=findImportProductForSalesItemV77(item);if(!product){alert(`找不到对应产品：${item.productName||""}。整张销售卡没有扣库存。`);return;}const qty=Math.max(1,Math.trunc(Number(item.remainingQty||item.quantity||1)));const legacy=salesItemAlreadyProcessedLocallyV104(item,product);if(!legacy&&Math.max(0,Math.trunc(Number(product.stock)||0))<qty){alert(`库存不足：${product.name}。整张销售卡没有扣库存。`);return;}lines.push({item,product,qty,legacy});totalQty+=qty;}
+    if(!confirm(`确认整张销售卡并扣库存？\n\n${lines.map(x=>`${x.product.name} ×${x.qty}${x.legacy?"（已扣，仅回写状态）":""}`).join("\n")}\n\n共 ${totalQty} 棵。任何一项检查失败都会停止整张处理。`))return;
+    button.disabled=true;button.textContent="整张处理中…";
+    try{
+      // V10.4: legacy already-committed lines are ACK-only; never deduct twice.
+      for(const x of lines.filter(x=>x.legacy)){await confirmSalesInventoryLinkRemoteV81(x.item);const session=getSalesStartupSessionItemV82(x.item.key);if(session)session.v82Processed=true;}
+      // Remaining lines use the proven cloud-commit path. Preflight above ensures no known partial failure.
+      // Each line is idempotent by immutable salesKey; a retry cannot deduct the same line twice.
+      for(const x of lines.filter(x=>!x.legacy)){
+        const result=await executeSalesInventoryDeductionV104NoPrompt(x.item);
+        if(!result?.ok)throw new Error(result?.message||"整张销售卡处理失败");
+        const session=getSalesStartupSessionItemV82(x.item.key);if(session)session.v82Processed=true;
       }
-      if (!result?.ok) {
-        alert(result?.message || "处理失败；Google Sheet 未确认保存，库存没有扣除。");
-        button.disabled = false;
-        button.textContent = originalText;
-        return;
-      }
-
-      // V8.7: do NOT remove the row after success.
-      // Lock it permanently in this currently-open reminder window.
-      sessionItem.v82Processed = true;
-      sessionItem.v82Qty = result.qty;
-      sessionItem.v82StockBefore = result.currentStock;
-      sessionItem.v82StockAfter = result.nextStock;
-      sessionItem.v82Note = result.note;
-      sessionItem.v82RemoteConfirmed = result.remoteConfirmed;
-      sessionItem.v82RemoteError = result.remoteError || "";
-
-      renderStartupSalesInventoryReminderV81();
-
-      if (!result.remoteConfirmed) {
-        alert(
-          `✅ Import 库存已经成功扣除并写入「实际卖出」。\n\n` +
-          `产品：${result.productName}\n` +
-          `库存：${formatNumber(result.currentStock)} → ${formatNumber(result.nextStock)}\n\n` +
-          `Sales System 的库存确认状态暂时回写失败：${result.remoteError || "未知原因"}。\n` +
-          `本页按钮已经锁死，Import 不会重复扣这笔库存。`
-        );
-      }
-    } catch (error) {
-      alert("确认销售并扣库存失败：" + String(error?.message || error));
-      button.disabled = false;
-      button.textContent = originalText;
-    }
+      await refreshSalesInventoryFeedV77({silent:true});
+      salesStartupSessionItemsV82=salesStartupSessionItemsV82.filter(x=>!x.v82Processed);
+      if(!salesStartupSessionItemsV82.length)closeStartupSalesInventoryReminderV81();else renderStartupSalesInventoryReminderV81();
+    }catch(error){button.disabled=false;button.textContent=`确认整张销售卡并扣库存（${group.length} 项）`;alert("整张销售卡处理未完成："+String(error?.message||error)+"\n\n请先同步再重试；已成功写入的 Sales Key 有防重复保护，不会再次扣库存。");}
   });
 
   document.body.appendChild(overlay);
@@ -964,7 +1030,7 @@ function setupSalesInventoryReminder() {
     }, SALES_INVENTORY_REFRESH_MS_V77);
   };
 
-  // V10.3: Sales reminder feed is secondary. Let the main Import cloud sync/render finish first,
+  // V10.4: Sales reminder feed is secondary. Let the main Import cloud sync/render finish first,
   // then check Sales in the background so opening the system is not held up by the cross-system request.
   window.setTimeout(start, SALES_INVENTORY_BACKGROUND_START_DELAY_V103);
 
@@ -2957,7 +3023,7 @@ function copyBatchNumber(importNumber, button) {
 }
 
 
-// V10.3: 最近进口记录直接点击进口编号/运输单号复制；运输单号若含说明文字，只复制末尾实际单号。
+// V10.4: 最近进口记录直接点击进口编号/运输单号复制；运输单号若含说明文字，只复制末尾实际单号。
 function extractTrackingNumberForCopy(value) {
   const text = String(value || "").trim();
   if (!text) return "";
@@ -5051,7 +5117,7 @@ function isInternalSystemAdjustmentNote(value) {
   return /^system\s+auto\s+repair$/i.test(text);
 }
 
-// V10.3: History / 备注 UI only shows genuine user remarks.
+// V10.4: History / 备注 UI only shows genuine user remarks.
 // Legacy internal markers such as "System Auto Repair" remain stored untouched
 // because they may describe historical repair provenance, but they are not user remarks.
 function getUserVisibleAdjustmentNote(adjustment) {
@@ -5984,7 +6050,7 @@ function renderCompactProductHistoryByRange(
                 ? `+${formatNumber(delta)}`
                 : formatNumber(delta);
               const actionLabel = getHistoryAdjustmentLabel(adjustment);
-              // V10.3: every visible stock adjustment carries its own remark,
+              // V10.4: every visible stock adjustment carries its own remark,
               // including exact-product + date-range History views.
               const note = getUserVisibleAdjustmentNote(adjustment);
 
@@ -10975,7 +11041,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "10.3",
+      version: "10.4",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11316,7 +11382,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V10.3 Stable",
+      updatedBy: "System V10.4 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,

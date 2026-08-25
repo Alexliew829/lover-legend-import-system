@@ -1,4 +1,4 @@
-Lover Legend 进口成本与库存系统 — 正式版 V10.3 Stable
+Lover Legend 进口成本与库存系统 — 正式版 V10.4 Stable
 
 V8.7 以 V7.6 Stable 为唯一基础，新增 Sales System 销售库存待处理提醒。
 
