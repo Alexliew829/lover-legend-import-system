@@ -1,9 +1,9 @@
-V10.7 Legacy ACK Repair
+V10.8 Legacy ACK Repair
 - 修复 V10.2 已扣库存但 Sales 尚未核销的遗留项：Import 会显示「已扣，仅回写 Sales」并只回写完成状态，绝不再次扣库存。
 - 修复 Sales 显示 1 项待处理、Import 却没有弹窗的孤儿提醒。
 - 库存/库存成本不会因遗留核销而改变。
 
-V10.7 Stable — Sales / Fair / Live Source Label Fix
+V10.8 Stable — Sales / Fair / Live Source Label Fix
 
 1. Sales inventory reminders now show exactly one true source channel.
 2. Sales -> Sales · location · date time.
@@ -11,4 +11,4 @@ V10.7 Stable — Sales / Fair / Live Source Label Fix
 4. Live -> Live · host · date time.
 5. The same source format is used for automatic Import History remarks.
 6. No changes to FIFO, stock deduction, average cost, cost formulas, Sales matching, or sync logic.
-7. All active system/client/cache/version labels updated to V10.7.
+7. All active system/client/cache/version labels updated to V10.8.

@@ -3993,7 +3993,7 @@ html, body {
 }
 
 
-/* ================= V10.7 Sales card confirmation preview ================= */
+/* ================= V10.8 Sales card confirmation preview ================= */
 .sales-startup-card-v106{border:1px solid #e0c57b;border-radius:14px;background:#fffdf7;padding:14px;margin:10px 0;display:grid;gap:12px}
 .sales-card-head-v106{font-weight:800;color:#5d5d5d;padding-bottom:8px;border-bottom:1px dashed #d8d8d8}
 .sales-card-line-v106{border:1px solid #d9e4dc;border-radius:12px;background:#fff;padding:12px;display:grid;gap:7px}
@@ -4008,5 +4008,16 @@ html, body {
 .sales-card-safety-v106{font-size:13px;color:#666;line-height:1.45}
 .error-card-v106{border-color:#e7a4a4;background:#fff5f5;color:#8d2020}
 
-/* ================= V10.7 Sales correction workflow ================= */
-.sales-copy-name-v107{border:0;background:transparent;padding:0;font:inherit;font-weight:700;text-align:left;text-decoration:underline dotted;cursor:pointer;color:inherit}.sales-auto-correct-v107{width:100%;margin-top:10px;padding:11px;border:0;border-radius:9px;background:#137a39;color:#fff;font-weight:800}.sales-copy-toast-v107{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:10050;background:#222;color:#fff;padding:9px 15px;border-radius:20px;font-weight:700}.sales-correction-overlay-v107{position:fixed;inset:0;z-index:10020;background:rgba(0,0,0,.52);display:flex;align-items:center;justify-content:center;padding:16px}.sales-correction-dialog-v107{width:min(520px,100%);max-height:90vh;overflow:auto;background:#fff;border:2px solid #e5a11a;border-radius:14px;padding:14px}.sales-correction-head-v107{display:flex;justify-content:space-between;align-items:center;font-size:18px;margin-bottom:10px}.sales-correction-head-v107 button{border:0;background:none;font-size:24px}.sales-correction-row-v107{border:1px solid #d9e4dc;border-radius:10px;padding:10px;margin:8px 0;line-height:1.65}.sales-correction-note-v107{display:block;font-weight:700;margin-top:12px}.sales-correction-note-v107 input{width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1px solid #bbb;border-radius:8px}.sales-correction-warning-v107{margin:10px 0;padding:9px;background:#fff7df;border-radius:8px}.sales-correction-confirm-v107,.sales-correction-cancel-v107{width:100%;padding:11px;border-radius:8px;margin-top:7px;font-weight:800}.sales-correction-confirm-v107{border:0;background:#137a39;color:white}.sales-correction-cancel-v107{border:1px solid #aaa;background:white}
+/* ================= V10.8 Sales correction workflow ================= */
+.sales-copy-name-v108{border:0;background:transparent;padding:0;font:inherit;font-weight:700;text-align:left;text-decoration:underline dotted;cursor:pointer;color:inherit}.sales-auto-correct-v108{width:100%;margin-top:10px;padding:11px;border:0;border-radius:9px;background:#137a39;color:#fff;font-weight:800}.sales-copy-toast-v108{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:10050;background:#222;color:#fff;padding:9px 15px;border-radius:20px;font-weight:700}.sales-correction-overlay-v108{position:fixed;inset:0;z-index:10020;background:rgba(0,0,0,.52);display:flex;align-items:center;justify-content:center;padding:16px}.sales-correction-dialog-v108{width:min(520px,100%);max-height:90vh;overflow:auto;background:#fff;border:2px solid #e5a11a;border-radius:14px;padding:14px}.sales-correction-head-v108{display:flex;justify-content:space-between;align-items:center;font-size:18px;margin-bottom:10px}.sales-correction-head-v108 button{border:0;background:none;font-size:24px}.sales-correction-row-v108{border:1px solid #d9e4dc;border-radius:10px;padding:10px;margin:8px 0;line-height:1.65}.sales-correction-note-v108{display:block;font-weight:700;margin-top:12px}.sales-correction-note-v108 input{width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1px solid #bbb;border-radius:8px}.sales-correction-warning-v108{margin:10px 0;padding:9px;background:#fff7df;border-radius:8px}.sales-correction-confirm-v108,.sales-correction-cancel-v108{width:100%;padding:11px;border-radius:8px;margin-top:7px;font-weight:800}.sales-correction-confirm-v108{border:0;background:#137a39;color:white}.sales-correction-cancel-v108{border:1px solid #aaa;background:white}
+
+
+/* ================= V10.8 unified action feedback ================= */
+button:not(:disabled){transition:transform .08s ease,opacity .12s ease,box-shadow .12s ease}
+button:not(:disabled):active{transform:scale(.97) translateY(1px)}
+button:disabled{cursor:not-allowed}
+.sales-startup-hidden-v108{visibility:hidden!important;pointer-events:none!important}
+.button-loading-spinner-v108{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;vertical-align:-2px;animation:ll-spin-v108 .7s linear infinite}
+@keyframes ll-spin-v108{to{transform:rotate(360deg)}}
+.sales-correction-error-v108{margin:10px 0;padding:10px;border-radius:8px;background:#fff0f0;color:#a1261c;font-weight:700;line-height:1.45}
+.sales-correction-confirm-v108:disabled{opacity:.72}

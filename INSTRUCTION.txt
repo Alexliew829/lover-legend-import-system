@@ -1,4 +1,4 @@
-Lover Legend 进口成本与库存系统 — 正式版 V10.7 Stable
+Lover Legend 进口成本与库存系统 — 正式版 V10.8 Stable
 
 库存数量修改流程：
 1. 长按当前库存。
