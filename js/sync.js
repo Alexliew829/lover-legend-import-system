@@ -154,7 +154,7 @@ function showLatestDataSyncedToast() {
   window.clearTimeout(toast._hideTimer);
   toast._hideTimer = window.setTimeout(() => {
     toast.classList.remove("show");
-  }, 1000);
+  }, 800);
 }
 
 async function refreshLatestCloudData() {

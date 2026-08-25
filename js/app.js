@@ -9959,7 +9959,7 @@ function setupGlobalMobilePullDownClear() {
 
       window.setTimeout(() => {
         hideIndicator();
-      }, 1000);
+      }, 800);
     },
     { passive: true }
   );
