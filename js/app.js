@@ -24,6 +24,8 @@ document.addEventListener("DOMContentLoaded", () => {
 const SALES_INVENTORY_FEED_URL_V77 =
   "https://script.google.com/macros/s/AKfycby1OwDIiVf5quXKiD9AG8s2ppM942sLFdJSfyePp--yZtDjYY8jBtkOYLwD9c3WiC_KNw/exec";
 const SALES_INVENTORY_REFRESH_MS_V77 = 60000;
+const SALES_INVENTORY_BACKGROUND_START_DELAY_V103 = 8000;
+const SALES_INVENTORY_RESUME_DELAY_V103 = 5000;
 let salesInventoryFeedV77 = [];
 let salesInventoryPendingV77 = [];
 let salesInventoryFeedLoadedV77 = false;
@@ -287,7 +289,7 @@ function completeSalesManualCorrectionRemoteV102(item) {
 }
 
 function openImportManualInventoryEditorV102(item) {
-  // V10.2 safety: this is navigation only. It NEVER adds/deducts/restores stock.
+  // V10.3 safety: this is navigation only. It NEVER adds/deducts/restores stock.
   const nav = document.querySelector('.nav-btn[data-page="importPage"]');
   if (nav) nav.click();
 
@@ -932,7 +934,7 @@ function scheduleSalesInventoryResumeCheckV84(reason = "resume") {
   window.clearTimeout(salesInventoryResumeTimerV84);
   salesInventoryResumeTimerV84 = window.setTimeout(
     () => checkSalesInventoryOnResumeV84(reason),
-    650
+    SALES_INVENTORY_RESUME_DELAY_V103
   );
 }
 
@@ -962,7 +964,9 @@ function setupSalesInventoryReminder() {
     }, SALES_INVENTORY_REFRESH_MS_V77);
   };
 
-  window.setTimeout(start, 1200);
+  // V10.3: Sales reminder feed is secondary. Let the main Import cloud sync/render finish first,
+  // then check Sales in the background so opening the system is not held up by the cross-system request.
+  window.setTimeout(start, SALES_INVENTORY_BACKGROUND_START_DELAY_V103);
 
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) scheduleSalesInventoryResumeCheckV84("visibilitychange");
@@ -2953,7 +2957,7 @@ function copyBatchNumber(importNumber, button) {
 }
 
 
-// V10.2: 最近进口记录直接点击进口编号/运输单号复制；运输单号若含说明文字，只复制末尾实际单号。
+// V10.3: 最近进口记录直接点击进口编号/运输单号复制；运输单号若含说明文字，只复制末尾实际单号。
 function extractTrackingNumberForCopy(value) {
   const text = String(value || "").trim();
   if (!text) return "";
@@ -5047,7 +5051,7 @@ function isInternalSystemAdjustmentNote(value) {
   return /^system\s+auto\s+repair$/i.test(text);
 }
 
-// V10.2: History / 备注 UI only shows genuine user remarks.
+// V10.3: History / 备注 UI only shows genuine user remarks.
 // Legacy internal markers such as "System Auto Repair" remain stored untouched
 // because they may describe historical repair provenance, but they are not user remarks.
 function getUserVisibleAdjustmentNote(adjustment) {
@@ -5980,7 +5984,7 @@ function renderCompactProductHistoryByRange(
                 ? `+${formatNumber(delta)}`
                 : formatNumber(delta);
               const actionLabel = getHistoryAdjustmentLabel(adjustment);
-              // V10.2: every visible stock adjustment carries its own remark,
+              // V10.3: every visible stock adjustment carries its own remark,
               // including exact-product + date-range History views.
               const note = getUserVisibleAdjustmentNote(adjustment);
 
@@ -10971,7 +10975,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "10.2",
+      version: "10.3",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11312,7 +11316,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V10.2 Stable",
+      updatedBy: "System V10.3 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,

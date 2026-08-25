@@ -1,4 +1,4 @@
-V10.2 Stable — Sales / Fair / Live Source Label Fix
+V10.3 Stable — Sales / Fair / Live Source Label Fix
 
 1. Sales inventory reminders now show exactly one true source channel.
 2. Sales -> Sales · location · date time.
@@ -6,4 +6,4 @@ V10.2 Stable — Sales / Fair / Live Source Label Fix
 4. Live -> Live · host · date time.
 5. The same source format is used for automatic Import History remarks.
 6. No changes to FIFO, stock deduction, average cost, cost formulas, Sales matching, or sync logic.
-7. All active system/client/cache/version labels updated to V10.2.
+7. All active system/client/cache/version labels updated to V10.3.

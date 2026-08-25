@@ -3920,7 +3920,7 @@ html, body {
   .product-stock-note-text { font-size: 1em; }
 }
 
-/* V10.2 最近进口：编号本身点击复制，取消独立 Copy 按钮 */
+/* V10.3 最近进口：编号本身点击复制，取消独立 Copy 按钮 */
 .recent-batch-copy-value{
   appearance:none;
   border:0;
@@ -3941,7 +3941,7 @@ html, body {
 .import-card-meta .recent-batch-copy-value{display:block;font-size:13px;}
 
 
-/* ================= V10.2 Sales manual inventory correction ================= */
+/* ================= V10.3 Sales manual inventory correction ================= */
 .sales-startup-item-v81.manual-correction-v102{
   border-color:#d99a17;
   background:#fffaf0;
