@@ -141,9 +141,9 @@ function recomputeSalesInventoryPendingV77() {
       const soldQty = Math.max(0, Math.trunc(Number(item?.quantity) || 0));
       const processedQty = Math.max(0, Math.trunc(Number(processed.get(key)) || 0));
       const remainingQty = Math.max(0, soldQty - processedQty);
-      // V10.6 legacy ACK repair: if Import already has this immutable Sales Key in
+      // V10.7 legacy ACK repair: if Import already has this immutable Sales Key in
       // stockAdjustments but Sales still says it is not INVENTORY_CONFIRMED, keep the
-      // row in the reminder as ACK-only.  V10.6 dropped it here, which created an
+      // row in the reminder as ACK-only.  V10.7 dropped it here, which created an
       // orphan reminder in Sales: Sales showed 1 pending item while Import showed none.
       // The popup will identify it through salesItemAlreadyProcessedLocallyV104() and
       // ONLY write the completion status back to Sales; inventory is never deducted again.
@@ -299,7 +299,8 @@ function completeSalesManualCorrectionRemoteV102(item) {
 }
 
 function openImportManualInventoryEditorV102(item) {
-  // V10.6 safety: this is navigation only. It NEVER adds/deducts/restores stock.
+  // V10.7: navigation only; close the modal/grey mask before opening editor.
+  closeStartupSalesInventoryReminderV81();
   const nav = document.querySelector('.nav-btn[data-page="importPage"]');
   if (nav) nav.click();
 
@@ -324,10 +325,78 @@ function salesManualChangeTextV102(change) {
 
   if (action === "RESTORE" || delta < 0) {
     const qty = Math.abs(adjustment || delta || 0);
-    return { name, label: `建议手动恢复 +${formatNumber(qty)}`, actionClass: "restore-v102" };
+    return { name, label: `恢复 +${formatNumber(qty)}`, actionClass: "restore-v102", qty, direction: "restore" };
   }
   const qty = Math.abs(adjustment || delta || 0);
-  return { name, label: `建议手动扣除 -${formatNumber(qty)}`, actionClass: "deduct-v102" };
+  return { name, label: `扣除 -${formatNumber(qty)}`, actionClass: "deduct-v102", qty, direction: "deduct" };
+}
+
+
+function copySalesCorrectionProductNameV107(name) {
+  const text = String(name || "").trim();
+  if (!text) return;
+  const done = () => {
+    const old = document.getElementById("salesCopyToastV107"); if (old) old.remove();
+    const toast = document.createElement("div"); toast.id="salesCopyToastV107"; toast.className="sales-copy-toast-v107"; toast.textContent="已复制产品名";
+    document.body.appendChild(toast); setTimeout(()=>toast.remove(),1200);
+  };
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done).catch(()=>{});
+  else { const ta=document.createElement("textarea"); ta.value=text; document.body.appendChild(ta); ta.select(); try{document.execCommand("copy");done();}finally{ta.remove();} }
+}
+
+function findCorrectionProductV107(change){
+  const pid=String(change?.importProductId||change?.productId||change?.id||"").trim();
+  const name=String(change?.productName||change?.name||"").trim().toLowerCase();
+  return getProducts().find(p => (pid && String(p?.id||"").trim()===pid) || (!pid && name && String(p?.name||"").trim().toLowerCase()===name)) ||
+    getProducts().find(p => name && String(p?.name||"").trim().toLowerCase()===name);
+}
+
+function openSalesCorrectionConfirmV107(item){
+  return new Promise(resolve=>{
+    const old=document.getElementById("salesCorrectionConfirmOverlayV107"); if(old)old.remove();
+    const changes=(Array.isArray(item?.inventoryChanges)?item.inventoryChanges:[]).map(c=>({change:c,row:salesManualChangeTextV102(c),product:findCorrectionProductV107(c)}));
+    const channel=getSalesChannelV91(item), source=getSalesSourceNameV77(item), date=String(item?.saleDate||"");
+    const defaultNote=`${channel} · ${source} · ${date} · 销售卡修改`;
+    const overlay=document.createElement("div"); overlay.id="salesCorrectionConfirmOverlayV107"; overlay.className="sales-correction-overlay-v107";
+    overlay.innerHTML=`<div class="sales-correction-dialog-v107"><div class="sales-correction-head-v107"><strong>销售卡库存差异自动处理</strong><button type="button" data-x>×</button></div>
+      <div class="sales-correction-list-v107">${changes.map((x,i)=>{const stock=x.product?Math.max(0,Math.trunc(Number(x.product.stock)||0)):null;const after=stock==null?null:stock+(x.row.direction==="restore"?x.row.qty:-x.row.qty);return `<div class="sales-correction-row-v107"><div>产品 ${i+1}</div><button type="button" class="sales-copy-name-v107" data-copy="${escapeHTML(x.row.name)}">${escapeHTML(x.row.name)}</button><div>当前库存：<b>${stock==null?"找不到产品":formatNumber(stock)}</b></div><div>调整：<b>${escapeHTML(x.row.label)}</b></div><div>调整后库存：<b>${after==null?"—":formatNumber(after)}</b></div></div>`}).join("")}</div>
+      <label class="sales-correction-note-v107">备注<input type="text" maxlength="120" value="${escapeHTML(defaultNote)}"></label>
+      <div class="sales-correction-warning-v107">系统会先检查全部项目；任何一项不符合条件，全部停止处理。</div>
+      <button type="button" class="sales-correction-confirm-v107">确认处理全部 ${changes.length} 项</button><button type="button" class="sales-correction-cancel-v107">取消</button></div>`;
+    const close=v=>{overlay.remove();resolve(v)}; overlay.querySelector('[data-x]').onclick=()=>close(null); overlay.querySelector('.sales-correction-cancel-v107').onclick=()=>close(null);
+    overlay.querySelectorAll('.sales-copy-name-v107').forEach(b=>b.onclick=()=>copySalesCorrectionProductNameV107(b.dataset.copy));
+    overlay.querySelector('.sales-correction-confirm-v107').onclick=()=>close({note:overlay.querySelector('input').value.trim()||defaultNote});
+    document.body.appendChild(overlay);
+  });
+}
+
+async function executeSalesCorrectionBatchV107(item,note){
+  const changes=Array.isArray(item?.inventoryChanges)?item.inventoryChanges:[]; if(!changes.length) throw new Error("没有库存差异可处理。");
+  const original={products:localStorage.getItem("importSystemProducts"),imports:localStorage.getItem("importSystemImports"),batches:localStorage.getItem("importSystemBatches")};
+  const expected=[]; const correctionKey=`sales-correction:${String(item?.saleId||item?.transactionId||item?.key||"")}:${String(item?.key||"")}`;
+  try{
+    for(let i=0;i<changes.length;i++){
+      const c=changes[i], row=salesManualChangeTextV102(c), product=findCorrectionProductV107(c); if(!product) throw new Error(`找不到产品：${row.name}`);
+      const products=getProducts().map(p=>({...p})), idx=products.findIndex(p=>String(p.id||"")===String(product.id||"")); const current=Math.max(0,Math.trunc(Number(products[idx].stock)||0));
+      const next=current+(row.direction==="restore"?row.qty:-row.qty); if(next<0) throw new Error(`库存不足：${row.name}，当前 ${current}，需要扣除 ${row.qty}`);
+      const allocation=allocateProductRemainingFIFO(product.id,product.name,next,row.direction==="restore"?"modify":"sale",row.direction==="restore"?"撤销销售":"实际卖出",note); if(!allocation.ok) throw new Error(`${row.name}：${allocation.message||"库存计算失败"}`);
+      const link={key:`${correctionKey}:${i}`,saleId:String(item?.saleId||item?.transactionId||""),productId:String(product.id||""),productName:product.name,processedQty:row.qty,saleDate:String(item?.saleDate||""),type:String(item?.type||""),location:String(item?.location||item?.host||item?.fairLocation||""),source:getSalesSourceNameV77(item)};
+      const adjustmentData=appendProductStockAdjustments(products[idx],allocation.changes,allocation.changedAt,current,next,[link]); products[idx]={...products[idx],...adjustmentData,stock:next,inventoryArchived:next>0?false:products[idx].inventoryArchived,updatedAt:allocation.changedAt};
+      localStorage.setItem("importSystemProducts",JSON.stringify(products)); localStorage.setItem("importSystemImports",JSON.stringify(allocation.nextImports)); localStorage.setItem("importSystemBatches",JSON.stringify(allocation.nextBatches)); expected.push({productId:String(product.id),before:current,after:next});
+    }
+    const finalProducts=getProducts(), finalImports=getImports(), finalBatches=getBatches();
+    const expectedMap=new Map(); expected.forEach(e=>{const prev=expectedMap.get(e.productId); expectedMap.set(e.productId,prev?{productId:e.productId,before:prev.before,after:e.after}:e);}); expected.splice(0,expected.length,...expectedMap.values());
+    const touchedIds=new Set(expected.map(x=>x.productId)); const touchedProducts=finalProducts.filter(p=>touchedIds.has(String(p.id||"")));
+    const originalImports=JSON.parse(original.imports||"[]"), originalBatches=JSON.parse(original.batches||"[]");
+    const touchedImports=finalImports.filter((r,i)=>JSON.stringify(r)!==JSON.stringify(originalImports[i]));
+    const touchedBatches=finalBatches.filter((b,i)=>JSON.stringify(b)!==JSON.stringify(originalBatches[i]));
+    // restore browser state until cloud confirms atomic batch
+    if(original.products===null)localStorage.removeItem("importSystemProducts");else localStorage.setItem("importSystemProducts",original.products); if(original.imports===null)localStorage.removeItem("importSystemImports");else localStorage.setItem("importSystemImports",original.imports); if(original.batches===null)localStorage.removeItem("importSystemBatches");else localStorage.setItem("importSystemBatches",original.batches);
+    const result=await commitSalesCorrectionBatchToCloudV107({correctionKey,expected,products:touchedProducts,imports:touchedImports,batches:touchedBatches});
+    await pullLatestAfterSalesCommitV83(); await completeSalesManualCorrectionRemoteV102(item); return result;
+  } catch(e){
+    if(original.products===null)localStorage.removeItem("importSystemProducts");else localStorage.setItem("importSystemProducts",original.products); if(original.imports===null)localStorage.removeItem("importSystemImports");else localStorage.setItem("importSystemImports",original.imports); if(original.batches===null)localStorage.removeItem("importSystemBatches");else localStorage.setItem("importSystemBatches",original.batches); throw e;
+  }
 }
 
 function confirmSalesInventoryLinkRemoteV81(item) {
@@ -592,7 +661,7 @@ async function executeSalesInventoryDeductionV104NoPrompt(item) {
 
   const nextStock = currentStock - qty;
   const note = buildSalesInventoryAutoNoteV81(currentPending);
-  // V10.6 card-level confirmation already completed; do not prompt per product.
+  // V10.7 card-level confirmation already completed; do not prompt per product.
 
   const previousImports = getImports();
   const previousBatches = getBatches();
@@ -803,9 +872,9 @@ function renderStartupSalesInventoryReminderV81() {
   const groups = salesCardGroupsV104(salesStartupSessionItemsV82);
   const processed = salesStartupSessionItemsV82.filter(x => x.v82Processed).length;
   const pending = Math.max(0, salesStartupSessionItemsV82.length - processed);
-  summary.textContent = processed
-    ? `已处理 ${processed} / ${salesStartupSessionItemsV82.length}；待处理 ${pending} 项 · ${groups.length} 张销售卡`
-    : `共有 ${salesStartupSessionItemsV82.length} 项 · ${groups.length} 张销售卡`;
+  const pendingGroups = salesCardGroupsV104(salesStartupSessionItemsV82.filter(x => !x.v82Processed));
+  const adjustmentCount = salesStartupSessionItemsV82.filter(x => !x.v82Processed).reduce((sum,x)=>sum+(isSalesManualCorrectionTaskV102(x)?Math.max(1,(x.inventoryChanges||[]).length):1),0);
+  summary.innerHTML = `<div>共有 ${pendingGroups.length} 张销售卡待处理</div><div>涉及 ${adjustmentCount} 项产品库存调整</div>`;
 
   const cards = [];
   for (const group of groups) {
@@ -817,9 +886,10 @@ function renderStartupSalesInventoryReminderV81() {
         cards.push(`<div class="sales-startup-item-v81 manual-correction-v102" data-sales-key="${escapeHTML(first.key || "")}">
           <div class="sales-manual-title-v102">⚠️ 已确认销售卡库存差异</div>
           <div class="sales-startup-meta-v81">已确认销售后的产品/数量修改</div>
-          ${changes.map(c => { const r=salesManualChangeTextV102(c); return `<div class="sales-manual-change-v102 ${r.actionClass}">${escapeHTML(r.name)}：${escapeHTML(r.label)}</div>`; }).join("")}
+          ${changes.map(c => { const r=salesManualChangeTextV102(c); return `<div class="sales-manual-change-v102 ${r.actionClass}"><button type="button" class="sales-copy-name-v107" data-copy="${escapeHTML(r.name)}">${escapeHTML(r.name)}</button>：${escapeHTML(r.label)}</div>`; }).join("")}
+          <button type="button" class="sales-auto-correct-v107" data-sales-key="${escapeHTML(first.key || "")}">自动处理全部库存差异（${changes.length} 项）</button>
           <button type="button" class="sales-manual-open-editor-v102" data-sales-key="${escapeHTML(first.key || "")}">前往产品/进口修改</button>
-          <button type="button" class="sales-manual-done-v102" data-sales-key="${escapeHTML(first.key || "")}">我已手动处理</button>
+          <button type="button" class="sales-manual-done-v102" data-sales-key="${escapeHTML(first.key || "")}">确认已在其他方式处理</button>
         </div>`);
         continue;
       }
@@ -869,7 +939,7 @@ function renderStartupSalesInventoryReminderV81() {
         <div class="sales-card-safety-v106">确认前显示的是 Import 当前真实库存。任何一项找不到产品或库存不足，整张销售卡都会停止处理。</div>
       </div>`);
     } catch (error) {
-      console.error("V10.6 Sales card render failed", error, group);
+      console.error("V10.7 Sales card render failed", error, group);
       cards.push(`<div class="sales-startup-card-v106 error-card-v106"><strong>❌ 销售卡资料显示失败</strong><div>${escapeHTML(String(error?.message || error))}</div><div>为安全起见，已禁止扣库存。请同步后重试。</div></div>`);
     }
   }
@@ -903,7 +973,7 @@ function showStartupSalesInventoryReminderV80() {
       </div>
       <div class="sales-startup-body-v81"></div>
       <div class="sales-startup-foot-v81">
-        <small>首次确认销售才允许使用「确认销售并扣库存」并按现有 FIFO 写入 History。已处理销售卡之后的产品/数量修改只提供人工库存差异提示，Import 不会自动修改库存。</small>
+        <small>首次确认销售使用「确认销售并扣库存」。已确认销售卡之后的产品/数量修改，可使用「自动处理全部库存差异」统一修正，并写入 History。</small>
         <button type="button" class="sales-startup-later-v81">稍后处理</button>
       </div>
     </div>`;
@@ -912,6 +982,18 @@ function showStartupSalesInventoryReminderV80() {
   overlay.querySelector(".sales-startup-later-v81")?.addEventListener("click", closeStartupSalesInventoryReminderV81);
 
   overlay.addEventListener("click", async event => {
+    const copyNameButton = event.target.closest(".sales-copy-name-v107");
+    if (copyNameButton) { copySalesCorrectionProductNameV107(copyNameButton.dataset.copy); return; }
+
+    const autoButton = event.target.closest(".sales-auto-correct-v107");
+    if (autoButton && !autoButton.disabled) {
+      const key=String(autoButton.dataset.salesKey||""); const sessionItem=getSalesStartupSessionItemV82(key); if(!sessionItem||sessionItem.v82Processed)return;
+      const confirmation=await openSalesCorrectionConfirmV107(sessionItem); if(!confirmation)return;
+      autoButton.disabled=true; const oldText=autoButton.textContent; autoButton.textContent="正在处理全部差异…";
+      try { await executeSalesCorrectionBatchV107(sessionItem,confirmation.note); sessionItem.v82Processed=true; await refreshSalesInventoryFeedV77({silent:true}); salesStartupSessionItemsV82=salesStartupSessionItemsV82.filter(x=>String(x.key||"")!==key); if(!salesStartupSessionItemsV82.length)closeStartupSalesInventoryReminderV81();else renderStartupSalesInventoryReminderV81(); }
+      catch(error){autoButton.disabled=false;autoButton.textContent=oldText;alert("自动处理失败："+String(error?.message||error)+"\n\n全部库存差异没有部分提交；请同步后再试。");} return;
+    }
+
     const openEditorButton = event.target.closest(".sales-manual-open-editor-v102");
     if (openEditorButton && !openEditorButton.disabled) {
       const key = String(openEditorButton.dataset.salesKey || "");
@@ -932,12 +1014,10 @@ function showStartupSalesInventoryReminderV80() {
         return `${row.name}：${row.label}`;
       }).join("\n");
 
-      const confirmed = window.confirm(
-        `确认你已经在「产品/进口 修改/编辑」手动处理完以下库存差异？\n\n` +
-        `${details}\n\n` +
-        `注意：这个按钮本身不会修改库存，只会把这项 Sales 提醒标记为已处理。`
-      );
-      if (!confirmed) return;
+      const manualNote = window.prompt(`确认已在其他方式处理以下库存差异？\n\n${details}\n\n此操作不会修改库存，只会关闭本销售卡库存差异提醒。\n请输入处理备注：`, "已在产品/进口修改页面手动完成");
+      if (manualNote === null) return;
+      if (!String(manualNote).trim()) { alert("请填写处理备注后再确认。"); return; }
+      if (!window.confirm(`最后确认：库存不会由这个按钮自动修改。\n\n备注：${String(manualNote).trim()}`)) return;
 
       manualDoneButton.disabled = true;
       const oldText = manualDoneButton.textContent;
@@ -955,7 +1035,7 @@ function showStartupSalesInventoryReminderV80() {
       } catch (error) {
         manualDoneButton.disabled = false;
         manualDoneButton.textContent = oldText;
-        alert("「我已手动处理」回写失败：" + String(error?.message || error));
+        alert("「确认已在其他方式处理」回写失败：" + String(error?.message || error));
       }
       return;
     }
@@ -973,7 +1053,7 @@ function showStartupSalesInventoryReminderV80() {
     if(!confirm(`确认整张销售卡并扣库存？\n\n${lines.map(x=>`${x.product.name} ×${x.qty}${x.legacy?"（已扣，仅回写状态）":""}`).join("\n")}\n\n共 ${totalQty} 棵。任何一项检查失败都会停止整张处理。`))return;
     button.disabled=true;button.textContent="整张处理中…";
     try{
-      // V10.6: legacy already-committed lines are ACK-only; never deduct twice.
+      // V10.7: legacy already-committed lines are ACK-only; never deduct twice.
       for(const x of lines.filter(x=>x.legacy)){await confirmSalesInventoryLinkRemoteV81(x.item);const session=getSalesStartupSessionItemV82(x.item.key);if(session)session.v82Processed=true;}
       // Remaining lines use the proven cloud-commit path. Preflight above ensures no known partial failure.
       // Each line is idempotent by immutable salesKey; a retry cannot deduct the same line twice.
@@ -1118,7 +1198,7 @@ function setupSalesInventoryReminder() {
     }, SALES_INVENTORY_REFRESH_MS_V77);
   };
 
-  // V10.6: Sales reminder feed is secondary. Let the main Import cloud sync/render finish first,
+  // V10.7: Sales reminder feed is secondary. Let the main Import cloud sync/render finish first,
   // then check Sales in the background so opening the system is not held up by the cross-system request.
   window.setTimeout(start, SALES_INVENTORY_BACKGROUND_START_DELAY_V103);
 
@@ -3111,7 +3191,7 @@ function copyBatchNumber(importNumber, button) {
 }
 
 
-// V10.6: 最近进口记录直接点击进口编号/运输单号复制；运输单号若含说明文字，只复制末尾实际单号。
+// V10.7: 最近进口记录直接点击进口编号/运输单号复制；运输单号若含说明文字，只复制末尾实际单号。
 function extractTrackingNumberForCopy(value) {
   const text = String(value || "").trim();
   if (!text) return "";
@@ -5205,7 +5285,7 @@ function isInternalSystemAdjustmentNote(value) {
   return /^system\s+auto\s+repair$/i.test(text);
 }
 
-// V10.6: History / 备注 UI only shows genuine user remarks.
+// V10.7: History / 备注 UI only shows genuine user remarks.
 // Legacy internal markers such as "System Auto Repair" remain stored untouched
 // because they may describe historical repair provenance, but they are not user remarks.
 function getUserVisibleAdjustmentNote(adjustment) {
@@ -6138,7 +6218,7 @@ function renderCompactProductHistoryByRange(
                 ? `+${formatNumber(delta)}`
                 : formatNumber(delta);
               const actionLabel = getHistoryAdjustmentLabel(adjustment);
-              // V10.6: every visible stock adjustment carries its own remark,
+              // V10.7: every visible stock adjustment carries its own remark,
               // including exact-product + date-range History views.
               const note = getUserVisibleAdjustmentNote(adjustment);
 
@@ -11129,7 +11209,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "10.6",
+      version: "10.7",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11470,7 +11550,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V10.6 Stable",
+      updatedBy: "System V10.7 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
