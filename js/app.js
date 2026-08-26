@@ -121,50 +121,38 @@ function getProcessedSalesInventoryQuantitiesV77() {
 
 function recomputeSalesInventoryPendingV77() {
   const processed = getProcessedSalesInventoryQuantitiesV77();
-  salesInventoryPendingV77 = salesInventoryFeedV77
-    .filter(item => !["deleted", "cancelled"].includes(String(item?.status || "active").toLowerCase()))
-    .filter(item => {
-      if (isSalesManualCorrectionTaskV102(item)) return true;
-      return String(item?.importSyncStatus || "").toUpperCase() !== "INVENTORY_CONFIRMED";
-    })
-    .map(item => {
-      const key = getSalesInventoryItemKeyV77(item);
-      if (isSalesManualCorrectionTaskV102(item)) {
-        const changes = Array.isArray(item?.inventoryChanges)
-          ? item.inventoryChanges
-          : (Array.isArray(item?.manualChanges) ? item.manualChanges : []);
-        if (!changes.length) return null;
-        return { ...item, key, manualCorrection: true, inventoryChanges: changes, remainingQty: 0 };
-      }
-      const product = findImportProductForSalesItemV77(item);
-      if (!product) return null;
-      const soldQty = Math.max(0, Math.trunc(Number(item?.quantity) || 0));
-      const processedQty = Math.max(0, Math.trunc(Number(processed.get(key)) || 0));
-      const remainingQty = Math.max(0, soldQty - processedQty);
-      // V11.0 legacy ACK repair: if Import already has this immutable Sales Key in
-      // stockAdjustments but Sales still says it is not INVENTORY_CONFIRMED, keep the
-      // row in the reminder as ACK-only.  V11.0 dropped it here, which created an
-      // orphan reminder in Sales: Sales showed 1 pending item while Import showed none.
-      // The popup will identify it through salesItemAlreadyProcessedLocallyV104() and
-      // ONLY write the completion status back to Sales; inventory is never deducted again.
-      if (!remainingQty) {
-        const locallyCommitted = salesItemAlreadyProcessedLocallyV104({ ...item, key }, product);
-        if (!locallyCommitted) return null;
-        return { ...item, key, importProductId: String(product.id || ""), importProductName: String(product.name || ""), processedQty, remainingQty: soldQty, legacyAckOnlyV105: true };
-      }
-      return { ...item, key, importProductId: String(product.id || ""), importProductName: String(product.name || ""), processedQty, remainingQty };
-    })
-    .filter(Boolean)
-    .sort((a, b) => {
-      const target=getSalesInventoryDeepLinkTargetV85();
-      const ap=isPreferredSalesInventoryItemV85(a,target)?0:1;
-      const bp=isPreferredSalesInventoryItemV85(b,target)?0:1;
-      if(ap!==bp)return ap-bp;
-      const da = parseDateDDMMYYYY(a.saleDate)?.getTime() || 0;
-      const db = parseDateDDMMYYYY(b.saleDate)?.getTime() || 0;
-      if (da !== db) return da - db;
-      return String(a.saleTime || "").localeCompare(String(b.saleTime || ""));
-    });
+  const pending = [];
+  salesInventoryFeedV77.forEach(item => {
+    if (isSalesManualCorrectionTaskV102(item)) {
+      const changes = Array.isArray(item?.inventoryChanges) ? item.inventoryChanges : (Array.isArray(item?.manualChanges) ? item.manualChanges : []);
+      if (!changes.length) return;
+      pending.push({ ...item, key:getSalesInventoryItemKeyV77(item), manualCorrection:true, inventoryChanges:changes, remainingQty:0 });
+      return;
+    }
+    const rowStatus=String(item?.status||"active").toLowerCase();
+    if(rowStatus==="cancelled")return;
+    const product=findImportProductForSalesItemV77(item); if(!product)return;
+    const baseKey=getSalesInventoryItemKeyV77(item);
+    const desiredQty=rowStatus==="deleted"?0:Math.max(0,Math.trunc(Number(item?.quantity)||0));
+    const processedQty=Math.max(0,Math.trunc(Number(processed.get(baseKey))||0));
+    const importStatus=String(item?.importSyncStatus||"").toUpperCase();
+    if(processedQty>desiredQty){
+      const restoreQty=processedQty-desiredQty;
+      pending.push({...item,key:`manual|${String(item?.saleId||item?.transactionId||"")}|${String(item?.linkId||"")}|restore|${processedQty}|${desiredQty}`,taskType:"MANUAL_CORRECTION",manualCorrection:true,manualCorrectionStatus:"MANUAL_CORRECTION_PENDING",remainingQty:0,inventoryChanges:[{action:"RESTORE",delta:-restoreQty,inventoryAdjustment:restoreQty,productId:String(product.id||""),importProductId:String(product.id||""),productName:String(product.name||item?.productName||""),linkId:String(item?.linkId||"")} ]});
+      return;
+    }
+    if(rowStatus==="deleted")return;
+    if(importStatus==="INVENTORY_CONFIRMED"&&processedQty===desiredQty)return;
+    const remainingQty=Math.max(0,desiredQty-processedQty);
+    if(!remainingQty){
+      const locallyCommitted=salesItemAlreadyProcessedLocallyV104({...item,key:baseKey},product);
+      if(!locallyCommitted)return;
+      pending.push({...item,key:baseKey,importProductId:String(product.id||""),importProductName:String(product.name||""),processedQty,remainingQty:desiredQty,legacyAckOnlyV105:true});
+      return;
+    }
+    pending.push({...item,key:baseKey,importProductId:String(product.id||""),importProductName:String(product.name||""),processedQty,remainingQty});
+  });
+  salesInventoryPendingV77=pending;
   return salesInventoryPendingV77;
 }
 
@@ -253,53 +241,20 @@ function buildSalesInventoryAutoNoteV81(item) {
 
 
 function completeSalesManualCorrectionRemoteV102(item) {
-  return new Promise((resolve, reject) => {
-    const saleId = String(item?.saleId || item?.transactionId || "").trim();
-    if (!saleId) {
-      reject(new Error("销售卡缺少 Card ID，不能标记库存差异已处理。"));
-      return;
-    }
-
-    const callbackName = `loverLegendSalesManualDoneV102_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const script = document.createElement("script");
-    let finished = false;
-    const cleanup = () => {
-      if (finished) return;
-      finished = true;
-      window.clearTimeout(timeoutId);
-      try { delete window[callbackName]; } catch (_) { window[callbackName] = undefined; }
-      script.remove();
-    };
-
-    window[callbackName] = data => {
-      cleanup();
-      if (!data?.ok) reject(new Error(data?.error || data?.message || "Sales 库存差异状态回写失败"));
-      else resolve(data);
-    };
-
-    const params = new URLSearchParams({
-      action: "completeManualInventoryCorrectionV290",
-      callback: callbackName,
-      saleId,
-      transactionId: saleId,
-      _: String(Date.now())
-    });
-    script.src = `${SALES_INVENTORY_FEED_URL_V77}?${params.toString()}`;
-    script.async = true;
-    script.onerror = () => {
-      cleanup();
-      reject(new Error("无法回写 Sales System 库存差异完成状态"));
-    };
-    const timeoutId = window.setTimeout(() => {
-      cleanup();
-      reject(new Error("Sales System 库存差异完成状态回写超时"));
-    }, 15000);
-    document.head.appendChild(script);
+  return new Promise((resolve,reject)=>{
+    const saleId=String(item?.saleId||item?.transactionId||"").trim(),linkId=String(item?.linkId||"").trim();
+    if(!saleId||!linkId){reject(new Error("销售卡缺少 Card ID / Line ID，不能标记库存差异已处理。"));return;}
+    const callbackName=`loverLegendSalesManualDoneV111_${Date.now()}_${Math.random().toString(36).slice(2)}`,script=document.createElement("script"); let finished=false;
+    const cleanup=()=>{if(finished)return;finished=true;window.clearTimeout(timeoutId);try{delete window[callbackName]}catch(_){window[callbackName]=undefined}script.remove();};
+    window[callbackName]=data=>{cleanup();if(!data?.ok)reject(new Error(data?.error||data?.message||"Sales 库存差异状态回写失败"));else resolve(data);};
+    const params=new URLSearchParams({action:"confirmSalesCardInventoryV249",callback:callbackName,type:String(item?.type||""),date:String(item?.saleDate||""),location:String(item?.location||item?.host||item?.fairLocation||""),transactionId:saleId,linkId,_:String(Date.now())});
+    script.src=`${SALES_INVENTORY_FEED_URL_V77}?${params.toString()}`;script.async=true;script.onerror=()=>{cleanup();reject(new Error("无法回写 Sales System 库存差异完成状态"));};
+    const timeoutId=window.setTimeout(()=>{cleanup();reject(new Error("Sales System 库存差异完成状态回写超时"));},15000);document.head.appendChild(script);
   });
 }
 
 function openImportManualInventoryEditorV102(item) {
-  // V11.0: navigation only; close the modal/grey mask before opening editor.
+  // V11.1: navigation only; close the modal/grey mask before opening editor.
   closeStartupSalesInventoryReminderV81();
   const nav = document.querySelector('.nav-btn[data-page="importPage"]');
   if (nav) nav.click();
@@ -408,7 +363,7 @@ async function executeSalesCorrectionBatchV110(item,note){
   const taskKey=String(item?.key||"").trim();
   if(!saleId||!taskKey) throw new Error("Sales Key / Line ID 不完整，已停止整张处理。");
 
-  // V11.0 preflight: validate every line before mutating the browser staging snapshot.
+  // V11.1 preflight: validate every line before mutating the browser staging snapshot.
   const preflight=changes.map((c,i)=>{
     const row=salesManualChangeTextV102(c);
     const product=findCorrectionProductV108(c);
@@ -459,12 +414,12 @@ async function executeSalesCorrectionBatchV110(item,note){
     if(!result?.ok) throw new Error(result?.message||result?.error||"整张库存差异处理失败。");
     if(result?.partialProcessed) throw new Error(result?.message||"检测到部分库存差异已处理，Sales 状态不会回写。请先检查 History。");
 
-    // V11.0: the correction commit already advances config.revision. A normal pull would
+    // V11.1: the correction commit already advances config.revision. A normal pull would
     // therefore return `unchanged` and leave the browser on the pre-commit snapshot.
     // Force a canonical full pull before validating stock / Line Key.
     await pullLatestAfterSalesCommitV83(true);
 
-    // V11.0 final client verification: canonical data pulled back from Google Sheet
+    // V11.1 final client verification: canonical data pulled back from Google Sheet
     // must contain every expected AFTER stock and exact Line Key before Sales is marked done.
     const verifiedProducts=getProducts();
     for(const e of expected){
@@ -749,7 +704,7 @@ async function executeSalesInventoryDeductionV104NoPrompt(item) {
 
   const nextStock = currentStock - qty;
   const note = buildSalesInventoryAutoNoteV81(currentPending);
-  // V11.0 card-level confirmation already completed; do not prompt per product.
+  // V11.1 card-level confirmation already completed; do not prompt per product.
 
   const previousImports = getImports();
   const previousBatches = getBatches();
@@ -1025,7 +980,7 @@ function renderStartupSalesInventoryReminderV81() {
         <div class="sales-card-safety-v106">确认前显示的是 Import 当前真实库存。任何一项找不到产品或库存不足，整张销售卡都会停止处理。</div>
       </div>`);
     } catch (error) {
-      console.error("V11.0 Sales card render failed", error, group);
+      console.error("V11.1 Sales card render failed", error, group);
       cards.push(`<div class="sales-startup-card-v106 error-card-v106"><strong>❌ 销售卡资料显示失败</strong><div>${escapeHTML(String(error?.message || error))}</div><div>为安全起见，已禁止扣库存。请同步后重试。</div></div>`);
     }
   }
@@ -1102,7 +1057,7 @@ function showStartupSalesInventoryReminderV80() {
     if(!confirm(`确认整张销售卡并扣库存？\n\n${lines.map(x=>`${x.product.name} ×${x.qty}${x.legacy?"（已扣，仅回写状态）":""}`).join("\n")}\n\n共 ${totalQty} 棵。任何一项检查失败都会停止整张处理。`))return;
     button.disabled=true;button.textContent="整张处理中…";
     try{
-      // V11.0: legacy already-committed lines are ACK-only; never deduct twice.
+      // V11.1: legacy already-committed lines are ACK-only; never deduct twice.
       for(const x of lines.filter(x=>x.legacy)){await confirmSalesInventoryLinkRemoteV81(x.item);const session=getSalesStartupSessionItemV82(x.item.key);if(session)session.v82Processed=true;}
       // Remaining lines use the proven cloud-commit path. Preflight above ensures no known partial failure.
       // Each line is idempotent by immutable salesKey; a retry cannot deduct the same line twice.
@@ -1247,7 +1202,7 @@ function setupSalesInventoryReminder() {
     }, SALES_INVENTORY_REFRESH_MS_V77);
   };
 
-  // V11.0: Sales reminder feed is secondary. Let the main Import cloud sync/render finish first,
+  // V11.1: Sales reminder feed is secondary. Let the main Import cloud sync/render finish first,
   // then check Sales in the background so opening the system is not held up by the cross-system request.
   window.setTimeout(start, SALES_INVENTORY_BACKGROUND_START_DELAY_V103);
 
@@ -3240,7 +3195,7 @@ function copyBatchNumber(importNumber, button) {
 }
 
 
-// V11.0: 最近进口记录直接点击进口编号/运输单号复制；运输单号若含说明文字，只复制末尾实际单号。
+// V11.1: 最近进口记录直接点击进口编号/运输单号复制；运输单号若含说明文字，只复制末尾实际单号。
 function extractTrackingNumberForCopy(value) {
   const text = String(value || "").trim();
   if (!text) return "";
@@ -5336,7 +5291,7 @@ function isInternalSystemAdjustmentNote(value) {
   return /^system\s+auto\s+repair$/i.test(text);
 }
 
-// V11.0: History / 备注 UI only shows genuine user remarks.
+// V11.1: History / 备注 UI only shows genuine user remarks.
 // Legacy internal markers such as "System Auto Repair" remain stored untouched
 // because they may describe historical repair provenance, but they are not user remarks.
 function getUserVisibleAdjustmentNote(adjustment) {
@@ -6269,7 +6224,7 @@ function renderCompactProductHistoryByRange(
                 ? `+${formatNumber(delta)}`
                 : formatNumber(delta);
               const actionLabel = getHistoryAdjustmentLabel(adjustment);
-              // V11.0: every visible stock adjustment carries its own remark,
+              // V11.1: every visible stock adjustment carries its own remark,
               // including exact-product + date-range History views.
               const note = getUserVisibleAdjustmentNote(adjustment);
 
@@ -11260,7 +11215,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "11.0",
+      version: "11.1",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11601,7 +11556,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V11.0 Stable",
+      updatedBy: "System V11.1 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
