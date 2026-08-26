@@ -1,700 +1,913 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-Hans">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#1f5d3a" />
-  <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=11.1" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=11.1" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=11.1" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=11.1" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=11.1" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=11.1" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=11.1" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="application-name" content="Lover Legend Import System" />
-  <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=11.1" />
-  <link rel="stylesheet" href="./css/style.css?v=11.1" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b6b2b">
+<title>Lover Sales</title>
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://script.google.com">
+<link rel="preconnect" href="https://script.googleusercontent.com">
+<link rel="stylesheet" href="style.css?v=32.5">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+
+
+
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+<script>
+window.OneSignalDeferred = window.OneSignalDeferred || [];
+window.LoverSalesOneSignal = null;
+
+
+
+let loverPushRegisterInFlight=false;
+let loverPushLastRegisterAttempt=0;
+
+
+function getLoverInstallationId(){
+  const key="lover_sales_installation_id_v185";
+  const legacyKey="lover_sales_installation_id_v183";
+  try{
+    let id=localStorage.getItem(key)||localStorage.getItem(legacyKey)||"";
+    if(!id){
+      if(window.crypto&&crypto.randomUUID)id=crypto.randomUUID();
+      else id="inst_"+Date.now()+"_"+Math.random().toString(36).slice(2);
+    }
+    localStorage.setItem(key,id);
+    return id;
+  }catch(e){
+    return "volatile_"+Math.random().toString(36).slice(2);
+  }
+}
+
+
+function loverDeviceFingerprintSource(){
+  try{
+    const n=navigator||{};
+    const s=window.screen||{};
+    const parts=[
+      n.userAgent||"",
+      n.platform||"",
+      n.language||"",
+      String(n.maxTouchPoints||0),
+      String(n.hardwareConcurrency||0),
+      String(n.deviceMemory||0),
+      String(s.width||0)+"x"+String(s.height||0),
+      String(window.devicePixelRatio||1),
+      Intl.DateTimeFormat().resolvedOptions().timeZone||""
+    ];
+    return parts.join("|");
+  }catch(e){return "unknown-device"}
+}
+
+async function sha256TextV185(text){
+  try{
+    if(window.crypto&&crypto.subtle){
+      const data=new TextEncoder().encode(String(text||""));
+      const hash=await crypto.subtle.digest("SHA-256",data);
+      return Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,"0")).join("");
+    }
+  }catch(e){}
+  // Fallback only for browsers without crypto.subtle.
+  let h=2166136261;
+  const s=String(text||"");
+  for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}
+  return "fnv_"+(h>>>0).toString(16);
+}
+
+async function getLoverDeviceKeyV185(){
+  const fp=loverDeviceFingerprintSource();
+  return await sha256TextV185("lover-sales-device-v185|"+fp);
+}
+
+function getLoverOneSignalUserId(OneSignal){
+  try{
+    return String((OneSignal&&OneSignal.User&&OneSignal.User.onesignalId)||"");
+  }catch(e){return ""}
+}
+
+function currentLoverSubscriptionId(OneSignal){
+  try{
+    const push=OneSignal&&OneSignal.User&&OneSignal.User.PushSubscription;
+    return push&&push.id?String(push.id):"";
+  }catch(e){return ""}
+}
+
+async function registerLoverSalesSubscriptionAsync(OneSignal,force){
+  try{
+    const id=currentLoverSubscriptionId(OneSignal);
+    if(!id)return;
+
+    const now=Date.now();
+    if(!force && loverPushRegisterInFlight)return;
+    if(!force && now-loverPushLastRegisterAttempt<15000)return;
+
+    if(typeof jsonp!=="function"){
+      setTimeout(()=>registerLoverSalesSubscriptionAsync(OneSignal,force),700);
+      return;
+    }
+
+    loverPushRegisterInFlight=true;
+    loverPushLastRegisterAttempt=now;
+
+    const deviceKey=await getLoverDeviceKeyV185();
+
+    jsonp({
+      action:"registerPushSubscription",
+      subscriptionId:id,
+      installationId:getLoverInstallationId(),
+      deviceKey,
+      onesignalUserId:getLoverOneSignalUserId(OneSignal),
+      clientVersion:"19.6"
+    },{timeoutMs:15000}).then(result=>{
+      if(result&&result.ok){
+        try{localStorage.setItem("lover_sales_registered_subscription_id",id)}catch(e){}
+        console.log("Push subscription registered:",id.slice(0,8)+"…");
+      }else{
+        console.warn("Push subscription registration failed:",result);
+      }
+      refreshRegisteredPushStatus(OneSignal);
+    }).catch(err=>{
+      console.warn("Push subscription registration error:",err);
+    }).finally(()=>{
+      loverPushRegisterInFlight=false;
+    });
+  }catch(e){
+    loverPushRegisterInFlight=false;
+    console.warn("Push subscription registration exception:",e);
+  }
+}
+
+function refreshRegisteredPushStatus(OneSignal){
+  const el=document.getElementById("notificationRegistered");
+  if(!el)return;
+
+  if(typeof jsonp!=="function"){
+    setTimeout(()=>refreshRegisteredPushStatus(OneSignal||window.LoverSalesOneSignal),700);
+    return;
+  }
+
+  const id=currentLoverSubscriptionId(OneSignal||window.LoverSalesOneSignal);
+  Promise.resolve(getLoverDeviceKeyV185()).then(deviceKey=>{
+    const params={
+      action:"pushSubscriptionStatus",
+      installationId:getLoverInstallationId(),
+      deviceKey
+    };
+    if(id)params.subscriptionId=id;
+    return jsonp(params,{timeoutMs:12000});
+  }).then(result=>{
+    if(!result||!result.ok){
+      el.textContent="设备登记：无法读取";
+      return;
+    }
+
+    const count=Number(result.count||0);
+    const registered=Boolean(result.registered);
+
+    if(id && registered){
+      el.textContent=`设备登记：✅ 本机已登记 · 共 ${count} 台`;
+      el.className="notification-registered ok";
+    }else if(id){
+      el.textContent=`设备登记：⚠️ 本机未登记 · 共 ${count} 台`;
+      el.className="notification-registered warn";
+      registerLoverSalesSubscriptionAsync(OneSignal||window.LoverSalesOneSignal,false);
+    }else{
+      el.textContent=`设备登记：共 ${count} 台 · 等待 Subscription ID`;
+      el.className="notification-registered";
+    }
+  }).catch(()=>{
+    el.textContent="设备登记：无法读取";
+    el.className="notification-registered warn";
+  });
+}
+
+function forceRegisterLoverSalesSubscription(){
+  if(window.LoverSalesOneSignal){
+    registerLoverSalesSubscriptionAsync(window.LoverSalesOneSignal,true);
+    const el=document.getElementById("notificationRegistered");
+    if(el)el.textContent="设备登记：正在重新登记…";
+  }
+}
+
+
+function updateLoverNotificationUI(OneSignal){
+  const status=document.getElementById("notificationStatus");
+  const btn=document.getElementById("notificationEnableBtn");
+  const detail=document.getElementById("notificationDetail");
+  if(!status||!btn)return;
+  try{
+    const supported=OneSignal.Notifications.isPushSupported();
+    const permission=Boolean(OneSignal.Notifications.permission);
+    const push=OneSignal.User.PushSubscription;
+    const optedIn=Boolean(push.optedIn);
+    const id=push.id||"", token=push.token||"";
+    if(!supported){
+      status.textContent="⚪ 此装置不支持 Web Push";
+      btn.textContent="无法开启"; btn.disabled=true;
+      if(detail)detail.textContent="";
+      {const copyBtn=document.getElementById("copySubscriptionIdBtn");if(copyBtn)copyBtn.style.display="none";}
+    }else if(permission && optedIn && id && token){
+      status.textContent="🟢 销售通知已开启";
+      btn.textContent="✅ 通知已开启"; btn.disabled=false;
+      if(detail)detail.textContent="Subscription ID："+String(id);
+      const copyBtn=document.getElementById("copySubscriptionIdBtn");
+      if(copyBtn)copyBtn.style.display="block";
+      registerLoverSalesSubscriptionAsync(OneSignal,false);
+    }else if(permission){
+      status.textContent="🟡 已允许通知，正在建立 OneSignal 订阅";
+      btn.textContent="🔧 重新建立订阅"; btn.disabled=false;
+      if(detail)detail.textContent="如果 OneSignal 后台仍是 0，请点击这里重新建立。";
+      {const copyBtn=document.getElementById("copySubscriptionIdBtn");if(copyBtn)copyBtn.style.display="none";}
+    }else{
+      status.textContent="🔴 销售通知尚未开启";
+      btn.textContent="🔔 开启销售通知"; btn.disabled=false;
+      if(detail)detail.textContent="iPhone 必须从主画面的 Lover Sales App 打开后再点击开启。";
+      {const copyBtn=document.getElementById("copySubscriptionIdBtn");if(copyBtn)copyBtn.style.display="none";}
+    }
+  }catch(e){
+    status.textContent="🟡 通知状态检查中";
+    btn.textContent="🔔 开启销售通知"; btn.disabled=false;
+  }
+}
+
+
+async function copyLoverSubscriptionId(){
+  try{
+    const OneSignal=window.LoverSalesOneSignal;
+    const id=currentLoverSubscriptionId(OneSignal);
+    if(!id){
+      if(typeof showToast==="function")showToast("找不到 Subscription ID");
+      return;
+    }
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(String(id));
+    }else{
+      const ta=document.createElement("textarea");
+      ta.value=String(id);
+      ta.setAttribute("readonly","");
+      ta.style.position="fixed";
+      ta.style.opacity="0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+    }
+    const btn=document.getElementById("copySubscriptionIdBtn");
+    if(btn){
+      btn.textContent="✅ 已复制完整 ID";
+      setTimeout(()=>{btn.textContent="📋 复制 Subscription ID";},1600);
+    }
+    if(typeof showToast==="function")showToast("完整 Subscription ID 已复制");
+  }catch(e){
+    console.warn("Copy Subscription ID failed:",e);
+    if(typeof showToast==="function")showToast("复制失败，请长按 ID 复制");
+  }
+}
+
+async function enableLoverSalesNotifications(){
+  const btn=document.getElementById("notificationEnableBtn");
+  if(btn)btn.disabled=true;
+  window.OneSignalDeferred.push(async function(OneSignal){
+    try{
+      if(!OneSignal.Notifications.isPushSupported()){ updateLoverNotificationUI(OneSignal); return; }
+      await OneSignal.User.PushSubscription.optIn();
+      for(let i=0;i<20;i++){
+        updateLoverNotificationUI(OneSignal);
+        if(OneSignal.User.PushSubscription.id && OneSignal.User.PushSubscription.token)break;
+        await new Promise(resolve=>setTimeout(resolve,300));
+      }
+      updateLoverNotificationUI(OneSignal);
+    }catch(e){
+      console.warn("OneSignal opt-in:",e);
+      updateLoverNotificationUI(OneSignal);
+    }finally{ if(btn)btn.disabled=false; }
+  });
+}
+
+OneSignalDeferred.push(async function(OneSignal){
+  try{
+    await OneSignal.init({
+      appId:"c6c0be13-4f8e-42cf-8567-efde17a483b3",
+      serviceWorkerPath:"/lover-legend-sales/push/onesignal/OneSignalSDKWorker.js",
+      serviceWorkerParam:{scope:"/lover-legend-sales/push/onesignal/"},
+      autoResubscribe:true,
+      notifyButton:{enable:false}
+    });
+    window.LoverSalesOneSignal=OneSignal;
+    OneSignal.User.PushSubscription.addEventListener("change",()=>{updateLoverNotificationUI(OneSignal);registerLoverSalesSubscriptionAsync(OneSignal,true);});
+    OneSignal.Notifications.addEventListener("permissionChange",()=>updateLoverNotificationUI(OneSignal));
+    updateLoverNotificationUI(OneSignal);
+
+    if(OneSignal.Notifications.permission &&
+       (!OneSignal.User.PushSubscription.id ||
+        !OneSignal.User.PushSubscription.token ||
+        !OneSignal.User.PushSubscription.optedIn)){
+      try{ await OneSignal.User.PushSubscription.optIn(); }
+      catch(e){ console.warn("OneSignal auto-resubscribe repair:",e); }
+      updateLoverNotificationUI(OneSignal);
+    }
+  }catch(e){
+    console.warn("OneSignal init:",e);
+    const status=document.getElementById("notificationStatus");
+    if(status)status.textContent="🔴 通知服务初始化失败";
+  }
+});
+
+function renderLastNotificationDispatchStatus(){
+  const el=document.getElementById("notificationLastSend");
+  if(!el)return;
+  try{
+    const raw=localStorage.getItem("lover_sales_last_notification_dispatch_v180");
+    if(!raw){
+      el.textContent="最近通知：尚未测试";
+      el.className="notification-last-send";
+      return;
+    }
+    const data=JSON.parse(raw);
+    const when=data.at?new Date(data.at).toLocaleString("zh-MY",{hour12:false}):"";
+    const result=data.result||{};
+    if(data.ok){
+      if(result.queued){
+        el.textContent=`最近通知：✅ 已提交后台发送 · ${when}`;
+        el.className="notification-last-send ok";
+        return;
+      }
+      const sent=Number(result.sent||0);
+      const attempted=Number(result.attempted||0);
+      el.textContent=`最近通知：✅ 成功 · ${sent}/${attempted||sent||1} · ${when}`;
+      el.className="notification-last-send ok";
+    }else{
+      const msg=String(result.message||result.error||"发送失败");
+      el.textContent=`最近通知：❌ ${msg} · ${when}`;
+      el.className="notification-last-send fail";
+    }
+  }catch(e){
+    el.textContent="最近通知：状态读取失败";
+    el.className="notification-last-send fail";
+  }
+}
+window.addEventListener("lover-sales-notification-status",renderLastNotificationDispatchStatus);
+document.addEventListener("DOMContentLoaded",renderLastNotificationDispatchStatus);
+
+document.addEventListener("DOMContentLoaded",()=>setTimeout(()=>refreshRegisteredPushStatus(window.LoverSalesOneSignal),1200));
+</script>
 </head>
 <body>
-  <div id="accessLock"
-       class="access-lock"
-       role="dialog"
-       aria-modal="true"
-       aria-labelledby="accessLockTitle">
-    <div class="access-lock-card">
-      <div class="access-lock-logo">🔒</div>
-      <h1 id="accessLockTitle">系统密码</h1>
-      <p>电脑会记住系统密码，点击进入系统即可；手机可使用 Face ID</p>
+<script>window.LOVER_API_URL="https://script.google.com/macros/s/AKfycby1OwDIiVf5quXKiD9AG8s2ppM942sLFdJSfyePp--yZtDjYY8jBtkOYLwD9c3WiC_KNw/exec";</script>
+<div class="app">
+<header class="top">
+  <div class="brand">
+    <img src="images/logo.png" class="logo" alt="Lover Legend">
+    <div class="brand-title">Lover Legend<br>Sales <small>V32.5</small></div>
+    <img src="images/Logo2.jpg" class="seal" alt="Lover Legend">
+  </div>
+</header>
 
-      <form id="accessLockForm"
-            autocomplete="off"
-            data-lpignore="true"
-            data-1p-ignore="true">
-        <input id="accessPasswordInput"
-               name="systemAccessCode"
-               class="masked-access-code"
-               type="text"
-               maxlength="12"
-               placeholder="输入密码"
-               autocomplete="off"
-               autocapitalize="none"
-               autocorrect="off"
-               spellcheck="false"
-               data-lpignore="true"
-               data-1p-ignore="true"
-               inputmode="text" />
+<main>
+<section id="page-home" class="page active">
+  <div class="card">
+    <label for="dashboardDateDisplay">查看日期</label>
+    <div class="date-field dashboard-date-field">
+      <input type="text"
+             id="dashboardDateDisplay"
+             placeholder="dd-mm-yyyy"
+             inputmode="numeric"
+             maxlength="10">
+      <button type="button" class="date-btn">📅</button>
+      <input type="date" id="dashboardDate" class="hidden-date">
+    </div>
 
-        <button class="primary-btn"
-                type="submit">进入系统</button>
-      </form>
+    <label>月份</label>
+    <input type="month" id="monthPicker">
 
-      <button id="biometricLoginBtn"
-              class="biometric-login-btn"
-              type="button"
-              hidden>使用 Face ID / 生物辨识</button>
+    <div class="year-summary-row">
+      <div class="year-field">
+        <label>年度</label>
+        <input type="number" id="yearPicker" min="2020" max="2100">
+      </div>
+      <button type="button" id="monthlySummaryBtn" class="monthly-summary-btn" onclick="toggleMonthlySummary()">📊 每月汇总</button>
+    </div>
+    <div id="syncStatus" class="sync-line">🟡 系统已进入 · 正在准备资料</div>
+    <div id="lastSync" class="last-sync">最后同步：-</div>
+    <div id="monthMode" class="month-mode current-mode">当前月份 · 可编辑</div>
+  </div>
 
-      <div id="biometricLoginStatus"
-           class="biometric-login-status"
-           hidden></div>
+  <div id="monthlySummaryCard" class="card monthly-summary-card hidden">
+    <div class="monthly-summary-header">
+      <div>
+        <h2>每月营业汇总</h2>
+        <p>点击月份可直接切换并查看该月资料</p>
+      </div>
+      <button type="button" class="summary-close-btn" onclick="toggleMonthlySummary(false)">✕</button>
+    </div>
+    <div id="monthlySummaryBody" class="monthly-summary-grid"></div>
+  </div>
 
-      <button id="showPasswordHintBtn"
-              class="password-hint-btn"
-              type="button">忘记密码？查看提示</button>
+  <div class="card period-summary-card daily-summary-frame">
+    <div class="daily-summary-title-row">
+      <h2>本日营业额</h2>
+      <button type="button" id="dailyTotalsBtn" class="daily-totals-btn" onclick="toggleDailyTotals()">📋 每日营业汇总</button>
+    </div>
+    <div id="todayWarning" class="warning hidden">🔴 今天还没有输入营业额</div>
+    <div id="todayDone" class="done hidden">🟢 今天已有营业额记录</div>
+    <button type="button" id="homeTodayProfitBtnV318" class="home-today-profit-btn-v318" onclick="toggleHomeTodayProfitV318(this)">📊 今日总利润</button>
+    <div id="homeTodayProfitPanelV318" class="home-today-profit-panel-v318 hidden"></div>
+  </div>
 
-      <div id="accessPasswordHint"
-           class="access-password-hint"
-           hidden></div>
+  <div id="dailyTotalsCard" class="card daily-totals-card hidden">
+    <div class="daily-totals-header">
+      <div class="daily-totals-heading">
+        <div class="daily-totals-title-line">
+          <h2>当月营业额总数</h2>
+          <strong id="dailyTotalsMonthGrandTotal" class="daily-totals-month-grand-total">RM0.00</strong>
+        </div>
+        <p>Balakong + Belimbing + Fair + Live</p>
+      </div>
+      <button type="button" class="summary-close-btn" onclick="toggleDailyTotals(false)">✕</button>
+    </div>
+    <div class="daily-totals-toolbar">
+      <label for="dailyTotalsMonth">查看月份</label>
+      <input type="month" id="dailyTotalsMonth">
+    </div>
+    <div id="dailyTotalsStatus" class="daily-totals-status"></div>
+    <div id="dailyTotalsList" class="daily-totals-list"></div>
+  </div>
 
-      <div id="accessLockStatus"
-           class="status-text access-lock-status"></div>
+  <div class="card period-summary-card month-summary-frame">
+    <h2>本月营业额</h2>
+
+    <div class="dash">
+      <div class="box company-sales-box company-month-card" onclick="toggleCompanyDailyV186('balakong')">
+        <div class="company-sales-values">
+          <div class="company-month-value">
+            <div class="name">Balakong 本月</div>
+            <div class="amount" id="balakongMonth">0.00</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="box company-sales-box company-month-card" onclick="toggleCompanyDailyV186('belimbing')">
+        <div class="company-sales-values">
+          <div class="company-month-value">
+            <div class="name">Belimbing 本月</div>
+            <div class="amount" id="belimbingMonth">0.00</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="company-month-daily-row">
+        <div class="company-month-daily-col">
+          <div id="balakongMonthDaily" class="company-month-daily-panel hidden"></div>
+        </div>
+        <div class="company-month-daily-col">
+          <div id="belimbingMonthDaily" class="company-month-daily-panel hidden"></div>
+        </div>
+      </div>
+
+      <div class="company-top3-row">
+        <div class="company-top3-col">
+          <button type="button" class="top3-toggle-btn company-top3-btn" onclick="toggleTop3('balakongTop3',this)">🏆 Balakong Top 5</button>
+          <div id="balakongTop3" class="top3-panel hidden"></div>
+        </div>
+        <div class="company-top3-col">
+          <button type="button" class="top3-toggle-btn company-top3-btn" onclick="toggleTop3('belimbingTop3',this)">🏆 Belimbing Top 5</button>
+          <div id="belimbingTop3" class="top3-panel hidden"></div>
+        </div>
+      </div>
+
+      <div class="box total fair-box">
+        <div id="fairLocationList"></div>
+        <div class="fair-total-line"><span>Fair 本月总营业额</span><b id="fairMonthTotal">0.00</b></div>
+        <div class="fair-total-line"><span><span id="fairCommissionLabel">Fair 本月总佣金 6%</span></span><b id="fairCommissionTotal">0.00</b></div>
+<div id="fairCommissionMessage" class="fair-commission-message hidden"></div>
+        <button type="button" class="top3-toggle-btn" onclick="toggleTop3('fairHomeTop3',this)">🏆 Fair Top 5</button>
+        <div id="fairHomeTop3" class="top3-panel hidden"></div>
+      </div>
+
+      <div class="box total live-box">
+        <div class="name">Live</div>
+        <div id="liveHostSummary" class="fair-location-grid"></div>
+        <div class="fair-total-line"><span>Live 本月总营业额</span><b id="liveMonthTotal">0.00</b></div>
+        <div class="fair-total-line"><span id="liveCommissionLabel">Live 本月总佣金 10%</span><b id="liveCommissionTotal">0.00</b></div>
+        <button type="button" class="top3-toggle-btn" onclick="toggleTop3('liveHomeTop3',this)">🏆 Live Top 5</button>
+        <div id="liveHomeTop3" class="top3-panel hidden"></div>
+      </div>
+
+      <div class="box total highlight month-grand-toggle" onclick="toggleMonthGrandHistoryV223()" role="button" tabindex="0">
+        <div class="name">本月总营业额 <span id="monthGrandHistoryArrow">▼</span></div>
+        <div id="monthGrandTotal" class="amount">0.00</div>
+        <div class="sub">Balakong 本月 + Belimbing 本月 + Fair 本月 + Live 本月</div>
+        <div id="monthGrandHistory" class="month-grand-history hidden" onclick="event.stopPropagation()"></div>
+      </div>
     </div>
   </div>
-  <div class="app-shell">
-    <header class="app-header-wrap">
-      <div class="app-header-card">
-        <img class="app-header-logo app-header-logo-green"
-             src="./assets/images/logo-green.jpg"
-             alt="Lover Legend green logo" />
 
-        <div class="app-header-title">
-          <div class="app-header-main-title">进口成本与库存系统</div>
-          <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
-          <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 11.1 Stable</div>
-        </div>
-
-        <img class="app-header-logo app-header-logo-red"
-             src="./assets/images/logo-red.jpg"
-             alt="Lover Legend red logo" />
+  <div class="card period-summary-card year-summary-frame">
+    <h2>本年度累计</h2>
+    <div class="dash">
+      <div class="box year-breakdown-toggle" onclick="toggleYearBreakdownV224('balakong')" role="button" tabindex="0">
+        <div class="name">Balakong 总营业额 <span id="yearBreakdownArrow-balakong">▼</span></div>
+        <div class="amount" id="balakongYearTotal">0.00</div>
+        <div id="yearBreakdown-balakong" class="month-grand-history hidden" onclick="event.stopPropagation()"></div>
       </div>
-    </header>
 
-    <main class="content">
-      <section id="dashboardPage" class="page active">
-        <div class="section-title-row">
-          <h2>Dashboard / 首页</h2>
+      <div class="box year-breakdown-toggle" onclick="toggleYearBreakdownV224('belimbing')" role="button" tabindex="0">
+        <div class="name">Belimbing 总营业额 <span id="yearBreakdownArrow-belimbing">▼</span></div>
+        <div class="amount" id="belimbingYearTotal">0.00</div>
+        <div id="yearBreakdown-belimbing" class="month-grand-history hidden" onclick="event.stopPropagation()"></div>
+      </div>
+
+      <div class="box year-breakdown-toggle" onclick="toggleYearBreakdownV224('fair')" role="button" tabindex="0">
+        <div class="name">Fair 总营业额 <span id="yearBreakdownArrow-fair">▼</span></div>
+        <div class="amount" id="fairYearTotal">0.00</div>
+        <div id="yearBreakdown-fair" class="month-grand-history hidden" onclick="event.stopPropagation()"></div>
+      </div>
+
+      <div class="box year-breakdown-toggle" onclick="toggleYearBreakdownV224('live')" role="button" tabindex="0">
+        <div class="name">Live 总营业额 <span id="yearBreakdownArrow-live">▼</span></div>
+        <div class="amount" id="liveYearTotal">0.00</div>
+        <div id="yearBreakdown-live" class="month-grand-history hidden" onclick="event.stopPropagation()"></div>
+      </div>
+
+      <div class="box total highlight year-breakdown-toggle" onclick="toggleYearBreakdownV224('total')" role="button" tabindex="0">
+        <div class="name">总营业额 <span id="yearBreakdownArrow-total">▼</span></div>
+        <div class="amount" id="yearGrandTotal">0.00</div>
+        <div class="sub">Balakong + Belimbing + Fair + Live</div>
+        <div id="yearBreakdown-total" class="month-grand-history hidden" onclick="event.stopPropagation()"></div>
+      </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="page-sales" class="page">
+  <div class="card">
+    <h2>每日营业额</h2>
+    <div id="dailyInventoryReminderV250" class="inventory-global-v250 hidden"></div>
+    <label>公司</label>
+    <select id="company">
+      <option value="balakong">Lover Legend Adenium - Balakong</option>
+      <option value="belimbing" selected>Lover Legend Gardening - Belimbing</option>
+    </select>
+
+    <label>日期</label>
+    <div class="date-field"><input type="text" id="saleDateDisplay" placeholder="dd-mm-yyyy" inputmode="numeric" maxlength="10"><button type="button" class="date-btn">📅</button><input type="date" id="saleDate" class="hidden-date"></div>
+    <div id="salesDateResult" class="sales-date-result">当天记录：0.00</div>
+
+    <label>营业额</label>
+    <input id="dailySales" class="money-input" inputmode="decimal" value="0.00">
+
+    <button class="green" onclick="saveDailySales()">储存</button>
+    <div id="saveMsg" class="save-msg hidden">✅ 已储存</div>
+    <p class="note">选择旧日期会自动显示当天已储存金额。</p>
+
+    <div class="product-link-box product-link-collapsed" id="dailyProductLinkBox">
+      <div class="product-link-title-row">
+        <button type="button" class="product-link-toggle" onclick="toggleProductLinkBoxV206('daily')" aria-expanded="false"><span>🌳 销售卡</span><span class="product-link-chevron">▼</span></button>
+        <button type="button" class="product-profit-toggle-btn" onclick="toggleProductProfitSummaryV216('daily',this)">📊 当天利润</button>
+      </div>
+      <div id="dailyProductProfitSummary" class="product-profit-summary hidden"></div>
+      <div class="product-link-body hidden" id="dailyProductLinkBody">
+        <div id="dailyProductItems" class="product-link-items"></div>
+        <button type="button" class="secondary-btn product-link-add-btn" onclick="addProductLinkItemV209('daily')">＋ 新增销售卡</button>
+        <button type="button" class="secondary-btn product-link-save-btn" onclick="saveProductLinksV206('daily','draft',this)">💾 保存草稿</button>
+        <button type="button" class="secondary-btn product-link-save-btn confirm-sale-btn-v285" onclick="saveProductLinksV206('daily','confirm',this)">✅ 确认销售</button>
+        <div id="dailyProductLinkMsg" class="save-msg hidden">✅ 销售卡资料已保存</div>
+        <p class="note">Belimbing 门市销售卡可选择性记录盆栽；不输入销售卡也不影响营业额。门市不使用木架等级，运费默认 RM0，可修改。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="record-title-row">
+      <h2 id="salesMonthlyTitle">Sales 本月销售记录</h2>
+      <button id="dailyChangeLogBtnV270" type="button" class="change-log-toggle-btn" onclick="toggleSalesChangeLogV200('daily',this)">🕘 修改 / 销售记录</button>
+    </div>
+    <div id="salesChangeLogPanel" class="change-log-panel hidden"></div>
+    <div id="salesMonthlyList"></div>
+    <div class="fair-total-line">
+      <span id="salesMonthlyTotalLabel">Sales 本月总销售额</span>
+      <b id="salesMonthlyTotal">0.00</b>
+    </div>
+  </div>
+</section>
+
+<section id="page-fair" class="page">
+  <div class="card">
+    <h2>Fair</h2>
+    <div id="fairInventoryReminderV250" class="inventory-global-v250 hidden"></div>
+    <label>地点</label>
+    <input id="fairLocation" list="fairLocationListOptions" placeholder="输入或选择地点（例如 Sunway）">
+    <datalist id="fairLocationListOptions"></datalist>
+    <div id="fairLocationHistoryV309" class="fair-location-history-v309 hidden"></div>
+    <div id="fairViewOnlyHint" class="note fair-view-only-hint">未输入地点：只查看所选月份的 Fair 销售记录。</div>
+
+    <div class="split" id="fairDateRange">
+      <div>
+        <label id="fairStartLabel">查看日期</label>
+        <div class="date-field"><input type="text" id="fairStartDisplay" placeholder="dd-mm-yyyy" inputmode="numeric" maxlength="10"><button type="button" class="date-btn">📅</button><input type="date" id="fairStart" class="hidden-date"></div>
+      </div>
+      <div id="fairEndWrap">
+        <label>结束日期</label>
+        <div class="date-field"><input type="text" id="fairEndDisplay" placeholder="dd-mm-yyyy" inputmode="numeric" maxlength="10"><button type="button" class="date-btn">📅</button><input type="date" id="fairEnd" class="hidden-date"></div>
+      </div>
+    </div>
+
+    <div id="fairEditArea">
+      <div id="fairInputs"></div>
+      <button class="green" onclick="saveFairSales()">储存 Fair</button>
+      <div id="fairSaveMsg" class="save-msg hidden">✅ Fair 已储存</div>
+      <div class="product-link-box product-link-collapsed" id="fairProductLinkBox">
+        <div class="product-link-title-row">
+
+          <button type="button" class="product-link-toggle" onclick="toggleProductLinkBoxV206('fair')" aria-expanded="false">
+
+            <span>🌳 销售卡</span><span class="product-link-chevron">▼</span>
+
+          </button>
+
+          <button type="button" class="product-profit-toggle-btn" onclick="toggleProductProfitSummaryV216('fair',this)">📊 当天利润</button>
+
         </div>
 
-
-        <section class="dashboard-sync-card" aria-live="polite">
-          <div id="googleSyncStatus" class="dashboard-sync-status syncing">
-            <span class="dashboard-sync-icon" aria-hidden="true">↻</span>
-            <strong class="dashboard-sync-text">同步中...</strong>
-          </div>
-          <div class="dashboard-sync-time">
-            最后同步：<strong id="googleLastSync">尚未同步</strong>
-          </div>
-        </section>
-
-        <div class="stats-grid">
-          <article class="stat-card">
-            <span>产品种类</span>
-            <strong id="productCount">0</strong>
-          </article>
-          <article class="stat-card">
-            <span>当前库存</span>
-            <strong id="stockCount">0</strong>
-          </article>
-          <article class="stat-card wide">
-            <span>库存成本总值</span>
-            <strong id="inventoryValue">RM 0.00</strong>
-          </article>
-          <article class="stat-card">
-            <span>最近进口</span>
-            <strong id="lastImport">-</strong>
-          </article>
+        <div id="fairProductProfitSummary" class="product-profit-summary hidden"></div>
+        <div class="product-link-body hidden" id="fairProductLinkBody">
+          <label>关联日期</label>
+          <select id="fairProductDate" onchange="loadProductLinksIntoEditorV206('fair')"></select>
+          <div id="fairProductItems" class="product-link-items"></div>
+          <button type="button" class="secondary-btn product-link-add-btn" onclick="addProductLinkItemV209('fair')">＋ 新增销售卡</button>
+          <button type="button" class="secondary-btn product-link-save-btn" onclick="saveProductLinksV206('fair','draft',this)">💾 保存草稿</button>
+          <button type="button" class="secondary-btn product-link-save-btn confirm-sale-btn-v285" onclick="saveProductLinksV206('fair','confirm',this)">✅ 确认销售</button>
+          <div id="fairProductLinkMsg" class="save-msg hidden">✅ 销售卡资料已保存</div>
+          <p class="note">可连续新增多棵盆栽；数量默认 1。当天关联盆栽实际售价合计可少过或等于 Fair 营业额，但不能超过。销售卡张数不限；所有销售卡售价总数可以低于或等于当天营业额，但不能超过。V32.5 Sales System 不直接扣库存；库存变动由 Import Cost System 确认处理。平均成本仍可手动修改。</p>
         </div>
-
-        <section class="panel">
-          <div class="section-title-row inventory-title-row">
-            <h3>库存管理</h3>
-            <div class="inventory-title-summary">
-              <span class="inventory-filter-stock">当前库存：<strong id="inventoryFilteredStock">0</strong></span>
-              <span class="inventory-filter-value">库存成本：<strong id="inventoryFilteredValue">RM 0.00</strong></span>
-              <span class="muted" id="inventoryPageCount">0 项</span>
-            </div>
-          </div>
-          <div class="inventory-toolbar">
-            <input id="inventorySearch" class="search-input text-left-input" placeholder="搜索产品名称、编号、类别或进口编号" />
-            <select id="inventorySort">
-              <option value="latest">最近进口</option>
-              <option value="name">产品名称</option>
-              <option value="stock-desc">库存最多</option>
-              <option value="stock-asc">库存最少</option>
-              <option value="value-desc">库存成本最高</option>
-              <option value="cost-desc">平均成本最高</option>
-            </select>
-          </div>
-          <section id="originalCostPanel" class="original-cost-panel" hidden>
-            <div class="original-cost-panel-head">
-              <div>
-                <strong>原成本清单</strong>
-                <span id="originalCostPanelDate" class="muted"></span>
-              </div>
-              <div class="original-cost-panel-actions">
-                <button id="exportOriginalCostExcelBtn" class="secondary-btn" type="button">导出 Excel</button>
-                <button id="closeOriginalCostPanelBtn" class="secondary-btn" type="button">收起 ▲</button>
-              </div>
-            </div>
-            <div class="original-cost-table-wrap">
-              <table class="original-cost-table">
-                <thead>
-                  <tr>
-                    <th>产品名</th>
-                    <th>当前库存</th>
-                    <th>原成本</th>
-                    <th>平均成本</th>
-                    <th>最低售价</th>
-                  </tr>
-                </thead>
-                <tbody id="originalCostTableBody"></tbody>
-              </table>
-            </div>
-          </section>
-          <div id="inventoryManagementList" class="inventory-management-list">
-            <div class="empty-state">暂无库存资料</div>
-          </div>
-        </section>
-      </section>
-
-      <section id="importPage" class="page">
-        <section class="panel">
-          <div class="section-title-row batch-products-topbar">
-            <h2>同批进口产品</h2>
-            <div class="batch-lookup-group">
-              <div class="batch-inline-lookup">
-                <label for="batchLookupInput">进口编号</label>
-                <input id="batchLookupInput"
-                       class="batch-lookup-input"
-                       placeholder="输入进口编号和海外运输单号"
-                       autocomplete="off"
-                       autocapitalize="characters"
-                       spellcheck="false"
-                       enterkeyhint="done" />
-              </div>
-              <button id="addBatchRowBtn"
-                      class="secondary-btn"
-                      type="button">＋ 新增一行</button>
-            </div>
-          </div>
-
-          <form id="batchImportForm">
-            <datalist id="batchProductSuggestions"></datalist>
-
-            <div class="batch-table-wrap">
-              <table class="batch-table">
-                <thead>
-                  <tr>
-                    <th>产品</th>
-                    <th>数量</th>
-                    <th>单价</th>
-                    <th>货款总额</th>
-                    <th>类别</th>
-                    <th>入库</th>
-                    <th>每棵成本</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody id="batchRows"></tbody>
-              </table>
-            </div>
-
-            <div class="section-title-row batch-import-heading">
-              <h2>Import / 进口记录</h2>
-              <div class="batch-heading-stats">
-                <div class="import-quantity-top">
-                  <span>整批进口数量</span>
-                  <strong id="batchQuantityTop">0</strong>
-                </div>
-                <div class="foreign-total-top">
-                <span>整批货款总额</span>
-                <strong id="batchPurchaseTotalForeignTop">0.00 CNY</strong>
-                </div>
-              </div>
-            </div>
-
-            <div class="batch-common-grid compact-batch-grid">
-<label class="field-tracking top-row">内地运输单号<input id="batchTrackingNumber" class="text-left-input tracking-input" maxlength="18" placeholder="最多18个字"></label>
-<label class="field-rack top-row">木架数量<input id="batchRackQuantity" inputmode="numeric" placeholder="0" maxlength="3"></label>
-<label class="field-inland top-row">内地运输＋打木架费用<input id="batchChinaTransportCost" inputmode="decimal" maxlength="12" placeholder="0.00"></label>
-<label class="field-pot top-row">搭配花盆总费用<input id="batchPotCost" inputmode="decimal" maxlength="9" placeholder="0.00"></label>
-<label class="field-currency top-row">货币
-  <select id="batchCurrency">
-    <option value="CNY">CNY</option>
-    <option value="NTD">NTD</option>
-    <option value="VND">VND</option>
-    <option value="IDR">IDR</option>
-  </select>
-</label>
-
-<label class="field-inland-rate second-row">内地杂费比例<input id="batchInlandMiscRate" value="0.00%" disabled /></label>
-<label class="field-foreign-total second-row">
-  整批货款总额+运费
-  <input id="batchForeignGrandTotal" value="0.00" disabled />
-</label>
-<div class="currency-divider"><span>虚线以下以马币为单位</span></div>
-<label class="field-rate middle-row">汇率
-  <input id="batchRate" inputmode="decimal" value="1.60">
-</label>
-<label class="field-overseas-tracking middle-row">海外运输单号
-  <input id="batchOverseasTrackingNumber"
-         class="text-left-input"
-         maxlength="25"
-         placeholder="例如：XX-A00336 / XX-A7691">
-</label>
-<label class="field-container-date bottom-row">装柜日期
-  <div class="date-field-wrap mobile-native-date-wrap">
-    <input id="batchContainerDate" class="date-input" inputmode="numeric" placeholder="dd-mm-yyyy" maxlength="10">
-    <input id="batchContainerDatePicker" class="native-date-picker mobile-native-date-picker" type="date" aria-label="选择装柜日期">
-    <button class="calendar-btn" type="button" data-date-target="batchContainerDatePicker">📅</button>
-  </div>
-</label>
-<label class="field-arrival-date bottom-row">抵达日期
-  <div class="date-field-wrap mobile-native-date-wrap">
-    <input id="batchArrivalDate" class="date-input" inputmode="numeric" placeholder="dd-mm-yyyy" maxlength="10">
-    <input id="batchArrivalDatePicker" class="native-date-picker mobile-native-date-picker" type="date" aria-label="选择日期">
-    <button class="calendar-btn" type="button" data-date-target="batchArrivalDatePicker">📅</button>
-  </div>
-</label>
-<label class="field-transit-days bottom-row">运输天数
-  <input id="batchTransitDays" value="-" disabled>
-</label>
-<label class="field-shipping-rm bottom-row">海外到大马运费（RM）
-  <input id="batchShippingMY" inputmode="decimal" placeholder="0.00">
-</label>
-</div>
-<div class="batch-summary">
-              <div>
-                <span>产品种类</span>
-                <strong id="batchItemCount">0</strong>
-              </div>
-              <div>
-                <span>总数量</span>
-                <strong id="batchQuantityTotal">0</strong>
-              </div>
-              <div>
-                <span>整批货款总额折合RM</span>
-                <strong id="batchPurchaseTotalRM">RM 0.00</strong>
-              </div>
-              <div>
-                <span>海外运费比例</span>
-                <strong id="batchShippingRate">0.00%</strong>
-              </div>
-              <div>
-                <span>整批货总成本</span>
-                <strong id="batchGrandTotalRM">RM 0.00</strong>
-              </div>
-            </div>
-
-            <div class="batch-form-actions">
-              <button id="saveBatchBtn" class="primary-btn" type="submit">保存新进口</button>
-              <button id="resetBatchBtn" class="ghost-btn" type="button">清空本次输入</button>
-            </div>
-            <div class="clear-help">只清空尚未保存的本次输入，不会删除已经保存的资料。</div>
-            <div id="batchEditMode" class="batch-edit-mode" hidden>
-              当前编辑：<strong id="currentImportNumberLabel"></strong>
-            </div>
-            <div id="batchStatusText" class="status-text"></div>
-          </form>
-        </section>
-
-        <section class="panel">
-         <div class="section-title-row batch-list-toolbar">
-  <h3>最近进口记录</h3>
-
-  <div class="batch-search-fields">
-    <input
-      id="batchSearch"
-      class="search-input text-left-input batch-number-search"
-      type="text"
-      placeholder="进口编号 / 内地或海外运输单号"
-      autocomplete="off"
-    />
-
-    <input
-      id="batchProductStockSearch"
-      class="search-input text-left-input batch-product-search"
-      type="text"
-      placeholder="输入产品可修改名称和数量"
-      autocomplete="off"
-    />
+      </div>
+    </div>
   </div>
 
-  <button
-    id="toggleBatchListBtn"
-    class="secondary-btn"
-    type="button">
-    显示全部
-  </button>
+  <div class="card" id="fairDailySummaryCard">
+    <h2 id="fairDailySummaryTitle">Fair 当日销售</h2>
+    <div id="fairDailySummaryList"></div>
+    <div class="fair-total-line"><span>总销售</span><b id="fairDailySummaryTotal">0.00</b></div>
+  </div>
 
-  <span class="muted" id="batchListCount">0 批</span>
+  <div class="card">
+    <div class="record-title-row">
+      <h2 id="fairMonthlyTitle">Fair 本月销售记录</h2>
+      <button id="fairChangeLogBtnV270" type="button" class="change-log-toggle-btn" onclick="toggleSalesChangeLogV200('fair',this)">🕘 修改 / 销售记录</button>
+    </div>
+    <div id="fairChangeLogPanel" class="change-log-panel hidden"></div>
+    <div id="fairMonthlyList"></div>
+    <div class="fair-total-line">
+      <span id="fairMonthlyTotalLabel">Fair 本月总销售额</span>
+      <b id="fairMonthlySalesTotal">0.00</b>
+    </div>
+    <div class="fair-total-line fair-monthly-commission-v298">
+      <span id="fairMonthlyCommissionLabel">Fair 本月总佣金</span>
+      <b id="fairMonthlyCommissionTotal">0.00</b>
+    </div>
+  </div>
+</section>
+
+<section id="page-live" class="page">
+  <div class="card">
+    <h2>Live</h2>
+    <div id="liveInventoryReminderV250" class="inventory-global-v250 hidden"></div>
+
+    <label>主播</label>
+    <input id="liveHost" list="liveHostOptions" placeholder="输入或选择主播名字">
+    <datalist id="liveHostOptions"></datalist>
+
+    <label>日期</label>
+    <div class="date-field"><input type="text" id="liveDateDisplay" placeholder="dd-mm-yyyy" inputmode="numeric" maxlength="10"><button type="button" class="date-btn">📅</button><input type="date" id="liveDate" class="hidden-date"></div>
+    <div id="liveDateResult" class="sales-date-result">当天销售额：0.00</div>
+
+    <label>已付款，可享佣金的营业额</label>
+    <input id="liveSales" class="money-input" inputmode="decimal" value="0.00">
+
+    <button class="green" onclick="saveLiveSales()">储存 Live</button>
+    <div id="liveSaveMsg" class="save-msg hidden">✅ Live 已储存</div>
+
+    <div class="product-link-box product-link-collapsed" id="liveProductLinkBox">
+      <div class="product-link-title-row">
+
+        <button type="button" class="product-link-toggle" onclick="toggleProductLinkBoxV206('live')" aria-expanded="false">
+
+          <span>🌳 销售卡</span><span class="product-link-chevron">▼</span>
+
+        </button>
+
+        <button type="button" class="product-profit-toggle-btn" onclick="toggleProductProfitSummaryV216('live',this)">📊 当天利润</button>
+
+      </div>
+
+      <div id="liveProductProfitSummary" class="product-profit-summary hidden"></div>
+      <div class="product-link-body hidden" id="liveProductLinkBody">
+        <div id="liveProductItems" class="product-link-items"></div>
+        <button type="button" class="secondary-btn product-link-add-btn" onclick="addProductLinkItemV209('live')">＋ 新增销售卡</button>
+        <button type="button" class="secondary-btn product-link-save-btn" onclick="saveProductLinksV206('live','draft',this)">💾 保存草稿</button>
+        <button type="button" class="secondary-btn product-link-save-btn confirm-sale-btn-v285" onclick="saveProductLinksV206('live','confirm',this)">✅ 确认销售</button>
+        <div id="liveProductLinkMsg" class="save-msg hidden">✅ 销售卡资料已保存</div>
+        <p class="note">可连续新增多棵盆栽；数量默认 1。Live 木架等级默认 C80，可改为 自取0 / A20 / B50 / C80 / D120 / E150；售价与数量不会自动决定运费；附加费用 花盆/苔藓默认 0。当天关联盆栽售价合计不能超过 Live 营业额；销售卡张数不限；所有销售卡售价总数可以低于或等于当天营业额，但不能超过。V32.5 Sales System 不直接扣库存；库存变动由 Import Cost System 确认处理。平均成本仍可手动修改。</p>
+      </div>
+    </div>
+    <p class="note">主播名字忽略大小写及空格；选择旧日期会自动带出该主播当天销售额。</p>
+  </div>
+
+  <div class="card" id="liveDailySummaryCard">
+    <h2 id="liveDailySummaryTitle">Live 当日销售</h2>
+    <div id="liveDailySummaryList"></div>
+    <div class="fair-total-line"><span>总销售</span><b id="liveDailySummaryTotal">0.00</b></div>
+  </div>
+
+  <div class="card">
+    <div class="record-title-row">
+      <h2 id="liveMonthlyTitle">Live 本月销售记录</h2>
+      <button id="liveChangeLogBtnV270" type="button" class="change-log-toggle-btn" onclick="toggleSalesChangeLogV200('live',this)">🕘 修改 / 销售记录</button>
+    </div>
+    <div id="liveChangeLogPanel" class="change-log-panel hidden"></div>
+    <div id="liveMonthlyList"></div>
+    <div class="fair-total-line"><span id="liveMonthlyTotalLabel">Live 本月总销售额</span><b id="liveSelectedHostTotal">0.00</b></div>
+    <div class="fair-total-line"><span id="liveMonthlyCommissionLabel">Live 本月总佣金</span><b id="liveSelectedCommissionTotal">0.00</b></div>
+  </div>
+</section>
+
+<section id="page-report" class="page">
+  <div class="card">
+    <div class="report-header-row">
+      <div>
+        <h2>Report</h2>
+        <div id="reportMonthLabel" class="report-month-label">月份：-</div>
+      </div>
+      <label class="report-month-control">
+        <span>查看月份</span>
+        <input type="month" id="reportMonthPicker">
+      </label>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>日期</th><th>类别</th><th>公司</th><th>地点/主播</th><th>营业额</th><th>佣金%</th><th>佣金</th></tr>
+        </thead>
+        <tbody id="recordTable"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="page-more" class="page">
+  <div class="card">
+    <h2>More</h2>
+    <button class="gray" onclick="exportCSV('month')">📈 导出本月 Excel</button>
+    <button class="gray" onclick="exportCSV('year')">📈 导出全年 Excel</button>
+    <button class="gray" onclick="monthClose()">📅 月底结算</button>
+    <button class="gray" onclick="yearClose()">📆 年底结算</button>
+    <button id="backupAllBtn" class="gray" onclick="backupAllData()">💾 Backup 完整备份</button>
+    <button id="restoreAllBtn" class="gray" onclick="document.getElementById('restoreFile').click()">♻️ Restore 恢复备份</button>
+    <input id="restoreFile" type="file" accept="application/json,.json" hidden>
+
+    <div id="backupRestoreStatusV234" class="backup-restore-status-v234 hidden"></div>
+    <p class="note">V32.5：月底结算只关账、不删除全年资料；年底结算才允许在强确认后清除当年资料。Backup/Restore 已覆盖关联盆栽、成本、利润、最低售价和备注。进入 Live 页面时日期自动回到今天；手机在页面顶部垂直下拉并松开即可刷新，左右拉动不会触发。Live 主播名单及独立佣金统一保存到 Google Sheet，手机与电脑显示一致；修改佣金后其他已开启装置会自动同步，无需手动 Refresh；Report 会按所选月份读取历史资料；月份选择可读取并编辑历史资料；月底结算只记录结算状态，不会锁定资料。发现手误后可修正并保存，Google Sheet 会立即更新。系统日期进入新月份后才自动切换。</p>
+  </div>
+
+  
+
+<div class="card notification-settings-card">
+  <div class="notification-settings-head">
+    <div>
+      <h2>🔔 销售通知</h2>
+      <p class="note">Daily / Fair / Live 新增、修改、删除后发送通知。通知注册独立运行，不参与营业数据同步。</p>
+    </div>
+    <span class="notification-badge">PUSH</span>
+  </div>
+  <div id="notificationStatus" class="notification-status">🟡 通知状态检查中</div>
+  <div id="notificationDetail" class="notification-detail notification-subscription-id" aria-live="polite"></div>
+          <button type="button" id="copySubscriptionIdBtn" class="notification-copy-id-btn" onclick="copyLoverSubscriptionId()" style="display:none;">📋 复制 Subscription ID</button>
+  <div id="notificationLastSend" class="notification-last-send">最近通知：尚未测试</div>
+  <div id="notificationRegistered" class="notification-registered">设备登记：V32.5 正在建立真实设备清单…</div>
+  <button type="button" class="notification-reregister-btn" onclick="forceRegisterLoverSalesSubscription()">🔄 重新登记此设备</button>
+  <button id="notificationEnableBtn" type="button" class="notification-enable-btn" onclick="enableLoverSalesNotifications()">🔔 开启销售通知</button>
 </div>
 
-          <div id="batchProductStockResults" class="product-stock-search-results" hidden></div>
-          <div id="batchProductStockStatus" class="status-text"></div>
+<div class="commission-mechanisms">
+  <div class="commission-panel fair-commission-panel">
+    <div class="commission-panel-header">
+      <div>
+        <h3>Fair 佣金机制</h3>
+        <p>按 Fair 本月总营业额自动套用 6% / 7% / 8%</p>
+      </div>
+      <span class="commission-badge">FAIR</span>
+    </div>
 
-          <div id="recentBatchResultsArea">
-            <div id="batchList" class="import-list">
-              <div class="empty-state">暂无进口记录</div>
-            </div>
-          </div>
-        </section>
-      </section>
+    <label for="commissionRate1">RM50,000 以下</label>
+    <div class="commission-input-row"><input id="commissionRate1" type="text" inputmode="decimal"><span>%</span></div>
 
+    <label for="commissionRate2">RM50,000 以上</label>
+    <div class="commission-input-row"><input id="commissionRate2" type="text" inputmode="decimal"><span>%</span></div>
 
-      <section id="historyPage" class="page">
-        <h2>History Search / 历史查询</h2>
-        <section class="panel">
-          <div class="history-lookup-row">
-            <input id="historyLookupInput"
-                   class="search-input text-left-input"
-                   placeholder="输入进口编号或产品名称"
-                   autocomplete="off"
-                   autocapitalize="characters"
-                   spellcheck="false"
-                   enterkeyhint="search" />
-            <button id="historyLookupBtn" class="primary-btn" type="button">查看历史</button>
-            <button id="historyClearPageBtn"
-                    class="secondary-btn history-clear-page-btn"
-                    type="button">清空本页</button>
-          </div>
+    <label for="commissionRate3">RM100,000 以上</label>
+    <div class="commission-input-row"><input id="commissionRate3" type="text" inputmode="decimal"><span>%</span></div>
 
-          <div class="history-date-range-row">
-            <label class="history-date-range-field">
-              <span>开始日期</span>
-              <div class="date-field-wrap history-date-field-wrap">
-                <input id="historyStartDateInput"
-                       class="date-input"
-                       inputmode="numeric"
-                       placeholder="dd-mm-yyyy"
-                       maxlength="10"
-                       autocomplete="off" />
-                <input id="historyStartDatePicker"
-                       class="native-date-picker history-native-date-picker"
-                       type="date"
-                       aria-label="选择开始日期" />
-                <button class="calendar-btn"
-                        type="button"
-                        data-date-target="historyStartDatePicker">📅</button>
-              </div>
-            </label>
-
-            <label class="history-date-range-field">
-              <span>结束日期</span>
-              <div class="date-field-wrap history-date-field-wrap">
-                <input id="historyEndDateInput"
-                       class="date-input"
-                       inputmode="numeric"
-                       placeholder="dd-mm-yyyy"
-                       maxlength="10"
-                       autocomplete="off" />
-                <input id="historyEndDatePicker"
-                       class="native-date-picker history-native-date-picker"
-                       type="date"
-                       aria-label="选择结束日期" />
-                <button class="calendar-btn"
-                        type="button"
-                        data-date-target="historyEndDatePicker">📅</button>
-              </div>
-            </label>
-
-            <button id="historyDateClearBtn"
-                    class="secondary-btn"
-                    type="button">清除日期</button>
-          </div>
-
-          <div class="history-readonly-note">此页面只查询进口、卖出及库存修改历史，不能进行任何编辑。</div>
-          <div id="historyResult">
-            <div class="empty-state">输入进口编号、产品名称，或选择日期范围查看历史资料</div>
-          </div>
-        </section>
-      </section>
-
-      <section id="settingsPage" class="page">
-        <h2>Settings / 设置</h2>
-
-        <section class="panel">
-          <h3>默认汇率</h3>
-          <div class="form-grid">
-            <label>
-              CNY
-              <input id="rateCNY" inputmode="decimal" value="1.60" />
-            </label>
-            <label>
-              NTD
-              <input id="rateNTD" inputmode="decimal" value="7.79" />
-            </label>
-            <label>
-              VND
-              <input id="rateVND" inputmode="decimal" value="6300.00" />
-            </label>
-            <label>
-              IDR
-              <input id="rateIDR" inputmode="decimal" value="3571.00" />
-            </label>
-          </div>
-          <button id="saveSettingsBtn" class="primary-btn" type="button">保存设置</button>
-          <div id="settingsStatus" class="status-text"></div>
-        </section>
-
-
-        <section class="panel">
-          <h3>更改系统密码</h3>
-          <p class="settings-help">
-            密码可以使用英文字母、数字或任何符号，不限最少字数，最多12个字。更改时必须输入旧密码。
-          </p>
-
-          <div class="password-change-grid">
-            <label>
-              旧密码
-              <input id="oldAccessPassword"
-                     name="oldSystemAccessCode"
-                     class="masked-access-code"
-                     type="text"
-                     maxlength="12"
-                     autocomplete="off"
-                     autocapitalize="none"
-                     autocorrect="off"
-                     spellcheck="false"
-                     data-lpignore="true"
-                     data-1p-ignore="true" />
-            </label>
-
-            <label>
-              新密码
-              <input id="newAccessPassword"
-                     name="newSystemAccessCode"
-                     class="masked-access-code"
-                     type="text"
-                     maxlength="12"
-                     autocomplete="off"
-                     autocapitalize="none"
-                     autocorrect="off"
-                     spellcheck="false"
-                     data-lpignore="true"
-                     data-1p-ignore="true" />
-            </label>
-
-            <label>
-              确认新密码
-              <input id="confirmAccessPassword"
-                     name="confirmSystemAccessCode"
-                     class="masked-access-code"
-                     type="text"
-                     maxlength="12"
-                     autocomplete="off"
-                     autocapitalize="none"
-                     autocorrect="off"
-                     spellcheck="false"
-                     data-lpignore="true"
-                     data-1p-ignore="true" />
-            </label>
-          </div>
-
-          <button id="changeAccessPasswordBtn"
-                  class="primary-btn"
-                  type="button">更改密码</button>
-
-          <div class="current-password-hint">
-            当前密码提示：<strong id="currentPasswordHint">6个数字</strong>
-          </div>
-
-          <div id="passwordChangeStatus"
-               class="status-text"></div>
-
-          <div class="device-biometric-settings">
-            <div>
-              <strong>此设备 Face ID / 生物辨识</strong>
-              <span id="deviceBiometricStatus">检查中...</span>
-            </div>
-            <button id="setupBiometricBtn"
-                    class="secondary-btn"
-                    type="button">启用 / 重新设置</button>
-            <button id="removeBiometricBtn"
-                    class="ghost-btn"
-                    type="button">关闭此设备</button>
-          </div>
-        </section>
-
-        <section class="panel">
-          <h3>资料管理</h3>
-
-          <div class="settings-tools-grid">
-            <button id="exportExcelBtn" class="tool-action-btn" type="button">
-              <span class="tool-action-icon">📊</span>
-              <span>导出 Excel</span>
-            </button>
-
-            <button id="backupDataBtn" class="tool-action-btn" type="button">
-              <span class="tool-action-icon">💾</span>
-              <span>Backup</span>
-            </button>
-
-            <button id="restoreDataBtn" class="tool-action-btn" type="button">
-              <span class="tool-action-icon">📂</span>
-              <span>Restore</span>
-            </button>
-
-            <button id="findStaleZeroStockBtn"
-                    class="tool-action-btn cleanup-stock-btn"
-                    type="button">
-              <span class="tool-action-icon">🧹</span>
-              <span>清理零库存产品</span>
-            </button>
-          </div>
-
-          <div id="staleZeroStockPanel"
-               class="stale-zero-stock-panel"
-               hidden>
-            <div class="stale-zero-stock-head">
-              <div>
-                <strong>全部零库存产品</strong>
-                <span id="staleZeroStockCount">0 项</span>
-              </div>
-              <button id="deleteSelectedStaleProductsBtn"
-                      class="danger-action-btn"
-                      type="button"
-                      disabled>
-                删除已选择
-              </button>
-            </div>
-            <div id="staleZeroStockList"
-                 class="stale-zero-stock-list"></div>
-          </div>
-
-          <input id="restoreFileInput"
-                 type="file"
-                 accept=".json,application/json"
-                 hidden />
-
-          <p class="settings-help">
-            Backup 会保存产品、库存、进口记录和汇率。Restore 会完整覆盖当前资料。Backup / Restore 进行中请勿关闭或刷新页面；Restore 即使意外关闭，重新打开后仍会读取 Job 当前步骤、成功或失败原因。<br>
-            清理工具会列出所有当前库存为 0 的产品。删除时必须输入 DELETE 二次确认。删除后会从 Products、Imports 及 Batches 对应项目中永久移除，就当公司从未进口过该产品；以后重新进口时再建立新产品。建议删除前先 Backup。
-          </p>
-
-          <div id="dataOperationStatus" class="data-operation-status" hidden>
-            <strong id="dataOperationTitle">资料作业状态</strong>
-            <span id="dataOperationStep"></span>
-            <small id="dataOperationMeta"></small>
-          </div>
-          <div id="dataToolsStatus" class="status-text"></div>
-        </section>
-
-        <section class="panel history-sales-repair-panel">
-          <h3>历史销售修复 / Historical Sales Repair</h3>
-          <p class="settings-help">
-            只审核 V4.6 以前没有分类的旧负数库存记录。修复结果只影响历史“卖出数量 / 卖出成本”统计，
-            不会修改当前库存、Imports、Batches 或原始 stockAdjustments。
-          </p>
-
-          <div class="settings-tools-grid">
-            <button id="showHistorySalesRepairBtn" class="tool-action-btn" type="button">
-              <span class="tool-action-icon">🧮</span>
-              <span>审核旧卖出记录</span>
-            </button>
-            <button id="autoRepairReversedHistoryBtn" class="tool-action-btn" type="button">
-              <span class="tool-action-icon">🛡️</span>
-              <span>自动识别已抵消记录</span>
-            </button>
-          </div>
-
-          <div id="historySalesRepairPanel" class="history-sales-repair-box" hidden>
-            <div class="history-sales-repair-head">
-              <strong>旧历史销售审核</strong>
-              <button id="closeHistorySalesRepairBtn" class="ghost-btn" type="button">关闭</button>
-            </div>
-            <div id="historySalesRepairSummary" class="history-sales-repair-summary"></div>
-            <div class="settings-help history-sales-repair-note">
-              “原进口－当前库存”只是库存差参考，不等于真实销售；损耗、库存修正、历史改名都可能造成差异。
-              系统只会自动建议“后续正数完整抵消”的旧负数记录，其余必须人工确认。
-            </div>
-            <div id="historySalesRepairList" class="history-sales-repair-list"></div>
-          </div>
-        </section>
-
-        <section class="panel cost-repair-panel">
-          <h3>资料修改 / Data Repair</h3>
-          <p class="settings-help">
-            正常情况下保持关闭。需要修正旧进口编号的成本或不会改变库存数量的资料（例如类别、运输资料）时才开启；成本修改仍会记录在“成本修改记录”。
-          </p>
-
-          <div class="cost-repair-control-row">
-            <div>
-              <strong>修改模式</strong>
-              <span id="costRepairModeStatus">OFF · 已锁定</span>
-            </div>
-            <button id="toggleCostRepairModeBtn" class="secondary-btn" type="button">开启修改模式</button>
-          </div>
-
-          <div class="settings-tools-grid cost-revision-tools">
-            <button id="showCostRevisionHistoryBtn" class="tool-action-btn" type="button">
-              <span class="tool-action-icon">🧾</span>
-              <span>成本修改记录</span>
-            </button>
-          </div>
-
-          <div id="costRevisionHistoryPanel" class="cost-revision-history-panel" hidden>
-            <div class="cost-revision-history-head">
-              <strong>成本修改记录</strong>
-              <button id="closeCostRevisionHistoryBtn" class="ghost-btn" type="button">关闭</button>
-            </div>
-            <input id="costRevisionHistorySearch" type="search" placeholder="搜索进口编号 / 修改项目" autocomplete="off">
-            <div id="costRevisionHistoryList" class="cost-revision-history-list"></div>
-          </div>
-          <div id="costRepairStatus" class="status-text"></div>
-        </section>
-
-        <section class="panel">
-          <h3>系统资料</h3>
-          <div class="info-row"><span>版本</span><strong>正式版 11.1 Stable</strong></div>
-          <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
-          <div class="info-row"><span>Google Sheet</span><strong>已连接 Google Web App</strong></div>
-        </section>
-      </section>
-    </main>
-
-    <nav class="bottom-nav" aria-label="Main Navigation">
-      <button class="nav-btn active" data-page="dashboardPage" type="button">
-        <span>🏠</span><small>首页</small>
-      </button>
-      <button class="nav-btn" data-page="importPage" type="button">
-        <span>📦</span><small>产品/进口<br>修改/编辑</small>
-      </button>
-      <button class="nav-btn" data-page="historyPage" type="button">
-        <span>📜</span><small>历史查询</small>
-      </button>
-      <button class="nav-btn" data-page="settingsPage" type="button">
-        <span>⚙️</span><small>设置</small>
-      </button>
-    </nav>
+    <button id="saveFairCommissionBtn" type="button" onclick="saveFairCommissionSettings()">💾 储存 Fair 佣金</button>
+    <button type="button" class="secondary-btn" onclick="resetFairCommissionSettings()">↺ Fair 恢复默认 6% / 7% / 8%</button>
+    <div id="fairCommissionSettingsMsg" class="save-msg hidden">Fair 佣金设置已储存</div>
   </div>
 
-  <script src="./js/common.js?v=11.1"></script>
-  <script src="./js/sync.js?v=11.1"></script>
-  <script src="./js/app.js?v=11.1"></script>
+  <div class="commission-panel live-commission-panel">
+    <div class="commission-panel-header">
+      <div>
+        <h3>Live 主播佣金机制</h3>
+        <p>每位主播独立设置及计算佣金</p>
+      </div>
+      <span class="commission-badge">LIVE</span>
+    </div>
+<div class="host-section-title">各主播一般佣金</div>
+    <p class="note">没有特别日期规则时，使用这里设置的主播佣金。</p>
+    <div id="liveHostCommissionList" class="host-commission-list"></div>
+
+    <div class="host-section-title live-schedule-title">直播特别佣金日期</div>
+    <p class="note">特别活动期间按日期套用同一佣金率；不会改变其他日期及 Fair 的佣金算法。</p>
+
+    <div class="live-schedule-add-grid">
+      <label>开始日期
+        <div class="date-field">
+          <input id="liveScheduleStartDisplay" type="text" placeholder="dd-mm-yyyy" inputmode="numeric" maxlength="10">
+          <button type="button" class="date-btn">📅</button>
+          <input id="liveScheduleStart" type="date" class="hidden-date">
+        </div>
+      </label>
+      <label>结束日期（可稍后填写）
+        <div class="date-field">
+          <input id="liveScheduleEndDisplay" type="text" placeholder="dd-mm-yyyy" inputmode="numeric" maxlength="10">
+          <button type="button" class="date-btn">📅</button>
+          <input id="liveScheduleEnd" type="date" class="hidden-date">
+        </div>
+      </label>
+      <label>佣金 %
+        <input id="liveScheduleRate" type="text" inputmode="decimal" value="" placeholder="输入佣金率">
+      </label>
+    </div>
+    <button id="liveScheduleActionBtn" type="button" class="secondary-btn" onclick="submitLiveRateSchedule()">＋ 新增特别佣金日期</button>
+    <div id="liveRateScheduleList" class="live-rate-schedule-list"></div>
+
+    <button id="saveLiveCommissionBtn" type="button" onclick="saveLiveCommissionSettings()">💾 储存直播佣金制度</button>
+    <div id="liveCommissionSettingsMsg" class="save-msg hidden">Live 佣金制度已储存</div>
+  </div>
+</div>
+</section>
+</main>
+
+
+
+</div>
+
+<nav class="bottom-nav">
+  <div class="nav-item active" data-page="home" onclick="showPage('home',this)"><span>🏠</span>Home</div>
+  <div class="nav-item" data-page="sales" onclick="showPage('sales',this)"><span>💰</span>Sales</div>
+  <div class="nav-item" data-page="fair" onclick="showPage('fair',this)"><span>🏪</span>Fair</div>
+  <div class="nav-item" data-page="live" onclick="showPage('live',this)"><span>🔴</span>Live</div>
+  <div class="nav-item" data-page="report" onclick="showPage('report',this)"><span>📊</span>Report</div>
+  <div class="nav-item" data-page="more" onclick="showPage('more',this)"><span>⚙️</span>More</div>
+</nav>
+
+<script>
+(function(){
+  let appLoadPromise=null;
+  function loadScriptsInOrder(sources){
+    return new Promise((resolve,reject)=>{
+      let loaded=0;
+      sources.forEach((src,index)=>{
+        const script=document.createElement("script");
+        script.src=src;
+        script.async=false;
+        script.onload=()=>{
+          loaded+=1;
+          if(loaded===sources.length)resolve();
+        };
+        script.onerror=()=>reject(new Error("无法载入 "+src));
+        (document.head||document.body).appendChild(script);
+      });
+    });
+  }
+  window.startLoverSalesApp=function(){
+    if(appLoadPromise)return appLoadPromise;
+    // Download all business scripts in parallel; async=false preserves execution order.
+    appLoadPromise=loadScriptsInOrder([
+      "js/utils.js?v=32.5",
+      "js/sheet.js?v=32.5",
+      "js/app.js?v=32.5",
+      "js/update.js?v=32.5"
+    ]).catch(error=>{
+        console.error(error);
+        const status=document.getElementById("syncStatus");
+        if(status)status.textContent="🔴 系统载入失败，请 Refresh";
+      });
+    return appLoadPromise;
+  };
+  // V32.5: critical CSS is loaded synchronously; no splash/loading overlay is used.
+  window.startLoverSalesApp();
+})();
+</script>
 </body>
 </html>
