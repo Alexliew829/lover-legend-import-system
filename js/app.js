@@ -100,7 +100,7 @@ function findImportProductForSalesItemV77(item) {
 }
 
 function getProcessedSalesInventoryQuantitiesV77() {
-  // V11.3: processed quantity means NET quantity still consumed by this exact
+  // V11.4: processed quantity means NET quantity still consumed by this exact
   // Sales line. Initial actual-sale deductions add to the net; later +stock
   // corrections for the same linkId subtract from it. This is the authoritative
   // baseline for 3→2 (+1), 3→5 (-2), delete (+all), and product replacement.
@@ -264,7 +264,7 @@ function completeSalesManualCorrectionRemoteV102(item) {
 }
 
 function openImportManualInventoryEditorV102(item) {
-  // V11.3: navigation only; close the modal/grey mask before opening editor.
+  // V11.4: navigation only; close the modal/grey mask before opening editor.
   closeStartupSalesInventoryReminderV81();
   const nav = document.querySelector('.nav-btn[data-page="importPage"]');
   if (nav) nav.click();
@@ -373,7 +373,7 @@ async function executeSalesCorrectionBatchV110(item,note){
   const taskKey=String(item?.key||"").trim();
   if(!saleId||!taskKey) throw new Error("Sales Key / Line ID 不完整，已停止整张处理。");
 
-  // V11.3 preflight: validate every line before mutating the browser staging snapshot.
+  // V11.4 preflight: validate every line before mutating the browser staging snapshot.
   const preflight=changes.map((c,i)=>{
     const row=salesManualChangeTextV102(c);
     const product=findCorrectionProductV108(c);
@@ -424,12 +424,12 @@ async function executeSalesCorrectionBatchV110(item,note){
     if(!result?.ok) throw new Error(result?.message||result?.error||"整张库存差异处理失败。");
     if(result?.partialProcessed) throw new Error(result?.message||"检测到部分库存差异已处理，Sales 状态不会回写。请先检查 History。");
 
-    // V11.3: the correction commit already advances config.revision. A normal pull would
+    // V11.4: the correction commit already advances config.revision. A normal pull would
     // therefore return `unchanged` and leave the browser on the pre-commit snapshot.
     // Force a canonical full pull before validating stock / Line Key.
     await pullLatestAfterSalesCommitV83(true);
 
-    // V11.3 final client verification: canonical data pulled back from Google Sheet
+    // V11.4 final client verification: canonical data pulled back from Google Sheet
     // must contain every expected AFTER stock and exact Line Key before Sales is marked done.
     const verifiedProducts=getProducts();
     for(const e of expected){
@@ -714,7 +714,7 @@ async function executeSalesInventoryDeductionV104NoPrompt(item) {
 
   const nextStock = currentStock - qty;
   const note = buildSalesInventoryAutoNoteV81(currentPending);
-  // V11.3 card-level confirmation already completed; do not prompt per product.
+  // V11.4 card-level confirmation already completed; do not prompt per product.
 
   const previousImports = getImports();
   const previousBatches = getBatches();
@@ -997,7 +997,7 @@ function renderStartupSalesInventoryReminderV81() {
         <div class="sales-card-safety-v106">确认前显示的是 Import 当前真实库存。任何一项找不到产品或库存不足，整张销售卡都会停止处理。</div>
       </div>`);
     } catch (error) {
-      console.error("V11.3 Sales card render failed", error, group);
+      console.error("V11.4 Sales card render failed", error, group);
       cards.push(`<div class="sales-startup-card-v106 error-card-v106"><strong>❌ 销售卡资料显示失败</strong><div>${escapeHTML(String(error?.message || error))}</div><div>为安全起见，已禁止扣库存。请同步后重试。</div></div>`);
     }
   }
@@ -1074,7 +1074,7 @@ function showStartupSalesInventoryReminderV80() {
     if(!confirm(`确认处理这张销售卡的待处理库存？\n\n${lines.map(x=>x.legacy?`${x.product.name}（库存已处理，仅回写 Sales）`:`${x.product.name} 需再扣 ×${x.qty}`).join("\n")}\n\n本次实际再扣 ${totalQty} 棵。任何一项检查失败都会停止整张处理。`))return;
     button.disabled=true;button.textContent="整张处理中…";
     try{
-      // V11.3: legacy already-committed lines are ACK-only; never deduct twice.
+      // V11.4: legacy already-committed lines are ACK-only; never deduct twice.
       for(const x of lines.filter(x=>x.legacy)){await confirmSalesInventoryLinkRemoteV81(x.item);const session=getSalesStartupSessionItemV82(x.item.key);if(session)session.v82Processed=true;}
       // Remaining lines use the proven cloud-commit path. Preflight above ensures no known partial failure.
       // Each line is idempotent by immutable salesKey; a retry cannot deduct the same line twice.
@@ -1219,7 +1219,7 @@ function setupSalesInventoryReminder() {
     }, SALES_INVENTORY_REFRESH_MS_V77);
   };
 
-  // V11.3: Sales reminder feed is secondary. Let the main Import cloud sync/render finish first,
+  // V11.4: Sales reminder feed is secondary. Let the main Import cloud sync/render finish first,
   // then check Sales in the background so opening the system is not held up by the cross-system request.
   window.setTimeout(start, SALES_INVENTORY_BACKGROUND_START_DELAY_V103);
 
@@ -3212,7 +3212,7 @@ function copyBatchNumber(importNumber, button) {
 }
 
 
-// V11.3: 最近进口记录直接点击进口编号/运输单号复制；运输单号若含说明文字，只复制末尾实际单号。
+// V11.4: 最近进口记录直接点击进口编号/运输单号复制；运输单号若含说明文字，只复制末尾实际单号。
 function extractTrackingNumberForCopy(value) {
   const text = String(value || "").trim();
   if (!text) return "";
@@ -5308,7 +5308,7 @@ function isInternalSystemAdjustmentNote(value) {
   return /^system\s+auto\s+repair$/i.test(text);
 }
 
-// V11.3: History / 备注 UI only shows genuine user remarks.
+// V11.4: History / 备注 UI only shows genuine user remarks.
 // Legacy internal markers such as "System Auto Repair" remain stored untouched
 // because they may describe historical repair provenance, but they are not user remarks.
 function getUserVisibleAdjustmentNote(adjustment) {
@@ -6241,7 +6241,7 @@ function renderCompactProductHistoryByRange(
                 ? `+${formatNumber(delta)}`
                 : formatNumber(delta);
               const actionLabel = getHistoryAdjustmentLabel(adjustment);
-              // V11.3: every visible stock adjustment carries its own remark,
+              // V11.4: every visible stock adjustment carries its own remark,
               // including exact-product + date-range History views.
               const note = getUserVisibleAdjustmentNote(adjustment);
 
@@ -11232,7 +11232,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "11.3",
+      version: "11.4",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11573,7 +11573,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V11.3 Stable",
+      updatedBy: "System V11.4 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
