@@ -1,15 +1,15 @@
 Lover Legend Import Cost & Inventory System
-V11.4 Stable
+V11.5 Stable
 
-Version update from V11.3 baseline.
+Version update from V11.4 Stable baseline.
 
-V11.4 preparation notes:
-- Sales -> Import inventory sync fixes tracked.
-- Pending status verification tracked.
-- Backup / Restore status verification tracked.
-- Duplicate inventory processing prevention tracked.
-- Six-point inventory consistency validation required for testing.
+V11.5 changes:
+- Sales -> Import only returns Success after canonical read-back verification.
+- Exact Sales Key / Process Log prevents duplicate inventory processing.
+- Restore preserves processed status and validates the complete snapshot.
+- Processing locks duplicate clicks and gives explicit success/failure feedback.
+- Products / Imports / Batches / stockAdjustments / History / Inventory Cost are checked together.
 
 Testing baseline:
-Stock: 1146
-Inventory Cost: RM663,242.42
+Stock: 1144
+Inventory Cost: RM663,046.18
