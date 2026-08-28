@@ -251,17 +251,83 @@ function buildSalesInventoryAutoNoteV81(item) {
 }
 
 
-function completeSalesManualCorrectionRemoteV102(item) {
+let salesRestoreGenerationCacheV116 = { value: 0, at: 0 };
+
+function callSalesMaintenanceStatusV116() {
+  return new Promise((resolve, reject) => {
+    const callbackName = `loverLegendSalesMaintenanceV116_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const script = document.createElement("script");
+    let finished = false;
+    const cleanup = () => {
+      if (finished) return;
+      finished = true;
+      window.clearTimeout(timeoutId);
+      try { delete window[callbackName]; } catch (_) { window[callbackName] = undefined; }
+      script.remove();
+    };
+    window[callbackName] = data => {
+      cleanup();
+      if (!data?.ok) {
+        const msg = String(data?.error || data?.message || "");
+        // Compatibility with older Sales deployments that predate maintenanceStatusV345.
+        if (/unknown action/i.test(msg)) { resolve({ ok:true, restoreGeneration:0, legacy:true }); return; }
+        reject(new Error(msg || "无法读取 Sales Restore 状态"));
+        return;
+      }
+      resolve(data);
+    };
+    const params = new URLSearchParams({ action:"maintenanceStatusV345", callback:callbackName, _:String(Date.now()) });
+    script.src = `${SALES_INVENTORY_FEED_URL_V77}?${params.toString()}`;
+    script.async = true;
+    script.onerror = () => { cleanup(); reject(new Error("无法连接 Sales System 读取 Restore 状态")); };
+    const timeoutId = window.setTimeout(() => { cleanup(); reject(new Error("Sales Restore 状态读取超时")); }, 12000);
+    document.head.appendChild(script);
+  });
+}
+
+async function getSalesRestoreGenerationV116(force = false) {
+  const now = Date.now();
+  if (!force && now - Number(salesRestoreGenerationCacheV116.at || 0) < 10000) {
+    return Math.max(0, Number(salesRestoreGenerationCacheV116.value || 0));
+  }
+  const data = await callSalesMaintenanceStatusV116();
+  if (data?.active) throw new Error(data?.message || "Sales System 正在 Restore，请等待完成后再回写库存状态。");
+  const value = Math.max(0, Number(data?.restoreGeneration || 0));
+  salesRestoreGenerationCacheV116 = { value, at: Date.now() };
+  return value;
+}
+
+function sendSalesInventoryAckV116(item, restoreGeneration, manual = false) {
   return new Promise((resolve,reject)=>{
     const saleId=String(item?.saleId||item?.transactionId||"").trim(),linkId=String(item?.linkId||"").trim();
-    if(!saleId||!linkId){reject(new Error("销售卡缺少 Card ID / Line ID，不能标记库存差异已处理。"));return;}
-    const callbackName=`loverLegendSalesManualDoneV111_${Date.now()}_${Math.random().toString(36).slice(2)}`,script=document.createElement("script"); let finished=false;
+    if(!saleId||!linkId){reject(new Error("销售卡缺少 Card ID / Line ID，不能标记库存已处理。"));return;}
+    const callbackName=`loverLegendSalesAckV116_${Date.now()}_${Math.random().toString(36).slice(2)}`,script=document.createElement("script"); let finished=false;
     const cleanup=()=>{if(finished)return;finished=true;window.clearTimeout(timeoutId);try{delete window[callbackName]}catch(_){window[callbackName]=undefined}script.remove();};
-    window[callbackName]=data=>{cleanup();if(!data?.ok)reject(new Error(data?.error||data?.message||"Sales 库存差异状态回写失败"));else resolve(data);};
-    const params=new URLSearchParams({action:"confirmSalesCardInventoryV249",callback:callbackName,type:String(item?.type||""),date:String(item?.saleDate||""),location:String(item?.location||item?.host||item?.fairLocation||""),transactionId:saleId,linkId,_:String(Date.now())});
-    script.src=`${SALES_INVENTORY_FEED_URL_V77}?${params.toString()}`;script.async=true;script.onerror=()=>{cleanup();reject(new Error("无法回写 Sales System 库存差异完成状态"));};
-    const timeoutId=window.setTimeout(()=>{cleanup();reject(new Error("Sales System 库存差异完成状态回写超时"));},15000);document.head.appendChild(script);
+    window[callbackName]=data=>{cleanup();if(!data?.ok){const err=new Error(data?.error||data?.message||(manual?"Sales 库存差异状态回写失败":"Sales 库存状态回写失败"));err.salesResponse=data||{};reject(err);}else resolve(data);};
+    const params=new URLSearchParams({action:"confirmSalesCardInventoryV249",callback:callbackName,type:String(item?.type||""),date:String(item?.saleDate||""),location:String(item?.location||item?.host||item?.fairLocation||""),transactionId:saleId,linkId,restoreGeneration:String(Math.max(0,Number(restoreGeneration||0))),_:String(Date.now())});
+    script.src=`${SALES_INVENTORY_FEED_URL_V77}?${params.toString()}`;script.async=true;script.onerror=()=>{cleanup();reject(new Error(manual?"无法回写 Sales System 库存差异完成状态":"无法回写 Sales System 库存状态"));};
+    const timeoutId=window.setTimeout(()=>{cleanup();reject(new Error(manual?"Sales System 库存差异完成状态回写超时":"Sales System 库存状态回写超时"));},15000);document.head.appendChild(script);
   });
+}
+
+async function confirmSalesAckWithRestoreGenerationV116(item, manual = false) {
+  let generation = await getSalesRestoreGenerationV116(false);
+  try {
+    return await sendSalesInventoryAckV116(item, generation, manual);
+  } catch (error) {
+    const response = error?.salesResponse || {};
+    const message = String(response?.message || response?.error || error?.message || "");
+    if (response?.maintenance) throw new Error(message || "Sales System 正在 Restore，请稍后再试。库存不会重复扣除。");
+    if (response?.staleRestore || /Restore 已更新云端资料|旧保存队列/i.test(message)) {
+      generation = await getSalesRestoreGenerationV116(true);
+      return await sendSalesInventoryAckV116(item, generation, manual);
+    }
+    throw error;
+  }
+}
+
+function completeSalesManualCorrectionRemoteV102(item) {
+  return confirmSalesAckWithRestoreGenerationV116(item, true);
 }
 
 function openImportManualInventoryEditorV102(item) {
@@ -454,50 +520,9 @@ async function executeSalesCorrectionBatchV110(item,note){
 }
 
 function confirmSalesInventoryLinkRemoteV81(item) {
-  return new Promise((resolve, reject) => {
-    const callbackName = `loverLegendSalesConfirmV81_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const script = document.createElement("script");
-    let finished = false;
-
-    const cleanup = () => {
-      if (finished) return;
-      finished = true;
-      window.clearTimeout(timeoutId);
-      try { delete window[callbackName]; } catch (_) { window[callbackName] = undefined; }
-      script.remove();
-    };
-
-    window[callbackName] = data => {
-      cleanup();
-      if (!data?.ok) reject(new Error(data?.error || "Sales 库存状态回写失败"));
-      else resolve(data);
-    };
-
-    const params = new URLSearchParams({
-      action: "confirmSalesCardInventoryV249",
-      callback: callbackName,
-      type: String(item?.type || ""),
-      date: String(item?.saleDate || ""),
-      location: String(item?.location || item?.host || item?.fairLocation || ""),
-      transactionId: String(item?.saleId || ""),
-      linkId: String(item?.linkId || ""),
-      _: String(Date.now())
-    });
-
-    script.src = `${SALES_INVENTORY_FEED_URL_V77}?${params.toString()}`;
-    script.async = true;
-    script.onerror = () => {
-      cleanup();
-      reject(new Error("无法回写 Sales System 库存状态"));
-    };
-
-    const timeoutId = window.setTimeout(() => {
-      cleanup();
-      reject(new Error("Sales System 库存状态回写超时"));
-    }, 15000);
-
-    document.head.appendChild(script);
-  });
+  // V11.6: Sales Restore generation is part of the writeback handshake.
+  // Retry only the Sales acknowledgement; inventory is never deducted here.
+  return confirmSalesAckWithRestoreGenerationV116(item, false);
 }
 
 async function executeSalesInventoryDeductionV81(item) {
@@ -11236,7 +11261,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "11.5",
+      version: "11.6",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11585,7 +11610,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V11.5 Stable",
+      updatedBy: "System V11.6 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
