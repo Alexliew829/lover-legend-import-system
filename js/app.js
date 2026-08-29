@@ -23,6 +23,23 @@ document.addEventListener("DOMContentLoaded", () => {
 // as adjustmentType="sale" and stores the Sales link key in stockAdjustments.
 const SALES_INVENTORY_FEED_URL_V77 =
   "https://script.google.com/macros/s/AKfycby1OwDIiVf5quXKiD9AG8s2ppM942sLFdJSfyePp--yZtDjYY8jBtkOYLwD9c3WiC_KNw/exec";
+const SALES_SYSTEM_APP_URL_V118 = "https://alexliew829.github.io/lover-legend-sales/";
+function salesSystemAssociatedCardUrlV118(item){
+  const saleId=String(item?.saleId||item?.transactionId||"").trim();
+  const linkId=String(item?.linkId||"").trim();
+  const type=String(getSalesChannelV91(item)||item?.type||"").trim().toLowerCase();
+  const date=String(item?.saleDate||"").trim();
+  const location=String(getSalesSourceNameV77(item)||item?.location||item?.host||item?.fairLocation||"").trim();
+  const p=new URLSearchParams({openSalesCard:"1",salesType:type,salesDate:date,salesLocation:location});
+  if(saleId)p.set("salesTxn",saleId);if(linkId)p.set("salesLink",linkId);
+  return SALES_SYSTEM_APP_URL_V118+"?"+p.toString();
+}
+function openAssociatedSalesCardV118(item){
+  if(salesInventoryOperationActiveV115){alert("库存处理中，请等待完成后再离开 Import System。");return false;}
+  const url=salesSystemAssociatedCardUrlV118(item);
+  window.location.href=url;return true;
+}
+window.openAssociatedSalesCardV118=openAssociatedSalesCardV118;
 const SALES_INVENTORY_REFRESH_MS_V77 = 60000;
 const SALES_INVENTORY_BACKGROUND_START_DELAY_V103 = 8000;
 const SALES_INVENTORY_RESUME_DELAY_V103 = 5000;
@@ -1026,6 +1043,7 @@ function renderStartupSalesInventoryReminderV81() {
           <div class="sales-manual-title-v102">⚠️ 已确认销售卡库存差异</div>
           <div class="sales-startup-meta-v81">${escapeHTML(salesReminderDateTimeV113(first))}${salesReminderDateTimeV113(first)?" · ":""}已确认销售后的产品/数量修改</div>
           ${changes.map(c => { const r=salesManualChangeTextV102(c); return `<div class="sales-manual-change-v102 ${r.actionClass}"><button type="button" class="sales-copy-name-v108" data-copy="${escapeHTML(r.name)}">${escapeHTML(r.name)}</button>：${escapeHTML(r.label)}</div>`; }).join("")}
+          <button type="button" class="sales-open-card-v118" data-sales-key="${escapeHTML(first.key || "")}">↩ 查看关联销售卡</button>
           <button type="button" class="sales-auto-correct-v108" data-sales-key="${escapeHTML(first.key || "")}">自动处理全部库存差异（${changes.length} 项）</button>
         </div>`);
         continue;
@@ -1070,6 +1088,7 @@ function renderStartupSalesInventoryReminderV81() {
       cards.push(`<div class="sales-startup-card-v106" data-sale-id="${escapeHTML(saleId)}">
         <div class="sales-card-head-v106">${escapeHTML(channel)} · ${escapeHTML(source)} · ${escapeHTML(saleDate)}</div>
         ${lineHtml.join("")}
+        <button type="button" class="sales-open-card-v118" data-sale-id="${escapeHTML(saleId)}">↩ 查看关联销售卡</button>
         ${active.length
           ? `<button type="button" class="sales-card-confirm-v104" data-sale-id="${escapeHTML(saleId)}" ${groupBlocked ? "disabled" : ""}>${groupBlocked ? "资料异常，整张销售卡已阻止处理" : `确认处理销售卡库存（${active.length} 项）`}</button>`
           : `<button type="button" class="sales-card-confirm-v104" disabled>✓ 整张销售卡已处理</button>`}
@@ -1121,6 +1140,15 @@ function showStartupSalesInventoryReminderV80() {
   overlay.addEventListener("click", async event => {
     const copyNameButton = event.target.closest(".sales-copy-name-v108");
     if (copyNameButton) { copySalesCorrectionProductNameV108(copyNameButton.dataset.copy); return; }
+
+    const openCardButton = event.target.closest(".sales-open-card-v118");
+    if (openCardButton) {
+      const saleId=String(openCardButton.dataset.saleId||"");
+      const key=String(openCardButton.dataset.salesKey||"");
+      const item= key ? getSalesStartupSessionItemV82(key) : salesStartupSessionItemsV82.find(x=>String(x.saleId||x.transactionId||"")===saleId);
+      if(item)openAssociatedSalesCardV118(item);
+      return;
+    }
 
     const autoButton = event.target.closest(".sales-auto-correct-v108");
     if (autoButton && !autoButton.disabled) {
@@ -11356,7 +11384,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "11.7",
+      version: "11.8",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11705,7 +11733,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V11.7 Stable",
+      updatedBy: "System V11.8 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,

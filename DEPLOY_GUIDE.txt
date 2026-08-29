@@ -1,4 +1,4 @@
-Lover Legend Import Cost & Inventory System V11.7 Stable
+Lover Legend Import Cost & Inventory System V11.8 Stable
 
 Apps Script / Code.gs：需要更新并重新部署。
 appsscript.json：不需要修改（没有新增权限）。

@@ -4028,3 +4028,8 @@ button:disabled{cursor:not-allowed}
 .sales-startup-overlay-v81.operation-locked-v117 .sales-startup-close-v81,.sales-startup-overlay-v81.operation-locked-v117 .sales-startup-later-v81{opacity:.35;cursor:not-allowed}
 .sales-startup-overlay-v81.operation-locked-v117 .sales-card-confirm-v104,.sales-startup-overlay-v81.operation-locked-v117 .sales-auto-correct-v108{pointer-events:none}
 body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-operation-locked-v117 nav{pointer-events:none}
+
+/* V11.8 return to associated Sales card */
+.sales-open-card-v118{width:100%;margin:12px 0 8px;padding:12px 14px;border:1.5px solid #16814a;border-radius:12px;background:#f4fbf6;color:#126b3e;font-weight:800;font-size:16px;cursor:pointer}
+.sales-open-card-v118:active{transform:translateY(1px)}
+.sales-inventory-operation-locked-v117 .sales-open-card-v118{pointer-events:none;opacity:.45}
