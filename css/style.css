@@ -4029,16 +4029,16 @@ button:disabled{cursor:not-allowed}
 .sales-startup-overlay-v81.operation-locked-v117 .sales-card-confirm-v104,.sales-startup-overlay-v81.operation-locked-v117 .sales-auto-correct-v108{pointer-events:none}
 body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-operation-locked-v117 nav{pointer-events:none}
 
-/* V12.0 return to associated Sales card */
+/* V12.1 return to associated Sales card */
 .sales-open-card-v118{width:100%;margin:12px 0 8px;padding:12px 14px;border:1.5px solid #16814a;border-radius:12px;background:#f4fbf6;color:#126b3e;font-weight:800;font-size:16px;cursor:pointer}
 .sales-open-card-v118:active{transform:translateY(1px)}
 .sales-inventory-operation-locked-v117 .sales-open-card-v118{pointer-events:none;opacity:.45}
 
-/* V12.0 associated Sales Card action: keep it unmistakably visible in every pending card. */
+/* V12.1 associated Sales Card action: keep it unmistakably visible in every pending card. */
 .sales-card-open-row-v119{display:block;width:100%;margin:4px 0 0}
 .sales-open-card-v119{display:block!important;visibility:visible!important;width:100%!important;min-height:46px!important;margin:0!important;background:#f4fbf6!important;color:#126b3e!important;border:1.5px solid #16814a!important}
 
-/* V12.0: keep each associated Sales-card link directly under that card header,
+/* V12.1: keep each associated Sales-card link directly under that card header,
    visually separated from the inventory-confirm action below the product lines. */
 .sales-card-open-row-v120{display:block;width:100%;margin:8px 0 12px;padding:0}
 .sales-open-card-v120{display:block!important;width:100%!important;min-height:42px!important;margin:0!important;padding:10px 12px!important;background:#f7fbf8!important;color:#126b3e!important;border:1.5px solid #16814a!important;border-radius:10px!important;font-weight:800!important;font-size:15px!important}

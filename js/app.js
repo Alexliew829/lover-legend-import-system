@@ -193,12 +193,100 @@ function getProcessedSalesInventoryQuantitiesV77() {
   return processed;
 }
 
+function getSalesFeedDesiredQtyV121(manualItem, change) {
+  const saleId = String(manualItem?.saleId || manualItem?.transactionId || "").trim();
+  const linkId = String(change?.linkId || manualItem?.linkId || "").trim();
+  const productId = String(change?.importProductId || change?.productId || "").trim();
+  const productName = normalizeSalesInventoryTextV77(change?.productName || change?.name || "");
+  const rows = salesInventoryFeedV77.filter(row => {
+    if (isSalesManualCorrectionTaskV102(row)) return false;
+    const rowSaleId = String(row?.saleId || row?.transactionId || "").trim();
+    if (saleId && rowSaleId !== saleId) return false;
+    const rowProductId = String(row?.productId || "").trim();
+    const rowProductName = normalizeSalesInventoryTextV77(row?.productName);
+    if (productId ? rowProductId !== productId : (productName && rowProductName !== productName)) return false;
+    if (linkId && String(row?.linkId || "").trim() !== linkId) return false;
+    return true;
+  });
+  if (!rows.length) return { known:false, desiredQty:0, rows:[] };
+  const desiredQty = rows.reduce((sum,row) => {
+    const status = String(row?.status || "active").toLowerCase();
+    if (status === "cancelled" || status === "deleted") return sum;
+    return sum + Math.max(0, Math.trunc(Number(row?.quantity) || 0));
+  }, 0);
+  return { known:true, desiredQty, rows };
+}
+
+function getProcessedQtyForManualChangeV121(processed, manualItem, change) {
+  const productId = String(change?.importProductId || change?.productId || "").trim();
+  const productName = normalizeSalesInventoryTextV77(change?.productName || change?.name || "");
+  const linkId = String(change?.linkId || manualItem?.linkId || "").trim();
+  if (linkId) {
+    const exact = Math.max(0, Math.trunc(Number(processed.get([linkId, productId || productName].join("|"))) || 0));
+    if (exact > 0) return exact;
+  }
+  // V12.1 fallback for a removed/replaced legacy line whose current Sales feed no
+  // longer carries the old Line ID: recover the net actually-processed quantity
+  // from Import History by Sale ID + product.  Restore corrections subtract from
+  // the net, so this can never intentionally restore more than Import still shows
+  // as consumed by that sale/product.
+  const saleId = String(manualItem?.saleId || manualItem?.transactionId || "").trim();
+  if (!saleId || (!productId && !productName)) return 0;
+  let net = 0;
+  getProducts().forEach(product => {
+    const pid = String(product?.id || "").trim();
+    const pname = normalizeSalesInventoryTextV77(product?.name);
+    if (productId ? pid !== productId : pname !== productName) return;
+    getProductStockAdjustments(product).forEach(adjustment => {
+      const delta = Number(adjustment?.delta || 0);
+      const adjustmentType = String(adjustment?.adjustmentType || "").toLowerCase();
+      (Array.isArray(adjustment?.salesLinks) ? adjustment.salesLinks : []).forEach(link => {
+        if (String(link?.saleId || "").trim() !== saleId) return;
+        const lpid = String(link?.productId || pid || "").trim();
+        const lpname = normalizeSalesInventoryTextV77(link?.productName || product?.name);
+        if (productId ? lpid !== productId : lpname !== productName) return;
+        const qty = Math.max(0, Math.trunc(Number(link?.processedQty) || 0));
+        if (!qty) return;
+        const correctionAction = String(link?.correctionAction || "").toLowerCase();
+        const isRestore = correctionAction === "restore" || (delta > 0 && adjustmentType !== "sale");
+        net += isRestore ? -qty : qty;
+      });
+    });
+  });
+  return Math.max(0, Math.trunc(net));
+}
+
+function sanitizeSalesManualChangesV121(item, processed) {
+  const raw = Array.isArray(item?.inventoryChanges) ? item.inventoryChanges : (Array.isArray(item?.manualChanges) ? item.manualChanges : []);
+  const kept = [];
+  for (const change of raw) {
+    const desired = getSalesFeedDesiredQtyV121(item, change);
+    if (desired.known) {
+      // Current Sales line exists (active OR deleted): the normal reconciliation
+      // path below owns this line and will calculate desired - processed exactly.
+      // Never also apply a Sales-generated manual correction for the same line.
+      continue;
+    }
+    const row = salesManualChangeTextV102(change);
+    // If the product is absent from the current Sales card, a new deduction is
+    // never authoritative.  Only a restore of inventory previously consumed by
+    // this sale can be valid for an absent old/replaced line.
+    if (row.direction !== "restore") continue;
+    const processedQty = getProcessedQtyForManualChangeV121(processed, item, change);
+    if (processedQty <= 0) continue;
+    const qty = Math.min(row.qty, processedQty);
+    if (!Number.isFinite(Number(qty)) || qty <= 0) continue;
+    kept.push({ ...change, inventoryAdjustment: qty, delta: -qty });
+  }
+  return kept;
+}
+
 function recomputeSalesInventoryPendingV77() {
   const processed = getProcessedSalesInventoryQuantitiesV77();
   const pending = [];
   salesInventoryFeedV77.forEach(item => {
     if (isSalesManualCorrectionTaskV102(item)) {
-      const changes = Array.isArray(item?.inventoryChanges) ? item.inventoryChanges : (Array.isArray(item?.manualChanges) ? item.manualChanges : []);
+      const changes = sanitizeSalesManualChangesV121(item, processed);
       if (!changes.length) return;
       pending.push({ ...item, key:getSalesInventoryItemKeyV77(item), manualCorrection:true, inventoryChanges:changes, remainingQty:0 });
       return;
@@ -1045,7 +1133,7 @@ function renderStartupSalesInventoryReminderV81() {
           <div class="sales-card-open-row-v120">
             <button type="button" class="sales-open-card-v118 sales-open-card-v119 sales-open-card-v120" data-sales-key="${escapeHTML(first.key || "")}">↩ 查看这张销售卡</button>
           </div>
-          ${changes.map(c => { const r=salesManualChangeTextV102(c); return `<div class="sales-manual-change-v102 ${r.actionClass}"><button type="button" class="sales-copy-name-v108" data-copy="${escapeHTML(r.name)}">${escapeHTML(r.name)}</button>：${escapeHTML(r.label)}</div>`; }).join("")}
+          ${changes.map(c => { const r=salesManualChangeTextV102(c); const product=findCorrectionProductV108(c); const stock=product?Math.max(0,Math.trunc(Number(product.stock)||0)):null; const after=stock==null?null:stock+(r.direction==="restore"?r.qty:-r.qty); return `<div class="sales-manual-change-v102 ${r.actionClass}"><button type="button" class="sales-copy-name-v108" data-copy="${escapeHTML(r.name)}">${escapeHTML(r.name)}</button><div>当前库存：<strong>${stock==null?"找不到产品":formatNumber(stock)}</strong> → <strong>${after==null?"—":formatNumber(after)}</strong> <span>（${escapeHTML(r.label)}）</span></div></div>`; }).join("")}
           <button type="button" class="sales-auto-correct-v108" data-sales-key="${escapeHTML(first.key || "")}">自动处理全部库存差异（${changes.length} 项）</button>
         </div>`);
         continue;
@@ -11388,7 +11476,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "12.0",
+      version: "12.1",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11737,7 +11825,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V12.0 Stable",
+      updatedBy: "System V12.1 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
