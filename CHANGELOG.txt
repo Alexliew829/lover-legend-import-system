@@ -1,3 +1,6 @@
+V11.7 Stable
+- Sales 库存闭环事务锁、ACK-only 安全补回、Restore generation 复用。
+
 Lover Legend Import Cost & Inventory System
 V11.5 Stable
 
