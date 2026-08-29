@@ -4021,3 +4021,10 @@ button:disabled{cursor:not-allowed}
 @keyframes ll-spin-v108{to{transform:rotate(360deg)}}
 .sales-correction-error-v108{margin:10px 0;padding:10px;border-radius:8px;background:#fff0f0;color:#a1261c;font-weight:700;line-height:1.45}
 .sales-correction-confirm-v108:disabled{opacity:.72}
+
+
+/* V11.7 Sales inventory transaction lock */
+.sales-operation-status-v117{margin:0 16px 8px;padding:10px 12px;border:1px solid #e1b642;border-radius:10px;background:#fff7d9;color:#6f4a00;font-weight:800;line-height:1.45}
+.sales-startup-overlay-v81.operation-locked-v117 .sales-startup-close-v81,.sales-startup-overlay-v81.operation-locked-v117 .sales-startup-later-v81{opacity:.35;cursor:not-allowed}
+.sales-startup-overlay-v81.operation-locked-v117 .sales-card-confirm-v104,.sales-startup-overlay-v81.operation-locked-v117 .sales-auto-correct-v108{pointer-events:none}
+body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-operation-locked-v117 nav{pointer-events:none}
