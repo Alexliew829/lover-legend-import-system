@@ -151,6 +151,25 @@ function getSalesInventoryItemKeyV77(item) {
   ].join("|");
 }
 
+function getSalesInventoryCommitKeyV122(item, processedQty, commitQty) {
+  // V12.2: the accounting line key (linkId|productId) must stay stable so net
+  // processed quantity can be reconciled across edits, but every NEW inventory
+  // deduction for the same Sales line needs its own idempotency key. Otherwise a
+  // later 1→2 edit reuses the original key, the server correctly says
+  // alreadyProcessed, and the second unit never reaches inventory.
+  const baseKey = String(item?.key || getSalesInventoryItemKeyV77(item)).trim();
+  const before = Math.max(0, Math.trunc(Number(processedQty) || 0));
+  const qty = Math.max(0, Math.trunc(Number(commitQty) || 0));
+  const after = before + qty;
+  const revision = String(
+    item?.cardRevision || item?.updatedAt || item?.saleUpdatedAt || item?.modifiedAt || ""
+  ).trim();
+  // Keep the first legacy commit key compatible when no revision metadata exists.
+  // Any subsequent deduction is versioned by the net transition.
+  if (before === 0 && !revision) return baseKey;
+  return [baseKey, "commit", revision || "legacy", `${before}->${after}`].join("|");
+}
+
 function findImportProductForSalesItemV77(item) {
   const products = getProducts();
   const productId = String(item?.productId || "").trim();
@@ -225,7 +244,7 @@ function getProcessedQtyForManualChangeV121(processed, manualItem, change) {
     const exact = Math.max(0, Math.trunc(Number(processed.get([linkId, productId || productName].join("|"))) || 0));
     if (exact > 0) return exact;
   }
-  // V12.1 fallback for a removed/replaced legacy line whose current Sales feed no
+  // V12.2 fallback for a removed/replaced legacy line whose current Sales feed no
   // longer carries the old Line ID: recover the net actually-processed quantity
   // from Import History by Sale ID + product.  Restore corrections subtract from
   // the net, so this can never intentionally restore more than Import still shows
@@ -705,6 +724,11 @@ async function executeSalesInventoryDeductionV81(item) {
   const product = products[productIndex];
   const currentStock = Math.max(0, Math.trunc(Number(product.stock) || 0));
   const qty = Math.max(1, Math.trunc(Number(currentPending.remainingQty) || 0));
+  const commitSalesKeyV122 = getSalesInventoryCommitKeyV122(
+    currentPending,
+    currentPending.processedQty,
+    qty
+  );
 
   if (currentStock < qty) {
     return {
@@ -750,7 +774,8 @@ async function executeSalesInventoryDeductionV81(item) {
   }
 
   const salesLinks = [{
-    key: currentPending.key,
+    key: commitSalesKeyV122,
+    accountingKey: String(currentPending.key || getSalesInventoryItemKeyV77(currentPending)),
     linkId: String(currentPending.linkId || ""),
     saleId: String(currentPending.saleId || ""),
     productId: String(currentPending.productId || ""),
@@ -791,7 +816,7 @@ async function executeSalesInventoryDeductionV81(item) {
   let cloudResult;
   try {
     cloudResult = await commitSalesInventoryToCloudV83({
-      salesKey: key,
+      salesKey: commitSalesKeyV122,
       expectedStockBefore: currentStock,
       expectedStockAfter: nextStock,
       product: nextProduct,
@@ -882,6 +907,11 @@ async function executeSalesInventoryDeductionV104NoPrompt(item) {
   const product = products[productIndex];
   const currentStock = Math.max(0, Math.trunc(Number(product.stock) || 0));
   const qty = Math.max(1, Math.trunc(Number(currentPending.remainingQty) || 0));
+  const commitSalesKeyV122 = getSalesInventoryCommitKeyV122(
+    currentPending,
+    currentPending.processedQty,
+    qty
+  );
 
   if (currentStock < qty) {
     return {
@@ -918,7 +948,8 @@ async function executeSalesInventoryDeductionV104NoPrompt(item) {
   }
 
   const salesLinks = [{
-    key: currentPending.key,
+    key: commitSalesKeyV122,
+    accountingKey: String(currentPending.key || getSalesInventoryItemKeyV77(currentPending)),
     linkId: String(currentPending.linkId || ""),
     saleId: String(currentPending.saleId || ""),
     productId: String(currentPending.productId || ""),
@@ -959,7 +990,7 @@ async function executeSalesInventoryDeductionV104NoPrompt(item) {
   let cloudResult;
   try {
     cloudResult = await commitSalesInventoryToCloudV83({
-      salesKey: key,
+      salesKey: commitSalesKeyV122,
       expectedStockBefore: currentStock,
       expectedStockAfter: nextStock,
       product: nextProduct,
@@ -11476,7 +11507,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "12.1",
+      version: "12.2",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11825,7 +11856,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V12.1 Stable",
+      updatedBy: "System V12.2 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
