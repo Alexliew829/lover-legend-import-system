@@ -1042,8 +1042,10 @@ function renderStartupSalesInventoryReminderV81() {
         cards.push(`<div class="sales-startup-item-v81 manual-correction-v102" data-sales-key="${escapeHTML(first.key || "")}">
           <div class="sales-manual-title-v102">⚠️ 已确认销售卡库存差异</div>
           <div class="sales-startup-meta-v81">${escapeHTML(salesReminderDateTimeV113(first))}${salesReminderDateTimeV113(first)?" · ":""}已确认销售后的产品/数量修改</div>
+          <div class="sales-card-open-row-v120">
+            <button type="button" class="sales-open-card-v118 sales-open-card-v119 sales-open-card-v120" data-sales-key="${escapeHTML(first.key || "")}">↩ 查看这张销售卡</button>
+          </div>
           ${changes.map(c => { const r=salesManualChangeTextV102(c); return `<div class="sales-manual-change-v102 ${r.actionClass}"><button type="button" class="sales-copy-name-v108" data-copy="${escapeHTML(r.name)}">${escapeHTML(r.name)}</button>：${escapeHTML(r.label)}</div>`; }).join("")}
-          <button type="button" class="sales-open-card-v118 sales-open-card-v119" data-sales-key="${escapeHTML(first.key || "")}">↩ 查看关联销售卡</button>
           <button type="button" class="sales-auto-correct-v108" data-sales-key="${escapeHTML(first.key || "")}">自动处理全部库存差异（${changes.length} 项）</button>
         </div>`);
         continue;
@@ -1087,10 +1089,10 @@ function renderStartupSalesInventoryReminderV81() {
 
       cards.push(`<div class="sales-startup-card-v106" data-sale-id="${escapeHTML(saleId)}">
         <div class="sales-card-head-v106">${escapeHTML(channel)} · ${escapeHTML(source)} · ${escapeHTML(saleDate)}</div>
-        ${lineHtml.join("")}
-        <div class="sales-card-open-row-v119">
-          <button type="button" class="sales-open-card-v118 sales-open-card-v119" data-sale-id="${escapeHTML(saleId)}">↩ 查看关联销售卡</button>
+        <div class="sales-card-open-row-v120">
+          <button type="button" class="sales-open-card-v118 sales-open-card-v119 sales-open-card-v120" data-sale-id="${escapeHTML(saleId)}">↩ 查看这张销售卡</button>
         </div>
+        ${lineHtml.join("")}
         ${active.length
           ? `<button type="button" class="sales-card-confirm-v104" data-sale-id="${escapeHTML(saleId)}" ${groupBlocked ? "disabled" : ""}>${groupBlocked ? "资料异常，整张销售卡已阻止处理" : `确认处理销售卡库存（${active.length} 项）`}</button>`
           : `<button type="button" class="sales-card-confirm-v104" disabled>✓ 整张销售卡已处理</button>`}
@@ -11386,7 +11388,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "11.9",
+      version: "12.0",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11735,7 +11737,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V11.9 Stable",
+      updatedBy: "System V12.0 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
