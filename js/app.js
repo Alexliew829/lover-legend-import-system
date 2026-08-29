@@ -317,13 +317,19 @@ function recomputeSalesInventoryPendingV77() {
     const desiredQty=rowStatus==="deleted"?0:Math.max(0,Math.trunc(Number(item?.quantity)||0));
     const processedQty=Math.max(0,Math.trunc(Number(processed.get(baseKey))||0));
     const importStatus=String(item?.importSyncStatus||"").toUpperCase();
+    // V12.4: Sales completion state is authoritative for whether a CURRENT line
+    // still needs Import work.  After an Import Backup/Restore, local History can
+    // legitimately be older than Sales.  Never recreate a ghost pending card only
+    // because restored Import History no longer contains an already-ACKed line.
+    // A real inventory-affecting edit (qty/product/delete) resets Sales back to a
+    // pending state; only then do we reconcile desiredQty against Import History.
+    if(importStatus==="INVENTORY_CONFIRMED") return;
     if(processedQty>desiredQty){
       const restoreQty=processedQty-desiredQty;
       pending.push({...item,key:`manual|${String(item?.saleId||item?.transactionId||"")}|${String(item?.linkId||"")}|restore|${processedQty}|${desiredQty}`,taskType:"MANUAL_CORRECTION",manualCorrection:true,manualCorrectionStatus:"MANUAL_CORRECTION_PENDING",remainingQty:0,inventoryChanges:[{action:"RESTORE",delta:-restoreQty,inventoryAdjustment:restoreQty,productId:String(product.id||""),importProductId:String(product.id||""),productName:String(product.name||item?.productName||""),linkId:String(item?.linkId||"")} ]});
       return;
     }
     if(rowStatus==="deleted")return;
-    if(importStatus==="INVENTORY_CONFIRMED"&&processedQty===desiredQty)return;
     const remainingQty=Math.max(0,desiredQty-processedQty);
     if(!remainingQty){
       const locallyCommitted=salesItemAlreadyProcessedLocallyV104({...item,key:baseKey},product);
@@ -367,6 +373,16 @@ function recomputeSalesInventoryPendingV77() {
     const processedQty=Math.max(0,Math.trunc(Number(h.net)||0));
     if(!processedQty||!feedBySale.has(h.saleId))return;
     const rows=feedBySale.get(h.saleId);
+    // V12.4: synthesize a replacement/deletion restore only when this Sales card
+    // itself currently says inventory work is pending.  This preserves the V12.3
+    // replacement fix while preventing completed historical cards from being
+    // resurrected after Import Restore.
+    const cardNeedsInventory=rows.some(row=>{
+      const status=String(row?.status||"active").toLowerCase();
+      const importStatus=String(row?.importSyncStatus||"").toUpperCase();
+      return status!=="cancelled" && importStatus!=="INVENTORY_CONFIRMED";
+    });
+    if(!cardNeedsInventory)return;
     const desiredQty=rows.reduce((sum,row)=>{
       const sameProduct=String(row?.productId||"").trim()===h.productId;
       const sameLink=!h.linkId||String(row?.linkId||"").trim()===h.linkId;
@@ -11562,7 +11578,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "12.3",
+      version: "12.4",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11911,7 +11927,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V12.3 Stable",
+      updatedBy: "System V12.4 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
