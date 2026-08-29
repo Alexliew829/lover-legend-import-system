@@ -34,6 +34,52 @@ let salesInventoryRefreshTimerV77 = null;
 let preferredSalesInventoryKeyV77 = "";
 let preferredSalesInventoryTxnV85 = "";
 let salesInventoryOperationActiveV115 = false;
+let salesInventoryOperationRestoreGenerationV117 = null;
+let salesInventoryOperationStageV117 = "";
+
+function setSalesInventoryOperationLockV117(active, stage = "") {
+  salesInventoryOperationActiveV115 = Boolean(active);
+  salesInventoryOperationStageV117 = String(stage || "");
+  if (!active) salesInventoryOperationRestoreGenerationV117 = null;
+  document.body.classList.toggle("sales-inventory-operation-locked-v117", Boolean(active));
+  const overlay = document.getElementById("salesInventoryStartupOverlayV81");
+  if (!overlay) return;
+  overlay.classList.toggle("operation-locked-v117", Boolean(active));
+  let status = overlay.querySelector(".sales-operation-status-v117");
+  if (!status) {
+    status = document.createElement("div");
+    status.className = "sales-operation-status-v117";
+    const body = overlay.querySelector(".sales-startup-body-v81");
+    if (body) body.parentNode.insertBefore(status, body);
+  }
+  if (status) {
+    status.hidden = !active;
+    status.textContent = active ? (salesInventoryOperationStageV117 || "正在处理，请勿关闭页面…") : "";
+  }
+  overlay.querySelectorAll(".sales-startup-close-v81,.sales-startup-later-v81").forEach(btn => {
+    btn.disabled = Boolean(active);
+  });
+}
+
+function updateSalesInventoryOperationStageV117(stage) {
+  setSalesInventoryOperationLockV117(true, stage);
+}
+
+async function prepareSalesInventoryOperationV117() {
+  updateSalesInventoryOperationStageV117("🔒 正在检查 Sales Restore 状态，请勿关闭页面…");
+  salesInventoryOperationRestoreGenerationV117 = await getSalesRestoreGenerationV116(true);
+  return salesInventoryOperationRestoreGenerationV117;
+}
+
+function blockSalesInventoryNavigationV117(event) {
+  if (!salesInventoryOperationActiveV115) return;
+  const target = event.target?.closest?.("a,button,.nav-btn,[data-page]");
+  if (!target) return;
+  if (target.closest("#salesInventoryStartupOverlayV81") && !target.matches(".sales-startup-close-v81,.sales-startup-later-v81")) return;
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation?.();
+}
 
 function getSalesInventoryDeepLinkTargetV85(){
   const params=new URLSearchParams(window.location.search||"");
@@ -310,16 +356,21 @@ function sendSalesInventoryAckV116(item, restoreGeneration, manual = false) {
   });
 }
 
-async function confirmSalesAckWithRestoreGenerationV116(item, manual = false) {
-  let generation = await getSalesRestoreGenerationV116(false);
+async function confirmSalesAckWithRestoreGenerationV117(item, manual = false) {
+  let generation = Number.isFinite(Number(salesInventoryOperationRestoreGenerationV117))
+    ? Math.max(0, Number(salesInventoryOperationRestoreGenerationV117))
+    : await getSalesRestoreGenerationV116(false);
   try {
+    updateSalesInventoryOperationStageV117(manual ? "🔄 正在回写 Sales 库存差异完成状态…" : "🔄 Import 库存已确认，正在回写 Sales 完成状态…");
     return await sendSalesInventoryAckV116(item, generation, manual);
   } catch (error) {
     const response = error?.salesResponse || {};
     const message = String(response?.message || response?.error || error?.message || "");
-    if (response?.maintenance) throw new Error(message || "Sales System 正在 Restore，请稍后再试。库存不会重复扣除。");
+    if (response?.maintenance) throw new Error(message || "Sales System 正在 Restore；已提交库存不会重复扣除，稍后只需补回完成状态。");
     if (response?.staleRestore || /Restore 已更新云端资料|旧保存队列/i.test(message)) {
+      updateSalesInventoryOperationStageV117("🔄 Restore 版本已变化，正在刷新并只重试 Sales 回写…");
       generation = await getSalesRestoreGenerationV116(true);
+      salesInventoryOperationRestoreGenerationV117 = generation;
       return await sendSalesInventoryAckV116(item, generation, manual);
     }
     throw error;
@@ -327,7 +378,7 @@ async function confirmSalesAckWithRestoreGenerationV116(item, manual = false) {
 }
 
 function completeSalesManualCorrectionRemoteV102(item) {
-  return confirmSalesAckWithRestoreGenerationV116(item, true);
+  return confirmSalesAckWithRestoreGenerationV117(item, true);
 }
 
 function openImportManualInventoryEditorV102(item) {
@@ -520,9 +571,9 @@ async function executeSalesCorrectionBatchV110(item,note){
 }
 
 function confirmSalesInventoryLinkRemoteV81(item) {
-  // V11.6: Sales Restore generation is part of the writeback handshake.
+  // V11.7: Sales Restore generation is reused per locked card operation.
   // Retry only the Sales acknowledgement; inventory is never deducted here.
-  return confirmSalesAckWithRestoreGenerationV116(item, false);
+  return confirmSalesAckWithRestoreGenerationV117(item, false);
 }
 
 async function executeSalesInventoryDeductionV81(item) {
@@ -901,8 +952,10 @@ function copySalesStartupProductNameV82(name, element) {
 }
 window.copySalesStartupProductNameV82 = copySalesStartupProductNameV82;
 
-function closeStartupSalesInventoryReminderV81() {
+function closeStartupSalesInventoryReminderV81(force = false) {
+  if (salesInventoryOperationActiveV115 && !force) return false;
   document.getElementById("salesInventoryStartupOverlayV81")?.remove();
+  return true;
 }
 
 function getSalesStartupSessionItemV82(key) {
@@ -1073,8 +1126,9 @@ function showStartupSalesInventoryReminderV80() {
     if (autoButton && !autoButton.disabled) {
       const key=String(autoButton.dataset.salesKey||""); const sessionItem=getSalesStartupSessionItemV82(key); if(!sessionItem||sessionItem.v82Processed)return;
       const confirmation=await openSalesCorrectionConfirmV110(sessionItem); if(!confirmation)return;
-      salesInventoryOperationActiveV115=true;
+      setSalesInventoryOperationLockV117(true,"🔒 正在处理销售卡库存差异，请勿关闭页面…");
       try {
+        await prepareSalesInventoryOperationV117();
         await executeSalesCorrectionBatchV110(sessionItem,confirmation.note);
         sessionItem.v82Processed=true;
         await refreshSalesInventoryFeedV77({silent:true});
@@ -1084,7 +1138,7 @@ function showStartupSalesInventoryReminderV80() {
         confirmation.success();
       } catch(error) {
         confirmation.fail("自动处理失败："+String(error?.message||error)+"。全部库存差异没有部分提交；请同步后再试。");
-      } finally { salesInventoryOperationActiveV115=false; }
+      } finally { setSalesInventoryOperationLockV117(false); }
       return;
     }
 
@@ -1098,24 +1152,55 @@ function showStartupSalesInventoryReminderV80() {
     if(!live.length){alert("这张销售卡已经处理，系统不会再次扣库存。");return;}
     const lines=[];let totalQty=0;
     for(const item of live){const product=findImportProductForSalesItemV77(item);if(!product){alert(`找不到对应产品：${item.productName||""}。整张销售卡没有扣库存。`);return;}const legacy=Boolean(item?.legacyAckOnlyV105);const qty=legacy?0:Math.max(1,Math.trunc(Number(item.remainingQty||item.quantity||1)));if(!legacy&&Math.max(0,Math.trunc(Number(product.stock)||0))<qty){alert(`库存不足：${product.name}。整张销售卡没有扣库存。`);return;}lines.push({item,product,qty,legacy});totalQty+=qty;}
-    if(!confirm(`确认处理这张销售卡的待处理库存？\n\n${lines.map(x=>x.legacy?`${x.product.name}（库存已处理，仅回写 Sales）`:`${x.product.name} 需再扣 ×${x.qty}`).join("\n")}\n\n本次实际再扣 ${totalQty} 棵。任何一项检查失败都会停止整张处理。`))return;
-    salesInventoryOperationActiveV115=true;button.disabled=true;button.textContent="🔄 库存处理中，请勿关闭页面…";
+    if(!confirm(`确认处理这张销售卡的待处理库存？\n\n${lines.map(x=>x.legacy?`${x.product.name}（库存已处理，仅回写 Sales）`:`${x.product.name} 需再扣 ×${x.qty}`).join("\n")}\n\n本次实际再扣 ${totalQty} 棵。处理期间会锁定窗口；云端确认过的 Sales Key 永远不会重复扣库存。`))return;
+    button.disabled=true;
     try{
-      // V11.4: legacy already-committed lines are ACK-only; never deduct twice.
-      for(const x of lines.filter(x=>x.legacy)){await confirmSalesInventoryLinkRemoteV81(x.item);const session=getSalesStartupSessionItemV82(x.item.key);if(session)session.v82Processed=true;}
-      // Remaining lines use the proven cloud-commit path. Preflight above ensures no known partial failure.
-      // Each line is idempotent by immutable salesKey; a retry cannot deduct the same line twice.
-      for(const x of lines.filter(x=>!x.legacy)){
-        const result=await executeSalesInventoryDeductionV104NoPrompt(x.item);
-        if(!result?.ok)throw new Error(result?.message||"整张销售卡处理失败");
-        const session=getSalesStartupSessionItemV82(x.item.key);if(session)session.v82Processed=true;
+      await prepareSalesInventoryOperationV117();
+      button.textContent="🔒 库存处理中，请勿关闭页面…";
+      let completed=0, committedQty=0, ackPendingError="";
+
+      for(const x of lines.filter(x=>x.legacy)){
+        updateSalesInventoryOperationStageV117(`🔄 库存已处理，正在补回 Sales 完成状态（${completed+1}/${lines.length}）…`);
+        try { await confirmSalesInventoryLinkRemoteV81(x.item); completed++; }
+        catch(error){ ackPendingError=String(error?.message||error||"Sales 完成状态回写失败"); break; }
       }
+
+      if(!ackPendingError){
+        const fresh=lines.filter(x=>!x.legacy);
+        for(let i=0;i<fresh.length;i++){
+          const x=fresh[i];
+          updateSalesInventoryOperationStageV117(`🔄 正在写入 Import 库存（${i+1}/${fresh.length}）：${x.product.name}…`);
+          const result=await executeSalesInventoryDeductionV104NoPrompt(x.item);
+          if(!result?.ok)throw new Error(result?.message||"销售卡处理失败");
+          committedQty+=Number(result?.qty||x.qty||0);
+          if(!result?.remoteConfirmed){ ackPendingError=String(result?.remoteError||"Import 库存已处理，但 Sales 完成状态尚未回写。"); break; }
+          completed++;
+        }
+      }
+
+      updateSalesInventoryOperationStageV117("🔄 正在核对最终状态…");
       await refreshSalesInventoryFeedV77({silent:true});
-      salesStartupSessionItemsV82=salesStartupSessionItemsV82.filter(x=>!x.v82Processed);
-      alert(`✅ 库存处理完成\n\n已处理 ${lines.length} 项，本次实际扣库存 ${totalQty} 棵。`);
-      if(!salesStartupSessionItemsV82.length)closeStartupSalesInventoryReminderV81();else renderStartupSalesInventoryReminderV81();
-    }catch(error){button.disabled=false;button.textContent=`确认处理销售卡库存（${group.length} 项）`;alert("❌ 库存处理失败："+String(error?.message||error)+"\n\n请先同步再重试；已成功写入的 Sales Key 有防重复保护，不会再次扣库存。");}
-    finally{salesInventoryOperationActiveV115=false;}
+      recomputeSalesInventoryPendingV77();
+      salesStartupSessionItemsV82=salesInventoryPendingV77.map(item=>({...item,v82Processed:false}));
+
+      if(ackPendingError){
+        setSalesInventoryOperationLockV117(false);
+        alert(`⚠️ Import 库存已进入安全等待状态。\n\n${ackPendingError}\n\n已经确认的库存不会再次扣除。下次只会补回 Sales 完成状态。`);
+        if(salesStartupSessionItemsV82.length)renderStartupSalesInventoryReminderV81();else closeStartupSalesInventoryReminderV81(true);
+        return;
+      }
+
+      setSalesInventoryOperationLockV117(false);
+      alert(`✅ 库存处理完成\n\n已完成 ${completed} 项，本次实际扣库存 ${committedQty} 棵。Sales 完成状态已回写。`);
+      if(!salesStartupSessionItemsV82.length)closeStartupSalesInventoryReminderV81(true);else renderStartupSalesInventoryReminderV81();
+    }catch(error){
+      setSalesInventoryOperationLockV117(false);
+      await refreshSalesInventoryFeedV77({silent:true}).catch(()=>{});
+      recomputeSalesInventoryPendingV77();
+      salesStartupSessionItemsV82=salesInventoryPendingV77.map(item=>({...item,v82Processed:false}));
+      if(salesStartupSessionItemsV82.length)renderStartupSalesInventoryReminderV81();
+      alert("❌ 处理未完成："+String(error?.message||error)+"\n\n系统已重新核对状态。已成功写入的 Sales Key 不会重复扣库存；未写入的项目才会继续等待处理。");
+    } finally { setSalesInventoryOperationLockV117(false); }
   });
 
   document.body.appendChild(overlay);
@@ -1223,6 +1308,16 @@ function scheduleSalesInventoryResumeCheckV84(reason = "resume") {
 }
 
 function setupSalesInventoryReminder() {
+  if (!window.__salesInventoryOperationGuardsV117) {
+    window.__salesInventoryOperationGuardsV117 = true;
+    document.addEventListener("click", blockSalesInventoryNavigationV117, true);
+    window.addEventListener("beforeunload", event => {
+      if (!salesInventoryOperationActiveV115) return;
+      event.preventDefault();
+      event.returnValue = "库存正在处理，请等待完成。";
+      return event.returnValue;
+    });
+  }
   // V8.7:
   // 1) first page open -> check and remind;
   // 2) iPhone switches away and returns -> check and remind again if still pending;
@@ -11261,7 +11356,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "11.6",
+      version: "11.7",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11610,7 +11705,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V11.6 Stable",
+      updatedBy: "System V11.7 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
