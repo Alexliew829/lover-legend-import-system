@@ -317,7 +317,7 @@ function recomputeSalesInventoryPendingV77() {
     const desiredQty=rowStatus==="deleted"?0:Math.max(0,Math.trunc(Number(item?.quantity)||0));
     const processedQty=Math.max(0,Math.trunc(Number(processed.get(baseKey))||0));
     const importStatus=String(item?.importSyncStatus||"").toUpperCase();
-    // V12.6: Sales completion state is authoritative for whether a CURRENT line
+    // V12.7: Sales completion state is authoritative for whether a CURRENT line
     // still needs Import work.  After an Import Backup/Restore, local History can
     // legitimately be older than Sales.  Never recreate a ghost pending card only
     // because restored Import History no longer contains an already-ACKed line.
@@ -373,7 +373,7 @@ function recomputeSalesInventoryPendingV77() {
     const processedQty=Math.max(0,Math.trunc(Number(h.net)||0));
     if(!processedQty||!feedBySale.has(h.saleId))return;
     const rows=feedBySale.get(h.saleId);
-    // V12.6: synthesize a replacement/deletion restore only when this Sales card
+    // V12.7: synthesize a replacement/deletion restore only when this Sales card
     // itself currently says inventory work is pending.  This preserves the V12.3
     // replacement fix while preventing completed historical cards from being
     // resurrected after Import Restore.
@@ -950,7 +950,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V12.6 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V12.7 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1054,7 +1054,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
     if (!result?.ok) throw new Error(result?.message || result?.error || "整张销售卡库存处理失败。");
     if (result?.partialProcessed) throw new Error(result?.message || "检测到销售卡只有部分库存项目曾被处理，已停止整张写入。");
 
-    // Force canonical state after one cloud transaction. This keeps V12.6 safety
+    // Force canonical state after one cloud transaction. This keeps V12.7 safety
     // while replacing N inventory commits with one card-level commit.
     await pullLatestAfterSalesCommitV83(true);
 
@@ -5991,10 +5991,12 @@ function getHistoryRelevantAdjustments(options = {}) {
     range = null,
     keyword = "",
     exactProduct = "",
+    productId = "",
     importNumber = ""
   } = options;
 
   const normalizedKeyword = String(keyword || "").trim();
+  const normalizedProductId = String(productId || "").trim().toLowerCase();
   const normalizedExactProduct =
     String(exactProduct || "").trim().toLowerCase();
   const normalizedImportNumber =
@@ -6013,6 +6015,12 @@ function getHistoryRelevantAdjustments(options = {}) {
       return String(adjustment.importNumber || "")
         .trim()
         .toLowerCase() === normalizedImportNumber;
+    }
+
+    if (normalizedProductId) {
+      return String(adjustment.productId || "")
+        .trim()
+        .toLowerCase() === normalizedProductId;
     }
 
     if (normalizedExactProduct) {
@@ -10643,20 +10651,13 @@ function showCopiedSyncMessage(importNumber) {
   }, 2000);
 }
 
-// V12.6: 畅销商品按 Import History 的实际净销售数量排序。
-// 实际卖出扣库存计为正销量；撤销销售/销售卡修改恢复库存会扣回销量。
-// 只读取现有 stockAdjustments，不改库存、FIFO、History 或 Sales ACK。
-function getProductNetSalesQuantityV126(product) {
-  return getProductStockAdjustments(product).reduce((total, row) => {
-    const delta = Math.trunc(Number(row?.delta) || 0);
-    const type = String(row?.adjustmentType || "").trim().toLowerCase();
-    const reason = String(row?.reason || "").trim();
-    if (type === "sale" && delta < 0) return total + Math.abs(delta);
-    if (delta > 0 && (reason === "撤销销售" || reason.includes("撤销销售"))) {
-      return total - delta;
-    }
-    return total;
-  }, 0);
+// V12.7: 每个产品的「售出数量」与「畅销商品」使用 History 已验证的净卖出算法。
+// 先按完整历史配对真实销售与后续撤销/恢复，再统计仍然有效的净售出数量。
+// 这里只读取 History，不修改库存、FIFO、Sales Key、ACK 或任何库存处理逻辑。
+function getProductNetSoldQuantityV127(product) {
+  const productId = String(product?.id || "").trim();
+  const exactProduct = String(product?.name || "").trim();
+  return getHistorySoldQuantityTotal({ productId, exactProduct });
 }
 
 function renderInventoryManagementList() {
@@ -10845,7 +10846,7 @@ function renderInventoryManagementList() {
 
     if (sortMode === "name") return String(a.name).localeCompare(String(b.name), "zh");
     if (sortMode === "bestseller-desc") {
-      const salesDiff = getProductNetSalesQuantityV126(b) - getProductNetSalesQuantityV126(a);
+      const salesDiff = getProductNetSoldQuantityV127(b) - getProductNetSoldQuantityV127(a);
       if (salesDiff) return salesDiff;
       return String(a.name).localeCompare(String(b.name), "zh");
     }
@@ -10923,6 +10924,7 @@ function renderInventoryManagementList() {
       ? `${formatMoney(originalCost)}${originalCurrency ? ` ${escapeHTML(originalCurrency)}` : ""}`
       : `0.00${originalCurrency ? ` ${escapeHTML(originalCurrency)}` : ""}`;
     const inventoryValue = stock * averageCost;
+    const soldQuantity = getProductNetSoldQuantityV127(product);
 
     return `
       <article class="inventory-manage-card"
@@ -10950,6 +10952,11 @@ function renderInventoryManagementList() {
               </div>
             ` : ""}
             <div class="product-code">${escapeHTML(product.id)} · ${escapeHTML(product.category)}</div>
+          </div>
+          <div class="inventory-sold-quantity" title="按 Import History 的实际净售出数量计算">
+            <span>售出数量</span>
+            <strong>${formatNumber(soldQuantity)}</strong>
+            <small>棵</small>
           </div>
         </div>
 
@@ -11737,7 +11744,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "12.6",
+      version: "12.7",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -12086,7 +12093,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V12.6 Stable",
+      updatedBy: "System V12.7 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,

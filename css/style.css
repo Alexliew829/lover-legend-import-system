@@ -679,6 +679,42 @@ small {
   align-items: flex-start;
 }
 
+
+/* V12.7: product net sold quantity badge. Read-only statistic; no inventory write path. */
+.inventory-sold-quantity {
+  flex: 0 0 auto;
+  min-width: 92px;
+  padding: 8px 10px;
+  border: 1.5px solid #d97706;
+  border-radius: 10px;
+  background: #fffaf2;
+  text-align: center;
+  line-height: 1.1;
+}
+.inventory-sold-quantity span {
+  display: block;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 700;
+}
+.inventory-sold-quantity strong {
+  display: inline-block;
+  margin-top: 4px;
+  color: #17613a;
+  font-size: 20px;
+  font-weight: 900;
+}
+.inventory-sold-quantity small {
+  margin-left: 2px;
+  color: #17613a;
+  font-size: 10px;
+  font-weight: 700;
+}
+@media (max-width: 560px) {
+  .inventory-sold-quantity { min-width: 78px; padding: 7px 8px; }
+  .inventory-sold-quantity strong { font-size: 18px; }
+}
+
 .inventory-manage-head h4 {
   margin: 0;
   font-size: 17px;
