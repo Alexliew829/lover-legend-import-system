@@ -317,7 +317,7 @@ function recomputeSalesInventoryPendingV77() {
     const desiredQty=rowStatus==="deleted"?0:Math.max(0,Math.trunc(Number(item?.quantity)||0));
     const processedQty=Math.max(0,Math.trunc(Number(processed.get(baseKey))||0));
     const importStatus=String(item?.importSyncStatus||"").toUpperCase();
-    // V12.5: Sales completion state is authoritative for whether a CURRENT line
+    // V12.6: Sales completion state is authoritative for whether a CURRENT line
     // still needs Import work.  After an Import Backup/Restore, local History can
     // legitimately be older than Sales.  Never recreate a ghost pending card only
     // because restored Import History no longer contains an already-ACKed line.
@@ -373,7 +373,7 @@ function recomputeSalesInventoryPendingV77() {
     const processedQty=Math.max(0,Math.trunc(Number(h.net)||0));
     if(!processedQty||!feedBySale.has(h.saleId))return;
     const rows=feedBySale.get(h.saleId);
-    // V12.5: synthesize a replacement/deletion restore only when this Sales card
+    // V12.6: synthesize a replacement/deletion restore only when this Sales card
     // itself currently says inventory work is pending.  This preserves the V12.3
     // replacement fix while preventing completed historical cards from being
     // resurrected after Import Restore.
@@ -950,7 +950,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V12.5 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V12.6 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1054,7 +1054,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
     if (!result?.ok) throw new Error(result?.message || result?.error || "整张销售卡库存处理失败。");
     if (result?.partialProcessed) throw new Error(result?.message || "检测到销售卡只有部分库存项目曾被处理，已停止整张写入。");
 
-    // Force canonical state after one cloud transaction. This keeps V12.5 safety
+    // Force canonical state after one cloud transaction. This keeps V12.6 safety
     // while replacing N inventory commits with one card-level commit.
     await pullLatestAfterSalesCommitV83(true);
 
@@ -10643,6 +10643,22 @@ function showCopiedSyncMessage(importNumber) {
   }, 2000);
 }
 
+// V12.6: 畅销商品按 Import History 的实际净销售数量排序。
+// 实际卖出扣库存计为正销量；撤销销售/销售卡修改恢复库存会扣回销量。
+// 只读取现有 stockAdjustments，不改库存、FIFO、History 或 Sales ACK。
+function getProductNetSalesQuantityV126(product) {
+  return getProductStockAdjustments(product).reduce((total, row) => {
+    const delta = Math.trunc(Number(row?.delta) || 0);
+    const type = String(row?.adjustmentType || "").trim().toLowerCase();
+    const reason = String(row?.reason || "").trim();
+    if (type === "sale" && delta < 0) return total + Math.abs(delta);
+    if (delta > 0 && (reason === "撤销销售" || reason.includes("撤销销售"))) {
+      return total - delta;
+    }
+    return total;
+  }, 0);
+}
+
 function renderInventoryManagementList() {
   const keyword = document.getElementById("inventorySearch").value.trim().toLowerCase();
   const sortMode = document.getElementById("inventorySort").value;
@@ -10828,6 +10844,11 @@ function renderInventoryManagementList() {
     const valueB = stockB * costB;
 
     if (sortMode === "name") return String(a.name).localeCompare(String(b.name), "zh");
+    if (sortMode === "bestseller-desc") {
+      const salesDiff = getProductNetSalesQuantityV126(b) - getProductNetSalesQuantityV126(a);
+      if (salesDiff) return salesDiff;
+      return String(a.name).localeCompare(String(b.name), "zh");
+    }
     if (sortMode === "stock-desc") return stockB - stockA;
     if (sortMode === "stock-asc") return stockA - stockB;
     if (sortMode === "value-desc") return valueB - valueA;
@@ -11716,7 +11737,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "12.5",
+      version: "12.6",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -12065,7 +12086,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V12.5 Stable",
+      updatedBy: "System V12.6 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
