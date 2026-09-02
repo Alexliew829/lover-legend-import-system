@@ -84,7 +84,7 @@ function updateSalesInventoryOperationStageV117(stage) {
 
 async function prepareSalesInventoryOperationV117() {
   updateSalesInventoryOperationStageV117("🔒 正在检查 Sales Restore 状态，请勿关闭页面…");
-  // V13.2 reuses the recent maintenance token; a forced second network round
+  // V13.3 reuses the recent maintenance token; a forced second network round
   // trip before every card caused most of the visible processing delay.
   salesInventoryOperationRestoreGenerationV117 = await getSalesRestoreGenerationV116(false);
   return salesInventoryOperationRestoreGenerationV117;
@@ -306,7 +306,7 @@ function recomputeSalesInventoryPendingV77() {
   const processed = getProcessedSalesInventoryQuantitiesV77();
   const pending = [];
   salesInventoryFeedV77.forEach(item => {
-    // V13.2: Sales integration is deduction-only. Returns, cancellations and
+    // V13.3: Sales integration is deduction-only. Returns, cancellations and
     // exchanges are handled manually in Import with an operator remark.
     if (isSalesManualCorrectionTaskV102(item)) return;
     const rowStatus=String(item?.status||"active").toLowerCase();
@@ -316,7 +316,7 @@ function recomputeSalesInventoryPendingV77() {
     const desiredQty=Math.max(0,Math.trunc(Number(item?.quantity)||0));
     const processedQty=Math.max(0,Math.trunc(Number(processed.get(baseKey))||0));
     const importStatus=String(item?.importSyncStatus||"").toUpperCase();
-    // V13.2: Sales completion state is authoritative for whether a CURRENT line
+    // V13.3: Sales completion state is authoritative for whether a CURRENT line
     // still needs Import work.  After an Import Backup/Restore, local History can
     // legitimately be older than Sales.  Never recreate a ghost pending card only
     // because restored Import History no longer contains an already-ACKed line.
@@ -333,7 +333,7 @@ function recomputeSalesInventoryPendingV77() {
     }
     pending.push({...item,key:baseKey,importProductId:String(product.id||""),importProductName:String(product.name||""),processedQty,remainingQty});
   });
-  /* V13.2: legacy automatic restore synthesis is intentionally disabled.
+  /* V13.3: legacy automatic restore synthesis is intentionally disabled.
      Manual stock adjustment remains available in Import itself. */
   if(false){
   // V12.3: if an already-processed Sales line was removed/replaced, the current
@@ -370,7 +370,7 @@ function recomputeSalesInventoryPendingV77() {
     const processedQty=Math.max(0,Math.trunc(Number(h.net)||0));
     if(!processedQty||!feedBySale.has(h.saleId))return;
     const rows=feedBySale.get(h.saleId);
-    // V13.2: synthesize a replacement/deletion restore only when this Sales card
+    // V13.3: synthesize a replacement/deletion restore only when this Sales card
     // itself currently says inventory work is pending.  This preserves the V12.3
     // replacement fix while preventing completed historical cards from being
     // resurrected after Import Restore.
@@ -948,7 +948,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V13.2 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V13.3 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1052,7 +1052,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
     if (!result?.ok) throw new Error(result?.message || result?.error || "整张销售卡库存处理失败。");
     if (result?.partialProcessed) throw new Error(result?.message || "检测到销售卡只有部分库存项目曾被处理，已停止整张写入。");
 
-    // V13.2: the batch endpoint has already flushed and verified Products,
+    // V13.3: the batch endpoint has already flushed and verified Products,
     // Imports, Batches, History and Sales Keys atomically. Apply the exact staged
     // canonical rows immediately; the ordinary background sync can refresh the
     // rest later without holding this inventory operation open.
@@ -1700,7 +1700,7 @@ function setupSalesInventoryReminder() {
     }, SALES_INVENTORY_REFRESH_MS_V77);
   };
 
-  // V13.2: Sales pending feed is small and starts independently. Full Import
+  // V13.3: Sales pending feed is small and starts independently. Full Import
   // sync continues in parallel and never delays the pending-card popup.
   window.setTimeout(start, SALES_INVENTORY_BACKGROUND_START_DELAY_V103);
 
@@ -2488,6 +2488,11 @@ function setupNavigation() {
   buttons.forEach(button => {
     button.addEventListener("click", () => {
       const target = button.dataset.page;
+
+      // V13.3: a Restore remains protected until the persisted server job is
+      // success/failed, including final verification and polling intervals.
+      const current=document.querySelector('.nav-btn.active')?.dataset?.page||'';
+      if(target!==current&&restoreLeaveProtectionActiveV133()&&!confirmRestoreNavigationV133())return;
 
       buttons.forEach(item => item.classList.remove("active"));
       pages.forEach(page => page.classList.remove("active"));
@@ -5802,7 +5807,7 @@ function getUserVisibleAdjustmentNote(adjustment) {
   return "";
 }
 
-// V13.2: History owns the date/time column. Remove duplicated date/time text
+// V13.3: History owns the date/time column. Remove duplicated date/time text
 // from remarks while preserving the source, location and operator explanation.
 function cleanHistoryAdjustmentNoteV131(value) {
   return String(value || "")
@@ -10685,7 +10690,7 @@ function showCopiedSyncMessage(importNumber) {
   }, 2000);
 }
 
-// V13.2: 每个产品的「售出数量」与「畅销商品」使用 History 已验证的净卖出算法。
+// V13.3: 每个产品的「售出数量」与「畅销商品」使用 History 已验证的净卖出算法。
 // 先按完整历史配对真实销售与后续撤销/恢复，再统计仍然有效的净售出数量。
 // 这里只读取 History，不修改库存、FIFO、Sales Key、ACK 或任何库存处理逻辑。
 function getProductNetSoldQuantityV127(product) {
@@ -11778,7 +11783,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "13.2",
+      version: "13.3",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -11946,6 +11951,20 @@ function getLocalRestoreJob() {
   return loadJSON(RESTORE_JOB_LOCAL_KEY, null);
 }
 
+function restoreLeaveProtectionActiveV133() {
+  const job=getLocalRestoreJob();
+  if(job&&String(job.type||'').toLowerCase()==='restore'&&String(job.state||'').toLowerCase()==='running')return true;
+  const title=String(document.getElementById('dataOperationTitle')?.textContent||'');
+  return Boolean(dataOperationActive&&/Restore/i.test(title));
+}
+
+function confirmRestoreNavigationV133() {
+  if(!restoreLeaveProtectionActiveV133())return true;
+  return window.confirm('Restore 正在进行，离开或刷新可能无法立即确认恢复结果。\n\n建议等待显示「Restore 完成」。仍要离开？');
+}
+window.restoreLeaveProtectionActiveV133=restoreLeaveProtectionActiveV133;
+window.confirmRestoreNavigationV133=confirmRestoreNavigationV133;
+
 function formatJobTime(value) {
   if (!value) return "";
   const date = new Date(value);
@@ -12054,7 +12073,7 @@ function setupDataOperationSafety() {
   if (localJob) renderRestoreJob(localJob);
 
   window.addEventListener("beforeunload", event => {
-    if (!dataOperationActive && !salesInventoryOperationActiveV115) return;
+    if (!dataOperationActive && !restoreLeaveProtectionActiveV133() && !salesInventoryOperationActiveV115) return;
     event.preventDefault();
     event.returnValue = salesInventoryOperationActiveV115?"库存处理中，请勿关闭或刷新页面。":"Backup / Restore 正在进行，请勿关闭或刷新页面。";
     return event.returnValue;
@@ -12127,7 +12146,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V13.2 Stable",
+      updatedBy: "System V13.3 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
