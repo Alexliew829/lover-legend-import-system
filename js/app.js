@@ -304,32 +304,24 @@ function recomputeSalesInventoryPendingV77() {
   const processed = getProcessedSalesInventoryQuantitiesV77();
   const pending = [];
   salesInventoryFeedV77.forEach(item => {
-    if (isSalesManualCorrectionTaskV102(item)) {
-      const changes = sanitizeSalesManualChangesV121(item, processed);
-      if (!changes.length) return;
-      pending.push({ ...item, key:getSalesInventoryItemKeyV77(item), manualCorrection:true, inventoryChanges:changes, remainingQty:0 });
-      return;
-    }
+    // V13.0: Sales integration is deduction-only. Returns, cancellations and
+    // exchanges are handled manually in Import with an operator remark.
+    if (isSalesManualCorrectionTaskV102(item)) return;
     const rowStatus=String(item?.status||"active").toLowerCase();
-    if(rowStatus==="cancelled")return;
+    if(rowStatus!=="active")return;
     const product=findImportProductForSalesItemV77(item); if(!product)return;
     const baseKey=getSalesInventoryItemKeyV77(item);
-    const desiredQty=rowStatus==="deleted"?0:Math.max(0,Math.trunc(Number(item?.quantity)||0));
+    const desiredQty=Math.max(0,Math.trunc(Number(item?.quantity)||0));
     const processedQty=Math.max(0,Math.trunc(Number(processed.get(baseKey))||0));
     const importStatus=String(item?.importSyncStatus||"").toUpperCase();
-    // V12.9: Sales completion state is authoritative for whether a CURRENT line
+    // V13.0: Sales completion state is authoritative for whether a CURRENT line
     // still needs Import work.  After an Import Backup/Restore, local History can
     // legitimately be older than Sales.  Never recreate a ghost pending card only
     // because restored Import History no longer contains an already-ACKed line.
     // A real inventory-affecting edit (qty/product/delete) resets Sales back to a
     // pending state; only then do we reconcile desiredQty against Import History.
     if(importStatus==="INVENTORY_CONFIRMED") return;
-    if(processedQty>desiredQty){
-      const restoreQty=processedQty-desiredQty;
-      pending.push({...item,key:`manual|${String(item?.saleId||item?.transactionId||"")}|${String(item?.linkId||"")}|restore|${processedQty}|${desiredQty}`,taskType:"MANUAL_CORRECTION",manualCorrection:true,manualCorrectionStatus:"MANUAL_CORRECTION_PENDING",remainingQty:0,inventoryChanges:[{action:"RESTORE",delta:-restoreQty,inventoryAdjustment:restoreQty,productId:String(product.id||""),importProductId:String(product.id||""),productName:String(product.name||item?.productName||""),linkId:String(item?.linkId||"")} ]});
-      return;
-    }
-    if(rowStatus==="deleted")return;
+    if(processedQty>desiredQty)return;
     const remainingQty=Math.max(0,desiredQty-processedQty);
     if(!remainingQty){
       const locallyCommitted=salesItemAlreadyProcessedLocallyV104({...item,key:baseKey},product);
@@ -339,6 +331,9 @@ function recomputeSalesInventoryPendingV77() {
     }
     pending.push({...item,key:baseKey,importProductId:String(product.id||""),importProductName:String(product.name||""),processedQty,remainingQty});
   });
+  /* V13.0: legacy automatic restore synthesis is intentionally disabled.
+     Manual stock adjustment remains available in Import itself. */
+  if(false){
   // V12.3: if an already-processed Sales line was removed/replaced, the current
   // Sales feed may no longer contain the old product row. Reconcile Import History
   // against the current card and synthesize the missing restore task.
@@ -373,7 +368,7 @@ function recomputeSalesInventoryPendingV77() {
     const processedQty=Math.max(0,Math.trunc(Number(h.net)||0));
     if(!processedQty||!feedBySale.has(h.saleId))return;
     const rows=feedBySale.get(h.saleId);
-    // V12.9: synthesize a replacement/deletion restore only when this Sales card
+    // V13.0: synthesize a replacement/deletion restore only when this Sales card
     // itself currently says inventory work is pending.  This preserves the V12.3
     // replacement fix while preventing completed historical cards from being
     // resurrected after Import Restore.
@@ -396,6 +391,7 @@ function recomputeSalesInventoryPendingV77() {
     const restoreQty=processedQty-desiredQty;
     pending.push({...template,saleId:h.saleId,transactionId:h.saleId,linkId:h.linkId,key:`manual|${h.saleId}|${h.linkId}|replacement-restore|${processedQty}|${desiredQty}`,taskType:"MANUAL_CORRECTION",manualCorrection:true,manualCorrectionStatus:"MANUAL_CORRECTION_PENDING",remainingQty:0,inventoryChanges:[{action:"RESTORE",delta:-restoreQty,inventoryAdjustment:restoreQty,productId:h.productId,importProductId:h.productId,productName:h.productName,linkId:h.linkId}]});
   });
+  }
   salesInventoryPendingV77=pending;
   return salesInventoryPendingV77;
 }
@@ -950,7 +946,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V12.9 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V13.0 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1054,7 +1050,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
     if (!result?.ok) throw new Error(result?.message || result?.error || "整张销售卡库存处理失败。");
     if (result?.partialProcessed) throw new Error(result?.message || "检测到销售卡只有部分库存项目曾被处理，已停止整张写入。");
 
-    // Force canonical state after one cloud transaction. This keeps V12.9 safety
+    // Force canonical state after one cloud transaction. This keeps V13.0 safety
     // while replacing N inventory commits with one card-level commit.
     await pullLatestAfterSalesCommitV83(true);
 
@@ -1447,7 +1443,7 @@ function showStartupSalesInventoryReminderV80() {
       </div>
       <div class="sales-startup-body-v81"></div>
       <div class="sales-startup-foot-v81">
-        <small>首次确认销售会显示待扣库存；已确认销售卡后续修改只处理相对 Import 已实际处理状态的净差异（可 +库存 / -库存），并写入 History。</small>
+        <small>Sales销售卡确认后只发送一次扣库存任务。已确认销售卡永久锁定；取消、退货或换货请在 Import 手动调整库存并填写备注。</small>
         <button type="button" class="sales-startup-later-v81">稍后处理</button>
       </div>
     </div>`;
@@ -10662,7 +10658,7 @@ function showCopiedSyncMessage(importNumber) {
   }, 2000);
 }
 
-// V12.9: 每个产品的「售出数量」与「畅销商品」使用 History 已验证的净卖出算法。
+// V13.0: 每个产品的「售出数量」与「畅销商品」使用 History 已验证的净卖出算法。
 // 先按完整历史配对真实销售与后续撤销/恢复，再统计仍然有效的净售出数量。
 // 这里只读取 History，不修改库存、FIFO、Sales Key、ACK 或任何库存处理逻辑。
 function getProductNetSoldQuantityV127(product) {
@@ -11755,7 +11751,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "12.9",
+      version: "13.0",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -12104,7 +12100,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V12.9 Stable",
+      updatedBy: "System V13.0 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
