@@ -304,7 +304,7 @@ function recomputeSalesInventoryPendingV77() {
   const processed = getProcessedSalesInventoryQuantitiesV77();
   const pending = [];
   salesInventoryFeedV77.forEach(item => {
-    // V13.0: Sales integration is deduction-only. Returns, cancellations and
+    // V13.1: Sales integration is deduction-only. Returns, cancellations and
     // exchanges are handled manually in Import with an operator remark.
     if (isSalesManualCorrectionTaskV102(item)) return;
     const rowStatus=String(item?.status||"active").toLowerCase();
@@ -314,7 +314,7 @@ function recomputeSalesInventoryPendingV77() {
     const desiredQty=Math.max(0,Math.trunc(Number(item?.quantity)||0));
     const processedQty=Math.max(0,Math.trunc(Number(processed.get(baseKey))||0));
     const importStatus=String(item?.importSyncStatus||"").toUpperCase();
-    // V13.0: Sales completion state is authoritative for whether a CURRENT line
+    // V13.1: Sales completion state is authoritative for whether a CURRENT line
     // still needs Import work.  After an Import Backup/Restore, local History can
     // legitimately be older than Sales.  Never recreate a ghost pending card only
     // because restored Import History no longer contains an already-ACKed line.
@@ -331,7 +331,7 @@ function recomputeSalesInventoryPendingV77() {
     }
     pending.push({...item,key:baseKey,importProductId:String(product.id||""),importProductName:String(product.name||""),processedQty,remainingQty});
   });
-  /* V13.0: legacy automatic restore synthesis is intentionally disabled.
+  /* V13.1: legacy automatic restore synthesis is intentionally disabled.
      Manual stock adjustment remains available in Import itself. */
   if(false){
   // V12.3: if an already-processed Sales line was removed/replaced, the current
@@ -368,7 +368,7 @@ function recomputeSalesInventoryPendingV77() {
     const processedQty=Math.max(0,Math.trunc(Number(h.net)||0));
     if(!processedQty||!feedBySale.has(h.saleId))return;
     const rows=feedBySale.get(h.saleId);
-    // V13.0: synthesize a replacement/deletion restore only when this Sales card
+    // V13.1: synthesize a replacement/deletion restore only when this Sales card
     // itself currently says inventory work is pending.  This preserves the V12.3
     // replacement fix while preventing completed historical cards from being
     // resurrected after Import Restore.
@@ -946,7 +946,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V13.0 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V13.1 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1050,7 +1050,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
     if (!result?.ok) throw new Error(result?.message || result?.error || "整张销售卡库存处理失败。");
     if (result?.partialProcessed) throw new Error(result?.message || "检测到销售卡只有部分库存项目曾被处理，已停止整张写入。");
 
-    // Force canonical state after one cloud transaction. This keeps V13.0 safety
+    // Force canonical state after one cloud transaction. This keeps V13.1 safety
     // while replacing N inventory commits with one card-level commit.
     await pullLatestAfterSalesCommitV83(true);
 
@@ -5793,12 +5793,41 @@ function isInternalSystemAdjustmentNote(value) {
 // because they may describe historical repair provenance, but they are not user remarks.
 function getUserVisibleAdjustmentNote(adjustment) {
   const remark = String(adjustment?.remark || "").trim();
-  if (remark && !isInternalSystemAdjustmentNote(remark)) return remark;
+  if (remark && !isInternalSystemAdjustmentNote(remark)) return cleanHistoryAdjustmentNoteV131(remark);
 
   const note = String(adjustment?.note || "").trim();
-  if (note && !isInternalSystemAdjustmentNote(note)) return note;
+  if (note && !isInternalSystemAdjustmentNote(note)) return cleanHistoryAdjustmentNoteV131(note);
 
   return "";
+}
+
+// V13.1: History owns the date/time column. Remove duplicated date/time text
+// from remarks while preserving the source, location and operator explanation.
+function cleanHistoryAdjustmentNoteV131(value) {
+  return String(value || "")
+    .replace(/\s*·\s*\d{2}-\d{2}-\d{4}(?:\s+\d{2}:\d{2}(?::\d{2})?)?(?=\s*·|$)/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function historyAdjustmentTimeV131(adjustment) {
+  const links = Array.isArray(adjustment?.salesLinks) ? adjustment.salesLinks : [];
+  const saleTime = links.map(link => String(link?.saleTime || "").trim()).find(Boolean) || "";
+  const direct = saleTime.match(/\b(\d{2}:\d{2})(?::\d{2})?\b/);
+  if (direct) return direct[1];
+  const created = new Date(String(adjustment?.createdAt || ""));
+  if (!Number.isFinite(created.getTime())) return "";
+  try {
+    return new Intl.DateTimeFormat("en-GB", {timeZone:"Asia/Kuala_Lumpur",hour:"2-digit",minute:"2-digit",hour12:false}).format(created);
+  } catch (_) {
+    return `${String(created.getHours()).padStart(2,"0")}:${String(created.getMinutes()).padStart(2,"0")}`;
+  }
+}
+
+function historyAdjustmentDateTimeV131(adjustment) {
+  const date = normalizeDateToDDMMYYYY(adjustment?.date || "") || String(adjustment?.date || "-");
+  const time = historyAdjustmentTimeV131(adjustment);
+  return time ? `${date} ${time}` : date;
 }
 
 function buildDailyStockAdjustmentHtml(adjustments) {
@@ -5819,6 +5848,7 @@ function buildDailyStockAdjustmentHtml(adjustments) {
     return `
       <article class="history-adjustment-card ${delta < 0 ? "out" : "in"}">
         <div class="history-adjustment-product">
+          <strong class="product-history-adjustment-date">${escapeHTML(historyAdjustmentDateTimeV131(adjustment))}</strong>
           <button type="button"
                   class="history-copy-product history-copy-product-inline"
                   data-history-product="${escapeHTML(
@@ -6749,11 +6779,7 @@ function renderCompactProductHistoryByRange(
                   delta >= 0 ? "increase" : "decrease"
                 }">
                   <strong class="product-history-adjustment-date">
-                    ${escapeHTML(
-                      normalizeDateToDDMMYYYY(
-                        adjustment.date
-                      ) || "-"
-                    )}
+                    ${escapeHTML(historyAdjustmentDateTimeV131(adjustment))}
                   </strong>
                   <button type="button"
                           class="product-history-adjustment-product history-copy-product history-copy-product-inline"
@@ -7200,7 +7226,7 @@ function renderImportHistory() {
 
               return `
                 <div class="product-history-adjustment ${delta >= 0 ? "increase" : "decrease"}">
-                  <strong class="product-history-adjustment-date">${escapeHTML(adjustment.date || "-")}</strong>
+                  <strong class="product-history-adjustment-date">${escapeHTML(historyAdjustmentDateTimeV131(adjustment))}</strong>
                   <button type="button"
                           class="product-history-adjustment-product history-copy-product history-copy-product-inline"
                           data-history-product="${escapeHTML(
@@ -10658,7 +10684,7 @@ function showCopiedSyncMessage(importNumber) {
   }, 2000);
 }
 
-// V13.0: 每个产品的「售出数量」与「畅销商品」使用 History 已验证的净卖出算法。
+// V13.1: 每个产品的「售出数量」与「畅销商品」使用 History 已验证的净卖出算法。
 // 先按完整历史配对真实销售与后续撤销/恢复，再统计仍然有效的净售出数量。
 // 这里只读取 History，不修改库存、FIFO、Sales Key、ACK 或任何库存处理逻辑。
 function getProductNetSoldQuantityV127(product) {
@@ -11751,7 +11777,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "13.0",
+      version: "13.1",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -12100,7 +12126,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V13.0 Stable",
+      updatedBy: "System V13.1 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
