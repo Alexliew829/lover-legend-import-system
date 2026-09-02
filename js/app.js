@@ -317,7 +317,7 @@ function recomputeSalesInventoryPendingV77() {
     const desiredQty=rowStatus==="deleted"?0:Math.max(0,Math.trunc(Number(item?.quantity)||0));
     const processedQty=Math.max(0,Math.trunc(Number(processed.get(baseKey))||0));
     const importStatus=String(item?.importSyncStatus||"").toUpperCase();
-    // V12.7: Sales completion state is authoritative for whether a CURRENT line
+    // V12.8: Sales completion state is authoritative for whether a CURRENT line
     // still needs Import work.  After an Import Backup/Restore, local History can
     // legitimately be older than Sales.  Never recreate a ghost pending card only
     // because restored Import History no longer contains an already-ACKed line.
@@ -373,7 +373,7 @@ function recomputeSalesInventoryPendingV77() {
     const processedQty=Math.max(0,Math.trunc(Number(h.net)||0));
     if(!processedQty||!feedBySale.has(h.saleId))return;
     const rows=feedBySale.get(h.saleId);
-    // V12.7: synthesize a replacement/deletion restore only when this Sales card
+    // V12.8: synthesize a replacement/deletion restore only when this Sales card
     // itself currently says inventory work is pending.  This preserves the V12.3
     // replacement fix while preventing completed historical cards from being
     // resurrected after Import Restore.
@@ -950,7 +950,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V12.7 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V12.8 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1054,7 +1054,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
     if (!result?.ok) throw new Error(result?.message || result?.error || "整张销售卡库存处理失败。");
     if (result?.partialProcessed) throw new Error(result?.message || "检测到销售卡只有部分库存项目曾被处理，已停止整张写入。");
 
-    // Force canonical state after one cloud transaction. This keeps V12.7 safety
+    // Force canonical state after one cloud transaction. This keeps V12.8 safety
     // while replacing N inventory commits with one card-level commit.
     await pullLatestAfterSalesCommitV83(true);
 
@@ -6059,8 +6059,10 @@ function getHistoryNetSoldLots(options = {}) {
       // Only confirmed/typed sales enter the sales queue. Legacy unclassified
       // negatives are excluded. Likewise, an unclassified legacy positive must
       // not silently reverse a confirmed sale.
+      const reason=String(adjustment?.reason||"").trim();
+      const hasRestoreLink=(Array.isArray(adjustment?.salesLinks)?adjustment.salesLinks:[]).some(link=>String(link?.correctionAction||"").toLowerCase()==="restore");
       return (delta < 0 && type === "sale") ||
-        (delta > 0 && (type === "modify" || type === "repair"));
+        (delta > 0 && (type === "modify" || type === "repair" || reason === "撤销销售" || hasRestoreLink));
     })
     .slice()
     .sort((a, b) => {
@@ -10651,7 +10653,7 @@ function showCopiedSyncMessage(importNumber) {
   }, 2000);
 }
 
-// V12.7: 每个产品的「售出数量」与「畅销商品」使用 History 已验证的净卖出算法。
+// V12.8: 每个产品的「售出数量」与「畅销商品」使用 History 已验证的净卖出算法。
 // 先按完整历史配对真实销售与后续撤销/恢复，再统计仍然有效的净售出数量。
 // 这里只读取 History，不修改库存、FIFO、Sales Key、ACK 或任何库存处理逻辑。
 function getProductNetSoldQuantityV127(product) {
@@ -11744,7 +11746,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "12.7",
+      version: "12.8",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -12093,7 +12095,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V12.7 Stable",
+      updatedBy: "System V12.8 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
