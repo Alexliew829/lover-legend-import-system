@@ -680,7 +680,7 @@ small {
 }
 
 
-/* V13.3: product net sold quantity badge. Read-only statistic; no inventory write path. */
+/* V13.4: product net sold quantity badge. Read-only statistic; no inventory write path. */
 .inventory-sold-quantity {
   flex: 0 0 auto;
   min-width: 92px;
@@ -2532,6 +2532,22 @@ body.access-locked {
 
 .history-adjustment-detail strong {
   font-size: 18px;
+}
+
+.history-sales-financial-v134 {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 14px;
+  width: 100%;
+  color: #8f1f1f;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.history-sales-financial-v134 strong {
+  color: #bd1717;
+  font-size: inherit;
 }
 
 .history-adjustment-meta {
