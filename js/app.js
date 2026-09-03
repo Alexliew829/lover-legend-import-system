@@ -90,7 +90,7 @@ function updateSalesInventoryOperationStageV117(stage) {
 
 async function prepareSalesInventoryOperationV117() {
   updateSalesInventoryOperationStageV117("🔒 正在检查 Sales Restore 状态，请勿关闭页面…");
-  // V13.6 reuses the recent maintenance token; a forced second network round
+  // V13.7 reuses the recent maintenance token; a forced second network round
   // trip before every card caused most of the visible processing delay.
   salesInventoryOperationRestoreGenerationV117 = await getSalesRestoreGenerationV116(false);
   return salesInventoryOperationRestoreGenerationV117;
@@ -312,7 +312,7 @@ function recomputeSalesInventoryPendingV77() {
   const processed = getProcessedSalesInventoryQuantitiesV77();
   const pending = [];
   salesInventoryFeedV77.forEach(item => {
-    // V13.6: Sales integration is deduction-only. Returns, cancellations and
+    // V13.7: Sales integration is deduction-only. Returns, cancellations and
     // exchanges are handled manually in Import with an operator remark.
     if (isSalesManualCorrectionTaskV102(item)) return;
     const rowStatus=String(item?.status||"active").toLowerCase();
@@ -322,7 +322,7 @@ function recomputeSalesInventoryPendingV77() {
     const desiredQty=Math.max(0,Math.trunc(Number(item?.quantity)||0));
     const processedQty=Math.max(0,Math.trunc(Number(processed.get(baseKey))||0));
     const importStatus=String(item?.importSyncStatus||"").toUpperCase();
-    // V13.6: Sales completion state is authoritative for whether a CURRENT line
+    // V13.7: Sales completion state is authoritative for whether a CURRENT line
     // still needs Import work.  After an Import Backup/Restore, local History can
     // legitimately be older than Sales.  Never recreate a ghost pending card only
     // because restored Import History no longer contains an already-ACKed line.
@@ -339,7 +339,7 @@ function recomputeSalesInventoryPendingV77() {
     }
     pending.push({...item,key:baseKey,importProductId:String(product.id||""),importProductName:String(product.name||""),processedQty,remainingQty});
   });
-  /* V13.6: legacy automatic restore synthesis is intentionally disabled.
+  /* V13.7: legacy automatic restore synthesis is intentionally disabled.
      Manual stock adjustment remains available in Import itself. */
   if(false){
   // V12.3: if an already-processed Sales line was removed/replaced, the current
@@ -376,7 +376,7 @@ function recomputeSalesInventoryPendingV77() {
     const processedQty=Math.max(0,Math.trunc(Number(h.net)||0));
     if(!processedQty||!feedBySale.has(h.saleId))return;
     const rows=feedBySale.get(h.saleId);
-    // V13.6: synthesize a replacement/deletion restore only when this Sales card
+    // V13.7: synthesize a replacement/deletion restore only when this Sales card
     // itself currently says inventory work is pending.  This preserves the V12.3
     // replacement fix while preventing completed historical cards from being
     // resurrected after Import Restore.
@@ -954,7 +954,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V13.6 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V13.7 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1058,7 +1058,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
     if (!result?.ok) throw new Error(result?.message || result?.error || "整张销售卡库存处理失败。");
     if (result?.partialProcessed) throw new Error(result?.message || "检测到销售卡只有部分库存项目曾被处理，已停止整张写入。");
 
-    // V13.6: the batch endpoint has already flushed and verified Products,
+    // V13.7: the batch endpoint has already flushed and verified Products,
     // Imports, Batches, History and Sales Keys atomically. Apply the exact staged
     // canonical rows immediately; the ordinary background sync can refresh the
     // rest later without holding this inventory operation open.
@@ -1706,7 +1706,7 @@ function setupSalesInventoryReminder() {
     }, SALES_INVENTORY_REFRESH_MS_V77);
   };
 
-  // V13.6: Sales pending feed is small and starts independently. Full Import
+  // V13.7: Sales pending feed is small and starts independently. Full Import
   // sync continues in parallel and never delays the pending-card popup.
   window.setTimeout(start, SALES_INVENTORY_BACKGROUND_START_DELAY_V103);
 
@@ -2495,7 +2495,7 @@ function setupNavigation() {
     button.addEventListener("click", () => {
       const target = button.dataset.page;
 
-      // V13.6: a Restore remains protected until the persisted server job is
+      // V13.7: a Restore remains protected until the persisted server job is
       // success/failed, including final verification and polling intervals.
       const current=document.querySelector('.nav-btn.active')?.dataset?.page||'';
       if(target!==current&&restoreLeaveProtectionActiveV133()&&!confirmRestoreNavigationV133())return;
@@ -5813,7 +5813,7 @@ function getUserVisibleAdjustmentNote(adjustment) {
   return "";
 }
 
-// V13.6: History owns the date/time column. Remove duplicated date/time text
+// V13.7: History owns the date/time column. Remove duplicated date/time text
 // from remarks while preserving the source, location and operator explanation.
 function cleanHistoryAdjustmentNoteV131(value) {
   return String(value || "")
@@ -5841,7 +5841,7 @@ function historyAdjustmentSaleLinkV134(adjustment) {
   return links.find(link => String(link?.saleDate || link?.linkId || "").trim()) || null;
 }
 
-// V13.6: a Sales stock movement belongs to the Sales-card date, not the later
+// V13.7: a Sales stock movement belongs to the Sales-card date, not the later
 // date on which Import processed the inventory deduction.
 function historyAdjustmentEventDateV134(adjustment) {
   if (getHistoryAdjustmentType(adjustment) === "sale") {
@@ -6287,6 +6287,47 @@ function getHistorySoldQuantityTotal(options = {}) {
   }, 0);
 }
 
+function getHistorySalesLinkForAdjustmentV137(adjustment, allAdjustments) {
+  const direct = historyAdjustmentSaleLinkV134(adjustment);
+  if (direct) return direct;
+  const productId = String(adjustment?.productId || "").trim();
+  const productName = String(adjustment?.productName || "").trim().toLowerCase();
+  const createdAt = String(adjustment?.createdAt || "").trim();
+  const sibling = allAdjustments.find(candidate => {
+    if (candidate === adjustment || String(candidate?.createdAt || "").trim() !== createdAt) return false;
+    const sameId = productId && String(candidate?.productId || "").trim() === productId;
+    const sameName = productName && String(candidate?.productName || "").trim().toLowerCase() === productName;
+    return (sameId || sameName) && getHistoryAdjustmentType(candidate) === "sale" && historyAdjustmentSaleLinkV134(candidate);
+  });
+  return sibling ? historyAdjustmentSaleLinkV134(sibling) : null;
+}
+
+// V13.7: sum the Sales-card profit for the exact net-sold lots selected by the
+// current product/import/date filters. Group by Link ID so FIFO batch splits do
+// not count the same Sales line more than once.
+function getHistorySoldProfitTotalV137(options = {}) {
+  const lots = getHistoryNetSoldLots(options);
+  const allAdjustments = getAllHistoryStockAdjustments();
+  const grouped = new Map();
+  lots.forEach(lot => {
+    const link = getHistorySalesLinkForAdjustmentV137(lot.adjustment, allAdjustments);
+    const linkId = String(link?.linkId || "").trim();
+    const detail = historySalesDetailsByLinkV134.get(linkId) || link;
+    const profit = Number(detail?.profit), originalQuantity = Math.max(1, Number(detail?.quantity || link?.processedQty || 0) || 1);
+    if (!linkId || !Number.isFinite(profit)) return;
+    const entry = grouped.get(linkId) || {quantity:0, originalQuantity, profit};
+    entry.quantity += Math.max(0, Number(lot.remainingQuantity) || 0);
+    grouped.set(linkId, entry);
+  });
+  let matchedQuantity = 0, totalProfit = 0;
+  grouped.forEach(entry => {
+    const quantity = Math.min(entry.originalQuantity, entry.quantity);
+    matchedQuantity += quantity;
+    totalProfit += entry.profit * (quantity / entry.originalQuantity);
+  });
+  return {totalProfit, matchedQuantity};
+}
+
 function getHistoryPendingLegacySalesSummary(options = {}) {
   const pending = getHistoryRelevantAdjustments(options).filter(adjustment => {
     const delta = Math.trunc(Number(adjustment?.delta) || 0);
@@ -6307,6 +6348,7 @@ function buildHistorySoldCostSummary(options = {}) {
         : `所选期间：${escapeHTML(range.startDate)} 至 ${escapeHTML(range.endDate)}`)
     : "全部历史";
   const pending = getHistoryPendingLegacySalesSummary(options);
+  const profitSummary = getHistorySoldProfitTotalV137(options);
 
   return `
     <div class="history-selected-period"><strong>${periodLabel}</strong></div>
@@ -6314,9 +6356,15 @@ function buildHistorySoldCostSummary(options = {}) {
       <div class="history-sold-cost-label">卖出所有产品总数量</div>
       <div class="history-sold-cost-value">${formatNumber(getHistorySoldQuantityTotal(options), 0)}</div>
     </div>
-    <div class="history-sold-cost-summary">
-      <span>卖出成本总值</span>
-      <strong>${formatMoney(getHistorySoldCostTotal(options), "RM ")}</strong>
+    <div class="history-cost-profit-summary-v137">
+      <div class="history-sold-cost-summary">
+        <span>卖出成本总值</span>
+        <strong>${formatMoney(getHistorySoldCostTotal(options), "RM ")}</strong>
+      </div>
+      <div class="history-total-profit-summary-v137">
+        <span>销售总利润</span>
+        <strong>${formatMoney(profitSummary.totalProfit, "RM ")}</strong>
+      </div>
     </div>
     ${pending.count ? `<div class="history-pending-legacy-note">⚠ 旧记录待确认：${formatNumber(pending.count, 0)} 笔 / ${formatNumber(pending.quantity, 0)} 棵，暂不计入卖出统计。请到「设置 → 历史销售修复」确认。</div>` : ""}
   `;
@@ -10794,7 +10842,7 @@ function showCopiedSyncMessage(importNumber) {
   }, 2000);
 }
 
-// V13.6: 每个产品的「售出数量」与「畅销商品」使用 History 已验证的净卖出算法。
+// V13.7: 每个产品的「售出数量」与「畅销商品」使用 History 已验证的净卖出算法。
 // 先按完整历史配对真实销售与后续撤销/恢复，再统计仍然有效的净售出数量。
 // 这里只读取 History，不修改库存、FIFO、Sales Key、ACK 或任何库存处理逻辑。
 function getProductNetSoldQuantityV127(product) {
@@ -11887,7 +11935,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "13.6",
+      version: "13.7",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -12250,7 +12298,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V13.6 Stable",
+      updatedBy: "System V13.7 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
