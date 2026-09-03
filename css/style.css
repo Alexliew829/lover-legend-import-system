@@ -680,7 +680,7 @@ small {
 }
 
 
-/* V13.4: product net sold quantity badge. Read-only statistic; no inventory write path. */
+/* V13.5: product net sold quantity badge. Read-only statistic; no inventory write path. */
 .inventory-sold-quantity {
   flex: 0 0 auto;
   min-width: 92px;
