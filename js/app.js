@@ -53,6 +53,10 @@ let preferredSalesInventoryTxnV85 = "";
 let salesInventoryOperationActiveV115 = false;
 let salesInventoryOperationRestoreGenerationV117 = null;
 let salesInventoryOperationStageV117 = "";
+const historySalesDetailsByLinkV134 = new Map();
+const historySalesContextLoadedV134 = new Set();
+const historySalesContextLoadingV134 = new Map();
+let historyLookupRenderTokenV134 = 0;
 
 function setSalesInventoryOperationLockV117(active, stage = "") {
   salesInventoryOperationActiveV115 = Boolean(active);
@@ -84,7 +88,7 @@ function updateSalesInventoryOperationStageV117(stage) {
 
 async function prepareSalesInventoryOperationV117() {
   updateSalesInventoryOperationStageV117("🔒 正在检查 Sales Restore 状态，请勿关闭页面…");
-  // V13.3 reuses the recent maintenance token; a forced second network round
+  // V13.4 reuses the recent maintenance token; a forced second network round
   // trip before every card caused most of the visible processing delay.
   salesInventoryOperationRestoreGenerationV117 = await getSalesRestoreGenerationV116(false);
   return salesInventoryOperationRestoreGenerationV117;
@@ -306,7 +310,7 @@ function recomputeSalesInventoryPendingV77() {
   const processed = getProcessedSalesInventoryQuantitiesV77();
   const pending = [];
   salesInventoryFeedV77.forEach(item => {
-    // V13.3: Sales integration is deduction-only. Returns, cancellations and
+    // V13.4: Sales integration is deduction-only. Returns, cancellations and
     // exchanges are handled manually in Import with an operator remark.
     if (isSalesManualCorrectionTaskV102(item)) return;
     const rowStatus=String(item?.status||"active").toLowerCase();
@@ -316,7 +320,7 @@ function recomputeSalesInventoryPendingV77() {
     const desiredQty=Math.max(0,Math.trunc(Number(item?.quantity)||0));
     const processedQty=Math.max(0,Math.trunc(Number(processed.get(baseKey))||0));
     const importStatus=String(item?.importSyncStatus||"").toUpperCase();
-    // V13.3: Sales completion state is authoritative for whether a CURRENT line
+    // V13.4: Sales completion state is authoritative for whether a CURRENT line
     // still needs Import work.  After an Import Backup/Restore, local History can
     // legitimately be older than Sales.  Never recreate a ghost pending card only
     // because restored Import History no longer contains an already-ACKed line.
@@ -333,7 +337,7 @@ function recomputeSalesInventoryPendingV77() {
     }
     pending.push({...item,key:baseKey,importProductId:String(product.id||""),importProductName:String(product.name||""),processedQty,remainingQty});
   });
-  /* V13.3: legacy automatic restore synthesis is intentionally disabled.
+  /* V13.4: legacy automatic restore synthesis is intentionally disabled.
      Manual stock adjustment remains available in Import itself. */
   if(false){
   // V12.3: if an already-processed Sales line was removed/replaced, the current
@@ -370,7 +374,7 @@ function recomputeSalesInventoryPendingV77() {
     const processedQty=Math.max(0,Math.trunc(Number(h.net)||0));
     if(!processedQty||!feedBySale.has(h.saleId))return;
     const rows=feedBySale.get(h.saleId);
-    // V13.3: synthesize a replacement/deletion restore only when this Sales card
+    // V13.4: synthesize a replacement/deletion restore only when this Sales card
     // itself currently says inventory work is pending.  This preserves the V12.3
     // replacement fix while preventing completed historical cards from being
     // resurrected after Import Restore.
@@ -948,7 +952,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V13.3 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V13.4 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1052,7 +1056,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
     if (!result?.ok) throw new Error(result?.message || result?.error || "整张销售卡库存处理失败。");
     if (result?.partialProcessed) throw new Error(result?.message || "检测到销售卡只有部分库存项目曾被处理，已停止整张写入。");
 
-    // V13.3: the batch endpoint has already flushed and verified Products,
+    // V13.4: the batch endpoint has already flushed and verified Products,
     // Imports, Batches, History and Sales Keys atomically. Apply the exact staged
     // canonical rows immediately; the ordinary background sync can refresh the
     // rest later without holding this inventory operation open.
@@ -1700,7 +1704,7 @@ function setupSalesInventoryReminder() {
     }, SALES_INVENTORY_REFRESH_MS_V77);
   };
 
-  // V13.3: Sales pending feed is small and starts independently. Full Import
+  // V13.4: Sales pending feed is small and starts independently. Full Import
   // sync continues in parallel and never delays the pending-card popup.
   window.setTimeout(start, SALES_INVENTORY_BACKGROUND_START_DELAY_V103);
 
@@ -2489,7 +2493,7 @@ function setupNavigation() {
     button.addEventListener("click", () => {
       const target = button.dataset.page;
 
-      // V13.3: a Restore remains protected until the persisted server job is
+      // V13.4: a Restore remains protected until the persisted server job is
       // success/failed, including final verification and polling intervals.
       const current=document.querySelector('.nav-btn.active')?.dataset?.page||'';
       if(target!==current&&restoreLeaveProtectionActiveV133()&&!confirmRestoreNavigationV133())return;
@@ -5727,7 +5731,7 @@ function getDailyStockAdjustments(selectedDate, keyword = "") {
     .flatMap(product =>
       getProductStockAdjustments(product)
         .filter(adjustment =>
-          normalizeDateToDDMMYYYY(adjustment.date) ===
+          historyAdjustmentEventDateV134(adjustment) ===
           normalizedDate
         )
         .map(adjustment => {
@@ -5807,7 +5811,7 @@ function getUserVisibleAdjustmentNote(adjustment) {
   return "";
 }
 
-// V13.3: History owns the date/time column. Remove duplicated date/time text
+// V13.4: History owns the date/time column. Remove duplicated date/time text
 // from remarks while preserving the source, location and operator explanation.
 function cleanHistoryAdjustmentNoteV131(value) {
   return String(value || "")
@@ -5830,10 +5834,95 @@ function historyAdjustmentTimeV131(adjustment) {
   }
 }
 
+function historyAdjustmentSaleLinkV134(adjustment) {
+  const links = Array.isArray(adjustment?.salesLinks) ? adjustment.salesLinks : [];
+  return links.find(link => String(link?.saleDate || link?.linkId || "").trim()) || null;
+}
+
+// V13.4: a Sales stock movement belongs to the Sales-card date, not the later
+// date on which Import processed the inventory deduction.
+function historyAdjustmentEventDateV134(adjustment) {
+  if (getHistoryAdjustmentType(adjustment) === "sale") {
+    const saleDate = normalizeDateToDDMMYYYY(historyAdjustmentSaleLinkV134(adjustment)?.saleDate || "");
+    if (saleDate) return saleDate;
+  }
+  return normalizeDateToDDMMYYYY(adjustment?.date || "") || String(adjustment?.date || "");
+}
+
 function historyAdjustmentDateTimeV131(adjustment) {
-  const date = normalizeDateToDDMMYYYY(adjustment?.date || "") || String(adjustment?.date || "-");
+  const date = historyAdjustmentEventDateV134(adjustment) || "-";
   const time = historyAdjustmentTimeV131(adjustment);
   return time ? `${date} ${time}` : date;
+}
+
+function historySalesContextKeyV134(type, date, location) {
+  return [String(type || "").toLowerCase(), normalizeDateToDDMMYYYY(date), String(location || "").trim().toLowerCase()].join("|");
+}
+
+function callHistorySalesProductLinksV134(context) {
+  return new Promise((resolve, reject) => {
+    const callbackName = `loverLegendHistoryLinksV134_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const script = document.createElement("script");
+    let finished = false;
+    const cleanup = () => { if (finished) return; finished = true; window.clearTimeout(timeoutId); try { delete window[callbackName]; } catch (_) { window[callbackName] = undefined; } script.remove(); };
+    window[callbackName] = data => { cleanup(); data?.ok ? resolve(Array.isArray(data.links) ? data.links : []) : reject(new Error(data?.error || "读取销售卡失败")); };
+    const params = new URLSearchParams({action:"getSalesProductLinks",callback:callbackName,type:context.type,date:context.date,location:context.location,_:String(Date.now())});
+    script.src = `${SALES_INVENTORY_FEED_URL_V77}?${params.toString()}`;
+    script.async = true;
+    script.onerror = () => { cleanup(); reject(new Error("无法读取销售卡")); };
+    const timeoutId = window.setTimeout(() => { cleanup(); reject(new Error("读取销售卡超时")); }, 12000);
+    document.head.appendChild(script);
+  });
+}
+
+async function ensureHistorySalesContextV134(context) {
+  const key = historySalesContextKeyV134(context.type, context.date, context.location);
+  if (historySalesContextLoadedV134.has(key)) return;
+  if (historySalesContextLoadingV134.has(key)) return historySalesContextLoadingV134.get(key);
+  const request = callHistorySalesProductLinksV134(context).then(links => {
+    links.forEach(link => { const id = String(link?.linkId || "").trim(); if (id) historySalesDetailsByLinkV134.set(id, link); });
+    historySalesContextLoadedV134.add(key);
+  }).catch(() => {}).finally(() => historySalesContextLoadingV134.delete(key));
+  historySalesContextLoadingV134.set(key, request);
+  return request;
+}
+
+async function ensureVisibleHistorySalesDetailsV134() {
+  if (!navigator.onLine) return;
+  const input = document.getElementById("historyLookupInput");
+  const keyword = String(input?.value || "").trim();
+  const exactProduct = String(input?.dataset?.exactHistoryProduct || "").trim().toLowerCase();
+  const range = getHistoryDateRange(document.getElementById("historyStartDateInput")?.value || "", document.getElementById("historyEndDateInput")?.value || "");
+  const contexts = new Map();
+  getAllHistoryStockAdjustments().forEach(adjustment => {
+    if (getHistoryAdjustmentType(adjustment) !== "sale") return;
+    if (keyword) {
+      const name = String(adjustment?.productName || "").trim().toLowerCase();
+      if (exactProduct ? name !== exactProduct : !historyProductMatchesKeyword(adjustment, keyword)) return;
+    }
+    const eventDate = historyAdjustmentEventDateV134(adjustment);
+    if (range && !range.error && !isDateWithinHistoryRange(eventDate, range)) return;
+    const link = historyAdjustmentSaleLinkV134(adjustment);
+    if (!link) return;
+    const type = String(link.type || "").trim().toLowerCase();
+    const date = normalizeDateToDDMMYYYY(link.saleDate || "");
+    const location = String(link.location || link.source || "").trim();
+    if (!type || !date || !location) return;
+    contexts.set(historySalesContextKeyV134(type, date, location), {type, date, location});
+  });
+  await Promise.all([...contexts.values()].map(ensureHistorySalesContextV134));
+}
+
+function buildHistorySalesFinancialHtmlV134(adjustment) {
+  if (getHistoryAdjustmentType(adjustment) !== "sale") return "";
+  const link = historyAdjustmentSaleLinkV134(adjustment);
+  const detail = historySalesDetailsByLinkV134.get(String(link?.linkId || "").trim()) || link;
+  const quantity = Math.max(1, Number(detail?.quantity || link?.processedQty || Math.abs(Number(adjustment?.delta) || 0)) || 1);
+  const averageCost = Number(detail?.averageCost), delivery = Number(detail?.localDelivery), extra = Number(detail?.extraFee), commission = Number(detail?.commissionAmount);
+  const unitPrice = Number(detail?.unitPrice), profit = Number(detail?.profit);
+  if (![averageCost, delivery, extra, commission, unitPrice, profit].every(Number.isFinite)) return "";
+  const totalCost = averageCost * quantity + delivery + extra + commission;
+  return `<div class="history-sales-financial-v134"><span>总成本 <strong>${formatMoney(totalCost, "RM ")}</strong></span><span>售价 <strong>${formatMoney(unitPrice, "RM ")}</strong></span><span>利润 <strong>${formatMoney(profit, "RM ")}</strong></span></div>`;
 }
 
 function buildDailyStockAdjustmentHtml(adjustments) {
@@ -5873,6 +5962,8 @@ function buildDailyStockAdjustmentHtml(adjustments) {
           <span>${escapeHTML(action)}</span>
           <strong>${escapeHTML(deltaText)}</strong>
         </div>
+
+        ${buildHistorySalesFinancialHtmlV134(adjustment)}
 
         <div class="history-adjustment-meta">
           <span>修改前 ${formatNumber(Number.isFinite(Number(adjustment.displayStockBefore)) ? Number(adjustment.displayStockBefore) : (Number(adjustment.productStockBefore) || Number(adjustment.before) || 0))}</span>
@@ -6038,7 +6129,7 @@ function getHistoryRelevantAdjustments(options = {}) {
     if (
       range &&
       !range.error &&
-      !isDateWithinHistoryRange(adjustment.date, range)
+      !isDateWithinHistoryRange(historyAdjustmentEventDateV134(adjustment), range)
     ) {
       return false;
     }
@@ -6168,7 +6259,7 @@ function getHistoryNetSoldLots(options = {}) {
     .filter(lot => lot.remainingQuantity > 0)
     .filter(lot => {
       if (!range || range.error) return true;
-      return isDateWithinHistoryRange(lot.adjustment?.date, range);
+      return isDateWithinHistoryRange(historyAdjustmentEventDateV134(lot.adjustment), range);
     });
 }
 
@@ -6611,7 +6702,7 @@ function renderCompactProductHistoryByRange(
               return (
                 sameImportNumber &&
                 isDateWithinHistoryRange(
-                  adjustment.date,
+                  historyAdjustmentEventDateV134(adjustment),
                   range
                 )
               );
@@ -6652,7 +6743,7 @@ function renderCompactProductHistoryByRange(
         0,
         ...a.itemEntries.flatMap(entry =>
           entry.adjustments.map(adjustment =>
-            parseDDMMYYYY(adjustment.date) || 0
+            parseDDMMYYYY(historyAdjustmentEventDateV134(adjustment)) || 0
           )
         )
       );
@@ -6661,7 +6752,7 @@ function renderCompactProductHistoryByRange(
         0,
         ...b.itemEntries.flatMap(entry =>
           entry.adjustments.map(adjustment =>
-            parseDDMMYYYY(adjustment.date) || 0
+            parseDDMMYYYY(historyAdjustmentEventDateV134(adjustment)) || 0
           )
         )
       );
@@ -6810,6 +6901,7 @@ function renderCompactProductHistoryByRange(
                   <strong class="product-history-adjustment-quantity">
                     ${signedDelta}
                   </strong>
+                  ${buildHistorySalesFinancialHtmlV134(adjustment)}
                   <span class="product-history-adjustment-note">备注：${escapeHTML(note || "—")}</span>
                 </div>
               `;
@@ -6992,7 +7084,7 @@ function renderImportHistoryByRange(
 }
 
 
-function renderImportHistory() {
+function renderImportHistoryNowV134() {
   const input = document.getElementById("historyLookupInput");
   const startInput =
     document.getElementById("historyStartDateInput");
@@ -7250,6 +7342,7 @@ function renderImportHistory() {
                   )}</button>
                   <span class="product-history-adjustment-action">${actionLabel}</span>
                   <strong class="product-history-adjustment-quantity">${signedDelta}</strong>
+                  ${buildHistorySalesFinancialHtmlV134(adjustment)}
                   <span class="product-history-adjustment-note">备注：${escapeHTML(note || "—")}</span>
                 </div>
               `;
@@ -7310,6 +7403,13 @@ function renderImportHistory() {
         input.dataset.exactHistoryProduct || ""
       ).trim()
     });
+}
+
+async function renderImportHistory() {
+  const token = ++historyLookupRenderTokenV134;
+  renderImportHistoryNowV134();
+  await ensureVisibleHistorySalesDetailsV134();
+  if (token === historyLookupRenderTokenV134) renderImportHistoryNowV134();
 }
 
 function getImports(){return loadJSON("importSystemImports",[]);}
@@ -10690,7 +10790,7 @@ function showCopiedSyncMessage(importNumber) {
   }, 2000);
 }
 
-// V13.3: 每个产品的「售出数量」与「畅销商品」使用 History 已验证的净卖出算法。
+// V13.4: 每个产品的「售出数量」与「畅销商品」使用 History 已验证的净卖出算法。
 // 先按完整历史配对真实销售与后续撤销/恢复，再统计仍然有效的净售出数量。
 // 这里只读取 History，不修改库存、FIFO、Sales Key、ACK 或任何库存处理逻辑。
 function getProductNetSoldQuantityV127(product) {
@@ -11783,7 +11883,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "13.3",
+      version: "13.4",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -12146,7 +12246,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V13.3 Stable",
+      updatedBy: "System V13.4 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
