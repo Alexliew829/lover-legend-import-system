@@ -680,7 +680,7 @@ small {
 }
 
 
-/* V13.6: product net sold quantity badge. Read-only statistic; no inventory write path. */
+/* V13.7: product net sold quantity badge. Read-only statistic; no inventory write path. */
 .inventory-sold-quantity {
   flex: 0 0 auto;
   min-width: 92px;
@@ -3277,7 +3277,8 @@ html, body {
 
 /* V5.4 History sold cost total */
 .history-sold-cost-summary,
-.history-sold-quantity-summary {
+.history-sold-quantity-summary,
+.history-total-profit-summary-v137 {
   margin-top: 14px;
   padding: 13px 16px;
   border: 1px solid #f1c7c3;
@@ -3288,11 +3289,21 @@ html, body {
   justify-content: space-between;
   gap: 12px;
 }
-.history-sold-cost-summary span { font-weight: 700; color: #7a271a; }
-.history-sold-cost-summary strong { font-size: 18px; color: #b42318; }
+.history-sold-cost-summary span,
+.history-total-profit-summary-v137 span { font-weight: 700; color: #7a271a; }
+.history-sold-cost-summary strong,
+.history-total-profit-summary-v137 strong { font-size: 18px; color: #b42318; }
+.history-cost-profit-summary-v137 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+.history-cost-profit-summary-v137 > div { min-width: 0; }
 @media (max-width: 720px) {
-  .history-sold-cost-summary { align-items: flex-start; flex-direction: column; }
-  .history-sold-cost-summary strong { font-size: 20px; }
+  .history-sold-cost-summary,
+  .history-total-profit-summary-v137 { align-items: flex-start; flex-direction: column; padding: 12px; }
+  .history-sold-cost-summary strong,
+  .history-total-profit-summary-v137 strong { font-size: 17px; }
 }
 
 /* V5.4 History sold record product identification */
