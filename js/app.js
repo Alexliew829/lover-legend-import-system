@@ -954,7 +954,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V13.7 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V13.8 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -6302,9 +6302,9 @@ function getHistorySalesLinkForAdjustmentV137(adjustment, allAdjustments) {
   return sibling ? historyAdjustmentSaleLinkV134(sibling) : null;
 }
 
-// V13.7: sum the Sales-card profit for the exact net-sold lots selected by the
-// current product/import/date filters. Group by Link ID so FIFO batch splits do
-// not count the same Sales line more than once.
+// V13.8: sum Sales-card profit and complete Sales-card cost for the exact
+// net-sold lots selected by the current product/import/date filters. Group by
+// Link ID so FIFO batch splits do not count the same Sales line more than once.
 function getHistorySoldProfitTotalV137(options = {}) {
   const lots = getHistoryNetSoldLots(options);
   const allAdjustments = getAllHistoryStockAdjustments();
@@ -6314,18 +6314,24 @@ function getHistorySoldProfitTotalV137(options = {}) {
     const linkId = String(link?.linkId || "").trim();
     const detail = historySalesDetailsByLinkV134.get(linkId) || link;
     const profit = Number(detail?.profit), originalQuantity = Math.max(1, Number(detail?.quantity || link?.processedQty || 0) || 1);
+    const averageCost = Number(detail?.averageCost), delivery = Number(detail?.localDelivery), extra = Number(detail?.extraFee), commission = Number(detail?.commissionAmount);
+    const totalSalesCost = [averageCost, delivery, extra, commission].every(Number.isFinite)
+      ? averageCost * originalQuantity + delivery + extra + commission
+      : NaN;
     if (!linkId || !Number.isFinite(profit)) return;
-    const entry = grouped.get(linkId) || {quantity:0, originalQuantity, profit};
+    const entry = grouped.get(linkId) || {quantity:0, originalQuantity, profit, totalSalesCost};
     entry.quantity += Math.max(0, Number(lot.remainingQuantity) || 0);
     grouped.set(linkId, entry);
   });
-  let matchedQuantity = 0, totalProfit = 0;
+  let matchedQuantity = 0, totalProfit = 0, totalSalesCost = 0;
   grouped.forEach(entry => {
     const quantity = Math.min(entry.originalQuantity, entry.quantity);
+    const ratio = quantity / entry.originalQuantity;
     matchedQuantity += quantity;
-    totalProfit += entry.profit * (quantity / entry.originalQuantity);
+    totalProfit += entry.profit * ratio;
+    if (Number.isFinite(entry.totalSalesCost)) totalSalesCost += entry.totalSalesCost * ratio;
   });
-  return {totalProfit, matchedQuantity};
+  return {totalProfit, totalSalesCost, matchedQuantity};
 }
 
 function getHistoryPendingLegacySalesSummary(options = {}) {
@@ -6352,14 +6358,20 @@ function buildHistorySoldCostSummary(options = {}) {
 
   return `
     <div class="history-selected-period"><strong>${periodLabel}</strong></div>
-    <div class="history-sold-quantity-summary">
-      <div class="history-sold-cost-label">卖出所有产品总数量</div>
-      <div class="history-sold-cost-value">${formatNumber(getHistorySoldQuantityTotal(options), 0)}</div>
-    </div>
     <div class="history-cost-profit-summary-v137">
+      <div class="history-sold-quantity-summary">
+        <div class="history-sold-cost-label">卖出所有产品总数量</div>
+        <div class="history-sold-cost-value">${formatNumber(getHistorySoldQuantityTotal(options), 0)}</div>
+      </div>
       <div class="history-sold-cost-summary">
         <span>卖出成本总值</span>
         <strong>${formatMoney(getHistorySoldCostTotal(options), "RM ")}</strong>
+      </div>
+    </div>
+    <div class="history-cost-profit-summary-v137">
+      <div class="history-total-sales-cost-summary-v138">
+        <span>卖出总成本</span>
+        <strong>${formatMoney(profitSummary.totalSalesCost, "RM ")}</strong>
       </div>
       <div class="history-total-profit-summary-v137">
         <span>销售总利润</span>
@@ -11935,7 +11947,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "13.7",
+      version: "13.8",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -12298,7 +12310,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V13.7 Stable",
+      updatedBy: "System V13.8 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
