@@ -3424,13 +3424,34 @@ html, body {
   font-size: 18px;
   color: #b42318;
 }
+.history-selected-period-range-v143 {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.history-selected-period-range-v143 > strong,
+.history-selected-period-range-v143 > span {
+  max-width: 100%;
+  white-space: nowrap;
+  text-align: left;
+}
+.history-selected-period-range-v143 > span { justify-content: flex-start; }
+.history-selected-period-all-v143 {
+  justify-content: flex-start;
+  gap: 24px;
+}
+.history-selected-period-all-v143 > strong,
+.history-selected-period-all-v143 > span {
+  flex: 0 0 auto;
+  max-width: none;
+  white-space: nowrap;
+}
 @media (max-width: 720px) {
-  .history-selected-period { align-items: flex-start; gap: 8px; }
-  .history-selected-period span {
-    max-width: 48%;
-    justify-content: flex-end;
-    line-height: 1.3;
-  }
+  .history-selected-period-range-v143 > strong { font-size: 13px; letter-spacing: -0.35px; }
+  .history-selected-period-range-v143 > span { font-size: 13px; }
+  .history-selected-period-all-v143 { gap: 14px; }
+  .history-selected-period-all-v143 > span { font-size: 12px; letter-spacing: -0.4px; }
+  .history-selected-period-all-v143 > span b { font-size: 17px; }
 }
 
 

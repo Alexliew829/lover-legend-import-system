@@ -954,7 +954,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V14.2 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V14.3 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1058,7 +1058,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
     if (!result?.ok) throw new Error(result?.message || result?.error || "整张销售卡库存处理失败。");
     if (result?.partialProcessed) throw new Error(result?.message || "检测到销售卡只有部分库存项目曾被处理，已停止整张写入。");
 
-    // V14.2: the batch endpoint has already flushed and verified Products,
+    // V14.3: the batch endpoint has already flushed and verified Products,
     // Imports, Batches, History and Sales Keys atomically. Apply the exact staged
     // canonical rows immediately; the ordinary background sync can refresh the
     // rest later without holding this inventory operation open.
@@ -6309,7 +6309,7 @@ function getHistorySalesLinkForAdjustmentV137(adjustment, allAdjustments) {
   return sibling ? historyAdjustmentSaleLinkV134(sibling) : null;
 }
 
-// V14.2: sum Sales-card profit and complete Sales-card cost for the exact
+// V14.3: sum Sales-card profit and complete Sales-card cost for the exact
 // net-sold lots selected by the current product/import/date filters. Group by
 // Link ID so FIFO batch splits do not count the same Sales line more than once.
 function getHistorySoldProfitTotalV137(options = {}) {
@@ -6364,9 +6364,10 @@ function buildHistorySoldCostSummary(options = {}) {
   const profitSummary = getHistorySoldProfitTotalV137(options);
   const soldQuantity = getHistorySoldQuantityTotal(options);
   const totalSalesAmount = Number(profitSummary.totalSalesCost || 0) + Number(profitSummary.totalProfit || 0);
+  const periodLayoutClass = range ? "history-selected-period-range-v143" : "history-selected-period-all-v143";
 
   return `
-    <div class="history-selected-period">
+    <div class="history-selected-period ${periodLayoutClass}">
       <strong>${periodLabel}</strong>
       <span>卖出所有产品总数量 <b>${formatNumber(soldQuantity, 0)}</b></span>
     </div>
@@ -10875,7 +10876,7 @@ function getProductNetSoldQuantityV127(product) {
   return getHistorySoldQuantityTotal({ productId, exactProduct });
 }
 
-// V14.2: use the same verified net-sold lots as the History totals. A sale that
+// V14.3: use the same verified net-sold lots as the History totals. A sale that
 // was fully restored is absent, so it cannot incorrectly make a product recent.
 function buildLatestNetSoldTimeIndexV141() {
   const byId = new Map(), byName = new Map();
@@ -11990,7 +11991,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "14.2",
+      version: "14.3",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -12353,7 +12354,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V14.2 Stable",
+      updatedBy: "System V14.3 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
