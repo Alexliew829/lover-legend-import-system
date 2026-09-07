@@ -3445,13 +3445,18 @@ html, body {
   flex: 0 0 auto;
   max-width: none;
   white-space: nowrap;
+  font-size: 18px;
+  font-weight: 700;
 }
+.history-selected-period-all-v143 > span b { font-size: inherit; }
 @media (max-width: 720px) {
   .history-selected-period-range-v143 > strong { font-size: 13px; letter-spacing: -0.35px; }
-  .history-selected-period-range-v143 > span { font-size: 13px; }
+  .history-selected-period-range-v143 > span { font-size: 18px; letter-spacing: 0; }
+  .history-selected-period-range-v143 > span b { font-size: inherit; }
   .history-selected-period-all-v143 { gap: 14px; }
-  .history-selected-period-all-v143 > span { font-size: 12px; letter-spacing: -0.4px; }
-  .history-selected-period-all-v143 > span b { font-size: 17px; }
+  .history-selected-period-all-v143 > strong,
+  .history-selected-period-all-v143 > span { font-size: 16px; letter-spacing: -0.35px; }
+  .history-selected-period-all-v143 > span b { font-size: inherit; }
 }
 
 
