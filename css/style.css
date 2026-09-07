@@ -2870,6 +2870,28 @@ body.access-locked {
   font-weight: 900;
   text-decoration: none !important;
 }
+.history-copy-source-v148 {
+  display: inline;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+.history-copy-source-v148.copied {
+  color: #17613a;
+}
+.history-source-summary-v148 .history-copy-source-v148 {
+  color: #17613a;
+  font-size: 18px;
+  text-decoration: none;
+}
 
 .history-copy-import-number {
   color: #155331;

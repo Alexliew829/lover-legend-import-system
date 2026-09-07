@@ -955,7 +955,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V14.7 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V14.8 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1059,7 +1059,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
     if (!result?.ok) throw new Error(result?.message || result?.error || "整张销售卡库存处理失败。");
     if (result?.partialProcessed) throw new Error(result?.message || "检测到销售卡只有部分库存项目曾被处理，已停止整张写入。");
 
-    // V14.7: the batch endpoint has already flushed and verified Products,
+    // V14.8: the batch endpoint has already flushed and verified Products,
     // Imports, Batches, History and Sales Keys atomically. Apply the exact staged
     // canonical rows immediately; the ordinary background sync can refresh the
     // rest later without holding this inventory operation open.
@@ -4949,7 +4949,7 @@ function clearHistoryPageView() {
 
   if (output) {
     output.innerHTML =
-      '<div class="empty-state">输入进口编号、产品名称，或选择日期范围查看历史资料</div>';
+      '<div class="empty-state">输入进口编号、产品名称、地点、人员，或选择日期范围查看历史资料</div>';
   }
 
   showHistoryCopyToast("已清空本页");
@@ -5155,6 +5155,15 @@ function setupImportHistory() {
   });
 
   historyResult?.addEventListener("click", async event => {
+    const sourceButton = event.target.closest(".history-copy-source-v148");
+    if (sourceButton) {
+      const sourceName = String(sourceButton.dataset.historySource || "").trim();
+      if (!sourceName) return;
+      const copied = await copyHistoryText(sourceName, "✓ 已复制地点／人员");
+      if (copied) showHistoryProductCopied(sourceButton, sourceName);
+      return;
+    }
+
     const productButton =
       event.target.closest(".history-copy-product");
 
@@ -5821,6 +5830,47 @@ function getUserVisibleAdjustmentNote(adjustment) {
   return "";
 }
 
+function normalizeHistorySalesSourceV148(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^(fair|sales|live)\s*[·•:：-]\s*/i, "")
+    .replace(/[·•:：–—-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getHistorySalesSourceV148(adjustment) {
+  const link = historyAdjustmentSaleLinkV134(adjustment) || {};
+  const direct = [link.location, link.host, link.fairLocation]
+    .map(value => String(value || "").trim())
+    .find(Boolean);
+  if (direct) return direct.replace(/^(fair|sales|live)\s*[·•:：-]\s*/i, "").trim();
+
+  const source = String(link.source || "").trim();
+  if (source && !/^(fair|sales|live)$/i.test(source)) {
+    return source.replace(/^(fair|sales|live)\s*[·•:：-]\s*/i, "").trim();
+  }
+
+  const note = getUserVisibleAdjustmentNote(adjustment);
+  const matched = note.match(/^(?:fair|sales|live)\s*[·•:：-]\s*(.+)$/i);
+  return String(matched?.[1] || "").trim();
+}
+
+function historyAdjustmentMatchesSourceV148(adjustment, sourceKeyword) {
+  const query = normalizeHistorySalesSourceV148(sourceKeyword);
+  const source = normalizeHistorySalesSourceV148(getHistorySalesSourceV148(adjustment));
+  return Boolean(query && source && (source.includes(query) || query.includes(source)));
+}
+
+function buildHistoryAdjustmentNoteContentV148(adjustment) {
+  const source = getHistorySalesSourceV148(adjustment);
+  if (getHistoryAdjustmentType(adjustment) === "sale" && source) {
+    return `<strong>备注：</strong><button type="button" class="history-copy-source-v148" data-history-source="${escapeHTML(source)}" title="点击复制地点或人员名称">${escapeHTML(source)}</button>`;
+  }
+  return `<strong>备注：</strong>${escapeHTML(getUserVisibleAdjustmentNote(adjustment) || "—")}`;
+}
+
 // V13.7: History owns the date/time column. Remove duplicated date/time text
 // from remarks while preserving the source, location and operator explanation.
 function cleanHistoryAdjustmentNoteV131(value) {
@@ -5986,7 +6036,7 @@ function buildDailyStockAdjustmentHtml(adjustments) {
               : ""
           }
         </div>
-        <div class="history-adjustment-note"><strong>备注：</strong>${escapeHTML(note || "—")}</div>
+        <div class="history-adjustment-note">${buildHistoryAdjustmentNoteContentV148(adjustment)}</div>
       </article>
     `;
   }).join("");
@@ -6186,7 +6236,7 @@ function getHistoryNetSoldLots(options = {}) {
   // correction outside the selected range from making a historical period wrong.
   // Example: -3, +3, -3, +3, -7 => net sold 7.
   // Keep non-sale negative repairs out of sales totals.
-  const { range = null, ...lookupOptions } = options;
+  const { range = null, source = "", ...lookupOptions } = options;
   const relevant = getHistoryRelevantAdjustments(lookupOptions)
     .filter(adjustment => {
       const delta = Math.trunc(Number(adjustment?.delta) || 0);
@@ -6272,7 +6322,8 @@ function getHistoryNetSoldLots(options = {}) {
     .filter(lot => {
       if (!range || range.error) return true;
       return isDateWithinHistoryRange(historyAdjustmentEventDateV134(lot.adjustment), range);
-    });
+    })
+    .filter(lot => !source || historyAdjustmentMatchesSourceV148(lot.adjustment, source));
 }
 
 function getHistorySoldAdjustments(options = {}) {
@@ -6310,7 +6361,7 @@ function getHistorySalesLinkForAdjustmentV137(adjustment, allAdjustments) {
   return sibling ? historyAdjustmentSaleLinkV134(sibling) : null;
 }
 
-// V14.7: sum Sales-card profit and complete Sales-card cost for the exact
+// V14.8: sum Sales-card profit and complete Sales-card cost for the exact
 // net-sold lots selected by the current product/import/date filters. Group by
 // Link ID so FIFO batch splits do not count the same Sales line more than once.
 function getHistorySoldProfitTotalV137(options = {}) {
@@ -6361,7 +6412,7 @@ function buildHistorySoldCostSummary(options = {}) {
         ? `所选日期：${escapeHTML(range.startDate)}`
         : `所选期间：${escapeHTML(range.startDate)} 至 ${escapeHTML(range.endDate)}`)
     : "全部历史";
-  const pending = getHistoryPendingLegacySalesSummary(options);
+  const pending = options?.source ? {count:0, quantity:0} : getHistoryPendingLegacySalesSummary(options);
   const profitSummary = getHistorySoldProfitTotalV137(options);
   const soldQuantity = getHistorySoldQuantityTotal(options);
   const totalSalesAmount = Number(profitSummary.totalSalesCost || 0) + Number(profitSummary.totalProfit || 0);
@@ -6980,7 +7031,7 @@ function renderCompactProductHistoryByRange(
                     ${signedDelta}
                   </strong>
                   ${buildHistorySalesFinancialHtmlV134(adjustment)}
-                  <span class="product-history-adjustment-note">备注：${escapeHTML(note || "—")}</span>
+                  <span class="product-history-adjustment-note">${buildHistoryAdjustmentNoteContentV148(adjustment)}</span>
                 </div>
               `;
             }).join("")}
@@ -7055,6 +7106,63 @@ function renderCompactProductHistoryByRange(
   return true;
 }
 
+// V14.8: location/person lookup is based on surviving net-sale lots, so a
+// restored or cancelled sale does not appear or contribute to the totals.
+function renderHistorySalesSourceLookupV148(keyword, range, output) {
+  const sourceKeyword = String(keyword || "").trim();
+  if (!sourceKeyword) return false;
+
+  const allSourceLots = getHistoryNetSoldLots({ source: sourceKeyword });
+  if (!allSourceLots.length) return false;
+
+  const sourceName = getHistorySalesSourceV148(allSourceLots[0]?.adjustment) || sourceKeyword;
+  const lots = range
+    ? getHistoryNetSoldLots({ range, source: sourceKeyword })
+    : allSourceLots;
+  const adjustments = lots
+    .map(lot => ({ ...lot.adjustment, delta: -Math.max(0, Number(lot.remainingQuantity) || 0) }))
+    .sort((a, b) => {
+      const dayDiff = parseDDMMYYYY(historyAdjustmentEventDateV134(b)) - parseDDMMYYYY(historyAdjustmentEventDateV134(a));
+      if (dayDiff) return dayDiff;
+      return String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
+    });
+
+  const dateText = range
+    ? (range.isSingleDay ? range.startDate : `${range.startDate} 至 ${range.endDate}`)
+    : "全部历史";
+  const groups = new Map();
+  adjustments.forEach(adjustment => {
+    const date = historyAdjustmentEventDateV134(adjustment) || "-";
+    if (!groups.has(date)) groups.set(date, []);
+    groups.get(date).push(adjustment);
+  });
+
+  const sections = Array.from(groups.entries()).map(([date, rows]) => `
+    <section class="history-range-day history-source-results-v148">
+      <div class="history-range-day-header">
+        <strong>${escapeHTML(date)}</strong>
+        <span>销售记录 ${formatNumber(rows.length)} 笔 · 售出 ${formatNumber(rows.reduce((sum, row) => sum + Math.abs(Number(row.delta) || 0), 0))}</span>
+      </div>
+      ${buildDailyStockAdjustmentHtml(rows)}
+    </section>
+  `).join("");
+
+  output.innerHTML = `
+    <div class="history-related-notice history-source-summary-v148">
+      <div class="history-related-title">
+        <button type="button" class="history-copy-source-v148" data-history-source="${escapeHTML(sourceName)}" title="点击复制地点或人员名称">${escapeHTML(sourceName)}</button>
+      </div>
+      <div class="history-related-batch">
+        <strong>${escapeHTML(dateText)} · 有效销售记录</strong>
+        <span>可配合开始日期与结束日期继续筛选</span>
+      </div>
+    </div>
+    ${sections || '<div class="empty-state">所选日期内没有这个地点或人员的有效销售记录</div>'}
+    ${buildHistorySoldCostSummary({ range, source: sourceKeyword })}
+  `;
+  return true;
+}
+
 
 function renderImportHistoryByRange(
   startValue,
@@ -7077,6 +7185,10 @@ function renderImportHistoryByRange(
   const dateLabel = range.isSingleDay
     ? range.startDate
     : `${range.startDate} 至 ${range.endDate}`;
+
+  if (String(keyword || "").trim() && renderHistorySalesSourceLookupV148(keyword, range, output)) {
+    return;
+  }
 
   if (
     String(keyword || "").trim() &&
@@ -7190,7 +7302,11 @@ function renderImportHistoryNowV134() {
 
   const keyword = input.value.trim();
   if (!keyword) {
-    output.innerHTML = '<div class="empty-state">输入进口编号、产品名称，或选择日期范围查看历史资料</div>';
+    output.innerHTML = '<div class="empty-state">输入进口编号、产品名称、地点、人员，或选择日期范围查看历史资料</div>';
+    return;
+  }
+
+  if (renderHistorySalesSourceLookupV148(keyword, null, output)) {
     return;
   }
 
@@ -7293,7 +7409,7 @@ function renderImportHistoryNowV134() {
 
   if (!productMatches.length) {
     output.innerHTML =
-      '<div class="empty-state">找不到这个进口编号或产品名称</div>' +
+      '<div class="empty-state">找不到这个进口编号、产品名称、地点或人员</div>' +
       buildHistorySoldCostSummary({
         keyword,
         exactProduct: String(
@@ -7421,7 +7537,7 @@ function renderImportHistoryNowV134() {
                   <span class="product-history-adjustment-action">${actionLabel}</span>
                   <strong class="product-history-adjustment-quantity">${signedDelta}</strong>
                   ${buildHistorySalesFinancialHtmlV134(adjustment)}
-                  <span class="product-history-adjustment-note">备注：${escapeHTML(note || "—")}</span>
+                  <span class="product-history-adjustment-note">${buildHistoryAdjustmentNoteContentV148(adjustment)}</span>
                 </div>
               `;
             }).join("")}
@@ -10755,7 +10871,7 @@ function setupInventoryModule() {
 
   bindInventoryMinimumPriceLongPress();
   renderInventoryManagementList();
-  // V14.7: 首页显示后立即在后台预载完整销售利润资料。
+  // V14.8: 首页显示后立即在后台预载完整销售利润资料。
   // 用户稍后选择“畅销商品”或“利润最高”时通常可直接使用缓存结果。
   Promise.resolve()
     .then(() => ensureVisibleHistorySalesDetailsV134())
@@ -10881,7 +10997,7 @@ function showCopiedSyncMessage(importNumber) {
   }, 2000);
 }
 
-// V14.7: 一次扫描 History，同时建立售出数量、累计利润及最近售出索引。
+// V14.8: 一次扫描 History，同时建立售出数量、累计利润及最近售出索引。
 // 缓存以 Products 原始资料及已载入销售明细数量为签名；资料改变后自动重算。
 function getInventorySalesAnalyticsV146() {
   const productsSnapshot = String(localStorage.getItem("importSystemProducts") || "");
@@ -12045,7 +12161,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "14.7",
+      version: "14.8",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -12408,7 +12524,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V14.7 Stable",
+      updatedBy: "System V14.8 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
