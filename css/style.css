@@ -715,19 +715,20 @@ small {
   padding-top: 6px;
   border-top: 1px solid #f0c98d;
   color: #8a4b08;
+  font-size: 12px;
 }
 .inventory-sold-quantity > b {
   display: block;
   margin-top: 3px;
   color: #b42318;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 900;
   white-space: nowrap;
 }
 @media (max-width: 560px) {
   .inventory-sold-quantity { min-width: 94px; padding: 7px 8px; }
   .inventory-sold-quantity strong { font-size: 18px; }
-  .inventory-sold-quantity > b { font-size: 11px; }
+  .inventory-sold-quantity > b { font-size: 14px; }
 }
 
 .inventory-manage-head h4 {
