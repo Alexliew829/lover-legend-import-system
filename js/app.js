@@ -955,7 +955,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V14.8 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V14.9 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1059,7 +1059,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
     if (!result?.ok) throw new Error(result?.message || result?.error || "整张销售卡库存处理失败。");
     if (result?.partialProcessed) throw new Error(result?.message || "检测到销售卡只有部分库存项目曾被处理，已停止整张写入。");
 
-    // V14.8: the batch endpoint has already flushed and verified Products,
+    // V14.9: the batch endpoint has already flushed and verified Products,
     // Imports, Batches, History and Sales Keys atomically. Apply the exact staged
     // canonical rows immediately; the ordinary background sync can refresh the
     // rest later without holding this inventory operation open.
@@ -5155,7 +5155,7 @@ function setupImportHistory() {
   });
 
   historyResult?.addEventListener("click", async event => {
-    const sourceButton = event.target.closest(".history-copy-source-v148");
+    const sourceButton = event.target.closest(".history-copy-source-v149");
     if (sourceButton) {
       const sourceName = String(sourceButton.dataset.historySource || "").trim();
       if (!sourceName) return;
@@ -5830,7 +5830,7 @@ function getUserVisibleAdjustmentNote(adjustment) {
   return "";
 }
 
-function normalizeHistorySalesSourceV148(value) {
+function normalizeHistorySalesSourceV149(value) {
   return String(value || "")
     .trim()
     .toLowerCase()
@@ -5840,7 +5840,7 @@ function normalizeHistorySalesSourceV148(value) {
     .trim();
 }
 
-function getHistorySalesSourceV148(adjustment) {
+function getHistorySalesSourceV149(adjustment) {
   const link = historyAdjustmentSaleLinkV134(adjustment) || {};
   const direct = [link.location, link.host, link.fairLocation]
     .map(value => String(value || "").trim())
@@ -5857,16 +5857,28 @@ function getHistorySalesSourceV148(adjustment) {
   return String(matched?.[1] || "").trim();
 }
 
-function historyAdjustmentMatchesSourceV148(adjustment, sourceKeyword) {
-  const query = normalizeHistorySalesSourceV148(sourceKeyword);
-  const source = normalizeHistorySalesSourceV148(getHistorySalesSourceV148(adjustment));
+function historyAdjustmentMatchesSourceV149(adjustment, sourceKeyword) {
+  const query = normalizeHistorySalesSourceV149(sourceKeyword);
+  const source = normalizeHistorySalesSourceV149(getHistorySalesSourceV149(adjustment));
   return Boolean(query && source && (source.includes(query) || query.includes(source)));
 }
 
-function buildHistoryAdjustmentNoteContentV148(adjustment) {
-  const source = getHistorySalesSourceV148(adjustment);
+function getHistorySalesSourceDisplayV149(adjustment) {
+  const source = getHistorySalesSourceV149(adjustment);
+  if (!source) return "";
+  const visibleNote = getUserVisibleAdjustmentNote(adjustment);
+  if (/^(fair|sales|live)\s*[·•:：-]\s*.+$/i.test(visibleNote)) return visibleNote;
+  const link = historyAdjustmentSaleLinkV134(adjustment) || {};
+  const type = String(link.type || link.channel || link.source || "").trim().toLowerCase();
+  const channel = type === "fair" ? "Fair" : type === "live" ? "Live" : "Sales";
+  return `${channel} · ${source}`;
+}
+
+function buildHistoryAdjustmentNoteContentV149(adjustment) {
+  const source = getHistorySalesSourceV149(adjustment);
   if (getHistoryAdjustmentType(adjustment) === "sale" && source) {
-    return `<strong>备注：</strong><button type="button" class="history-copy-source-v148" data-history-source="${escapeHTML(source)}" title="点击复制地点或人员名称">${escapeHTML(source)}</button>`;
+    const display = getHistorySalesSourceDisplayV149(adjustment) || source;
+    return `<strong>备注：</strong><button type="button" class="history-copy-source-v149" data-history-source="${escapeHTML(source)}" title="点击复制地点或人员名称">${escapeHTML(display)}</button>`;
   }
   return `<strong>备注：</strong>${escapeHTML(getUserVisibleAdjustmentNote(adjustment) || "—")}`;
 }
@@ -6036,7 +6048,7 @@ function buildDailyStockAdjustmentHtml(adjustments) {
               : ""
           }
         </div>
-        <div class="history-adjustment-note">${buildHistoryAdjustmentNoteContentV148(adjustment)}</div>
+        <div class="history-adjustment-note">${buildHistoryAdjustmentNoteContentV149(adjustment)}</div>
       </article>
     `;
   }).join("");
@@ -6323,7 +6335,7 @@ function getHistoryNetSoldLots(options = {}) {
       if (!range || range.error) return true;
       return isDateWithinHistoryRange(historyAdjustmentEventDateV134(lot.adjustment), range);
     })
-    .filter(lot => !source || historyAdjustmentMatchesSourceV148(lot.adjustment, source));
+    .filter(lot => !source || historyAdjustmentMatchesSourceV149(lot.adjustment, source));
 }
 
 function getHistorySoldAdjustments(options = {}) {
@@ -6361,7 +6373,7 @@ function getHistorySalesLinkForAdjustmentV137(adjustment, allAdjustments) {
   return sibling ? historyAdjustmentSaleLinkV134(sibling) : null;
 }
 
-// V14.8: sum Sales-card profit and complete Sales-card cost for the exact
+// V14.9: sum Sales-card profit and complete Sales-card cost for the exact
 // net-sold lots selected by the current product/import/date filters. Group by
 // Link ID so FIFO batch splits do not count the same Sales line more than once.
 function getHistorySoldProfitTotalV137(options = {}) {
@@ -7031,7 +7043,7 @@ function renderCompactProductHistoryByRange(
                     ${signedDelta}
                   </strong>
                   ${buildHistorySalesFinancialHtmlV134(adjustment)}
-                  <span class="product-history-adjustment-note">${buildHistoryAdjustmentNoteContentV148(adjustment)}</span>
+                  <span class="product-history-adjustment-note">${buildHistoryAdjustmentNoteContentV149(adjustment)}</span>
                 </div>
               `;
             }).join("")}
@@ -7106,19 +7118,16 @@ function renderCompactProductHistoryByRange(
   return true;
 }
 
-// V14.8: location/person lookup is based on surviving net-sale lots, so a
-// restored or cancelled sale does not appear or contribute to the totals.
-function renderHistorySalesSourceLookupV148(keyword, range, output) {
+// V14.9: source lookup uses surviving net-sale lots. Cancelled or restored
+// sales are excluded from both the displayed records and the totals.
+function renderHistorySalesSourceLookupV149(keyword, range, output) {
   const sourceKeyword = String(keyword || "").trim();
   if (!sourceKeyword) return false;
-
   const allSourceLots = getHistoryNetSoldLots({ source: sourceKeyword });
   if (!allSourceLots.length) return false;
-
-  const sourceName = getHistorySalesSourceV148(allSourceLots[0]?.adjustment) || sourceKeyword;
-  const lots = range
-    ? getHistoryNetSoldLots({ range, source: sourceKeyword })
-    : allSourceLots;
+  const sourceName = getHistorySalesSourceV149(allSourceLots[0]?.adjustment) || sourceKeyword;
+  const sourceDisplay = getHistorySalesSourceDisplayV149(allSourceLots[0]?.adjustment) || sourceName;
+  const lots = range ? getHistoryNetSoldLots({ range, source: sourceKeyword }) : allSourceLots;
   const adjustments = lots
     .map(lot => ({ ...lot.adjustment, delta: -Math.max(0, Number(lot.remainingQuantity) || 0) }))
     .sort((a, b) => {
@@ -7126,19 +7135,15 @@ function renderHistorySalesSourceLookupV148(keyword, range, output) {
       if (dayDiff) return dayDiff;
       return String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
     });
-
-  const dateText = range
-    ? (range.isSingleDay ? range.startDate : `${range.startDate} 至 ${range.endDate}`)
-    : "全部历史";
+  const dateText = range ? (range.isSingleDay ? range.startDate : `${range.startDate} 至 ${range.endDate}`) : "全部历史";
   const groups = new Map();
   adjustments.forEach(adjustment => {
     const date = historyAdjustmentEventDateV134(adjustment) || "-";
     if (!groups.has(date)) groups.set(date, []);
     groups.get(date).push(adjustment);
   });
-
   const sections = Array.from(groups.entries()).map(([date, rows]) => `
-    <section class="history-range-day history-source-results-v148">
+    <section class="history-range-day history-source-results-v149">
       <div class="history-range-day-header">
         <strong>${escapeHTML(date)}</strong>
         <span>销售记录 ${formatNumber(rows.length)} 笔 · 售出 ${formatNumber(rows.reduce((sum, row) => sum + Math.abs(Number(row.delta) || 0), 0))}</span>
@@ -7146,11 +7151,10 @@ function renderHistorySalesSourceLookupV148(keyword, range, output) {
       ${buildDailyStockAdjustmentHtml(rows)}
     </section>
   `).join("");
-
   output.innerHTML = `
-    <div class="history-related-notice history-source-summary-v148">
+    <div class="history-related-notice history-source-summary-v149">
       <div class="history-related-title">
-        <button type="button" class="history-copy-source-v148" data-history-source="${escapeHTML(sourceName)}" title="点击复制地点或人员名称">${escapeHTML(sourceName)}</button>
+        <button type="button" class="history-copy-source-v149" data-history-source="${escapeHTML(sourceName)}" title="点击复制地点或人员名称">${escapeHTML(sourceDisplay)}</button>
       </div>
       <div class="history-related-batch">
         <strong>${escapeHTML(dateText)} · 有效销售记录</strong>
@@ -7186,7 +7190,7 @@ function renderImportHistoryByRange(
     ? range.startDate
     : `${range.startDate} 至 ${range.endDate}`;
 
-  if (String(keyword || "").trim() && renderHistorySalesSourceLookupV148(keyword, range, output)) {
+  if (String(keyword || "").trim() && renderHistorySalesSourceLookupV149(keyword, range, output)) {
     return;
   }
 
@@ -7306,7 +7310,7 @@ function renderImportHistoryNowV134() {
     return;
   }
 
-  if (renderHistorySalesSourceLookupV148(keyword, null, output)) {
+  if (renderHistorySalesSourceLookupV149(keyword, null, output)) {
     return;
   }
 
@@ -7537,7 +7541,7 @@ function renderImportHistoryNowV134() {
                   <span class="product-history-adjustment-action">${actionLabel}</span>
                   <strong class="product-history-adjustment-quantity">${signedDelta}</strong>
                   ${buildHistorySalesFinancialHtmlV134(adjustment)}
-                  <span class="product-history-adjustment-note">${buildHistoryAdjustmentNoteContentV148(adjustment)}</span>
+                  <span class="product-history-adjustment-note">${buildHistoryAdjustmentNoteContentV149(adjustment)}</span>
                 </div>
               `;
             }).join("")}
@@ -10604,7 +10608,7 @@ function clearCurrentPageUnsavedInputs() {
 
     if (output) {
       output.innerHTML =
-        '<div class="empty-state">输入进口编号、产品名称，或选择日期范围查看历史资料</div>';
+        '<div class="empty-state">输入进口编号、产品名称、地点、人员，或选择日期范围查看历史资料</div>';
     }
 
     return "已清空历史查询";
@@ -10871,7 +10875,7 @@ function setupInventoryModule() {
 
   bindInventoryMinimumPriceLongPress();
   renderInventoryManagementList();
-  // V14.8: 首页显示后立即在后台预载完整销售利润资料。
+  // V14.9: 首页显示后立即在后台预载完整销售利润资料。
   // 用户稍后选择“畅销商品”或“利润最高”时通常可直接使用缓存结果。
   Promise.resolve()
     .then(() => ensureVisibleHistorySalesDetailsV134())
@@ -10997,7 +11001,7 @@ function showCopiedSyncMessage(importNumber) {
   }, 2000);
 }
 
-// V14.8: 一次扫描 History，同时建立售出数量、累计利润及最近售出索引。
+// V14.9: 一次扫描 History，同时建立售出数量、累计利润及最近售出索引。
 // 缓存以 Products 原始资料及已载入销售明细数量为签名；资料改变后自动重算。
 function getInventorySalesAnalyticsV146() {
   const productsSnapshot = String(localStorage.getItem("importSystemProducts") || "");
@@ -12161,7 +12165,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "14.8",
+      version: "14.9",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -12524,7 +12528,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V14.8 Stable",
+      updatedBy: "System V14.9 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,

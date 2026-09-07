@@ -2870,7 +2870,8 @@ body.access-locked {
   font-weight: 900;
   text-decoration: none !important;
 }
-.history-copy-source-v148 {
+
+.history-copy-source-v149 {
   display: inline;
   border: 0;
   padding: 0;
@@ -2884,10 +2885,12 @@ body.access-locked {
   text-decoration-style: dotted;
   text-underline-offset: 3px;
 }
-.history-copy-source-v148.copied {
+
+.history-copy-source-v149.copied {
   color: #17613a;
 }
-.history-source-summary-v148 .history-copy-source-v148 {
+
+.history-source-summary-v149 .history-copy-source-v149 {
   color: #17613a;
   font-size: 18px;
   text-decoration: none;
