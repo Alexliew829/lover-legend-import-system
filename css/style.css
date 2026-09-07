@@ -3278,6 +3278,7 @@ html, body {
 /* V5.4 History sold cost total */
 .history-sold-cost-summary,
 .history-sold-quantity-summary,
+.history-total-sales-amount-summary-v142,
 .history-total-sales-cost-summary-v138,
 .history-total-profit-summary-v137 {
   margin-top: 14px;
@@ -3291,9 +3292,11 @@ html, body {
   gap: 12px;
 }
 .history-sold-cost-summary span,
+.history-total-sales-amount-summary-v142 span,
 .history-total-sales-cost-summary-v138 span,
 .history-total-profit-summary-v137 span { font-weight: 700; color: #7a271a; }
 .history-sold-cost-summary strong,
+.history-total-sales-amount-summary-v142 strong,
 .history-total-sales-cost-summary-v138 strong,
 .history-total-profit-summary-v137 strong { font-size: 18px; color: #b42318; }
 .history-cost-profit-summary-v137 {
@@ -3304,9 +3307,11 @@ html, body {
 .history-cost-profit-summary-v137 > div { min-width: 0; }
 @media (max-width: 720px) {
   .history-sold-cost-summary,
+  .history-total-sales-amount-summary-v142,
   .history-total-sales-cost-summary-v138,
   .history-total-profit-summary-v137 { align-items: flex-start; flex-direction: column; padding: 12px; }
   .history-sold-cost-summary strong,
+  .history-total-sales-amount-summary-v142 strong,
   .history-total-sales-cost-summary-v138 strong,
   .history-total-profit-summary-v137 strong { font-size: 17px; }
 }
@@ -3400,14 +3405,32 @@ html, body {
   margin-top: 14px;
   padding: 12px 14px;
   border: 1px solid #efb5ae;
-  border-bottom: 0;
-  border-radius: 14px 14px 0 0;
+  border-radius: 14px;
   background: #fff7f5;
   color: #8f2d21;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
 }
-.history-selected-period + .history-sold-quantity-summary {
-  margin-top: 0;
-  border-radius: 0;
+.history-selected-period span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  text-align: right;
+}
+.history-selected-period span b {
+  font-size: 18px;
+  color: #b42318;
+}
+@media (max-width: 720px) {
+  .history-selected-period { align-items: flex-start; gap: 8px; }
+  .history-selected-period span {
+    max-width: 48%;
+    justify-content: flex-end;
+    line-height: 1.3;
+  }
 }
 
 
