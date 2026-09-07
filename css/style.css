@@ -710,9 +710,24 @@ small {
   font-size: 10px;
   font-weight: 700;
 }
+.inventory-sold-quantity .inventory-cumulative-profit-v146 {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #f0c98d;
+  color: #8a4b08;
+}
+.inventory-sold-quantity > b {
+  display: block;
+  margin-top: 3px;
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
 @media (max-width: 560px) {
-  .inventory-sold-quantity { min-width: 78px; padding: 7px 8px; }
+  .inventory-sold-quantity { min-width: 94px; padding: 7px 8px; }
   .inventory-sold-quantity strong { font-size: 18px; }
+  .inventory-sold-quantity > b { font-size: 11px; }
 }
 
 .inventory-manage-head h4 {

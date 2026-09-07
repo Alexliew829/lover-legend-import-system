@@ -59,6 +59,7 @@ const historySalesContextLoadingV134 = new Map();
 let historyLookupRenderTokenV134 = 0;
 let historyAllSalesLinksLoadedV136 = false;
 let historyAllSalesLinksLoadingV136 = null;
+let inventorySalesAnalyticsCacheV146 = { signature: "", value: null };
 
 function setSalesInventoryOperationLockV117(active, stage = "") {
   salesInventoryOperationActiveV115 = Boolean(active);
@@ -954,7 +955,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V14.5 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V14.6 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1058,7 +1059,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
     if (!result?.ok) throw new Error(result?.message || result?.error || "整张销售卡库存处理失败。");
     if (result?.partialProcessed) throw new Error(result?.message || "检测到销售卡只有部分库存项目曾被处理，已停止整张写入。");
 
-    // V14.5: the batch endpoint has already flushed and verified Products,
+    // V14.6: the batch endpoint has already flushed and verified Products,
     // Imports, Batches, History and Sales Keys atomically. Apply the exact staged
     // canonical rows immediately; the ordinary background sync can refresh the
     // rest later without holding this inventory operation open.
@@ -6309,7 +6310,7 @@ function getHistorySalesLinkForAdjustmentV137(adjustment, allAdjustments) {
   return sibling ? historyAdjustmentSaleLinkV134(sibling) : null;
 }
 
-// V14.5: sum Sales-card profit and complete Sales-card cost for the exact
+// V14.6: sum Sales-card profit and complete Sales-card cost for the exact
 // net-sold lots selected by the current product/import/date filters. Group by
 // Link ID so FIFO batch splits do not count the same Sales line more than once.
 function getHistorySoldProfitTotalV137(options = {}) {
@@ -10754,6 +10755,14 @@ function setupInventoryModule() {
 
   bindInventoryMinimumPriceLongPress();
   renderInventoryManagementList();
+  // V14.6: 首页显示后立即在后台预载完整销售利润资料。
+  // 用户稍后选择“畅销商品”或“利润最高”时通常可直接使用缓存结果。
+  Promise.resolve()
+    .then(() => ensureVisibleHistorySalesDetailsV134())
+    .then(() => {
+      inventorySalesAnalyticsCacheV146 = { signature: "", value: null };
+      renderInventoryManagementList();
+    });
 }
 
 function bindInventoryMinimumPriceLongPress() {
@@ -10872,68 +10881,62 @@ function showCopiedSyncMessage(importNumber) {
   }, 2000);
 }
 
-// V13.7: 每个产品的「售出数量」与「畅销商品」使用 History 已验证的净卖出算法。
-// 先按完整历史配对真实销售与后续撤销/恢复，再统计仍然有效的净售出数量。
-// 这里只读取 History，不修改库存、FIFO、Sales Key、ACK 或任何库存处理逻辑。
-function getProductNetSoldQuantityV127(product) {
-  const productId = String(product?.id || "").trim();
-  const exactProduct = String(product?.name || "").trim();
-  return getHistorySoldQuantityTotal({ productId, exactProduct });
-}
+// V14.6: 一次扫描 History，同时建立售出数量、累计利润及最近售出索引。
+// 缓存以 Products 原始资料及已载入销售明细数量为签名；资料改变后自动重算。
+function getInventorySalesAnalyticsV146() {
+  const productsSnapshot = String(localStorage.getItem("importSystemProducts") || "");
+  const signature = `${productsSnapshot}|links:${historySalesDetailsByLinkV134.size}|all:${historyAllSalesLinksLoadedV136 ? 1 : 0}`;
+  if (inventorySalesAnalyticsCacheV146.signature === signature && inventorySalesAnalyticsCacheV146.value) {
+    return inventorySalesAnalyticsCacheV146.value;
+  }
 
-// V14.5: “利润最高”按每个商品仍然有效的历史净销售累计利润排序。
-// 同一个 Sales Link 因 FIFO 分批时只计算一次，并按尚未撤销的数量比例计入。
-function buildProductNetSoldProfitIndexV145() {
+  const quantityById = new Map(), quantityByName = new Map();
+  const profitById = new Map(), profitByName = new Map();
+  const latestById = new Map(), latestByName = new Map();
+  const profitGroups = new Map();
   const allAdjustments = getAllHistoryStockAdjustments();
-  const grouped = new Map();
+
   getHistoryNetSoldLots().forEach(lot => {
     const adjustment = lot?.adjustment || {};
+    const quantity = Math.max(0, Number(lot.remainingQuantity) || 0);
+    const productId = String(adjustment.productId || "").trim();
+    const productName = String(adjustment.productName || "").trim().toLowerCase();
+
+    if (productId) quantityById.set(productId, (Number(quantityById.get(productId)) || 0) + quantity);
+    if (productName) quantityByName.set(productName, (Number(quantityByName.get(productName)) || 0) + quantity);
+
+    const dayTime = parseDDMMYYYY(historyAdjustmentEventDateV134(adjustment));
+    if (dayTime) {
+      const match = String(historyAdjustmentTimeV131(adjustment) || "").match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+      const offset = match ? ((Number(match[1]) * 60 + Number(match[2])) * 60 + Number(match[3] || 0)) * 1000 : 0;
+      const stamp = dayTime + offset;
+      if (productId) latestById.set(productId, Math.max(Number(latestById.get(productId)) || 0, stamp));
+      if (productName) latestByName.set(productName, Math.max(Number(latestByName.get(productName)) || 0, stamp));
+    }
+
     const link = getHistorySalesLinkForAdjustmentV137(adjustment, allAdjustments);
     const linkId = String(link?.linkId || "").trim();
     const detail = historySalesDetailsByLinkV134.get(linkId) || link;
     const profit = Number(detail?.profit);
     const originalQuantity = Math.max(1, Number(detail?.quantity || link?.processedQty || 0) || 1);
     if (!linkId || !Number.isFinite(profit)) return;
-
-    const productId = String(adjustment.productId || "").trim();
-    const productName = String(adjustment.productName || "").trim().toLowerCase();
     const productKey = productId ? `id:${productId}` : `name:${productName}`;
     const key = `${productKey}::${linkId}`;
-    const entry = grouped.get(key) || { productId, productName, originalQuantity, profit, quantity: 0 };
-    entry.quantity += Math.max(0, Number(lot.remainingQuantity) || 0);
-    grouped.set(key, entry);
+    const entry = profitGroups.get(key) || { productId, productName, originalQuantity, profit, quantity: 0 };
+    entry.quantity += quantity;
+    profitGroups.set(key, entry);
   });
 
-  const byId = new Map(), byName = new Map();
-  grouped.forEach(entry => {
+  profitGroups.forEach(entry => {
     const quantity = Math.min(entry.originalQuantity, entry.quantity);
     const netProfit = entry.profit * (quantity / entry.originalQuantity);
-    if (entry.productId) byId.set(entry.productId, (Number(byId.get(entry.productId)) || 0) + netProfit);
-    if (entry.productName) byName.set(entry.productName, (Number(byName.get(entry.productName)) || 0) + netProfit);
+    if (entry.productId) profitById.set(entry.productId, (Number(profitById.get(entry.productId)) || 0) + netProfit);
+    if (entry.productName) profitByName.set(entry.productName, (Number(profitByName.get(entry.productName)) || 0) + netProfit);
   });
-  return { byId, byName };
-}
 
-// V14.5: use the same verified net-sold lots as the History totals. A sale that
-// was fully restored is absent, so it cannot incorrectly make a product recent.
-function buildLatestNetSoldTimeIndexV141() {
-  const byId = new Map(), byName = new Map();
-  getHistoryNetSoldLots().forEach(lot => {
-    const adjustment = lot?.adjustment || {};
-    const dayTime = parseDDMMYYYY(historyAdjustmentEventDateV134(adjustment));
-    if (!dayTime) return;
-    const timeText = historyAdjustmentTimeV131(adjustment);
-    const match = String(timeText || "").match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-    const timeOffset = match
-      ? ((Number(match[1]) * 60 + Number(match[2])) * 60 + Number(match[3] || 0)) * 1000
-      : 0;
-    const stamp = dayTime + timeOffset;
-    const id = String(adjustment.productId || "").trim();
-    const name = String(adjustment.productName || "").trim().toLowerCase();
-    if (id) byId.set(id, Math.max(Number(byId.get(id) || 0), stamp));
-    if (name) byName.set(name, Math.max(Number(byName.get(name) || 0), stamp));
-  });
-  return { byId, byName };
+  const value = { quantityById, quantityByName, profitById, profitByName, latestById, latestByName };
+  inventorySalesAnalyticsCacheV146 = { signature, value };
+  return value;
 }
 
 function renderInventoryManagementList() {
@@ -10941,10 +10944,7 @@ function renderInventoryManagementList() {
   const sortMode = document.getElementById("inventorySort").value;
   const imports = getImports();
   const batches = getBatches();
-  const latestSoldIndexV141 = buildLatestNetSoldTimeIndexV141();
-  const profitIndexV145 = sortMode === "profit-desc"
-    ? buildProductNetSoldProfitIndexV145()
-    : { byId: new Map(), byName: new Map() };
+  const salesAnalyticsV146 = getInventorySalesAnalyticsV146();
 
   const batchByImportNumber = new Map(
     batches
@@ -11075,11 +11075,14 @@ function renderInventoryManagementList() {
         latestImportNumber:
           String(batchStocks[0]?.importNumber || matchingImports[0]?.importNumber || "").trim(),
         latestSoldAt:
-          Number(latestSoldIndexV141.byId.get(String(product.id || "").trim()) || 0) ||
-          Number(latestSoldIndexV141.byName.get(String(product.name || "").trim().toLowerCase()) || 0),
+          Number(salesAnalyticsV146.latestById.get(String(product.id || "").trim()) || 0) ||
+          Number(salesAnalyticsV146.latestByName.get(String(product.name || "").trim().toLowerCase()) || 0),
+        netSoldQuantity:
+          Number(salesAnalyticsV146.quantityById.get(String(product.id || "").trim()) || 0) ||
+          Number(salesAnalyticsV146.quantityByName.get(String(product.name || "").trim().toLowerCase()) || 0),
         cumulativeSoldProfit:
-          Number(profitIndexV145.byId.get(String(product.id || "").trim()) || 0) ||
-          Number(profitIndexV145.byName.get(String(product.name || "").trim().toLowerCase()) || 0),
+          Number(salesAnalyticsV146.profitById.get(String(product.id || "").trim()) || 0) ||
+          Number(salesAnalyticsV146.profitByName.get(String(product.name || "").trim().toLowerCase()) || 0),
         displayLastImport:
           (() => {
             const latestRecord = matchingImports[0];
@@ -11137,7 +11140,7 @@ function renderInventoryManagementList() {
       return String(a.name).localeCompare(String(b.name), "zh");
     }
     if (sortMode === "bestseller-desc") {
-      const salesDiff = getProductNetSoldQuantityV127(b) - getProductNetSoldQuantityV127(a);
+      const salesDiff = Number(b.netSoldQuantity || 0) - Number(a.netSoldQuantity || 0);
       if (salesDiff) return salesDiff;
       return String(a.name).localeCompare(String(b.name), "zh");
     }
@@ -11220,7 +11223,8 @@ function renderInventoryManagementList() {
       ? `${formatMoney(originalCost)}${originalCurrency ? ` ${escapeHTML(originalCurrency)}` : ""}`
       : `0.00${originalCurrency ? ` ${escapeHTML(originalCurrency)}` : ""}`;
     const inventoryValue = stock * averageCost;
-    const soldQuantity = getProductNetSoldQuantityV127(product);
+    const soldQuantity = Number(product.netSoldQuantity) || 0;
+    const cumulativeProfit = Number(product.cumulativeSoldProfit) || 0;
 
     return `
       <article class="inventory-manage-card"
@@ -11251,8 +11255,9 @@ function renderInventoryManagementList() {
           </div>
           <div class="inventory-sold-quantity" title="按 Import History 的实际净售出数量计算">
             <span>售出数量</span>
-            <strong>${formatNumber(soldQuantity)}</strong>
-            <small>棵</small>
+            <div><strong>${formatNumber(soldQuantity)}</strong><small>棵</small></div>
+            <span class="inventory-cumulative-profit-v146">累计利润</span>
+            <b>${formatMoney(cumulativeProfit, "RM ")}</b>
           </div>
         </div>
 
@@ -12040,7 +12045,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "14.5",
+      version: "14.6",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -12403,7 +12408,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V14.5 Stable",
+      updatedBy: "System V14.6 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
