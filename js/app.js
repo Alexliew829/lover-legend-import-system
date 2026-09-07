@@ -954,7 +954,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V14.0 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V14.1 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1058,7 +1058,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
     if (!result?.ok) throw new Error(result?.message || result?.error || "整张销售卡库存处理失败。");
     if (result?.partialProcessed) throw new Error(result?.message || "检测到销售卡只有部分库存项目曾被处理，已停止整张写入。");
 
-    // V14.0: the batch endpoint has already flushed and verified Products,
+    // V14.1: the batch endpoint has already flushed and verified Products,
     // Imports, Batches, History and Sales Keys atomically. Apply the exact staged
     // canonical rows immediately; the ordinary background sync can refresh the
     // rest later without holding this inventory operation open.
@@ -6309,7 +6309,7 @@ function getHistorySalesLinkForAdjustmentV137(adjustment, allAdjustments) {
   return sibling ? historyAdjustmentSaleLinkV134(sibling) : null;
 }
 
-// V14.0: sum Sales-card profit and complete Sales-card cost for the exact
+// V14.1: sum Sales-card profit and complete Sales-card cost for the exact
 // net-sold lots selected by the current product/import/date filters. Group by
 // Link ID so FIFO batch splits do not count the same Sales line more than once.
 function getHistorySoldProfitTotalV137(options = {}) {
@@ -10870,11 +10870,34 @@ function getProductNetSoldQuantityV127(product) {
   return getHistorySoldQuantityTotal({ productId, exactProduct });
 }
 
+// V14.1: use the same verified net-sold lots as the History totals. A sale that
+// was fully restored is absent, so it cannot incorrectly make a product recent.
+function buildLatestNetSoldTimeIndexV141() {
+  const byId = new Map(), byName = new Map();
+  getHistoryNetSoldLots().forEach(lot => {
+    const adjustment = lot?.adjustment || {};
+    const dayTime = parseDDMMYYYY(historyAdjustmentEventDateV134(adjustment));
+    if (!dayTime) return;
+    const timeText = historyAdjustmentTimeV131(adjustment);
+    const match = String(timeText || "").match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    const timeOffset = match
+      ? ((Number(match[1]) * 60 + Number(match[2])) * 60 + Number(match[3] || 0)) * 1000
+      : 0;
+    const stamp = dayTime + timeOffset;
+    const id = String(adjustment.productId || "").trim();
+    const name = String(adjustment.productName || "").trim().toLowerCase();
+    if (id) byId.set(id, Math.max(Number(byId.get(id) || 0), stamp));
+    if (name) byName.set(name, Math.max(Number(byName.get(name) || 0), stamp));
+  });
+  return { byId, byName };
+}
+
 function renderInventoryManagementList() {
   const keyword = document.getElementById("inventorySearch").value.trim().toLowerCase();
   const sortMode = document.getElementById("inventorySort").value;
   const imports = getImports();
   const batches = getBatches();
+  const latestSoldIndexV141 = buildLatestNetSoldTimeIndexV141();
 
   const batchByImportNumber = new Map(
     batches
@@ -11004,6 +11027,9 @@ function renderInventoryManagementList() {
         latestOriginalCurrency,
         latestImportNumber:
           String(batchStocks[0]?.importNumber || matchingImports[0]?.importNumber || "").trim(),
+        latestSoldAt:
+          Number(latestSoldIndexV141.byId.get(String(product.id || "").trim()) || 0) ||
+          Number(latestSoldIndexV141.byName.get(String(product.name || "").trim().toLowerCase()) || 0),
         displayLastImport:
           (() => {
             const latestRecord = matchingImports[0];
@@ -11055,6 +11081,11 @@ function renderInventoryManagementList() {
     const valueB = stockB * costB;
 
     if (sortMode === "name") return String(a.name).localeCompare(String(b.name), "zh");
+    if (sortMode === "latest-sold") {
+      const latestSaleDiff = Number(b.latestSoldAt || 0) - Number(a.latestSoldAt || 0);
+      if (latestSaleDiff) return latestSaleDiff;
+      return String(a.name).localeCompare(String(b.name), "zh");
+    }
     if (sortMode === "bestseller-desc") {
       const salesDiff = getProductNetSoldQuantityV127(b) - getProductNetSoldQuantityV127(a);
       if (salesDiff) return salesDiff;
@@ -11954,7 +11985,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "14.0",
+      version: "14.1",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -12317,7 +12348,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V14.0 Stable",
+      updatedBy: "System V14.1 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
