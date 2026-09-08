@@ -5750,7 +5750,8 @@ function getDailyStockAdjustments(selectedDate, keyword = "") {
   const normalizedDate =
     normalizeDateToDDMMYYYY(selectedDate);
 
-  const rows = getProducts()
+  // V15.4: restore the proven V15.0 date-query return contract.
+  return getProducts()
     .flatMap(product =>
       getProductStockAdjustments(product)
         .filter(adjustment =>
