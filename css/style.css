@@ -993,6 +993,15 @@ input::placeholder {
   line-height: 1.45;
 }
 
+.minimum-price-settings-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+#settingsPage .panel h4 {
+  margin: 18px 0 0;
+  color: var(--green);
+}
+
 .remove-inventory-btn {
   background: #fee4e2;
   color: #b42318;
@@ -1003,6 +1012,10 @@ input::placeholder {
 }
 
 @media (max-width: 520px) {
+  .minimum-price-settings-grid {
+    grid-template-columns: 1fr;
+  }
+
   .settings-tools-grid {
     grid-template-columns: 1fr;
   }

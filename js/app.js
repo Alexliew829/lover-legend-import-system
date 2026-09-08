@@ -955,7 +955,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V15.6 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V15.7 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1059,7 +1059,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
     if (!result?.ok) throw new Error(result?.message || result?.error || "整张销售卡库存处理失败。");
     if (result?.partialProcessed) throw new Error(result?.message || "检测到销售卡只有部分库存项目曾被处理，已停止整张写入。");
 
-    // V15.6: the batch endpoint has already flushed and verified Products,
+    // V15.7: the batch endpoint has already flushed and verified Products,
     // Imports, Batches, History and Sales Keys atomically. Apply the exact staged
     // canonical rows immediately; the ordinary background sync can refresh the
     // rest later without holding this inventory operation open.
@@ -2566,6 +2566,83 @@ function setupNavigation() {
   });
 }
 
+const MINIMUM_PRICE_SETTING_FIELDS_V157 = Object.freeze({
+  margin0To300: { id: "minimumMargin0To300", label: "成本 RM0–300 净利率", suffix: "%" },
+  margin300To500: { id: "minimumMargin300To500", label: "成本 RM300.01–500 净利率", suffix: "%" },
+  margin500To800: { id: "minimumMargin500To800", label: "成本 RM500.01–799.99 净利率", suffix: "%" },
+  margin800To5000: { id: "minimumMargin800To5000", label: "成本 RM800–4,999.99 净利率", suffix: "%" },
+  margin5000Plus: { id: "minimumMargin5000Plus", label: "成本 RM5,000以上净利率", suffix: "%" },
+  freightUnder300: { id: "minimumFreightUnder300", label: "售价低于 RM300 木架＋运费", prefix: "RM " },
+  freight300To500: { id: "minimumFreight300To500", label: "售价 RM300–500 木架＋运费", prefix: "RM " },
+  freightOver500: { id: "minimumFreightOver500", label: "售价高于 RM500、成本低于 RM800 木架＋运费", prefix: "RM " },
+  freightHighCost: { id: "minimumFreightHighCost", label: "成本 RM800以上木架＋运费", prefix: "RM " }
+});
+
+function populateMinimumPriceSettingsV157() {
+  const rules = getMinimumPriceRulesV157();
+  Object.entries(MINIMUM_PRICE_SETTING_FIELDS_V157).forEach(([key, field]) => {
+    const input = document.getElementById(field.id);
+    if (input) input.value = formatMoney(rules[key]);
+  });
+}
+
+function setupMinimumPriceSettingsV157() {
+  populateMinimumPriceSettingsV157();
+  Object.values(MINIMUM_PRICE_SETTING_FIELDS_V157).forEach(field => {
+    const input = document.getElementById(field.id);
+    if (!input) return;
+    input.addEventListener("focus", () => input.select());
+    input.addEventListener("blur", () => formatInputAmount(input));
+  });
+
+  const button = document.getElementById("saveMinimumPriceSettingsBtn");
+  if (!button) return;
+  button.addEventListener("click", () => {
+    const currentRules = getMinimumPriceRulesV157();
+    const nextRules = {};
+    const changes = [];
+
+    for (const [key, field] of Object.entries(MINIMUM_PRICE_SETTING_FIELDS_V157)) {
+      const input = document.getElementById(field.id);
+      const value = parseAmount(input?.value || "");
+      const isMargin = key.startsWith("margin");
+      if (!Number.isFinite(value) || value < 0 || (isMargin && value >= 90)) {
+        alert(isMargin
+          ? `${field.label}必须是0至89.99之间。`
+          : `${field.label}必须是0或正数。`);
+        input?.focus();
+        return;
+      }
+      nextRules[key] = Math.round((value + Number.EPSILON) * 100) / 100;
+      if (Math.abs(nextRules[key] - currentRules[key]) >= 0.005) {
+        const oldValue = `${field.prefix || ""}${formatMoney(currentRules[key])}${field.suffix || ""}`;
+        const newValue = `${field.prefix || ""}${formatMoney(nextRules[key])}${field.suffix || ""}`;
+        changes.push(`${field.label}：${oldValue} → ${newValue}`);
+      }
+    }
+
+    const status = document.getElementById("minimumPriceSettingsStatus");
+    if (!changes.length) {
+      if (status) status.textContent = "设置没有改变";
+      return;
+    }
+
+    if (!window.confirm(`确认保存以下最低售价设置？\n\n${changes.join("\n")}\n\n确认后，所有自动最低售价会立即重新计算；手动售价保持不变。`)) {
+      if (status) status.textContent = "已取消，设置没有改变";
+      return;
+    }
+
+    const settings = loadJSON("importSystemSettings", {});
+    saveJSON("importSystemSettings", { ...settings, minimumPriceRules: nextRules });
+    saveJSON("importSystemProducts", getProducts().map(normalizeProductMinimumPriceV157));
+    if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
+    renderInventoryManagementList();
+    renderDashboard();
+    if (status) status.textContent = "最低售价设置已保存，自动售价已重新计算";
+    setTimeout(() => { if (status) status.textContent = ""; }, 2600);
+  });
+}
+
 function setupSettings() {
   const defaults = {
     CNY: 1.60,
@@ -2587,17 +2664,39 @@ function setupSettings() {
     input.value = formatMoney(saved[currency] ?? defaults[currency]);
     input.addEventListener("focus", () => input.select());
     input.addEventListener("blur", () => formatInputAmount(input));
+    input.addEventListener("drop", event => {
+      event.preventDefault();
+      const status = document.getElementById("settingsStatus");
+      if (status) status.textContent = "已阻止拖放覆盖汇率，请直接输入数值";
+    });
   });
 
   document.getElementById("saveSettingsBtn").addEventListener("click", () => {
     const data = {};
+    const changes = [];
+    const currentSettings = loadJSON("importSystemSettings", {});
 
     Object.entries(ids).forEach(([currency, id]) => {
       data[currency] = parseAmount(document.getElementById(id).value);
+      const oldValue = Number(currentSettings[currency] ?? defaults[currency]);
+      if (Math.abs(data[currency] - oldValue) >= 0.0005) {
+        changes.push(`${currency}：${formatMoney(oldValue)} → ${formatMoney(data[currency])}`);
+      }
     });
 
-    const currentSettings =
-      loadJSON("importSystemSettings", {});
+    const status = document.getElementById("settingsStatus");
+    if (Object.values(data).some(value => !Number.isFinite(value) || value <= 0)) {
+      alert("汇率必须是大于0的数字。设置没有保存。");
+      return;
+    }
+    if (!changes.length) {
+      status.textContent = "汇率没有改变";
+      return;
+    }
+    if (!window.confirm(`确认保存以下默认汇率？\n\n${changes.join("\n")}\n\n确认后，新进口记录将采用新的默认汇率。`)) {
+      status.textContent = "已取消，汇率没有改变";
+      return;
+    }
 
     saveJSON("importSystemSettings", {
       ...currentSettings,
@@ -2608,7 +2707,6 @@ function setupSettings() {
       markCloudSettingsSaved();
     }
 
-    const status = document.getElementById("settingsStatus");
     status.textContent = "设置已保存";
     setTimeout(() => {
       status.textContent = "";
@@ -2616,6 +2714,7 @@ function setupSettings() {
   });
 
   setupPasswordChange();
+  setupMinimumPriceSettingsV157();
   setupDeviceBiometricSettings();
   setupDataTools();
   setupHistoricalSalesRepairTools();
@@ -2936,18 +3035,91 @@ function setupProductModule() {
   renderProductList();
 }
 
-function getProducts() {
-  return loadJSON("importSystemProducts", []).map(product => ({
+const DEFAULT_MINIMUM_PRICE_RULES_V157 = Object.freeze({
+  margin0To300: 30,
+  margin300To500: 35,
+  margin500To800: 40,
+  margin800To5000: 45,
+  margin5000Plus: 50,
+  freightUnder300: 30,
+  freight300To500: 50,
+  freightOver500: 80,
+  freightHighCost: 120
+});
+
+function getMinimumPriceRulesV157() {
+  const saved = loadJSON("importSystemSettings", {});
+  const rules = saved.minimumPriceRules && typeof saved.minimumPriceRules === "object"
+    ? saved.minimumPriceRules
+    : {};
+  const normalized = {};
+  Object.entries(DEFAULT_MINIMUM_PRICE_RULES_V157).forEach(([key, fallback]) => {
+    const value = Number(rules[key]);
+    normalized[key] = Number.isFinite(value) && value >= 0 ? value : fallback;
+  });
+  return normalized;
+}
+
+function getAutomaticMinimumPriceV157(averageCost, configuredRules = null) {
+  const cost = Math.max(0, Number(averageCost) || 0);
+  if (cost <= 0) return 0;
+
+  const rules = configuredRules || getMinimumPriceRulesV157();
+  const targetMarginPercent = cost <= 300 ? rules.margin0To300
+    : cost <= 500 ? rules.margin300To500
+      : cost < 800 ? rules.margin500To800
+        : cost < 5000 ? rules.margin800To5000
+          : rules.margin5000Plus;
+  const targetMargin = targetMarginPercent / 100;
+  const denominator = 1 - 0.10 - targetMargin;
+  if (denominator <= 0) return 0;
+  let deliveryCost = rules.freightHighCost;
+
+  if (cost < 800) {
+    const under300Price = (cost + rules.freightUnder300) / denominator;
+    const midPrice = (cost + rules.freight300To500) / denominator;
+    deliveryCost = under300Price < 300
+      ? rules.freightUnder300
+      : midPrice <= 500
+        ? rules.freight300To500
+        : rules.freightOver500;
+  }
+
+  return Math.ceil((((cost + deliveryCost) / denominator) - 1e-9) / 10) * 10;
+}
+
+function isMinimumPriceManualV157(product) {
+  if (typeof product?.minimumPriceManual === "boolean") return product.minimumPriceManual;
+  // Preserve every existing non-zero price as a manual price.
+  return Math.max(0, Number(product?.minimumPrice) || 0) > 0;
+}
+
+function normalizeProductMinimumPriceV157(product, configuredRules = null) {
+  const minimumPriceManual = isMinimumPriceManualV157(product);
+  const storedPrice = Math.max(0, Number(product?.minimumPrice) || 0);
+  return {
     ...product,
-    minimumPrice: Math.max(0, Number(product?.minimumPrice) || 0)
-  }));
+    minimumPriceManual,
+    minimumPrice: minimumPriceManual
+      ? storedPrice
+      : getAutomaticMinimumPriceV157(product?.averageCost, configuredRules)
+  };
+}
+
+function getProducts() {
+  const rules = getMinimumPriceRulesV157();
+  return loadJSON("importSystemProducts", [])
+    .map(product => normalizeProductMinimumPriceV157(product, rules));
 }
 
 function saveProducts(products) {
   const previous = getProducts();
-  saveJSON("importSystemProducts", products);
+  const rules = getMinimumPriceRulesV157();
+  const normalizedProducts = products
+    .map(product => normalizeProductMinimumPriceV157(product, rules));
+  saveJSON("importSystemProducts", normalizedProducts);
   if (typeof markCloudCollectionSaved === "function") {
-    markCloudCollectionSaved("products", previous, products);
+    markCloudCollectionSaved("products", previous, normalizedProducts);
   }
 }
 
@@ -3026,6 +3198,7 @@ function saveProduct() {
       stock: 0,
       averageCost: 0,
       minimumPrice: 0,
+      minimumPriceManual: false,
       lastImport: "",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -5068,7 +5241,7 @@ function setupImportHistory() {
   };
 
   button?.addEventListener("click", () => {
-    // V15.6: normalize both visible date fields at click time.  Either field
+    // V15.7: normalize both visible date fields at click time.  Either field
     // may stand alone; getHistoryDateRange treats it as one exact day.
     normalizeHistoryDateField(startInput, startPicker);
     normalizeHistoryDateField(endInput, endPicker);
@@ -5750,7 +5923,7 @@ function getDailyStockAdjustments(selectedDate, keyword = "") {
   const normalizedDate =
     normalizeDateToDDMMYYYY(selectedDate);
 
-  // V15.6: restore the proven V15.0 date-query return contract.
+  // V15.7: restore the proven V15.0 date-query return contract.
   return getProducts()
     .flatMap(product =>
       getProductStockAdjustments(product)
@@ -6264,7 +6437,7 @@ function getHistoryNetSoldLots(options = {}) {
       // Only confirmed/typed sales enter the sales queue. Legacy unclassified
       // negatives are excluded. Likewise, an unclassified legacy positive must
       // not silently reverse a confirmed sale.
-      // V15.6: retain positive changes only as possible reversals. Explicit
+      // V15.7: retain positive changes only as possible reversals. Explicit
       // Sales restores are linked; an unlinked positive may cancel only one
       // recent, exact opposite legacy/test entry below.
       return (delta < 0 && type === "sale") ||
@@ -6315,7 +6488,7 @@ function getHistoryNetSoldLots(options = {}) {
 
     // A linked Sales restore reverses its matching queue normally.
     if (!hasExplicitRestoreLink(adjustment)) {
-      // V15.6: an unlinked +N is a test/manual undo only when it exactly
+      // V15.7: an unlinked +N is a test/manual undo only when it exactly
       // matches one immediately preceding -N for the same product/import and
       // occurs within 15 minutes. It must never consume unrelated sales FIFO.
       const positiveTime = Date.parse(String(adjustment.createdAt || ""));
@@ -6402,7 +6575,7 @@ function getHistorySalesLinkForAdjustmentV137(adjustment, allAdjustments) {
   return sibling ? historyAdjustmentSaleLinkV134(sibling) : null;
 }
 
-// V15.6: sum Sales-card profit and complete Sales-card cost for the exact
+// V15.7: sum Sales-card profit and complete Sales-card cost for the exact
 // net-sold lots selected by the current product/import/date filters. Group by
 // Link ID so FIFO batch splits do not count the same Sales line more than once.
 function getHistorySoldProfitTotalV137(options = {}) {
@@ -7147,7 +7320,7 @@ function renderCompactProductHistoryByRange(
   return true;
 }
 
-// V15.6: source lookup uses surviving net-sale lots. Cancelled or restored
+// V15.7: source lookup uses surviving net-sale lots. Cancelled or restored
 // sales are excluded from both the displayed records and the totals.
 function renderHistorySalesSourceLookupV149(keyword, range, output) {
   const sourceKeyword = String(keyword || "").trim();
@@ -10290,7 +10463,8 @@ function normalizeMinimumPriceInput(value) {
     .replace(/,/g, "")
     .trim();
 
-  if (normalized === "" || !/^\d+(?:\.\d{1,2})?$/.test(normalized)) {
+  if (normalized === "") return 0;
+  if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) {
     return null;
   }
 
@@ -10310,25 +10484,32 @@ async function editProductMinimumPrice(productId) {
 
   const product = products[productIndex];
   const currentMinimumPrice = Math.max(0, Number(product.minimumPrice) || 0);
+  const currentMinimumPriceManual = isMinimumPriceManualV157(product);
   const entered = window.prompt(
-    `修改最低售价：${product.name}\n\n目前最低售价：${formatMoney(currentMinimumPrice, "RM ")}\n请输入新的最低售价（最多2位小数）`,
+    `修改最低售价：${product.name}\n\n目前最低售价：${formatMoney(currentMinimumPrice, "RM ")}\n请输入新的最低售价（最多2位小数）\n输入0或清空后确认 = 按平均成本自动计算`,
     currentMinimumPrice.toFixed(2)
   );
   if (entered === null) return;
 
-  const nextMinimumPrice = normalizeMinimumPriceInput(entered);
-  if (nextMinimumPrice === null) {
+  const enteredMinimumPrice = normalizeMinimumPriceInput(entered);
+  if (enteredMinimumPrice === null) {
     alert("最低售价必须是0或正数，最多2位小数。");
     return;
   }
-  if (Math.abs(nextMinimumPrice - currentMinimumPrice) < 0.005) {
+  const restoreAutomatic = enteredMinimumPrice === 0;
+  const nextMinimumPrice = restoreAutomatic
+    ? getAutomaticMinimumPriceV157(product.averageCost)
+    : enteredMinimumPrice;
+  const nextMinimumPriceManual = !restoreAutomatic;
+  if (Math.abs(nextMinimumPrice - currentMinimumPrice) < 0.005 &&
+      nextMinimumPriceManual === currentMinimumPriceManual) {
     const status = document.getElementById("batchProductStockStatus");
     if (status) status.textContent = "最低售价没有改变";
     return;
   }
 
   const confirmed = window.confirm(
-    `确认修改最低售价？\n\n产品：${product.name}\n目前：${formatMoney(currentMinimumPrice, "RM ")}\n修改为：${formatMoney(nextMinimumPrice, "RM ")}\n\n最低售价只作为销售底价资料，不会改变库存数量、平均成本或库存总值。`
+    `确认修改最低售价？\n\n产品：${product.name}\n目前：${formatMoney(currentMinimumPrice, "RM ")}\n修改为：${formatMoney(nextMinimumPrice, "RM ")}\n\n${restoreAutomatic ? "保存后按平均成本自动计算。" : "保存后采用本次手动价格。"}\n最低售价不会改变库存数量、平均成本或库存总值。`
   );
   if (!confirmed) return;
 
@@ -10341,6 +10522,7 @@ async function editProductMinimumPrice(productId) {
   products[productIndex] = {
     ...product,
     minimumPrice: nextMinimumPrice,
+    minimumPriceManual: nextMinimumPriceManual,
     updatedAt
   };
 
@@ -10355,7 +10537,7 @@ async function editProductMinimumPrice(productId) {
   if (status) status.textContent = `同步中：${product.name} 最低售价 ${formatMoney(nextMinimumPrice, "RM ")}`;
 
   try {
-    await updateProductMinimumPriceFast(id, nextMinimumPrice, updatedAt);
+    await updateProductMinimumPriceFast(id, nextMinimumPrice, updatedAt, nextMinimumPriceManual);
     if (status) status.textContent = `已更新：${product.name} 最低售价 ${formatMoney(nextMinimumPrice, "RM ")}`;
   } catch (error) {
     const latestProducts = getProducts();
@@ -10364,6 +10546,7 @@ async function editProductMinimumPrice(productId) {
       latestProducts[rollbackIndex] = {
         ...latestProducts[rollbackIndex],
         minimumPrice: currentMinimumPrice,
+        minimumPriceManual: currentMinimumPriceManual,
         updatedAt: product.updatedAt || ""
       };
       saveJSON("importSystemProducts", latestProducts);
@@ -10660,12 +10843,15 @@ function clearCurrentPageUnsavedInputs() {
         );
       }
     });
+    populateMinimumPriceSettingsV157();
 
     const settingsStatus = document.getElementById("settingsStatus");
+    const minimumPriceSettingsStatus = document.getElementById("minimumPriceSettingsStatus");
     const toolsStatus = document.getElementById("dataToolsStatus");
     const restoreInput = document.getElementById("restoreFileInput");
 
     if (settingsStatus) settingsStatus.textContent = "";
+    if (minimumPriceSettingsStatus) minimumPriceSettingsStatus.textContent = "";
     if (toolsStatus) toolsStatus.textContent = "";
     if (restoreInput) restoreInput.value = "";
 
@@ -10904,7 +11090,7 @@ function setupInventoryModule() {
 
   bindInventoryMinimumPriceLongPress();
   renderInventoryManagementList();
-  // V15.6: 首页显示后立即在后台预载完整销售利润资料。
+  // V15.7: 首页显示后立即在后台预载完整销售利润资料。
   // 用户稍后选择“畅销商品”或“利润最高”时通常可直接使用缓存结果。
   Promise.resolve()
     .then(() => ensureVisibleHistorySalesDetailsV134())
@@ -11030,7 +11216,7 @@ function showCopiedSyncMessage(importNumber) {
   }, 2000);
 }
 
-// V15.6: 一次扫描 History，同时建立售出数量、累计利润及最近售出索引。
+// V15.7: 一次扫描 History，同时建立售出数量、累计利润及最近售出索引。
 // 缓存以 Products 原始资料及已载入销售明细数量为签名；资料改变后自动重算。
 function getInventorySalesAnalyticsV146() {
   const productsSnapshot = String(localStorage.getItem("importSystemProducts") || "");
@@ -11308,7 +11494,7 @@ function renderInventoryManagementList() {
     return parseDDMMYYYY(b.displayLastImport) - parseDDMMYYYY(a.displayLastImport);
   });
 
-  // V15.6: both views consume this same sorted and filtered product array.
+  // V15.7: both views consume this same sorted and filtered product array.
   inventoryVisibleProductsV153 = products.map(product => ({ ...product }));
 
   document.getElementById("inventoryPageCount").textContent = `${products.length} 项`;
@@ -11446,7 +11632,7 @@ function renderInventoryManagementList() {
 
 
 function getOriginalCostSummaryRows() {
-  // V15.6: these are the actual objects just rendered by Inventory Management.
+  // V15.7: these are the actual objects just rendered by Inventory Management.
   // There is deliberately no second independent filter pass here.
   return inventoryVisibleProductsV153.map(product => ({
     id: String(product.id || ""),
@@ -12238,7 +12424,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "15.6",
+      version: "15.7",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -12601,7 +12787,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V15.6 Stable",
+      updatedBy: "System V15.7 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -12662,7 +12848,7 @@ function registerServiceWorker() {
 }
 
 
-// V15.6 Shared quick navigation.  It deliberately observes only page/result
+// V15.7 Shared quick navigation.  It deliberately observes only page/result
 // containers; it must never watch or mutate the history filter controls.
 (function(){
   function setupHistoryScrollButton(){
