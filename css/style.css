@@ -3697,7 +3697,7 @@ html, body {
 .original-cost-panel-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
 .original-cost-minimum-price-btn { border:0; background:transparent; color:#c81e1e; font:inherit; font-weight:700; padding:4px 0; cursor:pointer; white-space:nowrap; }
 .original-cost-minimum-price-btn:active { transform:translateY(1px); }
-.original-cost-stock-edit-v150 {
+.original-cost-stock-edit-v151 {
   display: inline-block;
   min-width: 48px;
   border: 0;
@@ -3709,14 +3709,18 @@ html, body {
   font-weight: 800;
   text-align: center;
   cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: pan-x pan-y;
 }
-.original-cost-stock-edit-v150:hover,
-.original-cost-stock-edit-v150:focus-visible {
+.original-cost-stock-edit-v151:hover,
+.original-cost-stock-edit-v151:focus-visible {
   background: #d3ead9;
   outline: 2px solid rgba(23, 97, 58, 0.2);
 }
-.original-cost-stock-edit-v150:active { transform: translateY(1px); }
-.original-cost-stock-edit-v150:disabled { opacity: 0.55; cursor: wait; }
+.original-cost-stock-edit-v151.long-press-active { background: #bfe0c8; transform: scale(0.96); }
+.original-cost-stock-edit-v151:disabled { opacity: 0.55; cursor: wait; }
 
 /* V6.8 Import/Edit product-name rename button keeps the original display appearance. */
 .product-stock-name-edit-btn {

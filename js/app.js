@@ -955,7 +955,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V15.0 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V15.1 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1059,7 +1059,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
     if (!result?.ok) throw new Error(result?.message || result?.error || "整张销售卡库存处理失败。");
     if (result?.partialProcessed) throw new Error(result?.message || "检测到销售卡只有部分库存项目曾被处理，已停止整张写入。");
 
-    // V15.0: the batch endpoint has already flushed and verified Products,
+    // V15.1: the batch endpoint has already flushed and verified Products,
     // Imports, Batches, History and Sales Keys atomically. Apply the exact staged
     // canonical rows immediately; the ordinary background sync can refresh the
     // rest later without holding this inventory operation open.
@@ -5746,7 +5746,7 @@ function getDailyStockAdjustments(selectedDate, keyword = "") {
   const normalizedDate =
     normalizeDateToDDMMYYYY(selectedDate);
 
-  return getProducts()
+  const rows = getProducts()
     .flatMap(product =>
       getProductStockAdjustments(product)
         .filter(adjustment =>
@@ -6373,7 +6373,7 @@ function getHistorySalesLinkForAdjustmentV137(adjustment, allAdjustments) {
   return sibling ? historyAdjustmentSaleLinkV134(sibling) : null;
 }
 
-// V15.0: sum Sales-card profit and complete Sales-card cost for the exact
+// V15.1: sum Sales-card profit and complete Sales-card cost for the exact
 // net-sold lots selected by the current product/import/date filters. Group by
 // Link ID so FIFO batch splits do not count the same Sales line more than once.
 function getHistorySoldProfitTotalV137(options = {}) {
@@ -7118,7 +7118,7 @@ function renderCompactProductHistoryByRange(
   return true;
 }
 
-// V15.0: source lookup uses surviving net-sale lots. Cancelled or restored
+// V15.1: source lookup uses surviving net-sale lots. Cancelled or restored
 // sales are excluded from both the displayed records and the totals.
 function renderHistorySalesSourceLookupV149(keyword, range, output) {
   const sourceKeyword = String(keyword || "").trim();
@@ -10875,7 +10875,7 @@ function setupInventoryModule() {
 
   bindInventoryMinimumPriceLongPress();
   renderInventoryManagementList();
-  // V15.0: 首页显示后立即在后台预载完整销售利润资料。
+  // V15.1: 首页显示后立即在后台预载完整销售利润资料。
   // 用户稍后选择“畅销商品”或“利润最高”时通常可直接使用缓存结果。
   Promise.resolve()
     .then(() => ensureVisibleHistorySalesDetailsV134())
@@ -11001,7 +11001,7 @@ function showCopiedSyncMessage(importNumber) {
   }, 2000);
 }
 
-// V15.0: 一次扫描 History，同时建立售出数量、累计利润及最近售出索引。
+// V15.1: 一次扫描 History，同时建立售出数量、累计利润及最近售出索引。
 // 缓存以 Products 原始资料及已载入销售明细数量为签名；资料改变后自动重算。
 function getInventorySalesAnalyticsV146() {
   const productsSnapshot = String(localStorage.getItem("importSystemProducts") || "");
@@ -11472,14 +11472,14 @@ function getOriginalCostSummaryRows() {
         averageCost: Math.max(0, Number(product.averageCost) || 0),
         minimumPrice: Math.max(0, Number(product.minimumPrice) || 0)
       };
-    })
-    .filter(row => {
-      const visibleCards = Array.from(document.querySelectorAll("#inventoryManagementList .inventory-manage-card"));
-      if (!visibleCards.length) return false;
-      const visibleIds = new Set(visibleCards.map(card => String(card.dataset.productId || "")));
-      return visibleIds.has(row.id);
-    })
-    .sort((a, b) => a.name.localeCompare(b.name, "zh"));
+    });
+
+  // V15.1: preserve the exact visible card order so the expanded cost list
+  // follows search and every inventory sort, including best seller / profit.
+  const rowsById = new Map(rows.map(row => [row.id, row]));
+  return Array.from(document.querySelectorAll("#inventoryManagementList .inventory-manage-card"))
+    .map(card => rowsById.get(String(card.dataset.productId || "")))
+    .filter(Boolean);
 }
 
 function renderOriginalCostPanel() {
@@ -11508,10 +11508,10 @@ function renderOriginalCostPanel() {
             title="点击复制产品名称">${escapeHTML(row.name)}</button>
         </td>
         <td class="number-cell">
-          <button class="original-cost-stock-edit-v150" type="button"
+          <button class="original-cost-stock-edit-v151" type="button"
                   data-product-id="${escapeHTML(row.id)}"
-                  aria-label="修改 ${escapeHTML(row.name)} 当前库存"
-                  title="点击修改当前库存">${formatNumber(row.stock)}</button>
+                  aria-label="长按修改 ${escapeHTML(row.name)} 当前库存"
+                  title="长按修改当前库存">${formatNumber(row.stock)}</button>
         </td>
         <td class="money-cell original-currency-cell">${originalCostText}</td>
         <td class="money-cell">${formatMoney(row.averageCost, "RM ")}</td>
@@ -11523,19 +11523,30 @@ function renderOriginalCostPanel() {
       </tr>
     `;
   }).join("");
-  bindOriginalCostStockEditingV150();
+  bindOriginalCostStockLongPressV151();
   bindOriginalCostMinimumPriceLongPress();
 }
 
-function bindOriginalCostStockEditingV150() {
+function bindOriginalCostStockLongPressV151() {
   const body = document.getElementById("originalCostTableBody");
-  if (!body || body.dataset.stockEditingBoundV150 === "1") return;
-  body.dataset.stockEditingBoundV150 = "1";
+  if (!body || body.dataset.stockLongPressBoundV151 === "1") return;
+  body.dataset.stockLongPressBoundV151 = "1";
 
-  body.addEventListener("click", async event => {
-    const button = event.target.closest(".original-cost-stock-edit-v150");
-    if (!button || button.disabled) return;
+  let timer = null;
+  let activeButton = null;
+  let startX = 0;
+  let startY = 0;
+  let editing = false;
 
+  const cancel = () => {
+    if (timer) window.clearTimeout(timer);
+    timer = null;
+    activeButton?.classList.remove("long-press-active");
+    activeButton = null;
+  };
+
+  const editSelectedStock = async button => {
+    if (!button || button.disabled || editing) return;
     const tableWrap = button.closest(".original-cost-table-wrap");
     const windowScrollX = window.scrollX;
     const windowScrollY = window.scrollY;
@@ -11543,10 +11554,12 @@ function bindOriginalCostStockEditingV150() {
     const tableScrollTop = Number(tableWrap?.scrollTop) || 0;
     const productId = String(button.dataset.productId || "").trim();
 
+    editing = true;
     button.disabled = true;
     try {
       await editProductStockFromImportPage(productId);
     } finally {
+      editing = false;
       renderOriginalCostPanel();
       window.requestAnimationFrame(() => {
         const refreshedWrap = document.querySelector("#originalCostPanel .original-cost-table-wrap");
@@ -11555,11 +11568,49 @@ function bindOriginalCostStockEditingV150() {
           refreshedWrap.scrollTop = tableScrollTop;
         }
         window.scrollTo(windowScrollX, windowScrollY);
-        Array.from(document.querySelectorAll(".original-cost-stock-edit-v150"))
+        Array.from(document.querySelectorAll(".original-cost-stock-edit-v151"))
           .find(item => String(item.dataset.productId || "") === productId)
           ?.focus({ preventScroll: true });
       });
     }
+  };
+
+  const start = event => {
+    const button = event.target.closest(".original-cost-stock-edit-v151");
+    if (!button || button.disabled || editing) return;
+    cancel();
+    const point = event.touches?.[0] || event;
+    startX = Number(point.clientX) || 0;
+    startY = Number(point.clientY) || 0;
+    activeButton = button;
+    button.classList.add("long-press-active");
+    timer = window.setTimeout(() => {
+      timer = null;
+      button.classList.remove("long-press-active");
+      activeButton = null;
+      void editSelectedStock(button);
+    }, 650);
+  };
+
+  const move = event => {
+    if (!timer) return;
+    const point = event.touches?.[0] || event;
+    if (Math.abs((Number(point.clientX) || 0) - startX) > 12 || Math.abs((Number(point.clientY) || 0) - startY) > 12) cancel();
+  };
+
+  body.addEventListener("touchstart", start, { passive: true });
+  body.addEventListener("touchmove", move, { passive: true });
+  body.addEventListener("touchend", cancel, { passive: true });
+  body.addEventListener("touchcancel", cancel, { passive: true });
+  body.addEventListener("mousedown", event => { if (event.button === 0) start(event); });
+  body.addEventListener("mousemove", move);
+  body.addEventListener("mouseup", cancel);
+  body.addEventListener("mouseleave", cancel);
+  body.addEventListener("dragstart", event => {
+    if (event.target.closest(".original-cost-stock-edit-v151")) event.preventDefault();
+  });
+  body.addEventListener("contextmenu", event => {
+    if (event.target.closest(".original-cost-stock-edit-v151")) event.preventDefault();
   });
 }
 
@@ -12207,7 +12258,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "15.0",
+      version: "15.1",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -12570,7 +12621,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V15.0 Stable",
+      updatedBy: "System V15.1 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
