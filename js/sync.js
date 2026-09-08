@@ -1,5 +1,5 @@
 const CLOUD_CONFIG_KEY = "importSystemCloudConfig";
-const CLOUD_SCHEMA_VERSION = "LL-IMPORT-2026-08-CANONICAL-5";
+const CLOUD_SCHEMA_VERSION = "LL-IMPORT-2026-08-CANONICAL-4";
 const CLOUD_BOOTSTRAP_KEY = "importSystemCloudBootstrapV50";
 const CLOUD_QUEUE_KEY = "importSystemCloudQueueV2";
 const DEFAULT_GOOGLE_SCRIPT_URL =
@@ -12,6 +12,7 @@ let cloudSyncTimer = null;
 let cloudSyncRequestedWhileBusy = false;
 let cloudLastForegroundCheckAt = 0;
 let cloudForegroundCheckTimer = null;
+let cloudLastErrorMessage = "";
 const CLOUD_FOREGROUND_CHECK_GAP = 1500;
 
 function getCloudConfig() {
@@ -327,7 +328,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V15.7 Stable",
+      updatedBy: "System V15.8 Stable",
       ...payload
     });
 
@@ -362,7 +363,7 @@ async function commitSalesInventoryBatchToCloudV125(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V15.7 Stable",
+      updatedBy: "System V15.8 Stable",
       ...payload
     });
     if (data.conflict || data.stockChanged) {
@@ -385,7 +386,7 @@ window.commitSalesInventoryBatchToCloudV125 = commitSalesInventoryBatchToCloudV1
 
 async function commitSalesCorrectionBatchToCloudV110(payload) {
   await flushCloudQueueStrictV83(); const config=getCloudConfig(); setCloudState("syncing");
-  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V15.7 Stable",...payload});
+  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V15.8 Stable",...payload});
     if(data.conflict||data.stockChanged) throw new Error(data.message||"Google Sheet 资料已改变，全部库存差异没有处理。请同步后重试。");
     config.revision=Number(data.revision)||Number(config.revision)||0; config.lastSyncAt=new Date().toISOString(); config.bootstrapToken=String(data.bootstrapToken||config.bootstrapToken||""); config.bootstrapRevision=Number(data.revision)||Number(config.bootstrapRevision)||0; saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced"); return data;
   } catch(error){setCloudState("failed");throw error;}
@@ -452,7 +453,7 @@ async function runCloudSync() {
     cloudInitialSyncComplete = true;
   } catch (error) {
     cloudInitialSyncComplete = true;
-    setCloudState("failed");
+    setCloudState("failed", error);
     console.error("Google sync failed:", error);
   } finally {
     cloudSyncBusy = false;
@@ -557,7 +558,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V15.7 Stable",
+    updatedBy: "System V15.8 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     minimumPriceManual: Boolean(minimumPriceManual),
@@ -600,7 +601,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V15.7 Stable",
+    updatedBy: "System V15.8 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
@@ -730,7 +731,7 @@ function renderCloudMeta(config = getCloudConfig()) {
   }).replaceAll("/", "-");
 }
 
-function setCloudState(state) {
+function setCloudState(state, error = null) {
   const element = document.getElementById("googleSyncStatus");
   if (!element) return;
 
@@ -739,13 +740,19 @@ function setCloudState(state) {
   element.classList.remove("syncing", "synced", "failed");
 
   if (state === "synced") {
+    cloudLastErrorMessage = "";
     element.classList.add("synced");
     if (icon) icon.textContent = "✓";
     if (text) text.textContent = "已同步";
   } else if (state === "failed") {
+    if (error) cloudLastErrorMessage = String(error?.message || error || "").trim();
     element.classList.add("failed");
     if (icon) icon.textContent = "!";
-    if (text) text.textContent = navigator.onLine ? "同步失败，请稍后重试" : "离线，资料已保存在本机";
+    if (text) {
+      text.textContent = navigator.onLine
+        ? `同步失败${cloudLastErrorMessage ? `：${cloudLastErrorMessage.slice(0, 160)}` : "，请稍后重试"}`
+        : "离线，资料已保存在本机";
+    }
   } else {
     element.classList.add("syncing");
     if (icon) icon.textContent = "↻";
