@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=15.8" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=15.8" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=15.8" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=15.8" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=15.8" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=15.8" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=15.8" />
+  <link rel="manifest" href="./manifest.json?v=15.9" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=15.9" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=15.9" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=15.9" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=15.9" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=15.9" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=15.9" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=15.8" />
-  <link rel="stylesheet" href="./css/style.css?v=15.8" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=15.9" />
+  <link rel="stylesheet" href="./css/style.css?v=15.9" />
 </head>
 <body>
   <div id="accessLock"
@@ -84,7 +84,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 15.8 Stable</div>
+          <div class="app-header-version">正式版 15.9 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -482,6 +482,13 @@
             <label>售价高于 RM500、成本低于 RM800<input id="minimumFreightOver500" inputmode="decimal" /></label>
             <label>成本 RM800以上<input id="minimumFreightHighCost" inputmode="decimal" /></label>
           </div>
+          <h4>VND 产品搭配花盆成本</h4>
+          <p class="settings-help">按产品最新有效的 VND 原进口单价自动加入花盆成本；平均成本已包含海外运费，因此不会重复加入运费。</p>
+          <div class="form-grid minimum-price-settings-grid">
+            <label>低于 1,000,000 VND<input id="minimumVndPotUnder1m" inputmode="decimal" /></label>
+            <label>1,000,000–3,999,999 VND<input id="minimumVndPot1mTo4m" inputmode="decimal" /></label>
+            <label>4,000,000 VND以上<input id="minimumVndPot4mPlus" inputmode="decimal" /></label>
+          </div>
           <button id="saveMinimumPriceSettingsBtn" class="primary-btn" type="button">保存最低售价设置</button>
           <div id="minimumPriceSettingsStatus" class="status-text"></div>
         </section>
@@ -695,7 +702,7 @@
 
         <section class="panel">
           <h3>系统资料</h3>
-          <div class="info-row"><span>版本</span><strong>正式版 15.8 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong>正式版 15.9 Stable</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
           <div class="info-row"><span>Google Sheet</span><strong>已连接 Google Web App</strong></div>
         </section>
@@ -718,8 +725,8 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=15.8"></script>
-  <script src="./js/sync.js?v=15.8"></script>
-  <script src="./js/app.js?v=15.8"></script>
+  <script src="./js/common.js?v=15.9"></script>
+  <script src="./js/sync.js?v=15.9"></script>
+  <script src="./js/app.js?v=15.9"></script>
 </body>
 </html>
