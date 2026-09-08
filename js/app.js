@@ -955,7 +955,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V15.3 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V15.4 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1059,7 +1059,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
     if (!result?.ok) throw new Error(result?.message || result?.error || "整张销售卡库存处理失败。");
     if (result?.partialProcessed) throw new Error(result?.message || "检测到销售卡只有部分库存项目曾被处理，已停止整张写入。");
 
-    // V15.3: the batch endpoint has already flushed and verified Products,
+    // V15.4: the batch endpoint has already flushed and verified Products,
     // Imports, Batches, History and Sales Keys atomically. Apply the exact staged
     // canonical rows immediately; the ordinary background sync can refresh the
     // rest later without holding this inventory operation open.
@@ -5068,6 +5068,10 @@ function setupImportHistory() {
   };
 
   button?.addEventListener("click", () => {
+    // V15.4: normalize both visible date fields at click time.  Either field
+    // may stand alone; getHistoryDateRange treats it as one exact day.
+    normalizeHistoryDateField(startInput, startPicker);
+    normalizeHistoryDateField(endInput, endPicker);
     lastCompletedHistoryLookup = "";
     runHistoryLookup();
   });
@@ -6373,7 +6377,7 @@ function getHistorySalesLinkForAdjustmentV137(adjustment, allAdjustments) {
   return sibling ? historyAdjustmentSaleLinkV134(sibling) : null;
 }
 
-// V15.3: sum Sales-card profit and complete Sales-card cost for the exact
+// V15.4: sum Sales-card profit and complete Sales-card cost for the exact
 // net-sold lots selected by the current product/import/date filters. Group by
 // Link ID so FIFO batch splits do not count the same Sales line more than once.
 function getHistorySoldProfitTotalV137(options = {}) {
@@ -7118,7 +7122,7 @@ function renderCompactProductHistoryByRange(
   return true;
 }
 
-// V15.3: source lookup uses surviving net-sale lots. Cancelled or restored
+// V15.4: source lookup uses surviving net-sale lots. Cancelled or restored
 // sales are excluded from both the displayed records and the totals.
 function renderHistorySalesSourceLookupV149(keyword, range, output) {
   const sourceKeyword = String(keyword || "").trim();
@@ -10875,7 +10879,7 @@ function setupInventoryModule() {
 
   bindInventoryMinimumPriceLongPress();
   renderInventoryManagementList();
-  // V15.3: 首页显示后立即在后台预载完整销售利润资料。
+  // V15.4: 首页显示后立即在后台预载完整销售利润资料。
   // 用户稍后选择“畅销商品”或“利润最高”时通常可直接使用缓存结果。
   Promise.resolve()
     .then(() => ensureVisibleHistorySalesDetailsV134())
@@ -11001,7 +11005,7 @@ function showCopiedSyncMessage(importNumber) {
   }, 2000);
 }
 
-// V15.3: 一次扫描 History，同时建立售出数量、累计利润及最近售出索引。
+// V15.4: 一次扫描 History，同时建立售出数量、累计利润及最近售出索引。
 // 缓存以 Products 原始资料及已载入销售明细数量为签名；资料改变后自动重算。
 function getInventorySalesAnalyticsV146() {
   const productsSnapshot = String(localStorage.getItem("importSystemProducts") || "");
@@ -11279,7 +11283,7 @@ function renderInventoryManagementList() {
     return parseDDMMYYYY(b.displayLastImport) - parseDDMMYYYY(a.displayLastImport);
   });
 
-  // V15.3: both views consume this same sorted and filtered product array.
+  // V15.4: both views consume this same sorted and filtered product array.
   inventoryVisibleProductsV153 = products.map(product => ({ ...product }));
 
   document.getElementById("inventoryPageCount").textContent = `${products.length} 项`;
@@ -11417,7 +11421,7 @@ function renderInventoryManagementList() {
 
 
 function getOriginalCostSummaryRows() {
-  // V15.3: these are the actual objects just rendered by Inventory Management.
+  // V15.4: these are the actual objects just rendered by Inventory Management.
   // There is deliberately no second independent filter pass here.
   return inventoryVisibleProductsV153.map(product => ({
     id: String(product.id || ""),
@@ -12209,7 +12213,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "15.3",
+      version: "15.4",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -12572,7 +12576,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V15.3 Stable",
+      updatedBy: "System V15.4 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -12633,7 +12637,8 @@ function registerServiceWorker() {
 }
 
 
-// V8.7 History query quick navigation: jump to bottom / top
+// V15.4 Shared quick navigation.  It deliberately observes only page/result
+// containers; it must never watch or mutate the history filter controls.
 (function(){
   function setupHistoryScrollButton(){
     if(document.getElementById("historyScrollToggleV86")) return;
@@ -12655,19 +12660,28 @@ function registerServiceWorker() {
       window.setTimeout(updateLabel,350);
     };
 
-    const observer=new MutationObserver(()=>{
+    const updateVisibility=()=>{
       const history=document.getElementById("historyPage");
       const dashboard=document.getElementById("dashboardPage");
       const historyVisible=history && history.classList.contains("active");
       const dashboardVisible=dashboard && dashboard.classList.contains("active");
-      const hasResult=history && history.innerText && history.innerText.includes("进口记录");
+      const historyResult=document.getElementById("historyResult");
+      const hasResult=historyResult && !historyResult.querySelector(":scope > .empty-state");
       const hasInventory=inventoryVisibleProductsV153.length>0;
       btn.classList.toggle("show",!!((historyVisible&&hasResult)||(dashboardVisible&&hasInventory)));
       updateLabel();
+    };
+
+    const historyResult=document.getElementById("historyResult");
+    if(historyResult){
+      new MutationObserver(updateVisibility).observe(historyResult,{childList:true,subtree:true});
+    }
+    document.querySelectorAll(".bottom-nav button, .bottom-nav a").forEach(item=>{
+      item.addEventListener("click",()=>window.setTimeout(updateVisibility,0));
     });
-    observer.observe(document.body,{childList:true,subtree:true,attributes:true});
     window.addEventListener("scroll",updateLabel,{passive:true});
-    updateLabel();
+    window.addEventListener("resize",updateLabel,{passive:true});
+    updateVisibility();
   }
   if(document.readyState==="loading"){
     document.addEventListener("DOMContentLoaded",setupHistoryScrollButton);
