@@ -955,7 +955,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V15.2 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V15.3 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1059,7 +1059,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
     if (!result?.ok) throw new Error(result?.message || result?.error || "整张销售卡库存处理失败。");
     if (result?.partialProcessed) throw new Error(result?.message || "检测到销售卡只有部分库存项目曾被处理，已停止整张写入。");
 
-    // V15.2: the batch endpoint has already flushed and verified Products,
+    // V15.3: the batch endpoint has already flushed and verified Products,
     // Imports, Batches, History and Sales Keys atomically. Apply the exact staged
     // canonical rows immediately; the ordinary background sync can refresh the
     // rest later without holding this inventory operation open.
@@ -6373,7 +6373,7 @@ function getHistorySalesLinkForAdjustmentV137(adjustment, allAdjustments) {
   return sibling ? historyAdjustmentSaleLinkV134(sibling) : null;
 }
 
-// V15.2: sum Sales-card profit and complete Sales-card cost for the exact
+// V15.3: sum Sales-card profit and complete Sales-card cost for the exact
 // net-sold lots selected by the current product/import/date filters. Group by
 // Link ID so FIFO batch splits do not count the same Sales line more than once.
 function getHistorySoldProfitTotalV137(options = {}) {
@@ -7118,7 +7118,7 @@ function renderCompactProductHistoryByRange(
   return true;
 }
 
-// V15.2: source lookup uses surviving net-sale lots. Cancelled or restored
+// V15.3: source lookup uses surviving net-sale lots. Cancelled or restored
 // sales are excluded from both the displayed records and the totals.
 function renderHistorySalesSourceLookupV149(keyword, range, output) {
   const sourceKeyword = String(keyword || "").trim();
@@ -10875,7 +10875,7 @@ function setupInventoryModule() {
 
   bindInventoryMinimumPriceLongPress();
   renderInventoryManagementList();
-  // V15.2: 首页显示后立即在后台预载完整销售利润资料。
+  // V15.3: 首页显示后立即在后台预载完整销售利润资料。
   // 用户稍后选择“畅销商品”或“利润最高”时通常可直接使用缓存结果。
   Promise.resolve()
     .then(() => ensureVisibleHistorySalesDetailsV134())
@@ -11001,7 +11001,7 @@ function showCopiedSyncMessage(importNumber) {
   }, 2000);
 }
 
-// V15.2: 一次扫描 History，同时建立售出数量、累计利润及最近售出索引。
+// V15.3: 一次扫描 History，同时建立售出数量、累计利润及最近售出索引。
 // 缓存以 Products 原始资料及已载入销售明细数量为签名；资料改变后自动重算。
 function getInventorySalesAnalyticsV146() {
   const productsSnapshot = String(localStorage.getItem("importSystemProducts") || "");
@@ -11059,7 +11059,7 @@ function getInventorySalesAnalyticsV146() {
   return value;
 }
 
-let inventoryVisibleProductIdsV152 = [];
+let inventoryVisibleProductsV153 = [];
 
 function renderInventoryManagementList() {
   const keyword = document.getElementById("inventorySearch").value.trim().toLowerCase();
@@ -11279,11 +11279,8 @@ function renderInventoryManagementList() {
     return parseDDMMYYYY(b.displayLastImport) - parseDDMMYYYY(a.displayLastImport);
   });
 
-  // V15.2: publish the freshly calculated result before rendering either view.
-  // The original-cost list must not inspect yesterday's / previous DOM cards.
-  inventoryVisibleProductIdsV152 = products
-    .map(product => String(product.id || ""))
-    .filter(Boolean);
+  // V15.3: both views consume this same sorted and filtered product array.
+  inventoryVisibleProductsV153 = products.map(product => ({ ...product }));
 
   document.getElementById("inventoryPageCount").textContent = `${products.length} 项`;
 
@@ -11339,7 +11336,7 @@ function renderInventoryManagementList() {
   if (!products.length) {
     list.innerHTML = '<div class="empty-state">暂无符合的库存资料</div>';
     const originalCostPanel = document.getElementById("originalCostPanel");
-    if (originalCostPanel && !originalCostPanel.hidden) renderOriginalCostPanel();
+    if (originalCostPanel && !originalCostPanel.hidden) renderOriginalCostPanel([]);
     return;
   }
 
@@ -11409,7 +11406,7 @@ function renderInventoryManagementList() {
 
   const originalCostPanel = document.getElementById("originalCostPanel");
   if (originalCostPanel && !originalCostPanel.hidden) {
-    renderOriginalCostPanel();
+    renderOriginalCostPanel(products);
   }
 }
 
@@ -11420,83 +11417,27 @@ function renderInventoryManagementList() {
 
 
 function getOriginalCostSummaryRows() {
-  const imports = getImports();
-  const batches = getBatches();
-  const batchByImportNumber = new Map(
-    batches
-      .filter(batch => String(batch.importNumber || "").trim())
-      .map(batch => [
-        String(batch.importNumber || "").trim().toLowerCase(),
-        batch
-      ])
-  );
-
-  return getProducts()
-    .filter(product => (Number(product.stock) || 0) > 0)
-    .map(product => {
-      const productName = String(product.name || "").trim().toLowerCase();
-      const matchingImports = imports
-        .filter(record => {
-          const sameProductId = product.id && record.productId && record.productId === product.id;
-          const sameProductName = String(record.productName || "").trim().toLowerCase() === productName;
-          return sameProductId || sameProductName;
-        })
-        .sort((a, b) => {
-          const batchA = batchByImportNumber.get(String(a.importNumber || "").trim().toLowerCase());
-          const batchB = batchByImportNumber.get(String(b.importNumber || "").trim().toLowerCase());
-          const dateDiff = parseDDMMYYYY(getImportDisplayDate(b, batchB)) - parseDDMMYYYY(getImportDisplayDate(a, batchA));
-          if (dateDiff) return dateDiff;
-          return String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
-        });
-
-      const activeImportNumbers = new Set();
-      matchingImports.forEach(record => {
-        const originalQuantity = getSafeDisplayOriginalQuantity(record);
-        const remainingRaw = Number(record.remainingQuantity ?? record.quantity);
-        const remainingQuantity = Number.isFinite(remainingRaw)
-          ? Math.min(originalQuantity, Math.max(0, Math.floor(remainingRaw)))
-          : originalQuantity;
-        if (remainingQuantity > 0 && String(record.importNumber || "").trim()) {
-          activeImportNumbers.add(String(record.importNumber || "").trim().toLowerCase());
-        }
-      });
-
-      const latestOriginalCostRecord =
-        matchingImports.find(record => activeImportNumbers.has(String(record.importNumber || "").trim().toLowerCase())) ||
-        matchingImports[0] ||
-        null;
-
-      const originalCost = Math.max(0, Number(latestOriginalCostRecord?.unitPrice) || 0);
-      const originalCurrency = String(
-        latestOriginalCostRecord?.currency ||
-        batchByImportNumber.get(String(latestOriginalCostRecord?.importNumber || "").trim().toLowerCase())?.currency ||
-        ""
-      ).trim().toUpperCase();
-
-      return {
-        id: String(product.id || ""),
-        name: String(product.name || ""),
-        stock: Math.max(0, Number(product.stock) || 0),
-        originalCost,
-        originalCurrency,
-        averageCost: Math.max(0, Number(product.averageCost) || 0),
-        minimumPrice: Math.max(0, Number(product.minimumPrice) || 0)
-      };
-    });
-
-  // V15.2: use the same freshly calculated product IDs as Inventory Management.
-  // This keeps search and every sort identical even while the DOM is rebuilding.
-  const rowsById = new Map(rows.map(row => [row.id, row]));
-  return inventoryVisibleProductIdsV152
-    .map(productId => rowsById.get(productId))
-    .filter(Boolean);
+  // V15.3: these are the actual objects just rendered by Inventory Management.
+  // There is deliberately no second independent filter pass here.
+  return inventoryVisibleProductsV153.map(product => ({
+    id: String(product.id || ""),
+    name: String(product.name || ""),
+    stock: Math.max(0, Number(product.stock) || 0),
+    originalCost: Math.max(0, Number(product.latestOriginalCost) || 0),
+    originalCurrency: String(product.latestOriginalCurrency || "").trim().toUpperCase(),
+    averageCost: Math.max(0, Number(product.averageCost) || 0),
+    minimumPrice: Math.max(0, Number(product.minimumPrice) || 0)
+  }));
 }
 
-function renderOriginalCostPanel() {
+function renderOriginalCostPanel(visibleProducts = inventoryVisibleProductsV153) {
   const body = document.getElementById("originalCostTableBody");
   const dateField = document.getElementById("originalCostPanelDate");
   if (!body) return;
 
+  if (Array.isArray(visibleProducts) && visibleProducts !== inventoryVisibleProductsV153) {
+    inventoryVisibleProductsV153 = visibleProducts.map(product => ({ ...product }));
+  }
   const rows = getOriginalCostSummaryRows();
   if (dateField) dateField.textContent = `资料日期：${formatDateDDMMYYYY(new Date())}`;
 
@@ -12268,7 +12209,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "15.2",
+      version: "15.3",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -12631,7 +12572,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V15.2 Stable",
+      updatedBy: "System V15.3 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -12703,26 +12644,30 @@ function registerServiceWorker() {
     btn.textContent="↓ 到底部";
     document.body.appendChild(btn);
 
-    let atBottom=false;
+    const isNearBottom=()=>window.scrollY+window.innerHeight>=document.documentElement.scrollHeight-80;
+    const updateLabel=()=>{const label=isNearBottom()?"↑ 回顶部":"↓ 到底部";if(btn.textContent!==label)btn.textContent=label;};
     btn.onclick=function(){
-      if(!atBottom){
+      if(!isNearBottom()){
         window.scrollTo({top:document.documentElement.scrollHeight,behavior:"smooth"});
-        btn.textContent="↑ 回顶部";
-        atBottom=true;
       }else{
         window.scrollTo({top:0,behavior:"smooth"});
-        btn.textContent="↓ 到底部";
-        atBottom=false;
       }
+      window.setTimeout(updateLabel,350);
     };
 
     const observer=new MutationObserver(()=>{
       const history=document.getElementById("historyPage");
-      const visible=history && history.style.display!=="none";
+      const dashboard=document.getElementById("dashboardPage");
+      const historyVisible=history && history.classList.contains("active");
+      const dashboardVisible=dashboard && dashboard.classList.contains("active");
       const hasResult=history && history.innerText && history.innerText.includes("进口记录");
-      btn.classList.toggle("show",!!(visible&&hasResult));
+      const hasInventory=inventoryVisibleProductsV153.length>0;
+      btn.classList.toggle("show",!!((historyVisible&&hasResult)||(dashboardVisible&&hasInventory)));
+      updateLabel();
     });
     observer.observe(document.body,{childList:true,subtree:true,attributes:true});
+    window.addEventListener("scroll",updateLabel,{passive:true});
+    updateLabel();
   }
   if(document.readyState==="loading"){
     document.addEventListener("DOMContentLoaded",setupHistoryScrollButton);
