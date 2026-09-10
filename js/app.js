@@ -955,7 +955,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V16.5 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V16.6 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1059,7 +1059,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
     if (!result?.ok) throw new Error(result?.message || result?.error || "整张销售卡库存处理失败。");
     if (result?.partialProcessed) throw new Error(result?.message || "检测到销售卡只有部分库存项目曾被处理，已停止整张写入。");
 
-    // V16.5: the batch endpoint has already flushed and verified Products,
+    // V16.6: the batch endpoint has already flushed and verified Products,
     // Imports, Batches, History and Sales Keys atomically. Apply the exact staged
     // canonical rows immediately; the ordinary background sync can refresh the
     // rest later without holding this inventory operation open.
@@ -5302,11 +5302,39 @@ function showHistoryProductCopied(button, productName) {
   }, 1200);
 }
 
+function buildProductIdCopyButtonV166(productId, extraClass = "") {
+  const value = String(productId || "").trim();
+  if (!value) return "";
+  return `<button type="button"
+                  class="product-id-copy-v166 ${escapeHTML(extraClass)}"
+                  data-product-id-copy="${escapeHTML(value)}"
+                  onclick="copyProductIdV166(this)"
+                  title="点击复制产品编号">${escapeHTML(value)}</button>`;
+}
+
+async function copyProductIdV166(button) {
+  const value = String(button?.dataset?.productIdCopy || "").trim();
+  if (!value) return;
+  const copied = await copyHistoryText(value, `✓ 已复制产品编号：${value}`);
+  if (!copied || !button) return;
+  button.classList.add("copied");
+  window.clearTimeout(button._productIdCopyTimerV166);
+  button._productIdCopyTimerV166 = window.setTimeout(() => button.classList.remove("copied"), 1200);
+}
+
 function buildHistoryProductNameButtons(productNames) {
   return Array.from(productNames || [])
     .map(name => {
       const value = String(name || "").trim();
       if (!value) return "";
+
+      const matchedProduct = getProducts().find(product =>
+        String(product?.name || "").trim().toLowerCase() === value.toLowerCase()
+      );
+      const matchedImport = !matchedProduct ? getImports().find(item =>
+        String(item?.productName || item?.name || "").trim().toLowerCase() === value.toLowerCase()
+      ) : null;
+      const productId = String(matchedProduct?.id || matchedImport?.productId || "").trim();
 
       return `
         <button type="button"
@@ -5315,6 +5343,7 @@ function buildHistoryProductNameButtons(productNames) {
                 title="点击复制并查询此产品">
           ${escapeHTML(value)}
         </button>
+        ${buildProductIdCopyButtonV166(productId, "history-product-id-v166")}
       `;
     })
     .filter(Boolean)
@@ -5485,7 +5514,7 @@ function setupImportHistory() {
   };
 
   button?.addEventListener("click", () => {
-    // V16.5: normalize both visible date fields at click time.  Either field
+    // V16.6: normalize both visible date fields at click time.  Either field
     // may stand alone; getHistoryDateRange treats it as one exact day.
     normalizeHistoryDateField(startInput, startPicker);
     normalizeHistoryDateField(endInput, endPicker);
@@ -6107,6 +6136,7 @@ function buildImportHistoryCard(batch, items, options = {}) {
                   title="点击复制产品名称">
             ${escapeHTML(item.productName || "-")}
           </button>
+          ${buildProductIdCopyButtonV166(item.productId, "history-product-id-v166")}
         </td>
         <td>${escapeHTML(item.category || "-")}</td>
         <td>${formatNumber(originalQuantity)}</td>
@@ -6167,7 +6197,7 @@ function getDailyStockAdjustments(selectedDate, keyword = "") {
   const normalizedDate =
     normalizeDateToDDMMYYYY(selectedDate);
 
-  // V16.5: restore the proven V15.0 date-query return contract.
+  // V16.6: restore the proven V15.0 date-query return contract.
   return getProducts()
     .flatMap(product =>
       getProductStockAdjustments(product)
@@ -6451,7 +6481,7 @@ function buildDailyStockAdjustmentHtml(adjustments) {
               adjustment.productName || "未命名产品"
             )}
           </button>
-          <small>${escapeHTML(adjustment.productId || "")}</small>
+          ${buildProductIdCopyButtonV166(adjustment.productId, "history-product-id-v166")}
         </div>
 
         <div class="history-adjustment-detail">
@@ -6681,7 +6711,7 @@ function getHistoryNetSoldLots(options = {}) {
       // Only confirmed/typed sales enter the sales queue. Legacy unclassified
       // negatives are excluded. Likewise, an unclassified legacy positive must
       // not silently reverse a confirmed sale.
-      // V16.5: retain positive changes only as possible reversals. Explicit
+      // V16.6: retain positive changes only as possible reversals. Explicit
       // Sales restores are linked; an unlinked positive may cancel only one
       // recent, exact opposite legacy/test entry below.
       return (delta < 0 && type === "sale") ||
@@ -6732,7 +6762,7 @@ function getHistoryNetSoldLots(options = {}) {
 
     // A linked Sales restore reverses its matching queue normally.
     if (!hasExplicitRestoreLink(adjustment)) {
-      // V16.5: an unlinked +N is a test/manual undo only when it exactly
+      // V16.6: an unlinked +N is a test/manual undo only when it exactly
       // matches one immediately preceding -N for the same product/import and
       // occurs within 15 minutes. It must never consume unrelated sales FIFO.
       const positiveTime = Date.parse(String(adjustment.createdAt || ""));
@@ -6819,7 +6849,7 @@ function getHistorySalesLinkForAdjustmentV137(adjustment, allAdjustments) {
   return sibling ? historyAdjustmentSaleLinkV134(sibling) : null;
 }
 
-// V16.5: sum Sales-card profit and complete Sales-card cost for the exact
+// V16.6: sum Sales-card profit and complete Sales-card cost for the exact
 // net-sold lots selected by the current product/import/date filters. Group by
 // Link ID so FIFO batch splits do not count the same Sales line more than once.
 function getHistorySoldProfitTotalV137(options = {}) {
@@ -7482,6 +7512,10 @@ function renderCompactProductHistoryByRange(
                       "未命名产品"
                     )}
                   </button>
+                  ${buildProductIdCopyButtonV166(
+                    adjustment.productId || item.productId,
+                    "history-product-id-v166"
+                  )}
                   <span class="product-history-adjustment-action">
                     ${actionLabel}
                   </span>
@@ -7564,7 +7598,7 @@ function renderCompactProductHistoryByRange(
   return true;
 }
 
-// V16.5: source lookup uses surviving net-sale lots. Cancelled or restored
+// V16.6: source lookup uses surviving net-sale lots. Cancelled or restored
 // sales are excluded from both the displayed records and the totals.
 function renderHistorySalesSourceLookupV149(keyword, range, output) {
   const sourceKeyword = String(keyword || "").trim();
@@ -7984,6 +8018,10 @@ function renderImportHistoryNowV134() {
                     item.productName ||
                     "未命名产品"
                   )}</button>
+                  ${buildProductIdCopyButtonV166(
+                    adjustment.productId || item.productId,
+                    "history-product-id-v166"
+                  )}
                   <span class="product-history-adjustment-action">${actionLabel}</span>
                   <strong class="product-history-adjustment-quantity">${signedDelta}</strong>
                   ${buildHistorySalesFinancialHtmlV134(adjustment)}
@@ -9611,6 +9649,7 @@ function renderBatchList() {
     const items = getBatchItemsForDisplay(batch);
     const firstProductName =
       items[0]?.productName || items[0]?.name || "-";
+    const firstProductId = String(items[0]?.productId || "").trim();
 
     return `<article class="import-card">
       <div class="batch-card-title-row">
@@ -9630,6 +9669,7 @@ function renderBatchList() {
                 data-product-name="${escapeHTML(firstProductName)}"
                 onclick="copyInventoryProductName(this)"
                 title="点击复制产品名称">${escapeHTML(firstProductName)}</button>
+        ${buildProductIdCopyButtonV166(firstProductId, "recent-import-product-id-v166")}
       </div>
       <div class="import-card-meta">
         <div><span>运输天数</span><strong>${batch.transitDays ? `${batch.transitDays} 天` : "-"}</strong></div>
@@ -11330,7 +11370,7 @@ function setupInventoryModule() {
 
   bindInventoryMinimumPriceLongPress();
   renderInventoryManagementList();
-  // V16.5: 首页显示后立即在后台预载完整销售利润资料。
+  // V16.6: 首页显示后立即在后台预载完整销售利润资料。
   // 用户稍后选择“畅销商品”或“利润最高”时通常可直接使用缓存结果。
   Promise.resolve()
     .then(() => ensureVisibleHistorySalesDetailsV134())
@@ -11456,7 +11496,7 @@ function showCopiedSyncMessage(importNumber) {
   }, 2000);
 }
 
-// V16.5: 一次扫描 History，同时建立售出数量、累计利润及最近售出索引。
+// V16.6: 一次扫描 History，同时建立售出数量、累计利润及最近售出索引。
 // 缓存以 Products 原始资料及已载入销售明细数量为签名；资料改变后自动重算。
 function getInventorySalesAnalyticsV146() {
   const productsSnapshot = String(localStorage.getItem("importSystemProducts") || "");
@@ -11734,7 +11774,7 @@ function renderInventoryManagementList() {
     return parseDDMMYYYY(b.displayLastImport) - parseDDMMYYYY(a.displayLastImport);
   });
 
-  // V16.5: both views consume this same sorted and filtered product array.
+  // V16.6: both views consume this same sorted and filtered product array.
   inventoryVisibleProductsV153 = products.map(product => ({ ...product }));
 
   document.getElementById("inventoryPageCount").textContent = `${products.length} 项`;
@@ -11833,7 +11873,9 @@ function renderInventoryManagementList() {
                 `).join("")}
               </div>
             ` : ""}
-            <div class="product-code">${escapeHTML(product.id)} · ${escapeHTML(product.category)}</div>
+            <div class="product-code inventory-product-code-v166">
+              ${buildProductIdCopyButtonV166(product.id, "inventory-product-id-v166")} · ${escapeHTML(product.category)}
+            </div>
           </div>
           <div class="inventory-sold-quantity" title="按 Import History 的实际净售出数量计算">
             <span>售出数量</span>
@@ -11872,7 +11914,7 @@ function renderInventoryManagementList() {
 
 
 function getOriginalCostSummaryRows() {
-  // V16.5: these are the actual objects just rendered by Inventory Management.
+  // V16.6: these are the actual objects just rendered by Inventory Management.
   // There is deliberately no second independent filter pass here.
   return inventoryVisibleProductsV153.map(product => ({
     id: String(product.id || ""),
@@ -12664,7 +12706,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "16.5",
+      version: "16.6",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -13027,7 +13069,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V16.5 Stable",
+      updatedBy: "System V16.6 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -13088,7 +13130,7 @@ function registerServiceWorker() {
 }
 
 
-// V16.5 Shared quick navigation.  It deliberately observes only page/result
+// V16.6 Shared quick navigation.  It deliberately observes only page/result
 // containers; it must never watch or mutate the history filter controls.
 (function(){
   function setupHistoryScrollButton(){

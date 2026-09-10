@@ -4135,6 +4135,37 @@ html, body {
 .import-number-line .recent-batch-copy-value{font-size:14px;}
 .import-card-meta .recent-batch-copy-value{display:block;font-size:13px;}
 
+/* V16.6 — visible product IDs are larger and copy locally without cloud reads. */
+.product-id-copy-v166{
+  display:inline-flex;
+  align-items:center;
+  width:auto;
+  min-height:28px;
+  padding:3px 8px;
+  border:1px solid #9bc9aa;
+  border-radius:8px;
+  background:#edf8f0;
+  color:#155f37;
+  font-size:14px;
+  line-height:1.2;
+  font-weight:900;
+  letter-spacing:.25px;
+  cursor:pointer;
+  vertical-align:middle;
+  touch-action:manipulation;
+}
+.product-id-copy-v166:hover,
+.product-id-copy-v166:focus-visible,
+.product-id-copy-v166.copied{
+  border-color:#168f84;
+  background:#dff4ec;
+  color:#075f57;
+}
+.inventory-product-id-v166{font-size:16px;}
+.inventory-product-code-v166{display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+.recent-import-product-id-v166,
+.history-product-id-v166{margin-left:6px;}
+
 
 /* ================= V10.4 Sales manual inventory correction ================= */
 .sales-startup-item-v81.manual-correction-v102{
