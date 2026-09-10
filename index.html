@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=16.2" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=16.2" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=16.2" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=16.2" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=16.2" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=16.2" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=16.2" />
+  <link rel="manifest" href="./manifest.json?v=16.3" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=16.3" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=16.3" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=16.3" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=16.3" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=16.3" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=16.3" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=16.2" />
-  <link rel="stylesheet" href="./css/style.css?v=16.2" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=16.3" />
+  <link rel="stylesheet" href="./css/style.css?v=16.3" />
 </head>
 <body>
   <div id="accessLock"
@@ -84,7 +84,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 16.2 Stable</div>
+          <div class="app-header-version">正式版 16.3 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -493,6 +493,14 @@
           <div id="minimumPriceSettingsStatus" class="status-text"></div>
         </section>
 
+        <section class="panel">
+          <h3>产品编号前缀</h3>
+          <p class="settings-help">黄杨 BX、凌珊 BB、罗汉松 PD、李氏樱桃 SK、水梅 JL、酸豆 AS、寿娘子 SC、三角梅 BV、七里香／九里香 MR、仙丹 IX、福建茶 HK；无法识别的盆栽保留 PZ，花盆保留 PS。</p>
+          <p class="settings-help">只迁移现有 PZ 编号并保留原四位数字。执行前会检查冲突，旧编号会保存为历史别名。</p>
+          <button id="migrateProductPrefixesBtn" class="primary-btn" type="button">检查并迁移现有产品编号</button>
+          <div id="productPrefixMigrationStatus" class="status-text"></div>
+        </section>
+
 
         <section class="panel">
           <h3>更改系统密码</h3>
@@ -702,7 +710,7 @@
 
         <section class="panel">
           <h3>系统资料</h3>
-          <div class="info-row"><span>版本</span><strong>正式版 16.2 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong>正式版 16.3 Stable</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
           <div class="info-row"><span>Google Sheet</span><strong>已连接 Google Web App</strong></div>
         </section>
@@ -725,8 +733,8 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=16.2"></script>
-  <script src="./js/sync.js?v=16.2"></script>
-  <script src="./js/app.js?v=16.2"></script>
+  <script src="./js/common.js?v=16.3"></script>
+  <script src="./js/sync.js?v=16.3"></script>
+  <script src="./js/app.js?v=16.3"></script>
 </body>
 </html>
