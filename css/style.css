@@ -4135,7 +4135,7 @@ html, body {
 .import-number-line .recent-batch-copy-value{font-size:14px;}
 .import-card-meta .recent-batch-copy-value{display:block;font-size:13px;}
 
-/* V17.1 — visible product IDs are larger and copy locally without cloud reads. */
+/* V17.2 — visible product IDs are larger and copy locally without cloud reads. */
 .product-id-copy-v166{
   display:inline-flex;
   align-items:center;
@@ -4166,7 +4166,7 @@ html, body {
 .recent-import-product-id-v166,
 .history-product-id-v166{margin-left:6px;}
 
-/* V17.1 — product name and product ID always form one visible identity group. */
+/* V17.2 — product name and product ID always form one visible identity group. */
 .product-identity-v167{
   display:inline-flex;
   align-items:center;
@@ -4199,7 +4199,7 @@ html, body {
 .history-adjustment-product .history-product-identity-v167 .history-copy-product-inline{display:inline;}
 .product-history-identity-v167{min-width:0;}
 
-/* V17.1 — keep the mobile navigation on its own stable composited layer. */
+/* V17.2 — keep the mobile navigation on its own stable composited layer. */
 .bottom-nav{
   position:fixed !important;
   left:50% !important;
@@ -4228,7 +4228,7 @@ html, body {
   }
 }
 
-/* V17.1 — History identity order and responsive width.
+/* V17.2 — History identity order and responsive width.
    The older mobile rule gave every .product-history-adjustment-product order:2,
    including the name button nested inside this wrapper.  That moved the ID to
    the left.  Keep the two controls in an explicit, stable visual order. */
@@ -4284,7 +4284,7 @@ html, body {
   }
 }
 
-/* V17.1 — one consistent history-record reading order on desktop and mobile:
+/* V17.2 — one consistent history-record reading order on desktop and mobile:
    date/time + product + ID + action + signed quantity, financials, remark. */
 .history-record-main-v170{
   grid-column:1 / -1;
@@ -4348,7 +4348,7 @@ html, body {
   }
 }
 
-/* V17.1 — History header layout.
+/* V17.2 — History header layout.
    Desktop keeps the preferred single reading line.  A phone uses the safe
    two-line fallback: date/action/quantity first, complete product identity
    second.  The product name itself is never split. */
@@ -4408,6 +4408,56 @@ html, body {
   .history-record-main-v170 > .product-history-identity-v167{
     width:max-content;
     max-width:100%;
+  }
+}
+
+/* V17.2 — Desktop history spacing uses the available card width while keeping
+   the first row intact.  Mobile rules above remain unchanged. */
+@media(min-width:769px){
+  .product-history-adjustment{
+    padding:11px 14px;
+    row-gap:9px;
+  }
+  .history-adjustment-card{
+    padding:14px 16px;
+    row-gap:10px;
+  }
+  .history-record-main-v170{
+    grid-template-columns:max-content max-content max-content max-content;
+    grid-template-areas:"date product action quantity";
+    column-gap:13px;
+    row-gap:0;
+    width:100%;
+    max-width:100%;
+    white-space:nowrap;
+  }
+  .history-record-main-v170 > .product-history-adjustment-date{
+    font-size:16px;
+  }
+  .history-record-main-v170 .product-history-adjustment-product.history-copy-product-inline,
+  .history-record-main-v170 .history-copy-product-inline{
+    font-size:15px;
+    line-height:1.35;
+  }
+  .history-record-main-v170 .product-id-copy-v166{
+    padding:3px 9px;
+    font-size:14px;
+    line-height:1.25;
+  }
+  .history-record-main-v170 > .product-history-adjustment-action,
+  .history-record-main-v170 > .product-history-adjustment-quantity{
+    font-size:15px;
+  }
+  .history-sales-financial-v134{
+    gap:6px 18px;
+    font-size:14px;
+    line-height:1.45;
+  }
+  .history-adjustment-note,
+  .product-history-adjustment-note{
+    margin-top:3px;
+    font-size:14px;
+    line-height:1.5;
   }
 }
 
