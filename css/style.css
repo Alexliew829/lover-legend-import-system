@@ -4135,7 +4135,7 @@ html, body {
 .import-number-line .recent-batch-copy-value{font-size:14px;}
 .import-card-meta .recent-batch-copy-value{display:block;font-size:13px;}
 
-/* V16.7 — visible product IDs are larger and copy locally without cloud reads. */
+/* V16.8 — visible product IDs are larger and copy locally without cloud reads. */
 .product-id-copy-v166{
   display:inline-flex;
   align-items:center;
@@ -4166,20 +4166,31 @@ html, body {
 .recent-import-product-id-v166,
 .history-product-id-v166{margin-left:6px;}
 
-/* V16.7 — product name and product ID always form one visible identity group. */
+/* V16.8 — product name and product ID always form one visible identity group. */
 .product-identity-v167{
   display:inline-flex;
   align-items:center;
-  align-content:center;
-  flex-wrap:wrap;
+  flex-wrap:nowrap;
   column-gap:7px;
-  row-gap:5px;
+  width:max-content;
   max-width:100%;
+  min-width:0;
   vertical-align:middle;
 }
 .product-identity-v167 .product-id-copy-v166{flex:0 0 auto;margin-left:0;white-space:nowrap;}
+.product-identity-v167 .inventory-product-name-copy,
+.product-identity-v167 > .history-copy-product,
+.product-identity-v167 .history-copy-product-inline,
+.product-identity-v167 .product-history-adjustment-product{
+  flex:1 1 auto;
+  min-width:0;
+  max-width:100%;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
 .inventory-product-identity-v167{font-size:17px;font-weight:900;}
-.inventory-product-identity-v167 .inventory-product-name-copy{flex:0 1 auto;max-width:100%;}
+.inventory-product-identity-v167 .inventory-product-name-copy{max-width:100%;}
 .inventory-product-code-v166{margin-top:6px;color:var(--muted);}
 .recent-import-summary-v167{line-height:1.7;}
 .recent-import-identity-v167{margin-left:3px;}
@@ -4188,7 +4199,7 @@ html, body {
 .history-adjustment-product .history-product-identity-v167 .history-copy-product-inline{display:inline;}
 .product-history-identity-v167{min-width:0;}
 
-/* V16.7 — keep the mobile navigation on its own stable composited layer. */
+/* V16.8 — keep the mobile navigation on its own stable composited layer. */
 .bottom-nav{
   position:fixed !important;
   left:50% !important;
@@ -4212,7 +4223,7 @@ html, body {
 @media(max-width:768px){
   .product-history-identity-v167{flex:1 1 100%;order:2;}
   .product-history-identity-v167 .product-history-adjustment-product.history-copy-product-inline{
-    flex:0 1 auto;
+    flex:1 1 auto;
     max-width:100%;
   }
 }
