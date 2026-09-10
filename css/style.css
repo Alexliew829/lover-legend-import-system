@@ -4135,7 +4135,7 @@ html, body {
 .import-number-line .recent-batch-copy-value{font-size:14px;}
 .import-card-meta .recent-batch-copy-value{display:block;font-size:13px;}
 
-/* V16.6 — visible product IDs are larger and copy locally without cloud reads. */
+/* V16.7 — visible product IDs are larger and copy locally without cloud reads. */
 .product-id-copy-v166{
   display:inline-flex;
   align-items:center;
@@ -4165,6 +4165,57 @@ html, body {
 .inventory-product-code-v166{display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
 .recent-import-product-id-v166,
 .history-product-id-v166{margin-left:6px;}
+
+/* V16.7 — product name and product ID always form one visible identity group. */
+.product-identity-v167{
+  display:inline-flex;
+  align-items:center;
+  align-content:center;
+  flex-wrap:wrap;
+  column-gap:7px;
+  row-gap:5px;
+  max-width:100%;
+  vertical-align:middle;
+}
+.product-identity-v167 .product-id-copy-v166{flex:0 0 auto;margin-left:0;white-space:nowrap;}
+.inventory-product-identity-v167{font-size:17px;font-weight:900;}
+.inventory-product-identity-v167 .inventory-product-name-copy{flex:0 1 auto;max-width:100%;}
+.inventory-product-code-v166{margin-top:6px;color:var(--muted);}
+.recent-import-summary-v167{line-height:1.7;}
+.recent-import-identity-v167{margin-left:3px;}
+.history-product-identity-v167{font-weight:inherit;}
+.history-adjustment-product .history-product-identity-v167{display:inline-flex;}
+.history-adjustment-product .history-product-identity-v167 .history-copy-product-inline{display:inline;}
+.product-history-identity-v167{min-width:0;}
+
+/* V16.7 — keep the mobile navigation on its own stable composited layer. */
+.bottom-nav{
+  position:fixed !important;
+  left:50% !important;
+  right:auto !important;
+  top:auto !important;
+  bottom:0 !important;
+  -webkit-transform:translate3d(-50%,0,0) !important;
+  transform:translate3d(-50%,0,0) !important;
+  -webkit-backface-visibility:hidden;
+  backface-visibility:hidden;
+  isolation:isolate;
+  contain:layout paint;
+}
+@supports (-webkit-touch-callout:none){
+  .bottom-nav{
+    -webkit-backdrop-filter:none;
+    backdrop-filter:none;
+    background:#fff;
+  }
+}
+@media(max-width:768px){
+  .product-history-identity-v167{flex:1 1 100%;order:2;}
+  .product-history-identity-v167 .product-history-adjustment-product.history-copy-product-inline{
+    flex:0 1 auto;
+    max-width:100%;
+  }
+}
 
 
 /* ================= V10.4 Sales manual inventory correction ================= */
