@@ -4135,7 +4135,7 @@ html, body {
 .import-number-line .recent-batch-copy-value{font-size:14px;}
 .import-card-meta .recent-batch-copy-value{display:block;font-size:13px;}
 
-/* V16.9 — visible product IDs are larger and copy locally without cloud reads. */
+/* V17.0 — visible product IDs are larger and copy locally without cloud reads. */
 .product-id-copy-v166{
   display:inline-flex;
   align-items:center;
@@ -4166,7 +4166,7 @@ html, body {
 .recent-import-product-id-v166,
 .history-product-id-v166{margin-left:6px;}
 
-/* V16.9 — product name and product ID always form one visible identity group. */
+/* V17.0 — product name and product ID always form one visible identity group. */
 .product-identity-v167{
   display:inline-flex;
   align-items:center;
@@ -4199,7 +4199,7 @@ html, body {
 .history-adjustment-product .history-product-identity-v167 .history-copy-product-inline{display:inline;}
 .product-history-identity-v167{min-width:0;}
 
-/* V16.9 — keep the mobile navigation on its own stable composited layer. */
+/* V17.0 — keep the mobile navigation on its own stable composited layer. */
 .bottom-nav{
   position:fixed !important;
   left:50% !important;
@@ -4228,7 +4228,7 @@ html, body {
   }
 }
 
-/* V16.9 — History identity order and responsive width.
+/* V17.0 — History identity order and responsive width.
    The older mobile rule gave every .product-history-adjustment-product order:2,
    including the name button nested inside this wrapper.  That moved the ID to
    the left.  Keep the two controls in an explicit, stable visual order. */
@@ -4281,6 +4281,70 @@ html, body {
     white-space:normal;
     overflow-wrap:break-word;
     word-break:normal;
+  }
+}
+
+/* V17.0 — one consistent history-record reading order on desktop and mobile:
+   date/time + product + ID + action + signed quantity, financials, remark. */
+.history-record-main-v170{
+  grid-column:1 / -1;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  flex-wrap:wrap;
+  gap:6px 8px;
+  width:100%;
+  min-width:0;
+  color:#172019;
+}
+.history-record-main-v170 .product-history-adjustment-date,
+.history-record-main-v170 .product-history-adjustment-action{
+  color:#172019;
+}
+.history-record-main-v170 .product-history-identity-v167{
+  flex:0 1 auto;
+  width:auto;
+  min-width:0;
+  max-width:100%;
+  order:initial;
+}
+.history-record-main-v170 .product-history-adjustment-quantity{
+  color:#172019;
+}
+.history-record-main-v170 .product-history-adjustment-quantity.is-negative-v170,
+.product-history-adjustment.decrease .history-record-main-v170 .product-history-adjustment-quantity{
+  color:#c51f1f;
+}
+.history-record-main-v170 .product-history-adjustment-quantity.is-positive-v170,
+.product-history-adjustment.increase .history-record-main-v170 .product-history-adjustment-quantity{
+  color:#16713d;
+}
+.history-sales-financial-v134{
+  order:2;
+  grid-column:1 / -1;
+  color:#172019;
+  font-weight:700;
+}
+.history-sales-financial-v134 span,
+.history-sales-financial-v134 strong{
+  color:#172019;
+}
+.history-adjustment-note,
+.product-history-adjustment-note{
+  order:3;
+  grid-column:1 / -1;
+  flex-basis:100%;
+  color:#b42318;
+}
+.history-adjustment-meta{
+  order:4;
+}
+
+@media(max-width:768px){
+  .history-record-main-v170 .product-history-identity-v167{
+    flex:0 1 auto;
+    width:auto;
+    min-width:0;
   }
 }
 
