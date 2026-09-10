@@ -1729,7 +1729,7 @@ input::placeholder {
   font-weight: 900;
 }
 
-/* V17.6 — Mobile Inventory Management cards stay inside the viewport.
+/* V17.7 — Mobile Inventory Management cards stay inside the viewport.
    The product name and Product ID keep the full first row. Import/category
    details share the next area with the sold/profit panel, so long names never
    push the right-hand panel or the two-column cost summary off screen. */
@@ -1813,7 +1813,7 @@ input::placeholder {
   }
 }
 
-/* V17.6 — Desktop Inventory Management cards use the same bounded header
+/* V17.7 — Desktop Inventory Management cards use the same bounded header
    structure as mobile.  The product identity gets the full first row; the
    sold/profit panel stays right-aligned inside its own card. */
 @media (min-width: 720px) {
@@ -1832,7 +1832,7 @@ input::placeholder {
 
   .inventory-manage-head {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 94px;
+    grid-template-columns: minmax(0, 1fr) 120px;
     grid-template-areas:
       "identity identity"
       "batches sold"
@@ -1879,9 +1879,9 @@ input::placeholder {
   .inventory-sold-quantity {
     grid-area: sold;
     justify-self: end;
-    width: 94px;
+    width: 120px;
     min-width: 0;
-    max-width: 94px;
+    max-width: 120px;
     box-sizing: border-box;
   }
 
@@ -4299,7 +4299,7 @@ html, body {
 .import-number-line .recent-batch-copy-value{font-size:14px;}
 .import-card-meta .recent-batch-copy-value{display:block;font-size:13px;}
 
-/* V17.6 — visible product IDs are larger and copy locally without cloud reads. */
+/* V17.7 — visible product IDs are larger and copy locally without cloud reads. */
 .product-id-copy-v166{
   display:inline-flex;
   align-items:center;
@@ -4330,7 +4330,7 @@ html, body {
 .recent-import-product-id-v166,
 .history-product-id-v166{margin-left:6px;}
 
-/* V17.6 — product name and product ID always form one visible identity group. */
+/* V17.7 — product name and product ID always form one visible identity group. */
 .product-identity-v167{
   display:inline-flex;
   align-items:center;
@@ -4363,7 +4363,7 @@ html, body {
 .history-adjustment-product .history-product-identity-v167 .history-copy-product-inline{display:inline;}
 .product-history-identity-v167{min-width:0;}
 
-/* V17.6 — keep the mobile navigation on its own stable composited layer. */
+/* V17.7 — keep the mobile navigation on its own stable composited layer. */
 .bottom-nav{
   position:fixed !important;
   left:50% !important;
@@ -4392,7 +4392,7 @@ html, body {
   }
 }
 
-/* V17.6 — History identity order and responsive width.
+/* V17.7 — History identity order and responsive width.
    The older mobile rule gave every .product-history-adjustment-product order:2,
    including the name button nested inside this wrapper.  That moved the ID to
    the left.  Keep the two controls in an explicit, stable visual order. */
@@ -4448,7 +4448,7 @@ html, body {
   }
 }
 
-/* V17.6 — one consistent history-record reading order on desktop and mobile:
+/* V17.7 — one consistent history-record reading order on desktop and mobile:
    date/time + product + ID + action + signed quantity, financials, remark. */
 .history-record-main-v170{
   grid-column:1 / -1;
@@ -4512,7 +4512,7 @@ html, body {
   }
 }
 
-/* V17.6 — History header layout.
+/* V17.7 — History header layout.
    Desktop keeps the preferred single reading line.  A phone uses the safe
    two-line fallback: date/action/quantity first, complete product identity
    second.  The product name itself is never split. */
@@ -4575,7 +4575,7 @@ html, body {
   }
 }
 
-/* V17.6 — Desktop history spacing uses the available card width while keeping
+/* V17.7 — Desktop history spacing uses the available card width while keeping
    the first row intact.  Mobile rules above remain unchanged. */
 @media(min-width:769px){
   .product-history-adjustment{
@@ -4625,7 +4625,7 @@ html, body {
   }
 }
 
-/* V17.6 — the same stock-before/after/import row in every History view. */
+/* V17.7 — the same stock-before/after/import row in every History view. */
 .history-adjustment-meta-v173{
   flex:1 1 100%;
   width:100%;
@@ -4740,7 +4740,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .sales-open-card-v120{display:block!important;width:100%!important;min-height:42px!important;margin:0!important;padding:10px 12px!important;background:#f7fbf8!important;color:#126b3e!important;border:1.5px solid #16814a!important;border-radius:10px!important;font-weight:800!important;font-size:15px!important}
 .sales-startup-card-v106>.sales-card-open-row-v120 + .sales-card-line-v106{margin-top:0}
 
-/* V17.6 final mobile constraint: keep the name and ID visually adjacent while
+/* V17.7 final mobile constraint: keep the name and ID visually adjacent while
    still allowing an exceptionally long name to shrink inside the card. */
 @media (max-width: 719px) {
   .inventory-product-identity-v167.product-identity-v167 {
