@@ -4135,7 +4135,7 @@ html, body {
 .import-number-line .recent-batch-copy-value{font-size:14px;}
 .import-card-meta .recent-batch-copy-value{display:block;font-size:13px;}
 
-/* V17.0 — visible product IDs are larger and copy locally without cloud reads. */
+/* V17.1 — visible product IDs are larger and copy locally without cloud reads. */
 .product-id-copy-v166{
   display:inline-flex;
   align-items:center;
@@ -4166,7 +4166,7 @@ html, body {
 .recent-import-product-id-v166,
 .history-product-id-v166{margin-left:6px;}
 
-/* V17.0 — product name and product ID always form one visible identity group. */
+/* V17.1 — product name and product ID always form one visible identity group. */
 .product-identity-v167{
   display:inline-flex;
   align-items:center;
@@ -4199,7 +4199,7 @@ html, body {
 .history-adjustment-product .history-product-identity-v167 .history-copy-product-inline{display:inline;}
 .product-history-identity-v167{min-width:0;}
 
-/* V17.0 — keep the mobile navigation on its own stable composited layer. */
+/* V17.1 — keep the mobile navigation on its own stable composited layer. */
 .bottom-nav{
   position:fixed !important;
   left:50% !important;
@@ -4228,7 +4228,7 @@ html, body {
   }
 }
 
-/* V17.0 — History identity order and responsive width.
+/* V17.1 — History identity order and responsive width.
    The older mobile rule gave every .product-history-adjustment-product order:2,
    including the name button nested inside this wrapper.  That moved the ID to
    the left.  Keep the two controls in an explicit, stable visual order. */
@@ -4284,7 +4284,7 @@ html, body {
   }
 }
 
-/* V17.0 — one consistent history-record reading order on desktop and mobile:
+/* V17.1 — one consistent history-record reading order on desktop and mobile:
    date/time + product + ID + action + signed quantity, financials, remark. */
 .history-record-main-v170{
   grid-column:1 / -1;
@@ -4345,6 +4345,69 @@ html, body {
     flex:0 1 auto;
     width:auto;
     min-width:0;
+  }
+}
+
+/* V17.1 — History header layout.
+   Desktop keeps the preferred single reading line.  A phone uses the safe
+   two-line fallback: date/action/quantity first, complete product identity
+   second.  The product name itself is never split. */
+.history-record-main-v170{
+  display:grid;
+  grid-template-columns:max-content max-content max-content max-content;
+  grid-template-areas:"date product action quantity";
+  justify-content:start;
+  align-items:center;
+  column-gap:8px;
+  row-gap:6px;
+}
+.history-record-main-v170 > .product-history-adjustment-date{
+  grid-area:date;
+  order:0 !important;
+}
+.history-record-main-v170 > .history-product-identity-v167,
+.history-record-main-v170 > .product-history-identity-v167{
+  grid-area:product;
+  order:0 !important;
+  display:inline-flex;
+  flex-wrap:nowrap;
+  width:max-content;
+  max-width:none;
+  white-space:nowrap;
+}
+.history-record-main-v170 .history-copy-product-inline,
+.history-record-main-v170 .product-history-adjustment-product.history-copy-product-inline{
+  flex:0 0 auto;
+  width:auto;
+  max-width:none;
+  white-space:nowrap;
+  overflow-wrap:normal;
+  word-break:normal;
+}
+.history-record-main-v170 > .product-history-adjustment-action{
+  grid-area:action;
+  order:0 !important;
+}
+.history-record-main-v170 > .product-history-adjustment-quantity{
+  grid-area:quantity;
+  order:0 !important;
+}
+.history-sales-financial-v134 > span{
+  white-space:nowrap;
+}
+
+@media(max-width:768px){
+  .history-record-main-v170{
+    grid-template-columns:minmax(0,1fr) max-content max-content;
+    grid-template-areas:
+      "date action quantity"
+      "product product product";
+    width:100%;
+  }
+  .history-record-main-v170 > .history-product-identity-v167,
+  .history-record-main-v170 > .product-history-identity-v167{
+    width:max-content;
+    max-width:100%;
   }
 }
 
