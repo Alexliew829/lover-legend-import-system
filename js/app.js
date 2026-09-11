@@ -60,6 +60,9 @@ let historyLookupRenderTokenV134 = 0;
 let historyAllSalesLinksLoadedV136 = false;
 let historyAllSalesLinksLoadingV136 = null;
 let inventorySalesAnalyticsCacheV146 = { signature: "", value: null };
+const HISTORY_SALES_CACHE_KEY_V179 = "lover_import_history_sales_financial_v179";
+let historySalesCacheHydratedV179 = false;
+let historySalesCacheHasDataV179 = false;
 
 function setSalesInventoryOperationLockV117(active, stage = "") {
   salesInventoryOperationActiveV115 = Boolean(active);
@@ -955,7 +958,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V17.8 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V17.9 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1059,7 +1062,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
     if (!result?.ok) throw new Error(result?.message || result?.error || "整张销售卡库存处理失败。");
     if (result?.partialProcessed) throw new Error(result?.message || "检测到销售卡只有部分库存项目曾被处理，已停止整张写入。");
 
-    // V17.8: the batch endpoint has already flushed and verified Products,
+    // V17.9: the batch endpoint has already flushed and verified Products,
     // Imports, Batches, History and Sales Keys atomically. Apply the exact staged
     // canonical rows immediately; the ordinary background sync can refresh the
     // rest later without holding this inventory operation open.
@@ -5512,7 +5515,7 @@ function setupImportHistory() {
   };
 
   button?.addEventListener("click", () => {
-    // V17.8: normalize both visible date fields at click time.  Either field
+    // V17.9: normalize both visible date fields at click time.  Either field
     // may stand alone; getHistoryDateRange treats it as one exact day.
     normalizeHistoryDateField(startInput, startPicker);
     normalizeHistoryDateField(endInput, endPicker);
@@ -6195,7 +6198,7 @@ function getDailyStockAdjustments(selectedDate, keyword = "") {
   const normalizedDate =
     normalizeDateToDDMMYYYY(selectedDate);
 
-  // V17.8: restore the proven V15.0 date-query return contract.
+  // V17.9: restore the proven V15.0 date-query return contract.
   return getProducts()
     .flatMap(product =>
       getProductStockAdjustments(product)
@@ -6381,6 +6384,38 @@ function historySalesContextKeyV134(type, date, location) {
   return [String(type || "").toLowerCase(), normalizeDateToDDMMYYYY(date), String(location || "").trim().toLowerCase()].join("|");
 }
 
+function slimHistorySalesLinkV179(link) {
+  return {
+    linkId:String(link?.linkId||""), quantity:Number(link?.quantity||0),
+    averageCost:Number(link?.averageCost), localDelivery:Number(link?.localDelivery),
+    extraFee:Number(link?.extraFee), commissionAmount:Number(link?.commissionAmount),
+    actualPrice:Number(link?.actualPrice), profit:Number(link?.profit),
+    profitRate:Number(link?.profitRate), productId:String(link?.productId||""),
+    productName:String(link?.productName||""), transactionId:String(link?.transactionId||link?.saleId||""),
+    saleId:String(link?.saleId||link?.transactionId||""), type:String(link?.type||""),
+    date:String(link?.date||""), location:String(link?.location||""),
+    importSyncStatus:String(link?.importSyncStatus||"")
+  };
+}
+
+function hydrateHistorySalesCacheV179() {
+  if (historySalesCacheHydratedV179) return historySalesCacheHasDataV179;
+  historySalesCacheHydratedV179 = true;
+  try {
+    const cached=JSON.parse(localStorage.getItem(HISTORY_SALES_CACHE_KEY_V179)||"null");
+    const links=Array.isArray(cached?.links)?cached.links:[];
+    links.forEach(link=>{const id=String(link?.linkId||"").trim();if(id)historySalesDetailsByLinkV134.set(id,link)});
+    historySalesCacheHasDataV179=links.length>0;
+  } catch (_) { historySalesCacheHasDataV179=false; }
+  return historySalesCacheHasDataV179;
+}
+
+function persistHistorySalesCacheV179(links) {
+  const clean=(Array.isArray(links)?links:[]).map(slimHistorySalesLinkV179).filter(link=>link.linkId);
+  try { localStorage.setItem(HISTORY_SALES_CACHE_KEY_V179,JSON.stringify({savedAt:Date.now(),links:clean})); } catch (_) {}
+  historySalesCacheHydratedV179=true;historySalesCacheHasDataV179=clean.length>0;
+}
+
 function callHistorySalesProductLinksV134(context) {
   return new Promise((resolve, reject) => {
     const callbackName = `loverLegendHistoryLinksV134_${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -6410,6 +6445,7 @@ async function ensureHistorySalesContextV134(context) {
 }
 
 async function ensureVisibleHistorySalesDetailsV134() {
+  hydrateHistorySalesCacheV179();
   if (!navigator.onLine || historyAllSalesLinksLoadedV136) return;
   if (historyAllSalesLinksLoadingV136) return historyAllSalesLinksLoadingV136;
   historyAllSalesLinksLoadingV136 = new Promise((resolve, reject) => {
@@ -6420,10 +6456,12 @@ async function ensureVisibleHistorySalesDetailsV134() {
     window[callbackName] = data => {
       cleanup();
       if (!data?.ok) { reject(new Error(data?.error || "读取完整销售卡失败")); return; }
-      (Array.isArray(data.links) ? data.links : []).forEach(link => {
+      const links=Array.isArray(data.links) ? data.links : [];
+      links.forEach(link => {
         const id = String(link?.linkId || "").trim();
         if (id) historySalesDetailsByLinkV134.set(id, link);
       });
+      persistHistorySalesCacheV179(links);
       historyAllSalesLinksLoadedV136 = true;
       resolve();
     };
@@ -6444,7 +6482,9 @@ function buildHistorySalesFinancialHtmlV134(adjustment) {
   const quantity = Math.max(1, Number(detail?.quantity || link?.processedQty || Math.abs(Number(adjustment?.delta) || 0)) || 1);
   const averageCost = Number(detail?.averageCost), delivery = Number(detail?.localDelivery), extra = Number(detail?.extraFee), commission = Number(detail?.commissionAmount);
   const saleAmount = Number(detail?.actualPrice), profit = Number(detail?.profit), profitRate = Number(detail?.profitRate);
-  if (![averageCost, delivery, extra, commission, saleAmount, profit, profitRate].every(Number.isFinite)) return "";
+  if (![averageCost, delivery, extra, commission, saleAmount, profit, profitRate].every(Number.isFinite)) {
+    return `<div class="history-sales-financial-v134 history-sales-financial-loading-v179">销售金额／成本／利润读取中…</div>`;
+  }
   const totalCost = averageCost * quantity + delivery + extra + commission;
   const profitRateText = (Number(profitRate) || 0).toLocaleString("en-MY", {
     minimumFractionDigits: 2,
@@ -6725,7 +6765,7 @@ function getHistoryNetSoldLots(options = {}) {
       // Only confirmed/typed sales enter the sales queue. Legacy unclassified
       // negatives are excluded. Likewise, an unclassified legacy positive must
       // not silently reverse a confirmed sale.
-      // V17.8: retain positive changes only as possible reversals. Explicit
+      // V17.9: retain positive changes only as possible reversals. Explicit
       // Sales restores are linked; an unlinked positive may cancel only one
       // recent, exact opposite legacy/test entry below.
       return (delta < 0 && type === "sale") ||
@@ -6776,7 +6816,7 @@ function getHistoryNetSoldLots(options = {}) {
 
     // A linked Sales restore reverses its matching queue normally.
     if (!hasExplicitRestoreLink(adjustment)) {
-      // V17.8: an unlinked +N is a test/manual undo only when it exactly
+      // V17.9: an unlinked +N is a test/manual undo only when it exactly
       // matches one immediately preceding -N for the same product/import and
       // occurs within 15 minutes. It must never consume unrelated sales FIFO.
       const positiveTime = Date.parse(String(adjustment.createdAt || ""));
@@ -6863,7 +6903,7 @@ function getHistorySalesLinkForAdjustmentV137(adjustment, allAdjustments) {
   return sibling ? historyAdjustmentSaleLinkV134(sibling) : null;
 }
 
-// V17.8: sum Sales-card profit and complete Sales-card cost for the exact
+// V17.9: sum Sales-card profit and complete Sales-card cost for the exact
 // net-sold lots selected by the current product/import/date filters. Group by
 // Link ID so FIFO batch splits do not count the same Sales line more than once.
 function getHistorySoldProfitTotalV137(options = {}) {
@@ -6908,6 +6948,7 @@ function getHistoryPendingLegacySalesSummary(options = {}) {
 }
 
 function buildHistorySoldCostSummary(options = {}) {
+  hydrateHistorySalesCacheV179();
   const range = options?.range && !options.range.error ? options.range : null;
   const periodLabel = range
     ? (range.isSingleDay
@@ -6918,6 +6959,10 @@ function buildHistorySoldCostSummary(options = {}) {
   const profitSummary = getHistorySoldProfitTotalV137(options);
   const soldQuantity = getHistorySoldQuantityTotal(options);
   const totalSalesAmount = Number(profitSummary.totalSalesCost || 0) + Number(profitSummary.totalProfit || 0);
+  const salesFinancialReady = historyAllSalesLinksLoadedV136 || historySalesCacheHasDataV179 || soldQuantity <= 0;
+  const salesTotalText = salesFinancialReady ? formatMoney(totalSalesAmount, "RM ") : "读取中…";
+  const salesCostText = salesFinancialReady ? formatMoney(profitSummary.totalSalesCost, "RM ") : "读取中…";
+  const salesProfitText = salesFinancialReady ? formatMoney(profitSummary.totalProfit, "RM ") : "读取中…";
   const periodLayoutClass = range ? "history-selected-period-range-v143" : "history-selected-period-all-v143";
 
   return `
@@ -6928,7 +6973,7 @@ function buildHistorySoldCostSummary(options = {}) {
     <div class="history-cost-profit-summary-v137">
       <div class="history-total-sales-amount-summary-v142">
         <span>销售总额</span>
-        <strong>${formatMoney(totalSalesAmount, "RM ")}</strong>
+        <strong>${salesTotalText}</strong>
       </div>
       <div class="history-sold-cost-summary">
         <span>卖出成本总值</span>
@@ -6938,11 +6983,11 @@ function buildHistorySoldCostSummary(options = {}) {
     <div class="history-cost-profit-summary-v137">
       <div class="history-total-sales-cost-summary-v138">
         <span>卖出总成本</span>
-        <strong>${formatMoney(profitSummary.totalSalesCost, "RM ")}</strong>
+        <strong>${salesCostText}</strong>
       </div>
       <div class="history-total-profit-summary-v137">
         <span>销售总利润</span>
-        <strong>${formatMoney(profitSummary.totalProfit, "RM ")}</strong>
+        <strong>${salesProfitText}</strong>
       </div>
     </div>
     ${pending.count ? `<div class="history-pending-legacy-note">⚠ 旧记录待确认：${formatNumber(pending.count, 0)} 笔 / ${formatNumber(pending.quantity, 0)} 棵，暂不计入卖出统计。请到「设置 → 历史销售修复」确认。</div>` : ""}
@@ -7616,7 +7661,7 @@ function renderCompactProductHistoryByRange(
   return true;
 }
 
-// V17.8: source lookup uses surviving net-sale lots. Cancelled or restored
+// V17.9: source lookup uses surviving net-sale lots. Cancelled or restored
 // sales are excluded from both the displayed records and the totals.
 function renderHistorySalesSourceLookupV149(keyword, range, output) {
   const sourceKeyword = String(keyword || "").trim();
@@ -8111,6 +8156,7 @@ function renderImportHistoryNowV134() {
 
 async function renderImportHistory() {
   const token = ++historyLookupRenderTokenV134;
+  hydrateHistorySalesCacheV179();
   renderImportHistoryNowV134();
   await ensureVisibleHistorySalesDetailsV134();
   if (token === historyLookupRenderTokenV134) renderImportHistoryNowV134();
@@ -11393,7 +11439,7 @@ function setupInventoryModule() {
 
   bindInventoryMinimumPriceLongPress();
   renderInventoryManagementList();
-  // V17.8: 首页显示后立即在后台预载完整销售利润资料。
+  // V17.9: 首页显示后立即在后台预载完整销售利润资料。
   // 用户稍后选择“畅销商品”或“利润最高”时通常可直接使用缓存结果。
   Promise.resolve()
     .then(() => ensureVisibleHistorySalesDetailsV134())
@@ -11519,7 +11565,7 @@ function showCopiedSyncMessage(importNumber) {
   }, 2000);
 }
 
-// V17.8: 一次扫描 History，同时建立售出数量、累计利润及最近售出索引。
+// V17.9: 一次扫描 History，同时建立售出数量、累计利润及最近售出索引。
 // 缓存以 Products 原始资料及已载入销售明细数量为签名；资料改变后自动重算。
 function getInventorySalesAnalyticsV146() {
   const productsSnapshot = String(localStorage.getItem("importSystemProducts") || "");
@@ -11797,7 +11843,7 @@ function renderInventoryManagementList() {
     return parseDDMMYYYY(b.displayLastImport) - parseDDMMYYYY(a.displayLastImport);
   });
 
-  // V17.8: both views consume this same sorted and filtered product array.
+  // V17.9: both views consume this same sorted and filtered product array.
   inventoryVisibleProductsV153 = products.map(product => ({ ...product }));
 
   document.getElementById("inventoryPageCount").textContent = `${products.length} 项`;
@@ -11937,7 +11983,7 @@ function renderInventoryManagementList() {
 
 
 function getOriginalCostSummaryRows() {
-  // V17.8: these are the actual objects just rendered by Inventory Management.
+  // V17.9: these are the actual objects just rendered by Inventory Management.
   // There is deliberately no second independent filter pass here.
   return inventoryVisibleProductsV153.map(product => ({
     id: String(product.id || ""),
@@ -12729,7 +12775,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "17.8",
+      version: "17.9",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -13092,7 +13138,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V17.8 Stable",
+      updatedBy: "System V17.9 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -13153,7 +13199,7 @@ function registerServiceWorker() {
 }
 
 
-// V17.8 Shared quick navigation.  It deliberately observes only page/result
+// V17.9 Shared quick navigation.  It deliberately observes only page/result
 // containers; it must never watch or mutate the history filter controls.
 (function(){
   function setupHistoryScrollButton(){
