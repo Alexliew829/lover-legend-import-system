@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=17.9" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=17.9" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=17.9" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=17.9" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=17.9" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=17.9" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=17.9" />
+  <link rel="manifest" href="./manifest.json?v=18.1" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=18.1" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=18.1" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=18.1" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=18.1" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=18.1" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=18.1" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=17.9" />
-  <link rel="stylesheet" href="./css/style.css?v=17.9" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=18.1" />
+  <link rel="stylesheet" href="./css/style.css?v=18.1" />
 </head>
 <body>
   <div id="accessLock"
@@ -84,7 +84,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 17.9 Stable</div>
+          <div class="app-header-version">正式版 18.1 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -464,8 +464,8 @@
           <div id="settingsStatus" class="status-text"></div>
         </section>
 
-        <section class="panel">
-          <h3>自动最低售价</h3>
+        <details class="panel collapsible-settings-v181">
+          <summary><span>自动最低售价</span><small>点击打开／收起</small></summary>
           <p class="settings-help">固定扣除主播佣金 10%。下列净利率与木架＋本地运费可修改；只影响自动最低售价，不覆盖手动售价。</p>
           <h4>目标净利率（按平均成本）</h4>
           <div class="form-grid minimum-price-settings-grid">
@@ -491,7 +491,23 @@
           </div>
           <button id="saveMinimumPriceSettingsBtn" class="primary-btn" type="button">保存最低售价设置</button>
           <div id="minimumPriceSettingsStatus" class="status-text"></div>
-        </section>
+        </details>
+
+        <details class="panel collapsible-settings-v181 product-prefix-settings-v181">
+          <summary><span>产品编号前缀管理</span><small>只影响以后新增产品</small></summary>
+          <p class="settings-help">
+            所有已保存规则永久只读，不能修改关键词、前缀或删除。这里只能新增未使用过的产品名称关键词；保存后只影响以后新增的产品，不修改现有编号、进口、历史、库存或成本。
+          </p>
+          <div class="product-prefix-locked-head-v181"><span>产品名称关键词</span><span>编号前缀</span></div>
+          <div id="productPrefixRulesList" class="product-prefix-locked-list-v181"></div>
+          <div class="product-prefix-add-v181">
+            <label>新产品名称关键词<input id="newProductPrefixKeyword" maxlength="20" autocomplete="off" placeholder="例如：榕树" /></label>
+            <label>新编号前缀<input id="newProductPrefixCode" maxlength="2" autocomplete="off" autocapitalize="characters" placeholder="例如：RS" /></label>
+          </div>
+          <button id="addProductPrefixRuleBtn" class="primary-btn" type="button">新增并锁定产品前缀</button>
+          <div id="productPrefixRulesStatus" class="status-text"></div>
+          <p class="settings-help">花盆固定使用 PS；无法识别的盆栽使用 PZ。不同产品允许使用相同前缀，但产品名称关键词不能重复。</p>
+        </details>
 
         <section class="panel">
           <h3>更改系统密码</h3>
@@ -701,7 +717,7 @@
 
         <section class="panel">
           <h3>系统资料</h3>
-          <div class="info-row"><span>版本</span><strong>正式版 17.9 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong>正式版 18.1 Stable</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
           <div class="info-row"><span>Google Sheet</span><strong>已连接 Google Web App</strong></div>
         </section>
@@ -724,8 +740,8 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=17.9"></script>
-  <script src="./js/sync.js?v=17.9"></script>
-  <script src="./js/app.js?v=17.9"></script>
+  <script src="./js/common.js?v=18.1"></script>
+  <script src="./js/sync.js?v=18.1"></script>
+  <script src="./js/app.js?v=18.1"></script>
 </body>
 </html>
