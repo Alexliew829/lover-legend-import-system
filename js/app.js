@@ -958,7 +958,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V18.2 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V18.3 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1062,7 +1062,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
     if (!result?.ok) throw new Error(result?.message || result?.error || "整张销售卡库存处理失败。");
     if (result?.partialProcessed) throw new Error(result?.message || "检测到销售卡只有部分库存项目曾被处理，已停止整张写入。");
 
-    // V18.2: the batch endpoint has already flushed and verified Products,
+    // V18.3: the batch endpoint has already flushed and verified Products,
     // Imports, Batches, History and Sales Keys atomically. Apply the exact staged
     // canonical rows immediately; the ordinary background sync can refresh the
     // rest later without holding this inventory operation open.
@@ -2620,6 +2620,7 @@ function hasUnsavedSettingsChangesV160() {
   }
   if (["newProductPrefixKeyword", "newProductPrefixCode"].some(id =>
     String(document.getElementById(id)?.value || "").trim() !== "")) return true;
+  if (typeof hasPromotionDraftChangesV183 === "function" && hasPromotionDraftChangesV183()) return true;
 
   const storedRules = getMinimumPriceRulesV160();
   return Object.entries(MINIMUM_PRICE_SETTING_FIELDS_V160).some(([key, field]) => {
@@ -2646,6 +2647,7 @@ function discardSettingsDraftV160() {
     const input = document.getElementById(id);
     if (input) input.value = "";
   });
+  if (typeof resetPromotionDraftV183 === "function") resetPromotionDraftV183();
 }
 
 function confirmLeaveSettingsV160() {
@@ -2812,6 +2814,7 @@ function setupSettings() {
 
   setupPasswordChange();
   setupMinimumPriceSettingsV160();
+  setupPromotionSettingsV183();
   setupProductPrefixSettingsV181();
   setupDeviceBiometricSettings();
   setupDataTools();
@@ -3056,7 +3059,7 @@ function renderInventoryList(products) {
   list.innerHTML = products.map(item => {
     const stock = Number(item.stock) || 0;
     const averageCost = Number(item.averageCost) || 0;
-    const minimumPrice = Math.max(0, Number(item.minimumPrice) || 0);
+    const minimumPrice = getEffectiveProductMinimumPriceV183(item);
     const value = stock * averageCost;
 
     return `
@@ -3269,6 +3272,304 @@ function getAutomaticMinimumPriceV160(averageCost, configuredRules = null, produ
   return Math.ceil((((cost + deliveryCost) / denominator) - 1e-9) / 10) * 10;
 }
 
+function getPromotionSettingsV183() {
+  const saved = loadJSON("importSystemSettings", {});
+  const raw = saved.promotionV183;
+  if (!raw || raw.active !== true) return null;
+  const commissionRate = Number(raw.commissionRate);
+  const targetMarginRate = Number(raw.targetMarginRate);
+  return {
+    active: true,
+    name: String(raw.name || "年尾清货").trim() || "年尾清货",
+    commissionRate: Number.isFinite(commissionRate) ? commissionRate : 10,
+    targetMarginRate: Number.isFinite(targetMarginRate) ? targetMarginRate : 10,
+    excludedProductIds: Array.from(new Set((Array.isArray(raw.excludedProductIds) ? raw.excludedProductIds : [])
+      .map(id => String(id || "").trim().toUpperCase()).filter(Boolean))),
+    createdAt: String(raw.createdAt || ""),
+    updatedAt: String(raw.updatedAt || "")
+  };
+}
+
+function getPromotionCostV183(product, rules = null, originIndex = null) {
+  const configuredRules = rules || getMinimumPriceRulesV160();
+  return Math.max(0, Number(product?.averageCost) || 0) +
+    getVndPotCostV160(product, configuredRules, originIndex || getMinimumPriceOriginIndexV160());
+}
+
+function getPromotionDeliveryV183(cost, price, rules) {
+  if (cost >= 800) return rules.freightHighCost;
+  if (price < 300) return rules.freightUnder300;
+  if (price <= 500) return rules.freight300To500;
+  return rules.freightOver500;
+}
+
+function getPromotionPriceBreakdownV183(product, promotion = null, rules = null, originIndex = null) {
+  const active = promotion || getPromotionSettingsV183();
+  const configuredRules = rules || getMinimumPriceRulesV160();
+  const cost = getPromotionCostV183(product, configuredRules, originIndex);
+  if (!active || cost <= 0) return { price: 0, cost, delivery: 0, profit: 0, profitRate: 0 };
+  const denominator = 1 - active.commissionRate / 100 - active.targetMarginRate / 100;
+  if (denominator <= 0) return { price: 0, cost, delivery: 0, profit: 0, profitRate: 0 };
+  let delivery = configuredRules.freightHighCost;
+  if (cost < 800) {
+    const under300Price = (cost + configuredRules.freightUnder300) / denominator;
+    const midPrice = (cost + configuredRules.freight300To500) / denominator;
+    delivery = under300Price < 300 ? configuredRules.freightUnder300
+      : midPrice <= 500 ? configuredRules.freight300To500 : configuredRules.freightOver500;
+  }
+  const price = Math.ceil((((cost + delivery) / denominator) - 1e-9) / 10) * 10;
+  const profit = price * (1 - active.commissionRate / 100) - cost - delivery;
+  return { price, cost, delivery, profit, profitRate: price > 0 ? profit / price * 100 : 0 };
+}
+
+function getEffectiveProductMinimumPriceV183(product, promotion = null, rules = null, originIndex = null) {
+  const originalPrice = Math.max(0, Number(product?.minimumPrice) || 0);
+  const active = promotion || getPromotionSettingsV183();
+  if (!active || active.excludedProductIds.includes(String(product?.id || "").trim().toUpperCase())) return originalPrice;
+  return getPromotionPriceBreakdownV183(product, active, rules, originIndex).price;
+}
+
+let promotionExcludedDraftV183 = new Set();
+
+function getPromotionDraftV183() {
+  return {
+    active: true,
+    name: String(document.getElementById("promotionNameV183")?.value || "年尾清货").trim() || "年尾清货",
+    commissionRate: Number(document.getElementById("promotionCommissionV183")?.value),
+    targetMarginRate: Number(document.getElementById("promotionMarginV183")?.value),
+    excludedProductIds: Array.from(promotionExcludedDraftV183)
+  };
+}
+
+function hasPromotionDraftChangesV183() {
+  const nameInput = document.getElementById("promotionNameV183");
+  if (!nameInput) return false;
+  const active = getPromotionSettingsV183();
+  const draft = getPromotionDraftV183();
+  const expected = active || {name:"年尾清货",commissionRate:10,targetMarginRate:10,excludedProductIds:[]};
+  return draft.name !== expected.name ||
+    Math.abs(draft.commissionRate - expected.commissionRate) >= 0.005 ||
+    Math.abs(draft.targetMarginRate - expected.targetMarginRate) >= 0.005 ||
+    JSON.stringify([...draft.excludedProductIds].sort()) !== JSON.stringify([...(expected.excludedProductIds || [])].sort());
+}
+
+function resetPromotionDraftV183() {
+  const active = getPromotionSettingsV183();
+  const nameInput = document.getElementById("promotionNameV183");
+  const commissionInput = document.getElementById("promotionCommissionV183");
+  const marginInput = document.getElementById("promotionMarginV183");
+  if (nameInput) nameInput.value = active?.name || "年尾清货";
+  if (commissionInput) commissionInput.value = String(active?.commissionRate ?? 10);
+  if (marginInput) marginInput.value = String(active?.targetMarginRate ?? 10);
+  promotionExcludedDraftV183 = new Set(active?.excludedProductIds || []);
+  renderPromotionExcludedListV183();
+  renderPromotionExcludeSearchV183();
+}
+
+function promotionProductMatchesV183(product, query) {
+  const normalized = normalizeSmartSearchText(query);
+  if (!normalized) return false;
+  const direct = [product?.id, product?.name, product?.category].some(value =>
+    normalizeSmartSearchText(value).includes(normalized));
+  if (direct) return true;
+  return getImports().some(row =>
+    String(row?.productId || "").trim() === String(product?.id || "").trim() &&
+    normalizeSmartSearchText(row?.importNumber).includes(normalized));
+}
+
+function getPromotionExcludeMatchesV183(query) {
+  const text = String(query || "").trim();
+  return text ? getProducts().filter(product => promotionProductMatchesV183(product, text)) : [];
+}
+
+function promotionCurrentProfitV183(product, effectivePrice, promotion, rules, originIndex) {
+  const cost = getPromotionCostV183(product, rules, originIndex);
+  const delivery = getPromotionDeliveryV183(cost, effectivePrice, rules);
+  return effectivePrice * (1 - promotion.commissionRate / 100) - cost - delivery;
+}
+
+function renderPromotionExcludedListV183() {
+  const list = document.getElementById("promotionExcludedListV183");
+  if (!list) return;
+  const products = getProducts();
+  const rows = Array.from(promotionExcludedDraftV183).map(id => products.find(product => String(product.id).toUpperCase() === id)).filter(Boolean);
+  list.innerHTML = rows.length ? rows.map(product => `
+    <div class="promotion-excluded-row-v183">
+      <div><strong>${escapeHTML(product.id)}</strong><small>${escapeHTML(product.name)}</small><span>使用原最低售价：${formatMoney(product.minimumPrice, "RM ")}</span></div>
+      <button type="button" data-remove-promotion-exclusion="${escapeHTML(product.id)}">移除排除</button>
+    </div>`).join("") : `<div class="promotion-empty-v183">没有排除产品</div>`;
+}
+
+function renderPromotionExcludeSearchV183() {
+  const input = document.getElementById("promotionExcludeSearchV183");
+  const results = document.getElementById("promotionExcludeSearchResultsV183");
+  const excludeAllButton = document.getElementById("promotionExcludeAllMatchesV183");
+  if (!input || !results) return;
+  const query = input.value.trim();
+  if (!query) { results.innerHTML = ""; if (excludeAllButton) excludeAllButton.hidden = true; return; }
+  const promotion = getPromotionDraftV183();
+  const rules = getMinimumPriceRulesV160();
+  const originIndex = getMinimumPriceOriginIndexV160();
+  const allMatches = getPromotionExcludeMatchesV183(query);
+  const matches = allMatches.slice(0, 30);
+  const notExcludedCount = allMatches.filter(product => !promotionExcludedDraftV183.has(String(product.id || "").toUpperCase())).length;
+  if (excludeAllButton) {
+    excludeAllButton.hidden = allMatches.length === 0;
+    excludeAllButton.disabled = notExcludedCount === 0;
+    excludeAllButton.textContent = notExcludedCount > 0
+      ? `批量排除搜索结果（${notExcludedCount} 项）`
+      : `搜索结果已全部排除（${allMatches.length} 项）`;
+  }
+  results.innerHTML = matches.length ? matches.map(product => {
+    const id = String(product.id || "").toUpperCase();
+    const promoPrice = getPromotionPriceBreakdownV183(product, promotion, rules, originIndex).price;
+    const selected = promotionExcludedDraftV183.has(id);
+    return `<button type="button" class="promotion-search-result-v183" data-add-promotion-exclusion="${escapeHTML(id)}" ${selected ? "disabled" : ""}>
+      <strong>${escapeHTML(id)}</strong><small>${escapeHTML(product.name)}</small>
+      <span>库存 ${formatNumber(product.stock)} · 平均成本 ${formatMoney(product.averageCost, "RM ")} · 原价 ${formatMoney(product.minimumPrice, "RM ")} · 促销价 ${formatMoney(promoPrice, "RM ")}</span>
+      <em>${selected ? "已排除" : "加入排除"}</em>
+    </button>`;
+  }).join("") : `<div class="promotion-empty-v183">找不到符合的产品</div>`;
+}
+
+function renderPromotionPriceListV183() {
+  const list = document.getElementById("promotionPriceListV183");
+  if (!list) return;
+  const promotion = getPromotionSettingsV183();
+  if (!promotion) { list.innerHTML = ""; return; }
+  const query = String(document.getElementById("promotionPriceListSearchV183")?.value || "").trim();
+  const rules = getMinimumPriceRulesV160();
+  const originIndex = getMinimumPriceOriginIndexV160();
+  const products = getProducts().filter(product => !query || promotionProductMatchesV183(product, query));
+  list.innerHTML = products.map(product => {
+    const excluded = promotion.excludedProductIds.includes(String(product.id || "").toUpperCase());
+    const originalPrice = Math.max(0, Number(product.minimumPrice) || 0);
+    const promoPrice = getPromotionPriceBreakdownV183(product, promotion, rules, originIndex).price;
+    const effectivePrice = excluded ? originalPrice : promoPrice;
+    const profit = promotionCurrentProfitV183(product, effectivePrice, promotion, rules, originIndex);
+    return `<div class="promotion-price-row-v183 ${profit < 0 ? "loss" : "gain"} ${excluded ? "excluded" : ""}">
+      <div class="promotion-product-copy-v183"><span>
+        ${buildProductIdCopyButtonV166(product.id, "promotion-product-id-v183")}
+        <button type="button" class="inventory-product-name-copy promotion-product-name-v183" data-product-name="${escapeHTML(product.name)}" onclick="copyInventoryProductName(this)" title="点击复制产品名称">${escapeHTML(product.name)}</button>
+      </span><small>${excluded ? "已排除 · 使用原最低售价" : promotion.name} · 点击编号或名称即可复制</small></div>
+      <span>平均成本 <b>${formatMoney(product.averageCost, "RM ")}</b></span>
+      <span>原最低售价 <b>${formatMoney(originalPrice, "RM ")}</b></span>
+      <span>新最低售价 <b>${formatMoney(effectivePrice, "RM ")}</b></span>
+      <span>${profit < 0 ? "亏" : "赚"} <b>${formatMoney(Math.abs(profit), "RM ")}</b></span>
+    </div>`;
+  }).join("") || `<div class="promotion-empty-v183">没有符合的产品</div>`;
+}
+
+function refreshPromotionUiV183() {
+  const promotion = getPromotionSettingsV183();
+  const summary = document.getElementById("promotionSummaryStatusV183");
+  const deleteButton = document.getElementById("deletePromotionV183");
+  const toggleButton = document.getElementById("togglePromotionPriceListV183");
+  if (summary) summary.textContent = promotion ? `${promotion.name} · 进行中` : "未开启";
+  if (deleteButton) deleteButton.hidden = !promotion;
+  if (toggleButton) toggleButton.hidden = !promotion;
+}
+
+function setupPromotionSettingsV183() {
+  const nameInput = document.getElementById("promotionNameV183");
+  const commissionInput = document.getElementById("promotionCommissionV183");
+  const marginInput = document.getElementById("promotionMarginV183");
+  const searchInput = document.getElementById("promotionExcludeSearchV183");
+  const searchResults = document.getElementById("promotionExcludeSearchResultsV183");
+  const excludeAllButton = document.getElementById("promotionExcludeAllMatchesV183");
+  const excludedList = document.getElementById("promotionExcludedListV183");
+  const saveButton = document.getElementById("savePromotionV183");
+  const deleteButton = document.getElementById("deletePromotionV183");
+  const toggleButton = document.getElementById("togglePromotionPriceListV183");
+  const pricePanel = document.getElementById("promotionPriceListPanelV183");
+  const priceSearch = document.getElementById("promotionPriceListSearchV183");
+  const status = document.getElementById("promotionStatusV183");
+  if (!nameInput || !saveButton) return;
+  const active = getPromotionSettingsV183();
+  if (active) {
+    nameInput.value = active.name;
+    commissionInput.value = String(active.commissionRate);
+    marginInput.value = String(active.targetMarginRate);
+    promotionExcludedDraftV183 = new Set(active.excludedProductIds);
+  } else promotionExcludedDraftV183 = new Set();
+  renderPromotionExcludedListV183();
+  refreshPromotionUiV183();
+  [commissionInput, marginInput].forEach(input => input?.addEventListener("input", renderPromotionExcludeSearchV183));
+  searchInput?.addEventListener("input", renderPromotionExcludeSearchV183);
+  searchResults?.addEventListener("click", event => {
+    const button = event.target.closest("[data-add-promotion-exclusion]");
+    if (!button) return;
+    promotionExcludedDraftV183.add(String(button.dataset.addPromotionExclusion || "").toUpperCase());
+    renderPromotionExcludedListV183();
+    renderPromotionExcludeSearchV183();
+  });
+  excludeAllButton?.addEventListener("click", () => {
+    const matches = getPromotionExcludeMatchesV183(searchInput?.value || "");
+    if (!matches.length) return;
+    const newProducts = matches.filter(product => !promotionExcludedDraftV183.has(String(product.id || "").toUpperCase()));
+    if (!newProducts.length) return;
+    if (!window.confirm(`确认批量排除目前搜索到的 ${newProducts.length} 项产品？\n\n这些产品会使用原本最低售价，不采用促销价。`)) return;
+    newProducts.forEach(product => promotionExcludedDraftV183.add(String(product.id || "").toUpperCase()));
+    renderPromotionExcludedListV183();
+    renderPromotionExcludeSearchV183();
+  });
+  excludedList?.addEventListener("click", event => {
+    const button = event.target.closest("[data-remove-promotion-exclusion]");
+    if (!button) return;
+    promotionExcludedDraftV183.delete(String(button.dataset.removePromotionExclusion || "").toUpperCase());
+    renderPromotionExcludedListV183();
+    renderPromotionExcludeSearchV183();
+  });
+  saveButton.addEventListener("click", () => {
+    const promotion = getPromotionDraftV183();
+    if (!promotion.name) { if (status) status.textContent = "请输入促销名称"; return; }
+    if (!Number.isFinite(promotion.commissionRate) || promotion.commissionRate < 0 || promotion.commissionRate >= 100) {
+      if (status) status.textContent = "主播佣金必须是0至99.99之间"; return;
+    }
+    if (!Number.isFinite(promotion.targetMarginRate) || promotion.targetMarginRate <= -100 || promotion.targetMarginRate >= 100 ||
+        1 - promotion.commissionRate / 100 - promotion.targetMarginRate / 100 <= 0) {
+      if (status) status.textContent = "目标净利率或佣金组合无效"; return;
+    }
+    const products = getProducts();
+    const rules = getMinimumPriceRulesV160();
+    const originIndex = getMinimumPriceOriginIndexV160();
+    const affected = products.filter(product => !promotion.excludedProductIds.includes(String(product.id || "").toUpperCase()));
+    const losses = affected.filter(product => getPromotionPriceBreakdownV183(product, promotion, rules, originIndex).profit < -0.005);
+    const warning = promotion.targetMarginRate < 0 || losses.length
+      ? `\n\n⚠️ 其中 ${losses.length} 项预计亏损；你设置的目标净利率为 ${promotion.targetMarginRate}%。` : "";
+    if (!window.confirm(`确认保存并开启促销？\n\n促销：${promotion.name}\n主播佣金：${promotion.commissionRate}%\n目标净利率：${promotion.targetMarginRate}%\n应用产品：${affected.length} 项\n排除产品：${promotion.excludedProductIds.length} 项${warning}\n\n原最低售价不会被修改；删除促销后会立即恢复。`)) return;
+    const settings = loadJSON("importSystemSettings", {});
+    const now = new Date().toISOString();
+    saveJSON("importSystemSettings", { ...settings, promotionV183: { ...promotion, active:true, createdAt: active?.createdAt || now, updatedAt:now } });
+    if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
+    refreshPromotionUiV183();
+    renderPromotionPriceListV183();
+    renderDashboard(); renderInventoryManagementList(); renderProductList();
+    if (status) status.textContent = `促销已开启：${promotion.name}`;
+  });
+  deleteButton?.addEventListener("click", () => {
+    const promotion = getPromotionSettingsV183();
+    if (!promotion || !window.confirm(`确认删除促销“${promotion.name}”？\n\n删除后所有产品立即恢复原本最低售价。`)) return;
+    const settings = loadJSON("importSystemSettings", {});
+    const next = { ...settings }; delete next.promotionV183;
+    saveJSON("importSystemSettings", next);
+    if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
+    promotionExcludedDraftV183 = new Set();
+    nameInput.value = "年尾清货"; commissionInput.value = "10"; marginInput.value = "10";
+    if (pricePanel) pricePanel.hidden = true;
+    renderPromotionExcludedListV183(); refreshPromotionUiV183();
+    renderDashboard(); renderInventoryManagementList(); renderProductList();
+    if (status) status.textContent = "促销已删除，所有产品已恢复原本最低售价";
+  });
+  toggleButton?.addEventListener("click", () => {
+    if (!pricePanel) return;
+    pricePanel.hidden = !pricePanel.hidden;
+    toggleButton.textContent = pricePanel.hidden ? "查看全部促销价格" : "收起全部促销价格";
+    if (!pricePanel.hidden) renderPromotionPriceListV183();
+  });
+  priceSearch?.addEventListener("input", renderPromotionPriceListV183);
+}
+
 function getMinimumPriceManualOverridesV160() {
   const settings = loadJSON("importSystemSettings", {});
   return settings.minimumPriceManualOverrides &&
@@ -3352,7 +3653,7 @@ function getProductPrefixRulesV181() {
     const keyword = String(Array.isArray(rule) ? rule[0] : rule?.keyword || "").trim();
     const prefix = String(Array.isArray(rule) ? rule[1] : rule?.prefix || "").trim().toUpperCase();
     const normalizedKeyword = normalizeProductPrefixKeywordV181(keyword);
-    // V18.2 one-time removal of the user's test-only rule.
+    // V18.3 one-time removal of the user's test-only rule.
     if (normalizedKeyword === normalizeProductPrefixKeywordV181("白蜡") && prefix === "BX") return;
     if (!normalizedKeyword || usedKeywords.has(normalizedKeyword) || !/^[A-Z]{2}$/.test(prefix)) return;
     usedKeywords.add(normalizedKeyword);
@@ -3516,6 +3817,12 @@ function saveProduct() {
     statusText.textContent = "已有相同名称的产品";
     return;
   }
+
+  const pendingProductId = editingId || generateNextProductId(products, category, name);
+  const actionLabel = editingId ? "修改并保存产品" : "新增并保存产品";
+  if (!window.confirm(
+    `⚠️ 确认${actionLabel}？\n\n产品编号：${pendingProductId}\n产品名称：${name}\n类别：${category}\n备注：${remark || "—"}\n\n只有按「确定」后才会写入资料。`
+  )) return;
 
   if (editingId) {
     const index = products.findIndex(product => product.id === editingId);
@@ -5636,7 +5943,7 @@ function setupImportHistory() {
   };
 
   button?.addEventListener("click", () => {
-    // V18.2: normalize both visible date fields at click time.  Either field
+    // V18.3: normalize both visible date fields at click time.  Either field
     // may stand alone; getHistoryDateRange treats it as one exact day.
     normalizeHistoryDateField(startInput, startPicker);
     normalizeHistoryDateField(endInput, endPicker);
@@ -6319,7 +6626,7 @@ function getDailyStockAdjustments(selectedDate, keyword = "") {
   const normalizedDate =
     normalizeDateToDDMMYYYY(selectedDate);
 
-  // V18.2: restore the proven V15.0 date-query return contract.
+  // V18.3: restore the proven V15.0 date-query return contract.
   return getProducts()
     .flatMap(product =>
       getProductStockAdjustments(product)
@@ -6886,7 +7193,7 @@ function getHistoryNetSoldLots(options = {}) {
   const hasExplicitRestoreLink = adjustment =>
     (Array.isArray(adjustment?.salesLinks) ? adjustment.salesLinks : [])
       .some(link => String(link?.correctionAction || "").toLowerCase() === "restore");
-  // V18.2: old/manual stock repairs do not always carry a Sales restore link.
+  // V18.3: old/manual stock repairs do not always carry a Sales restore link.
   // Treat only an explicitly worded replenishment/cancellation as a reversal;
   // an ordinary positive import or stock increase must never reduce sales.
   const isExplicitManualRestoreV180 = adjustment => {
@@ -6908,7 +7215,7 @@ function getHistoryNetSoldLots(options = {}) {
       // Only confirmed/typed sales enter the sales queue. Legacy unclassified
       // negatives are excluded. Likewise, an unclassified legacy positive must
       // not silently reverse a confirmed sale.
-      // V18.2: retain positive changes only as possible reversals. Explicit
+      // V18.3: retain positive changes only as possible reversals. Explicit
       // Sales restores are linked; an unlinked positive may cancel only one
       // recent, exact opposite legacy/test entry below.
       return (delta < 0 && type === "sale") ||
@@ -6988,7 +7295,7 @@ function getHistoryNetSoldLots(options = {}) {
 
     // A linked Sales restore reverses its matching queue normally.
     if (!hasExplicitRestoreLink(adjustment) && !isExplicitManualRestoreV180(adjustment)) {
-      // V18.2: an unlinked +N is a test/manual undo only when it exactly
+      // V18.3: an unlinked +N is a test/manual undo only when it exactly
       // matches one immediately preceding -N for the same product/import and
       // occurs within 15 minutes. It must never consume unrelated sales FIFO.
       const positiveTime = Date.parse(String(adjustment.createdAt || ""));
@@ -7074,7 +7381,7 @@ function getHistorySalesLinkForAdjustmentV137(adjustment, allAdjustments) {
   return sibling ? historyAdjustmentSaleLinkV134(sibling) : null;
 }
 
-// V18.2: sum Sales-card profit and complete Sales-card cost for the exact
+// V18.3: sum Sales-card profit and complete Sales-card cost for the exact
 // net-sold lots selected by the current product/import/date filters. Group by
 // Link ID so FIFO batch splits do not count the same Sales line more than once.
 function getHistorySoldProfitTotalV137(options = {}) {
@@ -7832,7 +8139,7 @@ function renderCompactProductHistoryByRange(
   return true;
 }
 
-// V18.2: source lookup uses surviving net-sale lots. Cancelled or restored
+// V18.3: source lookup uses surviving net-sale lots. Cancelled or restored
 // sales are excluded from both the displayed records and the totals.
 function renderHistorySalesSourceLookupV149(keyword, range, output) {
   const sourceKeyword = String(keyword || "").trim();
@@ -9291,6 +9598,7 @@ function saveBatchImport() {
   const batches = getBatches();
   const today = formatDateDDMMYYYY(new Date());
   const isEditing = Boolean(currentEditingImportNumber);
+  let pendingCostRevisionLogs = [];
 
   if (isEditing) {
     const batchIndex = batches.findIndex(
@@ -9520,7 +9828,7 @@ function saveBatchImport() {
           before: formatMoney(before),
           after: formatMoney(after)
         }));
-      appendCostRevisionHistory(logs);
+      pendingCostRevisionLogs = logs;
     }
 
     // V6.8: category correction follows the same productId through the
@@ -9588,6 +9896,18 @@ function saveBatchImport() {
       updatedAt: new Date().toISOString()
     };
 
+    const updateSummary = mergedItems.map(item => {
+      const label = item.productName || item.name || item.productId || "产品";
+      return `• ${label}：剩余 ${formatNumber(item.remainingQuantity)} / 原进口 ${formatNumber(item.originalQuantity)}`;
+    }).join("\n");
+    if (!window.confirm(
+      `⚠️ 最后确认保存进口修改？\n\n进口编号：${oldBatch.importNumber}\n${updateSummary}\n\n保存会按数量差额更新库存；此动作会写入 Products、Imports 与 Batches。\n只有按「确定」后才会真正保存。`
+    )) {
+      status.textContent = "已取消保存，资料没有写入";
+      return;
+    }
+
+    appendCostRevisionHistory(pendingCostRevisionLogs);
     saveProducts(products);
     saveImports(imports);
     saveBatches(batches);
@@ -9609,6 +9929,16 @@ function saveBatchImport() {
     document.getElementById("batchArrivalDate").value,
     batches
   );
+
+  const newImportSummary = result.valid.map(item =>
+    `• ${item.name}（${item.category}）：${formatNumber(item.quantity)}，单位成本 ${formatMoney(item.unitCost, "RM ")}`
+  ).join("\n");
+  if (!window.confirm(
+    `⚠️ 最后确认保存新进口？\n\n即将生成进口编号：${importNumber}\n产品种类：${result.valid.length}\n总数量：${formatNumber(result.totalQuantity)}\n整批总成本：${formatMoney(result.grandTotal, "RM ")}\n\n${newImportSummary}\n\n保存会增加库存并写入 Products、Imports 与 Batches。\n只有按「确定」后才会真正保存。`
+  )) {
+    status.textContent = "已取消保存，资料没有写入";
+    return;
+  }
 
   const batch = {
     id: batchId,
@@ -9998,7 +10328,7 @@ function renderBatchProductStockResults() {
         data-product-id="${escapeHTML(product.id || "")}"
         data-edit-type="minimumPrice"
         aria-label="长按修改最低售价" title="长按修改最低售价">
-        最低售价：<strong>${formatMoney(Math.max(0, Number(product.minimumPrice) || 0), "RM ")}</strong>
+        ${getPromotionSettingsV183() && !getPromotionSettingsV183().excludedProductIds.includes(String(product.id || "").toUpperCase()) ? "促销最低售价" : "最低售价"}：<strong>${formatMoney(getEffectiveProductMinimumPriceV183(product), "RM ")}</strong>
       </button>
 
       <button
@@ -11610,7 +11940,7 @@ function setupInventoryModule() {
 
   bindInventoryMinimumPriceLongPress();
   renderInventoryManagementList();
-  // V18.2: 首页显示后立即在后台预载完整销售利润资料。
+  // V18.3: 首页显示后立即在后台预载完整销售利润资料。
   // 用户稍后选择“畅销商品”或“利润最高”时通常可直接使用缓存结果。
   Promise.resolve()
     .then(() => ensureVisibleHistorySalesDetailsV134())
@@ -11736,7 +12066,7 @@ function showCopiedSyncMessage(importNumber) {
   }, 2000);
 }
 
-// V18.2: 一次扫描 History，同时建立售出数量、累计利润及最近售出索引。
+// V18.3: 一次扫描 History，同时建立售出数量、累计利润及最近售出索引。
 // 缓存以 Products 原始资料及已载入销售明细数量为签名；资料改变后自动重算。
 function getInventorySalesAnalyticsV146() {
   const productsSnapshot = String(localStorage.getItem("importSystemProducts") || "");
@@ -12014,7 +12344,7 @@ function renderInventoryManagementList() {
     return parseDDMMYYYY(b.displayLastImport) - parseDDMMYYYY(a.displayLastImport);
   });
 
-  // V18.2: both views consume this same sorted and filtered product array.
+  // V18.3: both views consume this same sorted and filtered product array.
   inventoryVisibleProductsV153 = products.map(product => ({ ...product }));
 
   document.getElementById("inventoryPageCount").textContent = `${products.length} 项`;
@@ -12078,7 +12408,7 @@ function renderInventoryManagementList() {
   list.innerHTML = products.map(product => {
     const stock = Number(product.stock) || 0;
     const averageCost = Number(product.averageCost) || 0;
-    const minimumPrice = Math.max(0, Number(product.minimumPrice) || 0);
+    const minimumPrice = getEffectiveProductMinimumPriceV183(product);
     const originalCost = Math.max(0, Number(product.latestOriginalCost) || 0);
     const originalCurrency = String(product.latestOriginalCurrency || "").trim().toUpperCase();
     const originalCostText = originalCost > 0
@@ -12131,7 +12461,7 @@ function renderInventoryManagementList() {
           <button class="inventory-manage-minimum-price-btn" type="button"
                   data-product-id="${escapeHTML(product.id || "")}"
                   aria-label="长按修改最低售价" title="长按修改最低售价">
-            <span>最低售价</span><strong>${formatMoney(minimumPrice, "RM ")}</strong>
+            <span>${getPromotionSettingsV183() && !getPromotionSettingsV183().excludedProductIds.includes(String(product.id || "").toUpperCase()) ? "促销最低售价" : "最低售价"}</span><strong>${formatMoney(minimumPrice, "RM ")}</strong>
           </button>
           <div><span>平均成本</span><strong>${formatMoney(averageCost, "RM ")}</strong></div>
           <div><span>库存成本总值</span><strong>${formatMoney(inventoryValue, "RM ")}</strong></div>
@@ -12154,7 +12484,7 @@ function renderInventoryManagementList() {
 
 
 function getOriginalCostSummaryRows() {
-  // V18.2: these are the actual objects just rendered by Inventory Management.
+  // V18.3: these are the actual objects just rendered by Inventory Management.
   // There is deliberately no second independent filter pass here.
   return inventoryVisibleProductsV153.map(product => ({
     id: String(product.id || ""),
@@ -12163,7 +12493,7 @@ function getOriginalCostSummaryRows() {
     originalCost: Math.max(0, Number(product.latestOriginalCost) || 0),
     originalCurrency: String(product.latestOriginalCurrency || "").trim().toUpperCase(),
     averageCost: Math.max(0, Number(product.averageCost) || 0),
-    minimumPrice: Math.max(0, Number(product.minimumPrice) || 0)
+    minimumPrice: getEffectiveProductMinimumPriceV183(product)
   }));
 }
 
@@ -12853,7 +13183,7 @@ function exportSystemExcel() {
     product.category || "",
     Number(product.stock) || 0,
     Number(product.averageCost) || 0,
-    Math.max(0, Number(product.minimumPrice) || 0),
+    getEffectiveProductMinimumPriceV183(product),
     (Number(product.stock) || 0) * (Number(product.averageCost) || 0),
     getLatestImportDateByProduct(product.id) || "",
     "当前库存"
@@ -12946,7 +13276,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "18.2",
+      version: "18.3",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -13309,7 +13639,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V18.2 Stable",
+      updatedBy: "System V18.3 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -13370,7 +13700,7 @@ function registerServiceWorker() {
 }
 
 
-// V18.2 Shared quick navigation.  It deliberately observes only page/result
+// V18.3 Shared quick navigation.  It deliberately observes only page/result
 // containers; it must never watch or mutate the history filter controls.
 (function(){
   function setupHistoryScrollButton(){

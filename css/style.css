@@ -1729,7 +1729,7 @@ input::placeholder {
   font-weight: 900;
 }
 
-/* V18.2 — Mobile Inventory Management cards stay inside the viewport.
+/* V18.3 — Mobile Inventory Management cards stay inside the viewport.
    The product name and Product ID keep the full first row. Import/category
    details share the next area with the sold/profit panel, so long names never
    push the right-hand panel or the two-column cost summary off screen. */
@@ -1813,7 +1813,7 @@ input::placeholder {
   }
 }
 
-/* V18.2 — Desktop Inventory Management cards use the same bounded header
+/* V18.3 — Desktop Inventory Management cards use the same bounded header
    structure as mobile.  The product identity gets the full first row; the
    sold/profit panel stays right-aligned inside its own card. */
 @media (min-width: 720px) {
@@ -4299,7 +4299,7 @@ html, body {
 .import-number-line .recent-batch-copy-value{font-size:14px;}
 .import-card-meta .recent-batch-copy-value{display:block;font-size:13px;}
 
-/* V18.2 — visible product IDs are larger and copy locally without cloud reads. */
+/* V18.3 — visible product IDs are larger and copy locally without cloud reads. */
 .product-id-copy-v166{
   display:inline-flex;
   align-items:center;
@@ -4330,7 +4330,7 @@ html, body {
 .recent-import-product-id-v166,
 .history-product-id-v166{margin-left:6px;}
 
-/* V18.2 — product name and product ID always form one visible identity group. */
+/* V18.3 — product name and product ID always form one visible identity group. */
 .product-identity-v167{
   display:inline-flex;
   align-items:center;
@@ -4363,7 +4363,7 @@ html, body {
 .history-adjustment-product .history-product-identity-v167 .history-copy-product-inline{display:inline;}
 .product-history-identity-v167{min-width:0;}
 
-/* V18.2 — keep the mobile navigation on its own stable composited layer. */
+/* V18.3 — keep the mobile navigation on its own stable composited layer. */
 .bottom-nav{
   position:fixed !important;
   left:50% !important;
@@ -4392,7 +4392,7 @@ html, body {
   }
 }
 
-/* V18.2 — History identity order and responsive width.
+/* V18.3 — History identity order and responsive width.
    The older mobile rule gave every .product-history-adjustment-product order:2,
    including the name button nested inside this wrapper.  That moved the ID to
    the left.  Keep the two controls in an explicit, stable visual order. */
@@ -4448,7 +4448,7 @@ html, body {
   }
 }
 
-/* V18.2 — one consistent history-record reading order on desktop and mobile:
+/* V18.3 — one consistent history-record reading order on desktop and mobile:
    date/time + product + ID + action + signed quantity, financials, remark. */
 .history-record-main-v170{
   grid-column:1 / -1;
@@ -4512,7 +4512,7 @@ html, body {
   }
 }
 
-/* V18.2 — History header layout.
+/* V18.3 — History header layout.
    Desktop keeps the preferred single reading line.  A phone uses the safe
    two-line fallback: date/action/quantity first, complete product identity
    second.  The product name itself is never split. */
@@ -4575,7 +4575,7 @@ html, body {
   }
 }
 
-/* V18.2 — Desktop history spacing uses the available card width while keeping
+/* V18.3 — Desktop history spacing uses the available card width while keeping
    the first row intact.  Mobile rules above remain unchanged. */
 @media(min-width:769px){
   .product-history-adjustment{
@@ -4625,7 +4625,7 @@ html, body {
   }
 }
 
-/* V18.2 — the same stock-before/after/import row in every History view. */
+/* V18.3 — the same stock-before/after/import row in every History view. */
 .history-adjustment-meta-v173{
   flex:1 1 100%;
   width:100%;
@@ -4725,7 +4725,7 @@ button:disabled{cursor:not-allowed}
 .sales-startup-overlay-v81.operation-locked-v117 .sales-card-confirm-v104,.sales-startup-overlay-v81.operation-locked-v117 .sales-auto-correct-v108{pointer-events:none}
 body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-operation-locked-v117 nav{pointer-events:none}
 
-/* V18.2 — compact, permanently locked product-prefix settings. */
+/* V18.3 — compact, permanently locked product-prefix settings. */
 .collapsible-settings-v181 > summary{display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;font-size:18px;font-weight:900;list-style:none}
 .collapsible-settings-v181 > summary::-webkit-details-marker{display:none}
 .collapsible-settings-v181 > summary::after{content:"⌄";font-size:24px;line-height:1;color:#176b3c;transition:transform .15s ease}
@@ -4747,6 +4747,26 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .history-sales-financial-unavailable-v182{color:#727b76;font-weight:700}
 @media(max-width:560px){.product-prefix-add-v181{grid-template-columns:minmax(0,1fr) 105px}.product-prefix-locked-head-v181,.product-prefix-locked-row-v181{grid-template-columns:minmax(0,1fr) 62px 54px;gap:6px}.collapsible-settings-v181 > summary small{display:none}}
 
+/* V18.3 — temporary promotion-price overlay and exclusion management. */
+.promotion-main-grid-v183{grid-template-columns:minmax(180px,1.5fr) repeat(2,minmax(120px,.75fr))}
+.promotion-settings-v183 h4{margin:18px 0 8px}
+#promotionExcludeSearchV183,#promotionPriceListSearchV183{width:100%;box-sizing:border-box;margin:4px 0 10px}
+.promotion-exclude-all-v183{width:100%;margin:0 0 10px}
+.promotion-search-results-v183,.promotion-excluded-list-v183,.promotion-price-list-panel-v183{display:grid;gap:8px;margin-bottom:12px}
+.promotion-search-result-v183{position:relative;width:100%;display:grid;gap:3px;text-align:left;padding:10px 96px 10px 12px;border:1px solid #d9e5dd;border-radius:10px;background:#f8fbf9;color:#17211b}
+.promotion-search-result-v183 strong{color:#126b3e;font-size:17px}.promotion-search-result-v183 small{font-weight:800}.promotion-search-result-v183 span{font-size:12px;color:#65716a}.promotion-search-result-v183 em{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-style:normal;font-weight:800;color:#126b3e}
+.promotion-search-result-v183:disabled{opacity:.65}
+.promotion-excluded-row-v183{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 12px;border:1px solid #e1c26e;border-radius:10px;background:#fff9e9}
+.promotion-excluded-row-v183 div{display:grid;gap:2px}.promotion-excluded-row-v183 strong{color:#126b3e}.promotion-excluded-row-v183 small{font-weight:800}.promotion-excluded-row-v183 span{font-size:12px;color:#6c716e}.promotion-excluded-row-v183 button{border:1px solid #9a7615;border-radius:8px;background:white;color:#745600;padding:8px;font-weight:800}
+.promotion-actions-v183{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.promotion-actions-v183 .primary-btn,.promotion-actions-v183 .danger-action-btn{margin:0;width:100%}
+#togglePromotionPriceListV183{width:100%;margin:10px 0}
+.promotion-price-list-panel-v183{max-height:65vh;overflow:auto;border:1px solid #d9e5dd;border-radius:12px;padding:10px;background:#fff}
+.promotion-price-row-v183{display:grid;grid-template-columns:minmax(220px,1.5fr) repeat(4,minmax(120px,.7fr));gap:10px;align-items:center;padding:10px;border-bottom:1px solid #e7ece9;font-size:13px}
+.promotion-price-row-v183>div{display:grid}.promotion-price-row-v183>div small{color:#68736d}.promotion-price-row-v183 span{display:grid;color:#6a746e}.promotion-price-row-v183 b{color:#18221c;font-size:14px}.promotion-price-row-v183.loss b{color:#c52525}.promotion-price-row-v183.gain>span:last-child b{color:#16733b}.promotion-price-row-v183.excluded{background:#fff9e9}
+.promotion-product-copy-v183>span{display:flex;align-items:center;gap:7px;min-width:0}.promotion-product-name-v183{font-size:14px!important;min-width:0}.promotion-product-id-v183{flex:0 0 auto}
+.promotion-empty-v183{padding:12px;text-align:center;color:#758079;background:#f7faf8;border-radius:8px}
+@media(max-width:719px){.promotion-main-grid-v183{grid-template-columns:1fr 1fr}.promotion-main-grid-v183 label:first-child{grid-column:1/-1}.promotion-actions-v183{grid-template-columns:1fr}.promotion-price-row-v183{grid-template-columns:1fr 1fr}.promotion-price-row-v183>div{grid-column:1/-1}.promotion-search-result-v183{padding-right:78px}.promotion-price-list-panel-v183{max-height:58vh}}
+
 /* V12.3 return to associated Sales card */
 .sales-open-card-v118{width:100%;margin:12px 0 8px;padding:12px 14px;border:1.5px solid #16814a;border-radius:12px;background:#f4fbf6;color:#126b3e;font-weight:800;font-size:16px;cursor:pointer}
 .sales-open-card-v118:active{transform:translateY(1px)}
@@ -4762,7 +4782,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .sales-open-card-v120{display:block!important;width:100%!important;min-height:42px!important;margin:0!important;padding:10px 12px!important;background:#f7fbf8!important;color:#126b3e!important;border:1.5px solid #16814a!important;border-radius:10px!important;font-weight:800!important;font-size:15px!important}
 .sales-startup-card-v106>.sales-card-open-row-v120 + .sales-card-line-v106{margin-top:0}
 
-/* V18.2 — every stock-history case uses the same emphasis: red date/time and
+/* V18.3 — every stock-history case uses the same emphasis: red date/time and
    a product name at exactly the same size.  ID/action/quantity color rules are
    intentionally unchanged. */
 .history-record-main-v170 > .product-history-adjustment-date {
@@ -4776,7 +4796,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
   line-height: 1.35;
 }
 
-/* V18.2 final mobile constraint: keep the name and ID visually adjacent while
+/* V18.3 final mobile constraint: keep the name and ID visually adjacent while
    still allowing an exceptionally long name to shrink inside the card. */
 @media (max-width: 719px) {
   .inventory-product-identity-v167.product-identity-v167 {

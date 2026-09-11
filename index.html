@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=18.2" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=18.2" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=18.2" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=18.2" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=18.2" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=18.2" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=18.2" />
+  <link rel="manifest" href="./manifest.json?v=18.3" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=18.3" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=18.3" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=18.3" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=18.3" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=18.3" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=18.3" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=18.2" />
-  <link rel="stylesheet" href="./css/style.css?v=18.2" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=18.3" />
+  <link rel="stylesheet" href="./css/style.css?v=18.3" />
 </head>
 <body>
   <div id="accessLock"
@@ -84,7 +84,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 18.2 Stable</div>
+          <div class="app-header-version">正式版 18.3 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -441,7 +441,7 @@
         <h2>Settings / 设置</h2>
 
         <section class="panel">
-          <h3>默认汇率管理</h3>
+          <h3>默认汇率</h3>
           <div class="form-grid">
             <label>
               CNY
@@ -491,6 +491,32 @@
           </div>
           <button id="saveMinimumPriceSettingsBtn" class="primary-btn" type="button">保存最低售价设置</button>
           <div id="minimumPriceSettingsStatus" class="status-text"></div>
+        </details>
+
+        <details class="panel collapsible-settings-v181 promotion-settings-v183">
+          <summary><span>促销最低售价管理</span><small id="promotionSummaryStatusV183">未开启</small></summary>
+          <p class="settings-help">促销开启后，所有未排除产品会临时使用促销最低售价；原最低售价不会被修改。删除促销后立即恢复原价。</p>
+          <div class="form-grid promotion-main-grid-v183">
+            <label>促销名称<input id="promotionNameV183" maxlength="30" value="年尾清货" /></label>
+            <label>主播佣金（%）<input id="promotionCommissionV183" inputmode="decimal" value="10" /></label>
+            <label>目标净利率（%）<input id="promotionMarginV183" inputmode="decimal" value="10" /></label>
+          </div>
+          <h4>排除产品</h4>
+          <p class="settings-help">搜索并选择产品编号，不需要输入数量。被排除的产品继续使用原本最低售价；数量不限。</p>
+          <input id="promotionExcludeSearchV183" type="search" autocomplete="off" placeholder="搜索产品编号、名称、类别或进口编号" />
+          <button id="promotionExcludeAllMatchesV183" class="secondary-btn promotion-exclude-all-v183" type="button" hidden>批量排除搜索结果</button>
+          <div id="promotionExcludeSearchResultsV183" class="promotion-search-results-v183"></div>
+          <div id="promotionExcludedListV183" class="promotion-excluded-list-v183"></div>
+          <div class="promotion-actions-v183">
+            <button id="savePromotionV183" class="primary-btn" type="button">保存并开启促销</button>
+            <button id="deletePromotionV183" class="danger-action-btn" type="button" hidden>删除促销并恢复原价</button>
+          </div>
+          <button id="togglePromotionPriceListV183" class="secondary-btn" type="button" hidden>查看全部促销价格</button>
+          <div id="promotionPriceListPanelV183" class="promotion-price-list-panel-v183" hidden>
+            <input id="promotionPriceListSearchV183" type="search" autocomplete="off" placeholder="搜索促销价格列表" />
+            <div id="promotionPriceListV183"></div>
+          </div>
+          <div id="promotionStatusV183" class="status-text"></div>
         </details>
 
         <details class="panel collapsible-settings-v181 product-prefix-settings-v181">
@@ -717,7 +743,7 @@
 
         <section class="panel">
           <h3>系统资料</h3>
-          <div class="info-row"><span>版本</span><strong>正式版 18.2 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong>正式版 18.3 Stable</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
           <div class="info-row"><span>Google Sheet</span><strong>已连接 Google Web App</strong></div>
         </section>
@@ -740,8 +766,8 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=18.2"></script>
-  <script src="./js/sync.js?v=18.2"></script>
-  <script src="./js/app.js?v=18.2"></script>
+  <script src="./js/common.js?v=18.3"></script>
+  <script src="./js/sync.js?v=18.3"></script>
+  <script src="./js/app.js?v=18.3"></script>
 </body>
 </html>
