@@ -2,6 +2,7 @@ const CLOUD_CONFIG_KEY = "importSystemCloudConfig";
 const CLOUD_SCHEMA_VERSION = "LL-IMPORT-2026-08-CANONICAL-4";
 const CLOUD_BOOTSTRAP_KEY = "importSystemCloudBootstrapV50";
 const CLOUD_QUEUE_KEY = "importSystemCloudQueueV2";
+const CLOUD_PREVIOUS_REVISION_KEY_V185 = "importSystemPreviousRevisionV185";
 const DEFAULT_GOOGLE_SCRIPT_URL =
   "https://script.google.com/macros/s/AKfycbxWKdEC7vy_7pZ2_CPie-9L5DeIofPggZlLuwB7gW-31HqWXEOxshtCR-HB-m5qLYS6/exec";
 
@@ -27,6 +28,12 @@ function getCloudConfig() {
 }
 
 function saveCloudConfig(config) {
+  const previousConfig = loadJSON(CLOUD_CONFIG_KEY, {});
+  const previousRevision = Number(previousConfig.revision);
+  const nextRevision = Number(config.revision) || 0;
+  if (Number.isFinite(previousRevision) && previousRevision > 0 && previousRevision !== nextRevision) {
+    localStorage.setItem(CLOUD_PREVIOUS_REVISION_KEY_V185, String(previousRevision));
+  }
   localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify({
     url: DEFAULT_GOOGLE_SCRIPT_URL,
     revision: Number(config.revision) || 0,
@@ -328,7 +335,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V18.4 Stable",
+      updatedBy: "System V18.5 Stable",
       ...payload
     });
 
@@ -363,7 +370,7 @@ async function commitSalesInventoryBatchToCloudV125(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V18.4 Stable",
+      updatedBy: "System V18.5 Stable",
       ...payload
     });
     if (data.conflict || data.stockChanged) {
@@ -386,7 +393,7 @@ window.commitSalesInventoryBatchToCloudV125 = commitSalesInventoryBatchToCloudV1
 
 async function commitSalesCorrectionBatchToCloudV110(payload) {
   await flushCloudQueueStrictV83(); const config=getCloudConfig(); setCloudState("syncing");
-  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V18.4 Stable",...payload});
+  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V18.5 Stable",...payload});
     if(data.conflict||data.stockChanged) throw new Error(data.message||"Google Sheet 资料已改变，全部库存差异没有处理。请同步后重试。");
     config.revision=Number(data.revision)||Number(config.revision)||0; config.lastSyncAt=new Date().toISOString(); config.bootstrapToken=String(data.bootstrapToken||config.bootstrapToken||""); config.bootstrapRevision=Number(data.revision)||Number(config.bootstrapRevision)||0; saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced"); return data;
   } catch(error){setCloudState("failed");throw error;}
@@ -400,7 +407,7 @@ async function migrateProductPrefixesV164() {
     action: "migrateProductPrefixesV164", clientVersion: APP_VERSION,
     schemaVersion: CLOUD_SCHEMA_VERSION, baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""), bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V18.4 Stable"
+    updatedBy: "System V18.5 Stable"
   });
   if (data.conflict) throw new Error(data.message || "资料已改变，请同步后重试。");
   config.revision = Number(data.revision) || Number(config.revision) || 0;
@@ -577,7 +584,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V18.4 Stable",
+    updatedBy: "System V18.5 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     minimumPriceManual: Boolean(minimumPriceManual),
@@ -607,6 +614,32 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
 
 window.updateProductMinimumPriceFast = updateProductMinimumPriceFast;
 
+async function updatePromotionSettingsFastV185(promotion) {
+  if (!navigator.onLine) throw new Error("目前离线，促销设置尚未同步。");
+  if (!isCloudBootstrapComplete()) throw new Error("首次同步尚未完成，请稍后再试。");
+  await waitForCloudIdleV83();
+  const config = getCloudConfig();
+  setCloudState("syncing");
+  const data = await callGoogleApi({
+    action: "updatePromotionSettingsV185",
+    clientVersion: APP_VERSION,
+    schemaVersion: CLOUD_SCHEMA_VERSION,
+    baseRevision: Number(config.revision) || 0,
+    bootstrapToken: String(config.bootstrapToken || ""),
+    bootstrapRevision: Number(config.bootstrapRevision) || 0,
+    updatedBy: "System V18.5 Stable",
+    promotion: promotion || null
+  });
+  if (data.conflict) throw new Error(data.message || "云端资料已改变，请同步后重试。");
+  config.revision = Number(data.revision) || Number(config.revision) || 0;
+  config.lastSyncAt = new Date().toISOString();
+  config.bootstrapToken = String(data.bootstrapToken || config.bootstrapToken || "");
+  config.bootstrapRevision = Number(data.revision) || Number(config.bootstrapRevision) || 0;
+  saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced");
+  return data;
+}
+window.updatePromotionSettingsFastV185 = updatePromotionSettingsFastV185;
+
 async function pushPendingSnapshot(queue, retryCount = 0) {
   const config = getCloudConfig();
   const snapshot = makeLocalSnapshot();
@@ -620,7 +653,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V18.4 Stable",
+    updatedBy: "System V18.5 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
@@ -740,6 +773,14 @@ function refreshSystemViewsAfterSync() {
 
 function renderCloudMeta(config = getCloudConfig()) {
   const lastSyncEl = document.getElementById("googleLastSync");
+  const revisionEl = document.getElementById("settingsRevisionV185");
+  if (revisionEl) {
+    const currentRevision = Number(config.revision) || 0;
+    const previousRevision = Number(localStorage.getItem(CLOUD_PREVIOUS_REVISION_KEY_V185));
+    revisionEl.textContent = currentRevision > 0
+      ? `${previousRevision > 0 && previousRevision !== currentRevision ? previousRevision : "—"} → ${currentRevision}`
+      : "尚未同步";
+  }
   if (!lastSyncEl) return;
 
   if (!config.lastSyncAt) {
