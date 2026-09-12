@@ -5035,3 +5035,17 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
   .promotion-mobile-profit-v195.loss strong{color:#c52525}.promotion-mobile-profit-v195.gain strong{color:#16733b}
   .promotion-compact-head-v193{display:none!important}
 }
+
+/* V19.6 — iPhone long-press safety for promotion prices and original-cost list. */
+.promotion-price-edit-v193,
+.promotion-price-edit-v193 *,
+.original-cost-table td,
+.original-cost-table td *,
+.original-cost-minimum-price-btn,
+.original-cost-minimum-price-btn * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
+}
+.promotion-price-edit-v193 { touch-action: pan-y; }
+.original-cost-table td { touch-action: pan-y; }
