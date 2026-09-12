@@ -959,7 +959,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V20.1 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V20.2 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -2672,12 +2672,26 @@ function confirmLeaveSettingsV160() {
   return true;
 }
 
+function updateMinimumPriceCustomBadgeV202(rules = getMinimumPriceRulesV160()) {
+  const badge = document.getElementById("minimumPriceCustomBadgeV202");
+  if (!badge) return;
+  const changed = keys => keys.some(key => Math.abs((Number(rules[key]) || 0) - (Number(DEFAULT_MINIMUM_PRICE_RULES_V160[key]) || 0)) >= 0.005);
+  const groups = [];
+  if (changed(["commissionRate"])) groups.push("佣金");
+  if (changed(["margin0To300","margin300To500","margin500To800","margin800To5000","margin5000To8000","margin8000Plus"])) groups.push("净利");
+  if (changed(["freightTierA","freightTierB","freightTierC","freightTierD","freightTierE","freightTierF"])) groups.push("运费");
+  if (changed(["vndPotUnder1m","vndPot1mTo4m","vndPot4mTo10m","vndPot10mPlus"])) groups.push("VND");
+  badge.textContent = groups.length === 0 ? "" : (groups.length === 1 ? `🔴 ${groups[0]}自定义` : "🔴 多项已自定义");
+  badge.hidden = groups.length === 0;
+}
+
 function populateMinimumPriceSettingsV160() {
   const rules = getMinimumPriceRulesV160();
   Object.entries(MINIMUM_PRICE_SETTING_FIELDS_V160).forEach(([key, field]) => {
     const input = document.getElementById(field.id);
     if (input) input.value = formatMoney(rules[key]);
   });
+  updateMinimumPriceCustomBadgeV202(rules);
 }
 
 function setupMinimumPriceSettingsV160() {
@@ -2754,6 +2768,7 @@ function setupMinimumPriceSettingsV160() {
 
     const settings = loadJSON("importSystemSettings", {});
     saveJSON("importSystemSettings", { ...settings, minimumPriceRules: nextRules });
+    updateMinimumPriceCustomBadgeV202(nextRules);
     saveProducts(getProducts());
     if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
     renderInventoryManagementList();
@@ -2772,6 +2787,7 @@ function setupMinimumPriceSettingsV160() {
       const settings = loadJSON("importSystemSettings", {});
       saveJSON("importSystemSettings", { ...settings, minimumPriceRules: { ...DEFAULT_MINIMUM_PRICE_RULES_V160 } });
       populateMinimumPriceSettingsV160();
+      updateMinimumPriceCustomBadgeV202(DEFAULT_MINIMUM_PRICE_RULES_V160);
       saveProducts(getProducts());
       if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
       renderInventoryManagementList();
@@ -3211,27 +3227,28 @@ function getImportAnomaliesV201() {
 
 function renderImportAnomalyCenterV201() {
   const list = document.getElementById("importAnomalyListV201");
-  const criticalEl = document.getElementById("importAnomalyCriticalCountV201");
-  const warningEl = document.getElementById("importAnomalyWarningCountV201");
-  const statusEl = document.getElementById("importAnomalyStatusV201");
-  if (!list || !criticalEl || !warningEl || !statusEl) return;
-
+  const dot = document.getElementById("importAnomalyStatusDotV202");
+  const countEl = document.getElementById("importAnomalyCountV202");
+  const statusButton = document.getElementById("importAnomalyStatusButtonV202");
+  const details = document.getElementById("importAnomalyDetailsV202");
+  if (!list || !dot || !countEl || !statusButton || !details) return;
   const issues = getImportAnomaliesV201();
-  const critical = issues.filter(x => x.severity === "critical").length;
-  const warning = issues.filter(x => x.severity === "warning").length;
-  criticalEl.textContent = formatNumber(critical);
-  warningEl.textContent = formatNumber(warning);
-  statusEl.textContent = critical ? "需处理" : (warning ? "需检查" : "正常");
-  statusEl.className = critical ? "is-critical" : (warning ? "is-warning" : "is-ok");
-
-  if (!issues.length) {
-    list.innerHTML = `<div class="import-anomaly-all-clear-v201"><strong>✅ 所有检查正常</strong><span>${salesInventoryFeedLoadedV77 ? "Sales 待处理、库存一致性、产品编号、成本与最低售价均未发现异常。" : "本机库存资料未发现异常；Sales 状态同步完成后会自动再检查。"}</span></div>`;
+  const count = issues.length;
+  dot.className = `import-anomaly-status-dot-v202 ${count ? "problem" : "ok"}`;
+  countEl.textContent = formatNumber(count);
+  countEl.hidden = count === 0;
+  statusButton.classList.toggle("has-problem", count > 0);
+  statusButton.setAttribute("aria-label", count ? `系统状态，有 ${count} 项需要检查，点击查看` : "系统状态正常");
+  if (!count) {
+    details.hidden = true;
+    statusButton.setAttribute("aria-expanded", "false");
+    statusButton.classList.remove("is-open");
+    list.innerHTML = "";
     return;
   }
-
   const severityOrder = {critical:0, warning:1};
   issues.sort((a,b)=>(severityOrder[a.severity]??9)-(severityOrder[b.severity]??9));
-  list.innerHTML = issues.map((issue,index) => `
+  list.innerHTML = issues.map(issue => `
     <article class="import-anomaly-item-v201 ${issue.severity}">
       <div class="import-anomaly-icon-v201">${issue.severity === "critical" ? "🔴" : "🟠"}</div>
       <div class="import-anomaly-body-v201">
@@ -3245,8 +3262,8 @@ function renderImportAnomalyCenterV201() {
 
 function setupImportAnomalyCenterV201() {
   const refresh = document.getElementById("refreshImportAnomalyV201");
-  if (refresh && refresh.dataset.boundV201 !== "1") {
-    refresh.dataset.boundV201 = "1";
+  if (refresh && refresh.dataset.boundV202 !== "1") {
+    refresh.dataset.boundV202 = "1";
     refresh.addEventListener("click", async () => {
       refresh.disabled = true;
       refresh.textContent = "检查中...";
@@ -3259,9 +3276,31 @@ function setupImportAnomalyCenterV201() {
       }
     });
   }
+  const statusButton = document.getElementById("importAnomalyStatusButtonV202");
+  const details = document.getElementById("importAnomalyDetailsV202");
+  if (statusButton && details && statusButton.dataset.boundV202 !== "1") {
+    statusButton.dataset.boundV202 = "1";
+    statusButton.addEventListener("click", () => {
+      if (!getImportAnomaliesV201().length) return;
+      details.hidden = !details.hidden;
+      const open = !details.hidden;
+      statusButton.setAttribute("aria-expanded", open ? "true" : "false");
+      statusButton.classList.toggle("is-open", open);
+      if (open) renderImportAnomalyCenterV201();
+    });
+  }
+  const close = document.getElementById("closeImportAnomalyV202");
+  if (close && details && close.dataset.boundV202 !== "1") {
+    close.dataset.boundV202 = "1";
+    close.addEventListener("click", () => {
+      details.hidden = true;
+      statusButton?.setAttribute("aria-expanded", "false");
+      statusButton?.classList.remove("is-open");
+    });
+  }
   const list = document.getElementById("importAnomalyListV201");
-  if (list && list.dataset.boundV201 !== "1") {
-    list.dataset.boundV201 = "1";
+  if (list && list.dataset.boundV202 !== "1") {
+    list.dataset.boundV202 = "1";
     list.addEventListener("click", event => {
       const button = event.target.closest(".import-anomaly-repair-v201");
       if (!button) return;
@@ -3389,7 +3428,7 @@ function getMinimumPriceRulesV160() {
   const normalized = {};
   Object.entries(DEFAULT_MINIMUM_PRICE_RULES_V160).forEach(([key, fallback]) => {
     let rawValue = rules[key];
-    // V20.1 migration: preserve the closest V19.9 customized value when a range was split.
+    // V20.2 migration: preserve the closest V19.9 customized value when a range was split.
     if (rawValue == null && key === "margin5000To8000") rawValue = rules.margin5000Plus;
     if (rawValue == null && key === "vndPot4mTo10m") rawValue = rules.vndPot4mPlus;
     const value = Number(rawValue);
@@ -11982,7 +12021,7 @@ async function editDisplayedMinimumPriceV199(productId) {
   const normalizedId = id.toUpperCase();
   const excluded = Boolean(promotion?.excludedProductIds?.includes(normalizedId));
 
-  // V20.1: two completely separate price domains.
+  // V20.2: two completely separate price domains.
   // No promotion, or an excluded product, edits the ORIGINAL minimum price only.
   if (!promotion || excluded) {
     return editProductMinimumPrice(id);
@@ -13982,7 +14021,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "20.1",
+      version: "20.2",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -14345,7 +14384,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V20.1 Stable",
+      updatedBy: "System V20.2 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
