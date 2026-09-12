@@ -958,7 +958,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V18.6 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V18.7 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1062,7 +1062,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
     if (!result?.ok) throw new Error(result?.message || result?.error || "整张销售卡库存处理失败。");
     if (result?.partialProcessed) throw new Error(result?.message || "检测到销售卡只有部分库存项目曾被处理，已停止整张写入。");
 
-    // V18.6: the batch endpoint has already flushed and verified Products,
+    // V18.7: the batch endpoint has already flushed and verified Products,
     // Imports, Batches, History and Sales Keys atomically. Apply the exact staged
     // canonical rows immediately; the ordinary background sync can refresh the
     // rest later without holding this inventory operation open.
@@ -3539,16 +3539,19 @@ function renderPromotionPriceListV183() {
     const promoPrice = getPromotionPriceBreakdownV183(product, promotion, rules, originIndex).price;
     const effectivePrice = excluded ? originalPrice : promoPrice;
     const profit = promotionCurrentProfitV183(product, effectivePrice, promotion, rules, originIndex);
-    return `<div class="promotion-price-row-v183 ${profit < 0 ? "loss" : "gain"} ${excluded ? "excluded" : ""}">
-      <div class="promotion-product-copy-v183"><span>
-        ${buildProductIdCopyButtonV166(product.id, "promotion-product-id-v183")}
+    return `<article class="promotion-price-card-v187 ${profit < 0 ? "loss" : "gain"} ${excluded ? "excluded" : ""}">
+      <div class="promotion-price-card-head-v187">
         <button type="button" class="inventory-product-name-copy promotion-product-name-v183" data-product-name="${escapeHTML(product.name)}" onclick="copyInventoryProductName(this)" title="点击复制产品名称">${escapeHTML(product.name)}</button>
-      </span><small>${excluded ? "已排除 · 使用原最低售价" : promotion.name} · 点击编号或名称即可复制</small></div>
-      <span>平均成本 <b>${formatMoney(product.averageCost, "RM ")}</b></span>
-      <span>原最低售价 <b>${formatMoney(originalPrice, "RM ")}</b></span>
-      <span>新最低售价 <b>${formatMoney(effectivePrice, "RM ")}</b></span>
-      <span>${profit < 0 ? "亏" : "赚"} <b>${formatMoney(Math.abs(profit), "RM ")}</b></span>
-    </div>`;
+        ${buildProductIdCopyButtonV166(product.id, "promotion-product-id-v183")}
+      </div>
+      <div class="promotion-price-card-status-v187">${excluded ? "已排除 · 使用原最低售价" : escapeHTML(promotion.name)}</div>
+      <div class="promotion-price-metrics-v187">
+        <div><small>平均成本</small><b>${formatMoney(product.averageCost, "RM ")}</b></div>
+        <div><small>原最低售价</small><b>${formatMoney(originalPrice, "RM ")}</b></div>
+        <div><small>促销最低售价</small><b>${formatMoney(effectivePrice, "RM ")}</b></div>
+        <div class="promotion-profit-v187"><small>预计${profit < 0 ? "亏" : "赚"}</small><b>${formatMoney(Math.abs(profit), "RM ")}</b></div>
+      </div>
+    </article>`;
   }).join("") || `<div class="promotion-empty-v183">没有符合的产品</div>`;
 }
 
@@ -3566,6 +3569,7 @@ function setupPromotionSettingsV183() {
   const nameInput = document.getElementById("promotionNameV183");
   const commissionInput = document.getElementById("promotionCommissionV183");
   const marginInput = document.getElementById("promotionMarginV183");
+  const marginSignButton = document.getElementById("promotionMarginSignV187");
   const searchInput = document.getElementById("promotionExcludeSearchV183");
   const filterInput = document.getElementById("promotionExcludeFilterV184");
   const searchResults = document.getElementById("promotionExcludeSearchResultsV183");
@@ -3599,6 +3603,14 @@ function setupPromotionSettingsV183() {
   } else promotionExcludedDraftV183 = new Set();
   renderPromotionExcludedListV183();
   refreshPromotionUiV183();
+  marginSignButton?.addEventListener("click", () => {
+    if (!marginInput) return;
+    const current = Number(marginInput.value);
+    if (!Number.isFinite(current)) return;
+    marginInput.value = String(current === 0 ? 0 : -current);
+    marginInput.dispatchEvent(new Event("input", { bubbles:true }));
+    marginInput.focus();
+  });
   [nameInput, commissionInput, marginInput].forEach(input => input?.addEventListener("input", () => {
     renderPromotionExcludeSearchV183();
     if (pricePanel && !pricePanel.hidden) renderPromotionPriceListV183();
@@ -3706,7 +3718,7 @@ function setupPromotionSettingsV183() {
     } finally { saveButton.disabled=false; if(deleteButton)deleteButton.disabled=false; }
     if (saved) {
       [refreshPromotionUiV183, renderPromotionPriceListV183, renderDashboard, renderInventoryManagementList, renderProductList]
-        .forEach(render => { try { render(); } catch (error) { console.warn("V18.6 post-save refresh skipped:", error); } });
+        .forEach(render => { try { render(); } catch (error) { console.warn("V18.7 post-save refresh skipped:", error); } });
       updatePromotionDraftStatusV186();
     }
   });
@@ -3834,7 +3846,7 @@ function getProductPrefixRulesV181() {
     const keyword = String(Array.isArray(rule) ? rule[0] : rule?.keyword || "").trim();
     const prefix = String(Array.isArray(rule) ? rule[1] : rule?.prefix || "").trim().toUpperCase();
     const normalizedKeyword = normalizeProductPrefixKeywordV181(keyword);
-    // V18.6 one-time removal of the user's test-only rule.
+    // V18.7 one-time removal of the user's test-only rule.
     if (normalizedKeyword === normalizeProductPrefixKeywordV181("白蜡") && prefix === "BX") return;
     if (!normalizedKeyword || usedKeywords.has(normalizedKeyword) || !/^[A-Z]{2}$/.test(prefix)) return;
     usedKeywords.add(normalizedKeyword);
@@ -6124,7 +6136,7 @@ function setupImportHistory() {
   };
 
   button?.addEventListener("click", () => {
-    // V18.6: normalize both visible date fields at click time.  Either field
+    // V18.7: normalize both visible date fields at click time.  Either field
     // may stand alone; getHistoryDateRange treats it as one exact day.
     normalizeHistoryDateField(startInput, startPicker);
     normalizeHistoryDateField(endInput, endPicker);
@@ -6807,7 +6819,7 @@ function getDailyStockAdjustments(selectedDate, keyword = "") {
   const normalizedDate =
     normalizeDateToDDMMYYYY(selectedDate);
 
-  // V18.6: restore the proven V15.0 date-query return contract.
+  // V18.7: restore the proven V15.0 date-query return contract.
   return getProducts()
     .flatMap(product =>
       getProductStockAdjustments(product)
@@ -7374,7 +7386,7 @@ function getHistoryNetSoldLots(options = {}) {
   const hasExplicitRestoreLink = adjustment =>
     (Array.isArray(adjustment?.salesLinks) ? adjustment.salesLinks : [])
       .some(link => String(link?.correctionAction || "").toLowerCase() === "restore");
-  // V18.6: old/manual stock repairs do not always carry a Sales restore link.
+  // V18.7: old/manual stock repairs do not always carry a Sales restore link.
   // Treat only an explicitly worded replenishment/cancellation as a reversal;
   // an ordinary positive import or stock increase must never reduce sales.
   const isExplicitManualRestoreV180 = adjustment => {
@@ -7396,7 +7408,7 @@ function getHistoryNetSoldLots(options = {}) {
       // Only confirmed/typed sales enter the sales queue. Legacy unclassified
       // negatives are excluded. Likewise, an unclassified legacy positive must
       // not silently reverse a confirmed sale.
-      // V18.6: retain positive changes only as possible reversals. Explicit
+      // V18.7: retain positive changes only as possible reversals. Explicit
       // Sales restores are linked; an unlinked positive may cancel only one
       // recent, exact opposite legacy/test entry below.
       return (delta < 0 && type === "sale") ||
@@ -7476,7 +7488,7 @@ function getHistoryNetSoldLots(options = {}) {
 
     // A linked Sales restore reverses its matching queue normally.
     if (!hasExplicitRestoreLink(adjustment) && !isExplicitManualRestoreV180(adjustment)) {
-      // V18.6: an unlinked +N is a test/manual undo only when it exactly
+      // V18.7: an unlinked +N is a test/manual undo only when it exactly
       // matches one immediately preceding -N for the same product/import and
       // occurs within 15 minutes. It must never consume unrelated sales FIFO.
       const positiveTime = Date.parse(String(adjustment.createdAt || ""));
@@ -7562,7 +7574,7 @@ function getHistorySalesLinkForAdjustmentV137(adjustment, allAdjustments) {
   return sibling ? historyAdjustmentSaleLinkV134(sibling) : null;
 }
 
-// V18.6: sum Sales-card profit and complete Sales-card cost for the exact
+// V18.7: sum Sales-card profit and complete Sales-card cost for the exact
 // net-sold lots selected by the current product/import/date filters. Group by
 // Link ID so FIFO batch splits do not count the same Sales line more than once.
 function getHistorySoldProfitTotalV137(options = {}) {
@@ -8320,7 +8332,7 @@ function renderCompactProductHistoryByRange(
   return true;
 }
 
-// V18.6: source lookup uses surviving net-sale lots. Cancelled or restored
+// V18.7: source lookup uses surviving net-sale lots. Cancelled or restored
 // sales are excluded from both the displayed records and the totals.
 function renderHistorySalesSourceLookupV149(keyword, range, output) {
   const sourceKeyword = String(keyword || "").trim();
@@ -12121,7 +12133,7 @@ function setupInventoryModule() {
 
   bindInventoryMinimumPriceLongPress();
   renderInventoryManagementList();
-  // V18.6: 首页显示后立即在后台预载完整销售利润资料。
+  // V18.7: 首页显示后立即在后台预载完整销售利润资料。
   // 用户稍后选择“畅销商品”或“利润最高”时通常可直接使用缓存结果。
   Promise.resolve()
     .then(() => ensureVisibleHistorySalesDetailsV134())
@@ -12247,7 +12259,7 @@ function showCopiedSyncMessage(importNumber) {
   }, 2000);
 }
 
-// V18.6: 一次扫描 History，同时建立售出数量、累计利润及最近售出索引。
+// V18.7: 一次扫描 History，同时建立售出数量、累计利润及最近售出索引。
 // 缓存以 Products 原始资料及已载入销售明细数量为签名；资料改变后自动重算。
 function getInventorySalesAnalyticsV146() {
   const productsSnapshot = String(localStorage.getItem("importSystemProducts") || "");
@@ -12525,7 +12537,7 @@ function renderInventoryManagementList() {
     return parseDDMMYYYY(b.displayLastImport) - parseDDMMYYYY(a.displayLastImport);
   });
 
-  // V18.6: both views consume this same sorted and filtered product array.
+  // V18.7: both views consume this same sorted and filtered product array.
   inventoryVisibleProductsV153 = products.map(product => ({ ...product }));
 
   document.getElementById("inventoryPageCount").textContent = `${products.length} 项`;
@@ -12665,7 +12677,7 @@ function renderInventoryManagementList() {
 
 
 function getOriginalCostSummaryRows() {
-  // V18.6: these are the actual objects just rendered by Inventory Management.
+  // V18.7: these are the actual objects just rendered by Inventory Management.
   // There is deliberately no second independent filter pass here.
   return inventoryVisibleProductsV153.map(product => ({
     id: String(product.id || ""),
@@ -13457,7 +13469,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "18.6",
+      version: "18.7",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -13820,7 +13832,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V18.6 Stable",
+      updatedBy: "System V18.7 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -13881,7 +13893,7 @@ function registerServiceWorker() {
 }
 
 
-// V18.6 Shared quick navigation.  It deliberately observes only page/result
+// V18.7 Shared quick navigation.  It deliberately observes only page/result
 // containers; it must never watch or mutate the history filter controls.
 (function(){
   function setupHistoryScrollButton(){
