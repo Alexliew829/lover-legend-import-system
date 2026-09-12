@@ -961,7 +961,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V20.3 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V20.4 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -3156,7 +3156,7 @@ async function runSystemHealthCheckV203({ refreshSales = true } = {}) {
   systemHealthV203.checking = true;
   renderImportAnomalyCenterV201();
   try {
-    const data = await callGoogleApi({ action:"healthV203", clientVersion:APP_VERSION, schemaVersion:CLOUD_SCHEMA_VERSION });
+    const data = await callGoogleApi({ action:"healthV204", clientVersion:APP_VERSION, schemaVersion:CLOUD_SCHEMA_VERSION });
     systemHealthV203 = {
       checked:true, checking:true, apiOk:true,
       apiVersion:String(data?.clientVersion || ""),
@@ -3519,7 +3519,7 @@ function getMinimumPriceRulesV160() {
   const normalized = {};
   Object.entries(DEFAULT_MINIMUM_PRICE_RULES_V160).forEach(([key, fallback]) => {
     let rawValue = rules[key];
-    // V20.3 migration: preserve the closest V19.9 customized value when a range was split.
+    // V20.4 migration: preserve the closest V19.9 customized value when a range was split.
     if (rawValue == null && key === "margin5000To8000") rawValue = rules.margin5000Plus;
     if (rawValue == null && key === "vndPot4mTo10m") rawValue = rules.vndPot4mPlus;
     const value = Number(rawValue);
@@ -12112,7 +12112,7 @@ async function editDisplayedMinimumPriceV199(productId) {
   const normalizedId = id.toUpperCase();
   const excluded = Boolean(promotion?.excludedProductIds?.includes(normalizedId));
 
-  // V20.3: two completely separate price domains.
+  // V20.4: two completely separate price domains.
   // No promotion, or an excluded product, edits the ORIGINAL minimum price only.
   if (!promotion || excluded) {
     return editProductMinimumPrice(id);
@@ -14112,7 +14112,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "20.3",
+      version: "20.4",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -14479,7 +14479,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V20.3 Stable",
+      updatedBy: "System V20.4 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,

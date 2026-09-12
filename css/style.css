@@ -5108,7 +5108,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .minimum-reset-factory-v200:active{transform:scale(.99);background:#feeceb}
 
 
-/* V20.3 — Import anomaly center */
+/* V20.4 — Import anomaly center */
 .import-anomaly-center-v201{border:1px solid #e3e8e5;background:#fbfdfc}
 .import-anomaly-head-v201{align-items:flex-start;gap:12px}
 .import-anomaly-head-v201 h3{margin:0}
@@ -5136,10 +5136,11 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 
-/* V20.3 — unified compact system status + system information */
-.system-health-row-v203{display:flex;align-items:center;justify-content:flex-start;gap:8px;margin:0 0 10px}
-.dashboard-title-row-v203{align-items:center;gap:10px;flex-wrap:wrap}
-.import-anomaly-status-button-v202,.import-anomaly-refresh-v202{min-height:34px;height:34px;border-radius:999px;padding:5px 10px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font:inherit;font-size:.78rem;font-weight:800;line-height:1;box-sizing:border-box}
+/* V20.4 — dashboard-inline system status + system information */
+.dashboard-title-row-v204{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:nowrap}
+.dashboard-title-row-v204 h2{margin:0;min-width:0}
+.system-health-row-v204{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-left:auto;flex:0 0 auto}
+.import-anomaly-status-button-v202,.import-anomaly-refresh-v202{min-height:34px;height:34px;border-radius:999px;padding:5px 10px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font:inherit;font-size:.84rem;font-weight:800;line-height:1;box-sizing:border-box}
 .import-anomaly-status-button-v202{border:1px solid #dfe6e2;background:#fff;color:#425047}
 .import-anomaly-status-button-v202.has-problem{cursor:pointer;border-color:#efb6b6;background:#fff8f8;color:#a52525}
 .import-anomaly-status-button-v202.has-warning{cursor:pointer;border-color:#edd390;background:#fffaf0;color:#94610a}
@@ -5159,6 +5160,6 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .minimum-price-custom-badge-v202[hidden]{display:none}
 .system-information-v203 .info-row strong{text-align:right;overflow-wrap:anywhere}
 @media(max-width:560px){
-  .system-health-row-v203{gap:6px;margin-bottom:8px}.import-anomaly-status-button-v202,.import-anomaly-refresh-v202{min-height:32px;height:32px;padding:5px 8px;font-size:.72rem}.minimum-price-summary-title-v202{gap:5px;flex-wrap:nowrap}.minimum-price-custom-badge-v202{font-size:11px}
+  .dashboard-title-row-v204{gap:8px;flex-wrap:nowrap}.dashboard-title-row-v204 h2{font-size:1.16rem;white-space:nowrap}.system-health-row-v204{gap:5px}.import-anomaly-status-button-v202,.import-anomaly-refresh-v202{min-height:32px;height:32px;padding:5px 8px;font-size:.76rem}.minimum-price-summary-title-v202{gap:5px;flex-wrap:nowrap}.minimum-price-custom-badge-v202{font-size:11px}
 }
 
