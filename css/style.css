@@ -5036,7 +5036,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
   .promotion-compact-head-v193{display:none!important}
 }
 
-/* V19.6 — iPhone long-press safety for promotion prices and original-cost list. */
+/* V19.8 — iPhone long-press safety for promotion prices and original-cost list. */
 .promotion-price-edit-v193,
 .promotion-price-edit-v193 *,
 .original-cost-table td,
@@ -5049,3 +5049,49 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 .promotion-price-edit-v193 { touch-action: pan-y; }
 .original-cost-table td { touch-action: pan-y; }
+
+
+/* V19.8 — promotion exclusion confirmation buttons are explicit actions with tactile feedback. */
+.promotion-batch-tools-v184 .promotion-confirm-action-v197{
+  appearance:none;-webkit-appearance:none;cursor:pointer;border-radius:12px!important;
+  min-height:44px!important;padding:10px 16px!important;font-weight:900!important;
+  transition:transform .08s ease,background-color .08s ease,box-shadow .08s ease,opacity .08s ease;
+  box-shadow:0 2px 5px rgba(18,107,62,.12);
+}
+.promotion-batch-tools-v184 .promotion-confirm-add-v197:not(:disabled){background:#176b3c!important;color:#fff!important;border:1.5px solid #176b3c!important}
+.promotion-batch-tools-v184 .promotion-confirm-remove-v197:not(:disabled){background:#fff8e8!important;color:#795800!important;border:1.5px solid #b8860b!important}
+.promotion-batch-tools-v184 .promotion-confirm-action-v197:not(:disabled):active{
+  transform:scale(.975);box-shadow:inset 0 2px 5px rgba(0,0,0,.15);filter:brightness(.92)
+}
+.promotion-batch-tools-v184 .promotion-confirm-action-v197:disabled{
+  cursor:not-allowed;background:#edf2ef!important;color:#8b9690!important;border:1.5px solid #d4ddd8!important;
+  box-shadow:none!important;opacity:.72!important;transform:none!important
+}
+#savePromotionV183.promotion-save-needs-confirm-v197{cursor:pointer!important;opacity:1!important}
+
+/* V19.8 — promotion commission and target margin share one compact row. */
+.promotion-main-grid-v183 #promotionCommissionV183,
+.promotion-main-grid-v183 #promotionMarginV183{
+  text-align:center!important;
+}
+@media(max-width:719px){
+  .promotion-main-grid-v183{
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+    gap:10px!important;
+  }
+  .promotion-main-grid-v183 label:first-child{
+    grid-column:1/-1!important;
+  }
+  .promotion-main-grid-v183 label:nth-child(2),
+  .promotion-main-grid-v183 label:nth-child(3){
+    grid-column:auto!important;
+    min-width:0!important;
+  }
+  .promotion-main-grid-v183 label:nth-child(2) input,
+  .promotion-main-grid-v183 label:nth-child(3) input{
+    width:100%!important;
+    min-width:0!important;
+    box-sizing:border-box!important;
+    text-align:center!important;
+  }
+}
