@@ -440,6 +440,7 @@ async function refreshSalesInventoryFeedV77({ silent = true } = {}) {
     salesInventoryFeedLoadedV77 = true;
     recomputeSalesInventoryPendingV77();
     renderSalesInventoryReminderV77();
+    renderImportAnomalyCenterV201();
     if (document.getElementById("batchProductStockSearch")?.value?.trim()) renderBatchProductStockResults();
   } catch (error) {
     if (!silent) alert(String(error?.message || error));
@@ -958,7 +959,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V19.8 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V20.1 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -2583,19 +2584,23 @@ function setupNavigation() {
 }
 
 const MINIMUM_PRICE_SETTING_FIELDS_V160 = Object.freeze({
-  margin0To300: { id: "minimumMargin0To300", label: "成本 RM0–300 净利率", suffix: "%" },
-  margin300To500: { id: "minimumMargin300To500", label: "成本 RM300.01–500 净利率", suffix: "%" },
-  margin500To800: { id: "minimumMargin500To800", label: "成本 RM500.01–799.99 净利率", suffix: "%" },
-  margin800To5000: { id: "minimumMargin800To5000", label: "成本 RM800–4,999.99 净利率", suffix: "%" },
-  margin5000Plus: { id: "minimumMargin5000Plus", label: "成本 RM5,000以上净利率", suffix: "%" },
+  commissionRate: { id: "minimumCommissionRate", label: "主播佣金", suffix: "%", kind: "commission" },
+  margin0To300: { id: "minimumMargin0To300", label: "成本 RM0–300 净利率", suffix: "%", kind: "margin" },
+  margin300To500: { id: "minimumMargin300To500", label: "成本 RM300.01–500 净利率", suffix: "%", kind: "margin" },
+  margin500To800: { id: "minimumMargin500To800", label: "成本 RM500.01–799.99 净利率", suffix: "%", kind: "margin" },
+  margin800To5000: { id: "minimumMargin800To5000", label: "成本 RM800–4,999.99 净利率", suffix: "%", kind: "margin" },
+  margin5000To8000: { id: "minimumMargin5000To8000", label: "成本 RM5,000–7,999.99 净利率", suffix: "%", kind: "margin" },
+  margin8000Plus: { id: "minimumMargin8000Plus", label: "成本 RM8,000以上净利率", suffix: "%", kind: "margin" },
   freightTierA: { id: "minimumFreightTierA", label: "A · 售价低于 RM300 木架＋本地运费", prefix: "RM " },
   freightTierB: { id: "minimumFreightTierB", label: "B · 售价 RM300–500 木架＋本地运费", prefix: "RM " },
   freightTierC: { id: "minimumFreightTierC", label: "C · 售价 RM500.01–1,000 木架＋本地运费", prefix: "RM " },
   freightTierD: { id: "minimumFreightTierD", label: "D · 售价 RM1,000.01–2,000 木架＋本地运费", prefix: "RM " },
-  freightTierE: { id: "minimumFreightTierE", label: "E · 售价 RM2,000以上 木架＋本地运费", prefix: "RM " },
+  freightTierE: { id: "minimumFreightTierE", label: "E · 售价 RM2,000.01–4,999.99 木架＋本地运费", prefix: "RM " },
+  freightTierF: { id: "minimumFreightTierF", label: "F · 售价 RM5,000以上 木架＋本地运费", prefix: "RM " },
   vndPotUnder1m: { id: "minimumVndPotUnder1m", label: "VND 原价低于 1,000,000 花盆成本", prefix: "RM " },
   vndPot1mTo4m: { id: "minimumVndPot1mTo4m", label: "VND 原价 1,000,000–3,999,999 花盆成本", prefix: "RM " },
-  vndPot4mPlus: { id: "minimumVndPot4mPlus", label: "VND 原价 4,000,000以上花盆成本", prefix: "RM " }
+  vndPot4mTo10m: { id: "minimumVndPot4mTo10m", label: "VND 原价 4,000,000–9,999,999 花盆成本", prefix: "RM " },
+  vndPot10mPlus: { id: "minimumVndPot10mPlus", label: "VND 原价 10,000,000以上花盆成本", prefix: "RM " }
 });
 
 const DEFAULT_EXCHANGE_RATES_V160 = Object.freeze({
@@ -2708,11 +2713,14 @@ function setupMinimumPriceSettingsV160() {
     for (const [key, field] of Object.entries(MINIMUM_PRICE_SETTING_FIELDS_V160)) {
       const input = document.getElementById(field.id);
       const value = parseAmount(input?.value || "");
-      const isMargin = key.startsWith("margin");
-      if (!Number.isFinite(value) || value < 0 || (isMargin && value >= 90)) {
+      const isMargin = field.kind === "margin";
+      const isCommission = field.kind === "commission";
+      if (!Number.isFinite(value) || value < 0 || ((isMargin || isCommission) && value >= 100)) {
         alert(isMargin
-          ? `${field.label}必须是0至89.99之间。`
-          : `${field.label}必须是0或正数。`);
+          ? `${field.label}必须是0至99.99之间。`
+          : isCommission
+            ? `${field.label}必须是0至99.99之间。`
+            : `${field.label}必须是0或正数。`);
         input?.focus();
         return;
       }
@@ -2722,6 +2730,15 @@ function setupMinimumPriceSettingsV160() {
         const newValue = `${field.prefix || ""}${formatMoney(nextRules[key])}${field.suffix || ""}`;
         changes.push(`${field.label}：${oldValue} → ${newValue}`);
       }
+    }
+
+    const marginKeys = ["margin0To300", "margin300To500", "margin500To800", "margin800To5000", "margin5000To8000", "margin8000Plus"];
+    const invalidMarginKey = marginKeys.find(key => 1 - nextRules.commissionRate / 100 - nextRules[key] / 100 <= 0);
+    if (invalidMarginKey) {
+      const field = MINIMUM_PRICE_SETTING_FIELDS_V160[invalidMarginKey];
+      alert(`主播佣金 ${formatMoney(nextRules.commissionRate)}% + ${field.label} ${formatMoney(nextRules[invalidMarginKey])}% 必须小于 100%。`);
+      document.getElementById(field.id)?.focus();
+      return;
     }
 
     const status = document.getElementById("minimumPriceSettingsStatus");
@@ -2744,6 +2761,26 @@ function setupMinimumPriceSettingsV160() {
     if (status) status.textContent = "最低售价设置已保存，自动售价已重新计算";
     setTimeout(() => { if (status) status.textContent = ""; }, 2600);
   });
+
+  const resetButton = document.getElementById("resetMinimumPriceSettingsBtn");
+  if (resetButton && resetButton.dataset.boundV200 !== "1") {
+    resetButton.dataset.boundV200 = "1";
+    resetButton.addEventListener("click", () => {
+      const warning = "Reset to Factory 会把自动最低售价管理的主播佣金、目标净利率、木架＋本地运费和 VND 花盆成本全部恢复为系统默认值。\n\n手动原最低售价不会被覆盖；促销最低售价不会被修改。";
+      if (!window.confirm(`${warning}\n\n是否继续？`)) return;
+      if (!window.confirm("再次确认：恢复原设置后，所有自动原最低售价会立即按默认参数重新计算。\n\n确定执行 Reset to Factory？")) return;
+      const settings = loadJSON("importSystemSettings", {});
+      saveJSON("importSystemSettings", { ...settings, minimumPriceRules: { ...DEFAULT_MINIMUM_PRICE_RULES_V160 } });
+      populateMinimumPriceSettingsV160();
+      saveProducts(getProducts());
+      if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
+      renderInventoryManagementList();
+      renderDashboard();
+      const status = document.getElementById("minimumPriceSettingsStatus");
+      if (status) status.textContent = "已恢复原设置，自动原最低售价已重新计算；手动原价与促销价未改变";
+      setTimeout(() => { if (status) status.textContent = ""; }, 3600);
+    });
+  }
 }
 
 function setupSettings() {
@@ -2999,6 +3036,7 @@ function setupCostRepairTools() {
 }
 
 function setupDashboard() {
+  setupImportAnomalyCenterV201();
   renderDashboard();
 }
 
@@ -3055,6 +3093,185 @@ function renderDashboard() {
   document.getElementById("lastImport").textContent =
     latestBatchImportDate || "";
 
+  renderImportAnomalyCenterV201();
+}
+
+function normalizeAnomalyProductKeyV201(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function getRawRemainingQuantityV201(record) {
+  const raw = Number(record?.remainingQuantity ?? record?.quantity ?? 0);
+  return Number.isFinite(raw) ? Math.max(0, Math.floor(raw)) : 0;
+}
+
+function getBatchRemainingForProductV201(product, batches = getBatches()) {
+  const productId = String(product?.id || "").trim();
+  const productName = normalizeAnomalyProductKeyV201(product?.name);
+  let total = 0;
+  (batches || []).forEach(batch => {
+    (Array.isArray(batch?.items) ? batch.items : []).forEach(item => {
+      const itemId = String(item?.productId || item?.id || "").trim();
+      const itemName = normalizeAnomalyProductKeyV201(item?.productName || item?.name);
+      const sameId = productId && itemId && itemId === productId;
+      const sameName = !sameId && productName && itemName === productName;
+      if (sameId || sameName) total += getRawRemainingQuantityV201(item);
+    });
+  });
+  return total;
+}
+
+function getImportsRemainingForProductV201(product, imports = getImports()) {
+  const productId = String(product?.id || "").trim();
+  const productName = normalizeAnomalyProductKeyV201(product?.name);
+  return (imports || []).reduce((sum, record) => {
+    const recordId = String(record?.productId || "").trim();
+    const recordName = normalizeAnomalyProductKeyV201(record?.productName || record?.name);
+    const sameId = productId && recordId && recordId === productId;
+    const sameName = !sameId && productName && recordName === productName;
+    return sum + ((sameId || sameName) ? getRawRemainingQuantityV201(record) : 0);
+  }, 0);
+}
+
+function getImportAnomaliesV201() {
+  const products = getProducts();
+  const imports = getImports();
+  const batches = getBatches();
+  const issues = [];
+  const idMap = new Map();
+
+  products.forEach(product => {
+    const id = String(product?.id || "").trim();
+    const name = String(product?.name || "未命名产品").trim() || "未命名产品";
+    const stockRaw = Number(product?.stock);
+    const stock = Number.isFinite(stockRaw) ? Math.floor(stockRaw) : 0;
+    const averageCost = Number(product?.averageCost);
+    const minimumPrice = Math.max(0, Number(product?.minimumPrice) || 0);
+
+    if (!id) {
+      issues.push({severity:"critical", type:"missing-id", title:`${name} 没有产品编号`, detail:"产品编号为空，后续 Sales / Import 配对可能发生错误。", action:"请先到产品资料补上唯一产品编号。"});
+    } else {
+      const key = id.toUpperCase();
+      if (!idMap.has(key)) idMap.set(key, []);
+      idMap.get(key).push(product);
+    }
+
+    if (Number.isFinite(stockRaw) && stockRaw < 0) {
+      issues.push({severity:"critical", type:"negative-stock", productId:id, title:`${name} 库存为负数`, detail:`Products.stock = ${formatNumber(stockRaw)}`, action:"请先停止继续扣库存，并检查最近 Sales / 库存调整记录。"});
+    }
+
+    if (stock > 0 && (!Number.isFinite(averageCost) || averageCost <= 0)) {
+      issues.push({severity:"critical", type:"invalid-cost", productId:id, title:`${name} 有库存但平均成本异常`, detail:`当前库存 ${formatNumber(stock)}，平均成本 ${formatMoney(Number(averageCost) || 0, "RM ")}`, action:"请检查对应进口批次成本与汇率。"});
+    }
+
+    if (stock > 0 && minimumPrice <= 0) {
+      issues.push({severity:"warning", type:"missing-min-price", productId:id, title:`${name} 没有原最低售价`, detail:`当前库存 ${formatNumber(stock)}，原最低售价为 RM 0.00。`, action:"请检查自动最低售价来源；若属特殊产品，再手动设定原最低售价。"});
+    }
+
+    if (stock >= 0 && (id || name)) {
+      const importsRemaining = getImportsRemainingForProductV201(product, imports);
+      const batchesRemaining = getBatchRemainingForProductV201(product, batches);
+      if (importsRemaining !== stock || batchesRemaining !== stock) {
+        issues.push({
+          severity:"warning", type:"stock-consistency", productId:id,
+          title:`${name} 库存资料不一致`,
+          detail:`Products ${formatNumber(stock)} · Imports ${formatNumber(importsRemaining)} · Batches ${formatNumber(batchesRemaining)}`,
+          action:"以 Products 当前库存为基准，确认后可使用现有库存一致性修复功能同步 Imports / Batches。",
+          canRepair:Boolean(id)
+        });
+      }
+    }
+
+    const rawAdjustments = product?.stockAdjustmentsJson;
+    if (typeof rawAdjustments === "string" && rawAdjustments.trim()) {
+      try { const parsed = JSON.parse(rawAdjustments); if (!Array.isArray(parsed)) throw new Error("not-array"); }
+      catch (_) {
+        issues.push({severity:"warning", type:"adjustment-data", productId:id, title:`${name} 库存调整记录格式异常`, detail:"stockAdjustmentsJson 无法正常解析。", action:"不要继续手动改库存；先备份并检查该产品 History。"});
+      }
+    }
+  });
+
+  idMap.forEach((rows, id) => {
+    if (rows.length > 1) {
+      issues.push({severity:"critical", type:"duplicate-id", productId:id, title:`产品编号 ${id} 重复`, detail:`共有 ${rows.length} 个产品使用同一个编号：${rows.map(x=>String(x.name||"未命名")).join("、")}`, action:"请先修正重复编号，再处理 Sales / Import。"});
+    }
+  });
+
+  if (salesInventoryFeedLoadedV77) {
+    const pendingRows = (salesInventoryPendingV77 || []).filter(item => !item?.v82Processed);
+    const pendingGroups = salesCardGroupsV104(pendingRows);
+    if (pendingGroups.length) {
+      const qty = pendingRows.reduce((sum, item) => sum + Math.max(0, Number(item?.remainingQty) || 0), 0);
+      issues.unshift({severity:"critical", type:"sales-pending", title:`${pendingGroups.length} 张 Sales 销售卡库存待处理`, detail:`涉及 ${pendingRows.length} 项产品，待处理数量 ${formatNumber(qty)}。`, action:"请先处理 Sales → Import 库存，再继续其他库存调整。"});
+    }
+  }
+
+  return issues;
+}
+
+function renderImportAnomalyCenterV201() {
+  const list = document.getElementById("importAnomalyListV201");
+  const criticalEl = document.getElementById("importAnomalyCriticalCountV201");
+  const warningEl = document.getElementById("importAnomalyWarningCountV201");
+  const statusEl = document.getElementById("importAnomalyStatusV201");
+  if (!list || !criticalEl || !warningEl || !statusEl) return;
+
+  const issues = getImportAnomaliesV201();
+  const critical = issues.filter(x => x.severity === "critical").length;
+  const warning = issues.filter(x => x.severity === "warning").length;
+  criticalEl.textContent = formatNumber(critical);
+  warningEl.textContent = formatNumber(warning);
+  statusEl.textContent = critical ? "需处理" : (warning ? "需检查" : "正常");
+  statusEl.className = critical ? "is-critical" : (warning ? "is-warning" : "is-ok");
+
+  if (!issues.length) {
+    list.innerHTML = `<div class="import-anomaly-all-clear-v201"><strong>✅ 所有检查正常</strong><span>${salesInventoryFeedLoadedV77 ? "Sales 待处理、库存一致性、产品编号、成本与最低售价均未发现异常。" : "本机库存资料未发现异常；Sales 状态同步完成后会自动再检查。"}</span></div>`;
+    return;
+  }
+
+  const severityOrder = {critical:0, warning:1};
+  issues.sort((a,b)=>(severityOrder[a.severity]??9)-(severityOrder[b.severity]??9));
+  list.innerHTML = issues.map((issue,index) => `
+    <article class="import-anomaly-item-v201 ${issue.severity}">
+      <div class="import-anomaly-icon-v201">${issue.severity === "critical" ? "🔴" : "🟠"}</div>
+      <div class="import-anomaly-body-v201">
+        <strong>${escapeHTML(issue.title)}</strong>
+        <div>${escapeHTML(issue.detail || "")}</div>
+        <small>${escapeHTML(issue.action || "")}</small>
+      </div>
+      ${issue.canRepair ? `<button class="small-btn import-anomaly-repair-v201" type="button" data-product-id="${escapeHTML(issue.productId || "")}">修复一致性</button>` : ""}
+    </article>`).join("");
+}
+
+function setupImportAnomalyCenterV201() {
+  const refresh = document.getElementById("refreshImportAnomalyV201");
+  if (refresh && refresh.dataset.boundV201 !== "1") {
+    refresh.dataset.boundV201 = "1";
+    refresh.addEventListener("click", async () => {
+      refresh.disabled = true;
+      refresh.textContent = "检查中...";
+      try {
+        await refreshSalesInventoryFeedV77({silent:true});
+        renderImportAnomalyCenterV201();
+      } finally {
+        refresh.disabled = false;
+        refresh.textContent = "重新检查";
+      }
+    });
+  }
+  const list = document.getElementById("importAnomalyListV201");
+  if (list && list.dataset.boundV201 !== "1") {
+    list.dataset.boundV201 = "1";
+    list.addEventListener("click", event => {
+      const button = event.target.closest(".import-anomaly-repair-v201");
+      if (!button) return;
+      const id = String(button.dataset.productId || "").trim();
+      if (!id) return;
+      repairInventoryConsistencyForProduct(id);
+      window.setTimeout(() => { renderDashboard(); renderImportAnomalyCenterV201(); }, 50);
+    });
+  }
+  renderImportAnomalyCenterV201();
 }
 
 function renderInventoryList(products) {
@@ -3145,19 +3362,23 @@ function setupProductModule() {
 }
 
 const DEFAULT_MINIMUM_PRICE_RULES_V160 = Object.freeze({
+  commissionRate: 10,
   margin0To300: 30,
   margin300To500: 35,
   margin500To800: 40,
   margin800To5000: 45,
-  margin5000Plus: 50,
+  margin5000To8000: 50,
+  margin8000Plus: 60,
   freightTierA: 20,
   freightTierB: 50,
   freightTierC: 80,
   freightTierD: 120,
   freightTierE: 150,
+  freightTierF: 180,
   vndPotUnder1m: 35,
   vndPot1mTo4m: 55,
-  vndPot4mPlus: 105
+  vndPot4mTo10m: 105,
+  vndPot10mPlus: 180
 });
 
 function getMinimumPriceRulesV160() {
@@ -3167,7 +3388,11 @@ function getMinimumPriceRulesV160() {
     : {};
   const normalized = {};
   Object.entries(DEFAULT_MINIMUM_PRICE_RULES_V160).forEach(([key, fallback]) => {
-    const value = Number(rules[key]);
+    let rawValue = rules[key];
+    // V20.1 migration: preserve the closest V19.9 customized value when a range was split.
+    if (rawValue == null && key === "margin5000To8000") rawValue = rules.margin5000Plus;
+    if (rawValue == null && key === "vndPot4mTo10m") rawValue = rules.vndPot4mPlus;
+    const value = Number(rawValue);
     normalized[key] = Number.isFinite(value) && value >= 0 ? value : fallback;
   });
   return normalized;
@@ -3248,7 +3473,8 @@ function getVndPotCostV160(product, rules, originIndex = null) {
   const productName = String(product?.name || "").trim().toLowerCase();
   const original = index.byId.get(productId) || index.byName.get(productName);
   if (!original || original.currency !== "VND") return 0;
-  if (original.unitPrice >= 4000000) return rules.vndPot4mPlus;
+  if (original.unitPrice >= 10000000) return rules.vndPot10mPlus;
+  if (original.unitPrice >= 4000000) return rules.vndPot4mTo10m;
   if (original.unitPrice >= 1000000) return rules.vndPot1mTo4m;
   return rules.vndPotUnder1m;
 }
@@ -3259,7 +3485,8 @@ function getMinimumFreightTierV188(price, rules) {
   if (salePrice <= 500) return { code:"B", amount:rules.freightTierB };
   if (salePrice <= 1000) return { code:"C", amount:rules.freightTierC };
   if (salePrice <= 2000) return { code:"D", amount:rules.freightTierD };
-  return { code:"E", amount:rules.freightTierE };
+  if (salePrice < 5000) return { code:"E", amount:rules.freightTierE };
+  return { code:"F", amount:rules.freightTierF };
 }
 
 function calculateTieredMinimumPriceV188(cost, denominator, rules) {
@@ -3282,12 +3509,14 @@ function getAutomaticMinimumPriceV160(averageCost, configuredRules = null, produ
     getVndPotCostV160(product, rules, originIndex);
   if (cost <= 0) return 0;
 
-  const targetMarginPercent = cost <= 300 ? rules.margin0To300
-    : cost <= 500 ? rules.margin300To500
-      : cost < 800 ? rules.margin500To800
-        : cost < 5000 ? rules.margin800To5000
-          : rules.margin5000Plus;
-  const denominator = 1 - 0.10 - targetMarginPercent / 100;
+  const averageCostValue = Math.max(0, Number(averageCost) || 0);
+  const targetMarginPercent = averageCostValue <= 300 ? rules.margin0To300
+    : averageCostValue <= 500 ? rules.margin300To500
+      : averageCostValue < 800 ? rules.margin500To800
+        : averageCostValue < 5000 ? rules.margin800To5000
+          : averageCostValue < 8000 ? rules.margin5000To8000
+            : rules.margin8000Plus;
+  const denominator = 1 - rules.commissionRate / 100 - targetMarginPercent / 100;
   return calculateTieredMinimumPriceV188(cost, denominator, rules).price;
 }
 
@@ -11744,6 +11973,68 @@ function normalizeMinimumPriceInput(value) {
   return Math.round((number + Number.EPSILON) * 100) / 100;
 }
 
+async function editDisplayedMinimumPriceV199(productId) {
+  const id = String(productId || "").trim();
+  const product = getProducts().find(item => String(item.id || "").trim() === id);
+  if (!product) { alert("找不到这个产品。"); return; }
+
+  const promotion = getPromotionSettingsV183();
+  const normalizedId = id.toUpperCase();
+  const excluded = Boolean(promotion?.excludedProductIds?.includes(normalizedId));
+
+  // V20.1: two completely separate price domains.
+  // No promotion, or an excluded product, edits the ORIGINAL minimum price only.
+  if (!promotion || excluded) {
+    return editProductMinimumPrice(id);
+  }
+
+  // A participating product edits only the ACTIVE PROMOTION override.
+  // Products.minimumPrice / minimumPriceManual are deliberately untouched.
+  const currentPromotionPrice = getEffectiveProductMinimumPriceV183(product, promotion);
+  const entered = window.prompt(
+    `修改促销最低售价：${product.name}\n\n目前促销最低售价：${formatMoney(currentPromotionPrice, "RM ")}\n请输入新的促销最低售价（最多2位小数）\n\n只影响当前促销；原最低售价不会被修改。删除促销后自动恢复原最低售价。`,
+    currentPromotionPrice.toFixed(2)
+  );
+  if (entered === null) return;
+  const nextPromotionPrice = normalizeMinimumPriceInput(entered);
+  if (nextPromotionPrice === null || nextPromotionPrice <= 0) {
+    alert("促销最低售价必须大于0，最多2位小数。");
+    return;
+  }
+  if (Math.abs(nextPromotionPrice - currentPromotionPrice) < 0.005) return;
+  if (!window.confirm(
+    `确认修改促销最低售价？\n\n产品：${product.name}\n目前促销价：${formatMoney(currentPromotionPrice, "RM ")}\n修改为：${formatMoney(nextPromotionPrice, "RM ")}\n\n原最低售价 ${formatMoney(Math.max(0, Number(product.minimumPrice) || 0), "RM ")} 不会改变；删除促销后会恢复原最低售价。`
+  )) return;
+
+  if (typeof updatePromotionSettingsFastV185 !== "function") {
+    alert("促销快速同步模块尚未载入，请强制刷新网页后再试。");
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const nextPromotion = {
+    ...promotion,
+    active: true,
+    priceOverrides: { ...(promotion.priceOverrides || {}), [normalizedId]: Math.round(nextPromotionPrice * 100) / 100 },
+    updatedAt: now
+  };
+  const status = document.getElementById("batchProductStockStatus");
+  if (status) status.textContent = `同步中：${product.name} 促销最低售价 ${formatMoney(nextPromotionPrice, "RM ")}`;
+  try {
+    await updatePromotionSettingsFastV185(nextPromotion);
+    const settings = loadJSON("importSystemSettings", {});
+    saveJSON("importSystemSettings", { ...settings, promotionV183: nextPromotion });
+    promotionPriceOverridesDraftV193 = { ...(nextPromotion.priceOverrides || {}) };
+    renderInventoryManagementList();
+    renderDashboard();
+    renderPromotionPriceListV183();
+    if (status) status.textContent = `已更新：${product.name} 促销最低售价 ${formatMoney(nextPromotionPrice, "RM ")}`;
+  } catch (error) {
+    if (status) status.textContent = "促销最低售价同步失败，原最低售价未受影响";
+    alert(String(error?.message || error || "促销最低售价同步失败"));
+  }
+}
+
 async function editProductMinimumPrice(productId) {
   const id = String(productId || "").trim();
   const products = getProducts();
@@ -11874,7 +12165,7 @@ function bindDashboardMinimumPriceLongPress() {
     timer = window.setTimeout(() => {
       timer = null;
       button.classList.remove("long-press-active");
-      editProductMinimumPrice(String(button.dataset.productId || ""));
+      editDisplayedMinimumPriceV199(String(button.dataset.productId || ""));
     }, 650);
   };
 
@@ -12396,7 +12687,7 @@ function bindInventoryMinimumPriceLongPress() {
       timer = null;
       triggered = true;
       button.classList.remove("long-press-active");
-      editProductMinimumPrice(String(button.dataset.productId || ""));
+      editDisplayedMinimumPriceV199(String(button.dataset.productId || ""));
     }, 650);
   };
 
@@ -13075,7 +13366,7 @@ function bindOriginalCostMinimumPriceLongPress() {
     timer = window.setTimeout(() => {
       timer = null;
       button.classList.remove("long-press-active");
-      editProductMinimumPrice(String(button.dataset.productId || ""));
+      editDisplayedMinimumPriceV199(String(button.dataset.productId || ""));
     }, 650);
   };
 
@@ -13691,7 +13982,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "19.8",
+      version: "20.1",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -14054,7 +14345,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V19.8 Stable",
+      updatedBy: "System V20.1 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
