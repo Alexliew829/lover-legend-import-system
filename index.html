@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=18.7" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=18.7" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=18.7" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=18.7" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=18.7" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=18.7" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=18.7" />
+  <link rel="manifest" href="./manifest.json?v=18.8" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=18.8" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=18.8" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=18.8" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=18.8" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=18.8" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=18.8" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=18.7" />
-  <link rel="stylesheet" href="./css/style.css?v=18.7" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=18.8" />
+  <link rel="stylesheet" href="./css/style.css?v=18.8" />
 </head>
 <body>
   <div id="accessLock"
@@ -84,7 +84,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 18.7 Stable</div>
+          <div class="app-header-version">正式版 18.8 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -476,11 +476,13 @@
             <label>RM 5,000以上（%）<input id="minimumMargin5000Plus" inputmode="decimal" /></label>
           </div>
           <h4>木架＋本地运费</h4>
-          <div class="form-grid minimum-price-settings-grid">
-            <label>售价低于 RM300<input id="minimumFreightUnder300" inputmode="decimal" /></label>
-            <label>售价 RM300–500<input id="minimumFreight300To500" inputmode="decimal" /></label>
-            <label>售价高于 RM500、成本低于 RM800<input id="minimumFreightOver500" inputmode="decimal" /></label>
-            <label>成本 RM800以上<input id="minimumFreightHighCost" inputmode="decimal" /></label>
+          <p class="settings-help">按最终自动最低售价决定 A–E 木架等级；若计算后跨档，系统会自动改用新档运费重新计算，直到售价与档位一致。</p>
+          <div class="form-grid minimum-price-settings-grid minimum-freight-tier-grid-v188">
+            <label>A · 售价低于 RM300<input id="minimumFreightTierA" inputmode="decimal" /></label>
+            <label>B · 售价 RM300–500<input id="minimumFreightTierB" inputmode="decimal" /></label>
+            <label>C · 售价 RM500.01–1,000<input id="minimumFreightTierC" inputmode="decimal" /></label>
+            <label>D · 售价 RM1,000.01–2,000<input id="minimumFreightTierD" inputmode="decimal" /></label>
+            <label>E · 售价 RM2,000以上<input id="minimumFreightTierE" inputmode="decimal" /></label>
           </div>
           <h4>VND 产品搭配花盆成本</h4>
           <p class="settings-help">按最新有效的 VND 原进口单价加入花盆成本。平均成本已包含海外运费，因此不会重复加入运费。</p>
@@ -499,7 +501,7 @@
           <div class="form-grid promotion-main-grid-v183">
             <label>促销名称<input id="promotionNameV183" maxlength="30" value="年尾清货" /></label>
             <label>主播佣金（%）<input id="promotionCommissionV183" inputmode="decimal" value="10" /></label>
-            <label class="promotion-margin-label-v187">目标净利率（%）<span class="promotion-margin-input-row-v187"><input id="promotionMarginV183" inputmode="decimal" value="10" /><button id="promotionMarginSignV187" class="promotion-sign-btn-v187" type="button" aria-label="切换目标净利率正负">± 正／负</button></span></label>
+            <label>目标净利率（%）<input id="promotionMarginV183" type="text" inputmode="text" pattern="-?[0-9]*([.][0-9]+)?" autocomplete="off" value="10" /></label>
           </div>
           <h4>排除产品</h4>
           <p class="settings-help">搜索并选择产品编号，不需要输入数量。被排除的产品继续使用原本最低售价；数量不限。</p>
@@ -781,7 +783,7 @@
 
         <section class="panel">
           <h3>系统资料</h3>
-          <div class="info-row"><span>版本</span><strong>正式版 18.7 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong>正式版 18.8 Stable</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
           <div class="info-row"><span>Google Sheet</span><strong>已连接 Google Web App</strong></div>
@@ -805,8 +807,8 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=18.7"></script>
-  <script src="./js/sync.js?v=18.7"></script>
-  <script src="./js/app.js?v=18.7"></script>
+  <script src="./js/common.js?v=18.8"></script>
+  <script src="./js/sync.js?v=18.8"></script>
+  <script src="./js/app.js?v=18.8"></script>
 </body>
 </html>
