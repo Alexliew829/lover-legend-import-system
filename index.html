@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=20.1" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=20.1" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=20.1" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=20.1" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=20.1" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=20.1" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=20.1" />
+  <link rel="manifest" href="./manifest.json?v=20.2" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=20.2" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=20.2" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=20.2" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=20.2" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=20.2" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=20.2" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=20.1" />
-  <link rel="stylesheet" href="./css/style.css?v=20.1" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=20.2" />
+  <link rel="stylesheet" href="./css/style.css?v=20.2" />
 </head>
 <body>
   <div id="accessLock"
@@ -84,7 +84,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 20.1 Stable</div>
+          <div class="app-header-version">正式版 20.2 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -95,8 +95,16 @@
 
     <main class="content">
       <section id="dashboardPage" class="page active">
-        <div class="section-title-row">
+        <div class="section-title-row dashboard-title-row-v202">
           <h2>Dashboard / 首页</h2>
+          <div class="import-anomaly-compact-v202" aria-live="polite">
+            <button id="importAnomalyStatusButtonV202" class="import-anomaly-status-button-v202" type="button" aria-expanded="false">
+              <span id="importAnomalyStatusDotV202" class="import-anomaly-status-dot-v202 checking" aria-hidden="true"></span>
+              <span>系统状态</span>
+              <strong id="importAnomalyCountV202" hidden>0</strong>
+            </button>
+            <button id="refreshImportAnomalyV201" class="secondary-btn import-anomaly-refresh-v202" type="button">重新检查</button>
+          </div>
         </div>
 
 
@@ -129,22 +137,12 @@
           </article>
         </div>
 
-        <section id="importAnomalyCenterV201" class="panel import-anomaly-center-v201" aria-live="polite">
-          <div class="section-title-row import-anomaly-head-v201">
-            <div>
-              <h3>异常中心</h3>
-              <div class="muted import-anomaly-subtitle-v201">系统自动检查 Sales 待处理、库存一致性、产品资料与最低售价</div>
-            </div>
-            <button id="refreshImportAnomalyV201" class="secondary-btn import-anomaly-refresh-v201" type="button">重新检查</button>
+        <section id="importAnomalyDetailsV202" class="panel import-anomaly-details-v202" aria-live="polite" hidden>
+          <div class="import-anomaly-detail-head-v202">
+            <strong>需要检查</strong>
+            <button id="closeImportAnomalyV202" class="small-btn" type="button">收起</button>
           </div>
-          <div id="importAnomalySummaryV201" class="import-anomaly-summary-v201">
-            <div class="import-anomaly-summary-card critical"><span>严重异常</span><strong id="importAnomalyCriticalCountV201">0</strong></div>
-            <div class="import-anomaly-summary-card warning"><span>需要检查</span><strong id="importAnomalyWarningCountV201">0</strong></div>
-            <div class="import-anomaly-summary-card ok"><span>系统状态</span><strong id="importAnomalyStatusV201">检查中</strong></div>
-          </div>
-          <div id="importAnomalyListV201" class="import-anomaly-list-v201">
-            <div class="empty-state">正在检查...</div>
-          </div>
+          <div id="importAnomalyListV201" class="import-anomaly-list-v201"></div>
         </section>
 
         <section class="panel">
@@ -483,7 +481,7 @@
         </section>
 
         <details class="panel collapsible-settings-v181">
-          <summary><span>自动最低售价管理</span><small>点击打开／收起</small></summary>
+          <summary><span class="minimum-price-summary-title-v202"><span>自动最低售价管理</span><span id="minimumPriceCustomBadgeV202" class="minimum-price-custom-badge-v202" hidden></span></span><small>点击打开／收起</small></summary>
           <p class="settings-help">以下设置会直接参与“自动原最低售价”计算；保存后自动原最低售价会重新计算，手动原最低售价与促销最低售价不会被覆盖。</p>
           <div class="minimum-commission-row-v200">
             <label>主播佣金（%）<input id="minimumCommissionRate" inputmode="decimal" /></label>
@@ -809,7 +807,7 @@
 
         <section class="panel">
           <h3>系统资料</h3>
-          <div class="info-row"><span>版本</span><strong>正式版 20.1 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong>正式版 20.2 Stable</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
           <div class="info-row"><span>Google Sheet</span><strong>已连接 Google Web App</strong></div>
@@ -833,8 +831,8 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=20.1"></script>
-  <script src="./js/sync.js?v=20.1"></script>
-  <script src="./js/app.js?v=20.1"></script>
+  <script src="./js/common.js?v=20.2"></script>
+  <script src="./js/sync.js?v=20.2"></script>
+  <script src="./js/app.js?v=20.2"></script>
 </body>
 </html>
