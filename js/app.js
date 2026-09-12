@@ -438,12 +438,14 @@ async function refreshSalesInventoryFeedV77({ silent = true } = {}) {
     const data = await callSalesInventoryFeedV77();
     salesInventoryFeedV77 = Array.isArray(data?.items) ? data.items : [];
     salesInventoryFeedLoadedV77 = true;
+    salesInventoryFeedLastErrorV203 = "";
     recomputeSalesInventoryPendingV77();
     renderSalesInventoryReminderV77();
     renderImportAnomalyCenterV201();
     if (document.getElementById("batchProductStockSearch")?.value?.trim()) renderBatchProductStockResults();
   } catch (error) {
-    if (!silent) alert(String(error?.message || error));
+    salesInventoryFeedLastErrorV203 = String(error?.message || error);
+    if (!silent) alert(salesInventoryFeedLastErrorV203);
   } finally {
     salesInventoryFeedBusyV77 = false;
   }
@@ -959,7 +961,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V20.2 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V20.3 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -3110,6 +3112,65 @@ function renderDashboard() {
     latestBatchImportDate || "";
 
   renderImportAnomalyCenterV201();
+  renderSystemInformationV203();
+}
+
+const SYSTEM_INFO_LAST_BACKUP_KEY_V203 = "loverLegendImportLastBackupV203";
+const SYSTEM_INFO_LAST_RESTORE_KEY_V203 = "loverLegendImportLastRestoreV203";
+let systemHealthV203 = { checked: false, checking: false, apiOk: null, apiVersion: "", schemaVersion: "", error: "", restoreJob: null };
+let salesInventoryFeedLastErrorV203 = "";
+
+function formatSystemDateTimeV203(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("en-GB", {
+    day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit", second:"2-digit", hour12:false
+  }).replaceAll("/", "-");
+}
+
+function renderSystemInformationV203() {
+  const products = getProducts();
+  const imports = getImports();
+  const active = products.filter(item => (Number(item?.stock) || 0) > 0);
+  const stock = active.reduce((sum, item) => sum + (Number(item?.stock) || 0), 0);
+  const config = typeof getCloudConfig === "function" ? getCloudConfig() : {};
+  const set = (id, text) => { const el=document.getElementById(id); if(el) el.textContent=text; };
+  set("systemInfoVersionV203", `正式版 ${APP_VERSION} Stable`);
+  set("systemInfoApiVersionV203", systemHealthV203.apiOk === true ? `V${systemHealthV203.apiVersion || APP_VERSION}` : (systemHealthV203.apiOk === false ? "连接异常" : "尚未检查"));
+  set("systemInfoGoogleSheetV203", systemHealthV203.apiOk === true ? "已连接 Google Web App" : (systemHealthV203.apiOk === false ? "连接异常" : "尚未检查"));
+  set("systemInfoLastSyncV203", formatSystemDateTimeV203(config.lastSyncAt) || "尚未同步");
+  set("systemInfoLastBackupV203", formatSystemDateTimeV203(localStorage.getItem(SYSTEM_INFO_LAST_BACKUP_KEY_V203)) || "暂无记录");
+  const localRestore = getLocalRestoreJob?.();
+  const serverRestore = systemHealthV203.restoreJob;
+  const restoreTime = (serverRestore?.state === "success" ? (serverRestore.completedAt || serverRestore.updatedAt || "") : "") || localStorage.getItem(SYSTEM_INFO_LAST_RESTORE_KEY_V203) || (localRestore?.state === "success" ? (localRestore.completedAt || localRestore.updatedAt || "") : "");
+  set("systemInfoLastRestoreV203", formatSystemDateTimeV203(restoreTime) || "暂无记录");
+  set("systemInfoProductCountV203", formatNumber(products.length));
+  set("systemInfoStockCountV203", formatNumber(stock));
+  set("systemInfoInventoryItemCountV203", formatNumber(active.length));
+  set("systemInfoImportCountV203", formatNumber(imports.length));
+}
+
+async function runSystemHealthCheckV203({ refreshSales = true } = {}) {
+  if (systemHealthV203.checking) return;
+  systemHealthV203.checking = true;
+  renderImportAnomalyCenterV201();
+  try {
+    const data = await callGoogleApi({ action:"healthV203", clientVersion:APP_VERSION, schemaVersion:CLOUD_SCHEMA_VERSION });
+    systemHealthV203 = {
+      checked:true, checking:true, apiOk:true,
+      apiVersion:String(data?.clientVersion || ""),
+      schemaVersion:String(data?.schemaVersion || ""),
+      error:"", restoreJob:data?.restoreJob || null
+    };
+    if (refreshSales) await refreshSalesInventoryFeedV77({silent:true});
+  } catch (error) {
+    systemHealthV203 = { checked:true, checking:true, apiOk:false, apiVersion:"", schemaVersion:"", error:String(error?.message || error), restoreJob:null };
+  } finally {
+    systemHealthV203.checking = false;
+    renderImportAnomalyCenterV201();
+    renderSystemInformationV203();
+  }
 }
 
 function normalizeAnomalyProductKeyV201(value) {
@@ -3155,6 +3216,34 @@ function getImportAnomaliesV201() {
   const batches = getBatches();
   const issues = [];
   const idMap = new Map();
+
+  if (systemHealthV203.checked) {
+    if (systemHealthV203.apiOk === false) {
+      issues.push({severity:"critical", type:"google-api", title:"Google Web App / Database 连接异常", detail:systemHealthV203.error || "无法读取 Google Web App。", action:"请检查网络、Web App 部署和 Google Sheet 读取权限。"});
+    } else if (systemHealthV203.apiOk === true) {
+      if (systemHealthV203.apiVersion && systemHealthV203.apiVersion !== APP_VERSION) {
+        issues.push({severity:"critical", type:"version-mismatch", title:"Frontend 与 API 版本不一致", detail:`Frontend V${APP_VERSION} · API V${systemHealthV203.apiVersion}`, action:"请确认 Apps Script 已更新并重新 Deploy，然后强制刷新。"});
+      }
+      if (systemHealthV203.schemaVersion && systemHealthV203.schemaVersion !== CLOUD_SCHEMA_VERSION) {
+        issues.push({severity:"critical", type:"schema-mismatch", title:"API Schema 版本不一致", detail:`Frontend ${CLOUD_SCHEMA_VERSION} · API ${systemHealthV203.schemaVersion}`, action:"请停止写入并检查部署版本。"});
+      }
+    }
+  }
+  if (cloudLastErrorMessage) {
+    issues.push({severity:"critical", type:"sync-error", title:"最近同步失败", detail:String(cloudLastErrorMessage), action:"请先检查网络和 Google Web App，再按重新检查。"});
+  }
+  if (systemHealthV203.checked && salesInventoryFeedLastErrorV203) {
+    issues.push({severity:"critical", type:"sales-feed", title:"Sales → Import 连接异常", detail:salesInventoryFeedLastErrorV203, action:"请检查 Sales System Web App 连接；重新检查只读取状态，不会处理库存。"});
+  }
+  const restoreJob = systemHealthV203.restoreJob || getLocalRestoreJob?.();
+  if (restoreJob?.state === "failed") {
+    issues.push({severity:"critical", type:"restore-failed", title:"最近 Restore Job 失败", detail:String(restoreJob.error || restoreJob.step || "Restore 未完成"), action:"请检查 Restore 状态和 Backup 文件；系统检查不会自动修复。"});
+  } else if (restoreJob?.state === "running") {
+    issues.push({severity:"warning", type:"restore-running", title:"Restore Job 仍在进行", detail:String(restoreJob.step || "服务器正在处理 Restore"), action:"请等待 Restore 完成，不要重复执行。"});
+  }
+  if (!Array.isArray(products) || !Array.isArray(imports) || !Array.isArray(batches)) {
+    issues.push({severity:"critical", type:"data-load", title:"主要资料无法正常载入", detail:"Products / Imports / Batches 资料结构异常。", action:"请停止操作并重新检查云端资料。"});
+  }
 
   products.forEach(product => {
     const id = String(product?.id || "").trim();
@@ -3218,7 +3307,7 @@ function getImportAnomaliesV201() {
     const pendingGroups = salesCardGroupsV104(pendingRows);
     if (pendingGroups.length) {
       const qty = pendingRows.reduce((sum, item) => sum + Math.max(0, Number(item?.remainingQty) || 0), 0);
-      issues.unshift({severity:"critical", type:"sales-pending", title:`${pendingGroups.length} 张 Sales 销售卡库存待处理`, detail:`涉及 ${pendingRows.length} 项产品，待处理数量 ${formatNumber(qty)}。`, action:"请先处理 Sales → Import 库存，再继续其他库存调整。"});
+      issues.unshift({severity:"warning", type:"sales-pending", title:`${pendingGroups.length} 张 Sales 销售卡库存待处理`, detail:`涉及 ${pendingRows.length} 项产品，待处理数量 ${formatNumber(qty)}。`, action:"请先处理 Sales → Import 库存，再继续其他库存调整。"});
     }
   }
 
@@ -3232,14 +3321,25 @@ function renderImportAnomalyCenterV201() {
   const statusButton = document.getElementById("importAnomalyStatusButtonV202");
   const details = document.getElementById("importAnomalyDetailsV202");
   if (!list || !dot || !countEl || !statusButton || !details) return;
+
+  if (systemHealthV203.checking) {
+    dot.className = "import-anomaly-status-dot-v202 checking";
+    statusButton.classList.remove("has-problem", "has-warning");
+    statusButton.setAttribute("aria-label", "系统检查中");
+    return;
+  }
+
   const issues = getImportAnomaliesV201();
-  const count = issues.length;
-  dot.className = `import-anomaly-status-dot-v202 ${count ? "problem" : "ok"}`;
-  countEl.textContent = formatNumber(count);
-  countEl.hidden = count === 0;
-  statusButton.classList.toggle("has-problem", count > 0);
-  statusButton.setAttribute("aria-label", count ? `系统状态，有 ${count} 项需要检查，点击查看` : "系统状态正常");
-  if (!count) {
+  const criticalCount = issues.filter(issue => issue.severity === "critical").length;
+  const warningCount = issues.filter(issue => issue.severity === "warning").length;
+  const state = criticalCount ? "problem" : warningCount ? "warning" : "ok";
+  dot.className = `import-anomaly-status-dot-v202 ${state}`;
+  countEl.hidden = true;
+  statusButton.classList.toggle("has-problem", criticalCount > 0);
+  statusButton.classList.toggle("has-warning", criticalCount === 0 && warningCount > 0);
+  statusButton.setAttribute("aria-label", criticalCount ? `系统有 ${criticalCount} 项异常，点击查看` : warningCount ? `系统有 ${warningCount} 项提醒，点击查看` : "系统状态正常");
+
+  if (!issues.length) {
     details.hidden = true;
     statusButton.setAttribute("aria-expanded", "false");
     statusButton.classList.remove("is-open");
@@ -3250,38 +3350,39 @@ function renderImportAnomalyCenterV201() {
   issues.sort((a,b)=>(severityOrder[a.severity]??9)-(severityOrder[b.severity]??9));
   list.innerHTML = issues.map(issue => `
     <article class="import-anomaly-item-v201 ${issue.severity}">
-      <div class="import-anomaly-icon-v201">${issue.severity === "critical" ? "🔴" : "🟠"}</div>
+      <div class="import-anomaly-icon-v201">${issue.severity === "critical" ? "🔴" : "🟡"}</div>
       <div class="import-anomaly-body-v201">
         <strong>${escapeHTML(issue.title)}</strong>
         <div>${escapeHTML(issue.detail || "")}</div>
         <small>${escapeHTML(issue.action || "")}</small>
       </div>
-      ${issue.canRepair ? `<button class="small-btn import-anomaly-repair-v201" type="button" data-product-id="${escapeHTML(issue.productId || "")}">修复一致性</button>` : ""}
     </article>`).join("");
 }
 
 function setupImportAnomalyCenterV201() {
   const refresh = document.getElementById("refreshImportAnomalyV201");
-  if (refresh && refresh.dataset.boundV202 !== "1") {
-    refresh.dataset.boundV202 = "1";
+  if (refresh && refresh.dataset.boundV203 !== "1") {
+    refresh.dataset.boundV203 = "1";
     refresh.addEventListener("click", async () => {
+      if (systemHealthV203.checking) return;
       refresh.disabled = true;
-      refresh.textContent = "检查中...";
+      refresh.classList.add("is-checking");
+      refresh.textContent = "检查中…";
       try {
-        await refreshSalesInventoryFeedV77({silent:true});
-        renderImportAnomalyCenterV201();
+        await runSystemHealthCheckV203({refreshSales:true});
       } finally {
         refresh.disabled = false;
+        refresh.classList.remove("is-checking");
         refresh.textContent = "重新检查";
       }
     });
   }
   const statusButton = document.getElementById("importAnomalyStatusButtonV202");
   const details = document.getElementById("importAnomalyDetailsV202");
-  if (statusButton && details && statusButton.dataset.boundV202 !== "1") {
-    statusButton.dataset.boundV202 = "1";
+  if (statusButton && details && statusButton.dataset.boundV203 !== "1") {
+    statusButton.dataset.boundV203 = "1";
     statusButton.addEventListener("click", () => {
-      if (!getImportAnomaliesV201().length) return;
+      if (systemHealthV203.checking || !getImportAnomaliesV201().length) return;
       details.hidden = !details.hidden;
       const open = !details.hidden;
       statusButton.setAttribute("aria-expanded", open ? "true" : "false");
@@ -3290,27 +3391,17 @@ function setupImportAnomalyCenterV201() {
     });
   }
   const close = document.getElementById("closeImportAnomalyV202");
-  if (close && details && close.dataset.boundV202 !== "1") {
-    close.dataset.boundV202 = "1";
+  if (close && details && close.dataset.boundV203 !== "1") {
+    close.dataset.boundV203 = "1";
     close.addEventListener("click", () => {
       details.hidden = true;
       statusButton?.setAttribute("aria-expanded", "false");
       statusButton?.classList.remove("is-open");
     });
   }
-  const list = document.getElementById("importAnomalyListV201");
-  if (list && list.dataset.boundV202 !== "1") {
-    list.dataset.boundV202 = "1";
-    list.addEventListener("click", event => {
-      const button = event.target.closest(".import-anomaly-repair-v201");
-      if (!button) return;
-      const id = String(button.dataset.productId || "").trim();
-      if (!id) return;
-      repairInventoryConsistencyForProduct(id);
-      window.setTimeout(() => { renderDashboard(); renderImportAnomalyCenterV201(); }, 50);
-    });
-  }
   renderImportAnomalyCenterV201();
+  renderSystemInformationV203();
+  window.setTimeout(() => runSystemHealthCheckV203({refreshSales:false}), 350);
 }
 
 function renderInventoryList(products) {
@@ -3428,7 +3519,7 @@ function getMinimumPriceRulesV160() {
   const normalized = {};
   Object.entries(DEFAULT_MINIMUM_PRICE_RULES_V160).forEach(([key, fallback]) => {
     let rawValue = rules[key];
-    // V20.2 migration: preserve the closest V19.9 customized value when a range was split.
+    // V20.3 migration: preserve the closest V19.9 customized value when a range was split.
     if (rawValue == null && key === "margin5000To8000") rawValue = rules.margin5000Plus;
     if (rawValue == null && key === "vndPot4mTo10m") rawValue = rules.vndPot4mPlus;
     const value = Number(rawValue);
@@ -12021,7 +12112,7 @@ async function editDisplayedMinimumPriceV199(productId) {
   const normalizedId = id.toUpperCase();
   const excluded = Boolean(promotion?.excludedProductIds?.includes(normalizedId));
 
-  // V20.2: two completely separate price domains.
+  // V20.3: two completely separate price domains.
   // No promotion, or an excluded product, edits the ORIGINAL minimum price only.
   if (!promotion || excluded) {
     return editProductMinimumPrice(id);
@@ -14021,7 +14112,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "20.2",
+      version: "20.3",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -14037,6 +14128,8 @@ async function backupSystemData() {
       "application/json;charset=utf-8"
     );
 
+    localStorage.setItem(SYSTEM_INFO_LAST_BACKUP_KEY_V203, new Date().toISOString());
+    renderSystemInformationV203();
     setDataOperationFinal("Backup", true, "Backup 成功", "文件已建立并开始下载");
     showDataToolsStatus("Backup 成功");
   } catch (error) {
@@ -14228,6 +14321,8 @@ function renderRestoreJob(job) {
   panel.classList.add(job.state === "success" ? "is-success" : job.state === "failed" ? "is-failed" : "is-running");
 
   if (job.state === "success") {
+    localStorage.setItem(SYSTEM_INFO_LAST_RESTORE_KEY_V203, job.completedAt || job.updatedAt || new Date().toISOString());
+    renderSystemInformationV203();
     title.textContent = "✓ Restore 成功";
     step.textContent = job.step || "Restore 已完成";
     meta.textContent = `完成时间：${formatJobTime(job.completedAt || job.updatedAt)}`;
@@ -14384,7 +14479,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V20.2 Stable",
+      updatedBy: "System V20.3 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -14402,6 +14497,8 @@ async function restoreSystemData(event) {
       changedAt: "",
       deleted: { products: [], imports: [], batches: [] }
     });
+    localStorage.setItem(SYSTEM_INFO_LAST_RESTORE_KEY_V203, data?.job?.completedAt || data?.job?.updatedAt || new Date().toISOString());
+    renderSystemInformationV203();
     dataOperationActive = false;
     setDataToolButtonsBusy(false);
     showDataToolsStatus("Restore 成功：Google Sheet 与本机资料已更新");

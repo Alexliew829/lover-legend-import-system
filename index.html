@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=20.2" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=20.2" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=20.2" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=20.2" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=20.2" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=20.2" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=20.2" />
+  <link rel="manifest" href="./manifest.json?v=20.3" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=20.3" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=20.3" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=20.3" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=20.3" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=20.3" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=20.3" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=20.2" />
-  <link rel="stylesheet" href="./css/style.css?v=20.2" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=20.3" />
+  <link rel="stylesheet" href="./css/style.css?v=20.3" />
 </head>
 <body>
   <div id="accessLock"
@@ -84,7 +84,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 20.2 Stable</div>
+          <div class="app-header-version">正式版 20.3 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -95,18 +95,18 @@
 
     <main class="content">
       <section id="dashboardPage" class="page active">
-        <div class="section-title-row dashboard-title-row-v202">
-          <h2>Dashboard / 首页</h2>
-          <div class="import-anomaly-compact-v202" aria-live="polite">
-            <button id="importAnomalyStatusButtonV202" class="import-anomaly-status-button-v202" type="button" aria-expanded="false">
-              <span id="importAnomalyStatusDotV202" class="import-anomaly-status-dot-v202 checking" aria-hidden="true"></span>
-              <span>系统状态</span>
-              <strong id="importAnomalyCountV202" hidden>0</strong>
-            </button>
-            <button id="refreshImportAnomalyV201" class="secondary-btn import-anomaly-refresh-v202" type="button">重新检查</button>
-          </div>
+        <div class="system-health-row-v203" aria-live="polite">
+          <button id="importAnomalyStatusButtonV202" class="import-anomaly-status-button-v202" type="button" aria-expanded="false">
+            <span id="importAnomalyStatusDotV202" class="import-anomaly-status-dot-v202 checking" aria-hidden="true"></span>
+            <span>系统状态</span>
+            <strong id="importAnomalyCountV202" hidden>0</strong>
+          </button>
+          <button id="refreshImportAnomalyV201" class="secondary-btn import-anomaly-refresh-v202" type="button">重新检查</button>
         </div>
 
+        <div class="section-title-row dashboard-title-row-v203">
+          <h2>Dashboard / 首页</h2>
+        </div>
 
         <section class="dashboard-sync-card" aria-live="polite">
           <div id="googleSyncStatus" class="dashboard-sync-status syncing">
@@ -805,12 +805,20 @@
           <div id="costRepairStatus" class="status-text"></div>
         </section>
 
-        <section class="panel">
-          <h3>系统资料</h3>
-          <div class="info-row"><span>版本</span><strong>正式版 20.2 Stable</strong></div>
+        <section class="panel system-information-v203">
+          <h3>系统资料 / System Information</h3>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 20.3 Stable</strong></div>
+          <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
-          <div class="info-row"><span>Google Sheet</span><strong>已连接 Google Web App</strong></div>
+          <div class="info-row"><span>Google Sheet</span><strong id="systemInfoGoogleSheetV203">检查中…</strong></div>
+          <div class="info-row"><span>最后同步</span><strong id="systemInfoLastSyncV203">尚未同步</strong></div>
+          <div class="info-row"><span>最近 Backup</span><strong id="systemInfoLastBackupV203">暂无记录</strong></div>
+          <div class="info-row"><span>最近 Restore</span><strong id="systemInfoLastRestoreV203">暂无记录</strong></div>
+          <div class="info-row"><span>产品种类</span><strong id="systemInfoProductCountV203">0</strong></div>
+          <div class="info-row"><span>当前库存</span><strong id="systemInfoStockCountV203">0</strong></div>
+          <div class="info-row"><span>库存项目数量</span><strong id="systemInfoInventoryItemCountV203">0</strong></div>
+          <div class="info-row"><span>Import记录数量</span><strong id="systemInfoImportCountV203">0</strong></div>
         </section>
       </section>
     </main>
@@ -831,8 +839,8 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=20.2"></script>
-  <script src="./js/sync.js?v=20.2"></script>
-  <script src="./js/app.js?v=20.2"></script>
+  <script src="./js/common.js?v=20.3"></script>
+  <script src="./js/sync.js?v=20.3"></script>
+  <script src="./js/app.js?v=20.3"></script>
 </body>
 </html>
