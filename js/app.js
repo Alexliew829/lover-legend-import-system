@@ -974,7 +974,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V21.2 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V21.3 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1757,8 +1757,6 @@ const ACCESS_UNLOCK_SESSION_KEY =
   "loverLegendImportSystemUnlocked";
 const DESKTOP_SAVED_PASSWORD_KEY =
   "loverLegendDesktopSavedPassword";
-const DESKTOP_TRUSTED_ACCESS_KEY_V212 =
-  "loverLegendDesktopTrustedAccessV212";
 const RESTORE_JOB_LOCAL_KEY = "loverLegendRestoreJobV75";
 let dataOperationActive = false;
 let restoreJobPollTimer = null;
@@ -2067,11 +2065,11 @@ function unlockAccessLock(lock, input, status) {
     "1"
   );
 
-  // V21.2: mobile unlock is bound to this exact tab/history entry.
+  // V21.3: mobile unlock is bound to this exact tab/history entry.
   // A newly opened mobile tab must use the original password / Face ID flow.
   if (isMobileOrTabletDevice()) {
     try {
-      history.replaceState({ ...(history.state || {}), loverLegendMobileUnlockedV212: 1 }, "");
+      history.replaceState({ ...(history.state || {}), loverLegendMobileUnlockedV213: 1 }, "");
     } catch (_) {}
   }
 
@@ -2140,10 +2138,12 @@ function setupDeviceBiometricSettings() {
 }
 
 function setupAccessLock() {
-  // V21.2: retire the pre-V21.2 trust marker. A desktop must manually enter
-  // the password once on V21.2 before cross-tab trusted access is enabled.
+  // V21.3: follow the proven V20.8 desktop access flow.
+  // Desktop may remember/prefill the saved password, but a new tab must still
+  // show the password screen and wait for the user to click “进入系统”.
   if (!isMobileOrTabletDevice()) {
     localStorage.removeItem("loverLegendDesktopTrustedAccess");
+    localStorage.removeItem("loverLegendDesktopTrustedAccessV212");
   }
 
   const lock = document.getElementById("accessLock");
@@ -2164,16 +2164,13 @@ function setupAccessLock() {
   updatePasswordHintDisplays();
   updateDeviceBiometricStatus();
 
-  const desktopTrustedV212 = !isMobileOrTabletDevice() &&
-    localStorage.getItem(DESKTOP_TRUSTED_ACCESS_KEY_V212) === "1";
-  const savedDesktopPassword = desktopTrustedV212
-    ? String(localStorage.getItem(DESKTOP_SAVED_PASSWORD_KEY) || "")
-    : "";
-
-  // Only a desktop that has already completed a manual V21.2 login may
-  // prefill/auto-verify in another tab. First desktop entry always asks.
-  if (desktopTrustedV212 && savedDesktopPassword) {
-    input.value = savedDesktopPassword;
+  // Desktop password cache only prefills the field. It must never auto-submit
+  // or auto-unlock a newly opened tab.
+  if (!isMobileOrTabletDevice()) {
+    const savedDesktopPassword = String(
+      localStorage.getItem(DESKTOP_SAVED_PASSWORD_KEY) || ""
+    );
+    if (savedDesktopPassword) input.value = savedDesktopPassword;
   }
 
   hintButton?.addEventListener("click", () => {
@@ -2238,11 +2235,11 @@ function setupAccessLock() {
     () => tryBiometricLogin()
   );
 
-  const sessionUnlockedV212 =
+  const sessionUnlockedV213 =
     sessionStorage.getItem(ACCESS_UNLOCK_SESSION_KEY) === "1";
   const alreadyUnlocked = isMobileOrTabletDevice()
-    ? sessionUnlockedV212 && Number(history.state?.loverLegendMobileUnlockedV212 || 0) === 1
-    : sessionUnlockedV212;
+    ? sessionUnlockedV213 && Number(history.state?.loverLegendMobileUnlockedV213 || 0) === 1
+    : sessionUnlockedV213;
 
   if (alreadyUnlocked) {
     lock.hidden = true;
@@ -2252,22 +2249,8 @@ function setupAccessLock() {
     document.body.classList.add("access-locked");
 
     window.setTimeout(async () => {
-      // V21.2: desktop cross-tab access is allowed only AFTER one manual
-      // V21.2 password login on this browser. Mobile never uses this path.
-      if (!isMobileOrTabletDevice() && desktopTrustedV212 && savedDesktopPassword) {
-        try {
-          const savedHash = await hashAccessPassword(savedDesktopPassword);
-          if (savedHash === getAccessPasswordSettings().hash) {
-            unlockAccessLock(lock, input, status);
-            return;
-          }
-          localStorage.removeItem(DESKTOP_SAVED_PASSWORD_KEY);
-          input.value = "";
-        } catch (error) {
-          console.warn("V21.2 desktop cross-tab auto-unlock skipped:", error);
-        }
-      }
-
+      // V21.3: no desktop auto-unlock. Even with a cached password, the user
+      // must explicitly click “进入系统”. Mobile keeps the original biometric flow.
       const biometricUsed =
         await tryBiometricLogin({
           automatic: true
@@ -2300,7 +2283,6 @@ function setupAccessLock() {
 
     if (!isMobileOrTabletDevice()) {
       localStorage.setItem(DESKTOP_SAVED_PASSWORD_KEY, password);
-      localStorage.setItem(DESKTOP_TRUSTED_ACCESS_KEY_V212, "1");
     }
 
     unlockAccessLock(lock, input, status);
@@ -2393,7 +2375,6 @@ function setupPasswordChange() {
 
     if (!isMobileOrTabletDevice()) {
       localStorage.setItem(DESKTOP_SAVED_PASSWORD_KEY, newPassword);
-      localStorage.setItem(DESKTOP_TRUSTED_ACCESS_KEY_V212, "1");
     }
 
     if (typeof markCloudSettingsSaved === "function") {
@@ -2551,7 +2532,7 @@ function setupNavigation() {
   const pages = document.querySelectorAll(".page");
   const mobileNavV212 = isMobileOrTabletDevice();
 
-  // V21.2: on phones/tablets the bottom navigation is app navigation, not a
+  // V21.3: on phones/tablets the bottom navigation is app navigation, not a
   // web hyperlink. Remove href so long-press cannot offer Open Link In New Tab.
   if (mobileNavV212) {
     buttons.forEach(button => {
@@ -4403,7 +4384,7 @@ async function refreshPromotionCloudStateV209(force = false) {
     renderInventoryManagementList();
     return true;
   } catch (error) {
-    console.warn("V21.2 promotion cloud refresh skipped:", error);
+    console.warn("V21.3 promotion cloud refresh skipped:", error);
     return false;
   } finally {
     promotionCloudRefreshBusyV209 = false;
@@ -14950,7 +14931,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "21.2",
+      version: "21.3",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -15317,7 +15298,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V21.2 Stable",
+      updatedBy: "System V21.3 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
