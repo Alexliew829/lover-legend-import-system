@@ -3,6 +3,19 @@ document.addEventListener("DOMContentLoaded", () => {
   repairLegacyImportDates();
   setupNavigation();
   setupSettings();
+  const requestedPageV210 = String(new URLSearchParams(window.location.search).get("page") || "").trim().toLowerCase();
+  const deepLinkPageMapV210 = {
+    home: "dashboardPage",
+    dashboard: "dashboardPage",
+    import: "importPage",
+    products: "importPage",
+    history: "historyPage",
+    settings: "settingsPage"
+  };
+  const requestedTargetV210 = deepLinkPageMapV210[requestedPageV210];
+  if (requestedTargetV210) {
+    window.setTimeout(() => document.querySelector(`.nav-btn[data-page="${requestedTargetV210}"]`)?.click(), 0);
+  }
   setupDashboard();
   setupImportModule();
   setupImportHistory();
@@ -961,7 +974,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V20.8 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V21.0 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -2514,7 +2527,9 @@ function setupNavigation() {
   const pages = document.querySelectorAll(".page");
 
   buttons.forEach(button => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", event => {
+      if (button.tagName === "A" && (event.ctrlKey || event.metaKey || event.shiftKey || event.button === 1)) return;
+      if (button.tagName === "A") event.preventDefault();
       const target = button.dataset.page;
 
       // V13.7: a Restore remains protected until the persisted server job is
@@ -2574,6 +2589,11 @@ function setupNavigation() {
       if (target === "dashboardPage") {
         renderInventoryManagementList();
         renderDashboard();
+        refreshPromotionCloudStateV209(false);
+      }
+
+      if (target === "settingsPage") {
+        refreshPromotionCloudStateV209(true);
       }
 
       if (target === "historyPage") {
@@ -4004,6 +4024,9 @@ let promotionPriceOverridesDraftV193 = {};
 let promotionSearchSelectionV184 = new Set();
 let promotionExcludedSelectionV184 = new Set();
 let promotionDeleteInProgressV184 = false;
+let promotionDraftTouchedV209 = false;
+let promotionCloudRefreshBusyV209 = false;
+let promotionCloudRefreshLastAtV209 = 0;
 
 function getPromotionDraftV183() {
   return {
@@ -4018,7 +4041,7 @@ function getPromotionDraftV183() {
 
 function hasPromotionDraftChangesV183() {
   const nameInput = document.getElementById("promotionNameV183");
-  if (!nameInput) return false;
+  if (!nameInput || !promotionDraftTouchedV209) return false;
   const active = getPromotionSettingsV183();
   const draft = getPromotionDraftV183();
   const expected = active || {name:"年尾清货",commissionRate:10,targetMarginRate:10,excludedProductIds:[]};
@@ -4030,6 +4053,7 @@ function hasPromotionDraftChangesV183() {
 }
 
 function resetPromotionDraftV183() {
+  promotionDraftTouchedV209 = false;
   const active = getPromotionSettingsV183();
   const nameInput = document.getElementById("promotionNameV183");
   const commissionInput = document.getElementById("promotionCommissionV183");
@@ -4306,12 +4330,57 @@ function editPromotionPriceV194(button) {
   const price = Number(String(input).replace(/[^0-9.]/g, ""));
   if (!Number.isFinite(price) || price <= 0) { window.alert("请输入大于 RM0 的有效促销最低售价。"); return; }
   promotionPriceOverridesDraftV193[id] = Math.round(price * 100) / 100;
+  promotionDraftTouchedV209 = true;
   renderPromotionPriceListV183();
   updatePromotionDraftStatusV186();
 }
 
+async function refreshPromotionCloudStateV209(force = false) {
+  if (!navigator.onLine || promotionDeleteInProgressV184 || promotionDraftTouchedV209) return false;
+  if (typeof pullLatestAfterSalesCommitV83 !== "function") return false;
+  const now = Date.now();
+  if (!force && (promotionCloudRefreshBusyV209 || now - promotionCloudRefreshLastAtV209 < 1500)) return false;
+  promotionCloudRefreshBusyV209 = true;
+  promotionCloudRefreshLastAtV209 = now;
+  try {
+    await pullLatestAfterSalesCommitV83(false);
+    if (!promotionDraftTouchedV209) resetPromotionDraftV183();
+    refreshPromotionUiV183();
+    renderDashboard();
+    renderInventoryManagementList();
+    return true;
+  } catch (error) {
+    console.warn("V21.0 promotion cloud refresh skipped:", error);
+    return false;
+  } finally {
+    promotionCloudRefreshBusyV209 = false;
+  }
+}
+window.refreshPromotionCloudStateV209 = refreshPromotionCloudStateV209;
+
+function getPromotionMarginBadgeV209(product, profitInfo = null) {
+  const promotion = getPromotionSettingsV183();
+  const id = String(product?.id || "").trim().toUpperCase();
+  if (!promotion || promotion.excludedProductIds.includes(id)) return "";
+  const info = profitInfo || getProductMinimumProfitV205(product, promotion);
+  const cls = info.profit < -0.005 ? "loss" : info.profit > 0.005 ? "gain" : "neutral";
+  const rate = Number(promotion.targetMarginRate);
+  const text = Number.isFinite(rate) ? `${Number.isInteger(rate) ? rate.toFixed(0) : rate.toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}%` : "";
+  return text ? `<em class="inventory-promotion-margin-v209 ${cls}">${escapeHTML(text)}</em>` : "";
+}
+
 function refreshPromotionUiV183() {
   const promotion = getPromotionSettingsV183();
+  if (!promotionDraftTouchedV209) {
+    const nameInput = document.getElementById("promotionNameV183");
+    const commissionInput = document.getElementById("promotionCommissionV183");
+    const marginInput = document.getElementById("promotionMarginV183");
+    if (nameInput) nameInput.value = promotion?.name || "年尾清货";
+    if (commissionInput) commissionInput.value = String(promotion?.commissionRate ?? 10);
+    if (marginInput) marginInput.value = String(promotion?.targetMarginRate ?? 10);
+    promotionExcludedDraftV183 = new Set(promotion?.excludedProductIds || []);
+    promotionPriceOverridesDraftV193 = { ...(promotion?.priceOverrides || {}) };
+  }
   const summary = document.getElementById("promotionSummaryStatusV183");
   const deleteButton = document.getElementById("deletePromotionV183");
   const toggleButton = document.getElementById("togglePromotionPriceListV183");
@@ -4351,6 +4420,11 @@ function setupPromotionSettingsV183() {
   promotionDetails?.addEventListener("toggle", refreshToggleHintV192);
   refreshToggleHintV192();
   if (!nameInput || !saveButton) return;
+  if (!window.promotionCloudRefreshBoundV209) {
+    window.promotionCloudRefreshBoundV209 = true;
+    window.addEventListener("focus", () => refreshPromotionCloudStateV209(false));
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshPromotionCloudStateV209(false); });
+  }
   if (!window.promotionDeleteLeaveGuardBoundV184) {
     window.promotionDeleteLeaveGuardBoundV184 = true;
     window.addEventListener("beforeunload", event => {
@@ -4375,6 +4449,7 @@ function setupPromotionSettingsV183() {
   renderPromotionExcludedListV183();
   refreshPromotionUiV183();
   [nameInput, commissionInput, marginInput].forEach(input => input?.addEventListener("input", () => {
+    promotionDraftTouchedV209 = true;
     renderPromotionExcludeSearchV183();
     if (pricePanel && !pricePanel.hidden) renderPromotionPriceListV183();
     updatePromotionDraftStatusV186();
@@ -4395,6 +4470,7 @@ function setupPromotionSettingsV183() {
     if (!button) return;
     const id = String(button.dataset.addPromotionExclusion || "").toUpperCase();
     promotionExcludedDraftV183.add(id);
+    promotionDraftTouchedV209 = true;
     promotionSearchSelectionV184.delete(id);
     renderPromotionExcludedListV183();
     renderPromotionExcludeSearchV183();
@@ -4459,6 +4535,7 @@ function setupPromotionSettingsV183() {
     const ids = [...promotionSearchSelectionV184].filter(id => !promotionExcludedDraftV183.has(id));
     if (!ids.length || !window.confirm(`确认批量排除已选择的 ${ids.length} 项产品？\n\n保存促销后，这些产品会继续使用原最低售价。`)) return;
     ids.forEach(id => promotionExcludedDraftV183.add(id));
+    promotionDraftTouchedV209 = true;
     promotionSearchSelectionV184.clear();
     renderPromotionExcludedListV183(); renderPromotionExcludeSearchV183();
     if (pricePanel && !pricePanel.hidden) renderPromotionPriceListV183();
@@ -4468,6 +4545,7 @@ function setupPromotionSettingsV183() {
     if (!button) return;
     const id = String(button.dataset.removePromotionExclusion || "").toUpperCase();
     promotionExcludedDraftV183.delete(id);
+    promotionDraftTouchedV209 = true;
     promotionExcludedSelectionV184.delete(id);
     renderPromotionExcludedListV183();
     renderPromotionExcludeSearchV183();
@@ -4488,6 +4566,7 @@ function setupPromotionSettingsV183() {
     const ids = [...promotionExcludedSelectionV184].filter(id => promotionExcludedDraftV183.has(id));
     if (!ids.length || !window.confirm(`确认批量移除 ${ids.length} 项排除产品？\n\n保存促销后，这些产品将重新采用促销最低售价。`)) return;
     ids.forEach(id => promotionExcludedDraftV183.delete(id));
+    promotionDraftTouchedV209 = true;
     promotionExcludedSelectionV184.clear();
     renderPromotionExcludedListV183(); renderPromotionExcludeSearchV183();
     if (pricePanel && !pricePanel.hidden) renderPromotionPriceListV183();
@@ -4499,6 +4578,7 @@ function setupPromotionSettingsV183() {
       const addPending = window.confirm(`还有 ${pendingIds.length} 项产品已选择，但尚未确认加入排除。\n\n按「确定」＝确认加入排除（${pendingIds.length}）\n按「取消」＝进入取消这些未确认选择的步骤。`);
       if (addPending) {
         pendingIds.forEach(id => promotionExcludedDraftV183.add(id));
+        promotionDraftTouchedV209 = true;
         promotionSearchSelectionV184.clear();
         renderPromotionExcludedListV183();
         renderPromotionExcludeSearchV183();
@@ -4515,6 +4595,7 @@ function setupPromotionSettingsV183() {
       const removePending = window.confirm(`还有 ${pendingRemovalIds.length} 项产品已选择，但尚未确认移除排除。\n\n按「确定」＝确认移除排除（${pendingRemovalIds.length}）\n按「取消」＝进入取消这些未确认移除选择的步骤。`);
       if (removePending) {
         pendingRemovalIds.forEach(id => promotionExcludedDraftV183.delete(id));
+        promotionDraftTouchedV209 = true;
         promotionExcludedSelectionV184.clear();
         renderPromotionExcludedListV183();
         renderPromotionExcludeSearchV183();
@@ -4557,6 +4638,8 @@ function setupPromotionSettingsV183() {
       await updatePromotionSettingsFastV185(payload);
       const settings = loadJSON("importSystemSettings", {});
       saveJSON("importSystemSettings", { ...settings, promotionV183:payload });
+      promotionDraftTouchedV209 = false;
+      resetPromotionDraftV183();
       saved = true;
       if (status) { status.textContent = `促销已开启：${promotion.name}`; status.classList.add("promotion-status-active-v193"); }
     } catch (error) {
@@ -4593,9 +4676,8 @@ function setupPromotionSettingsV183() {
       promotionPriceOverridesDraftV193 = {};
       promotionSearchSelectionV184 = new Set();
       promotionExcludedSelectionV184 = new Set();
-      if (nameInput) nameInput.value = "年尾清货";
-      if (commissionInput) commissionInput.value = "10";
-      if (marginInput) marginInput.value = "10";
+      promotionDraftTouchedV209 = false;
+      resetPromotionDraftV183();
       if (searchInput) searchInput.value = "";
       if (filterInput) filterInput.value = "latest";
       if (priceSearch) priceSearch.value = "";
@@ -12838,6 +12920,8 @@ async function editDisplayedMinimumPriceV199(productId) {
     const settings = loadJSON("importSystemSettings", {});
     saveJSON("importSystemSettings", { ...settings, promotionV183: nextPromotion });
     promotionPriceOverridesDraftV193 = { ...(nextPromotion.priceOverrides || {}) };
+    promotionDraftTouchedV209 = false;
+    resetPromotionDraftV183();
     renderInventoryManagementList();
     renderDashboard();
     renderPromotionPriceListV183();
@@ -13982,7 +14066,7 @@ function renderInventoryManagementList() {
           <button class="inventory-manage-minimum-price-btn" type="button"
                   data-product-id="${escapeHTML(product.id || "")}"
                   aria-label="长按修改最低售价" title="长按修改最低售价">
-            <span>${getPromotionSettingsV183() && !getPromotionSettingsV183().excludedProductIds.includes(String(product.id || "").toUpperCase()) ? "促销最低售价" : "最低售价"}</span><strong>${formatMoney(minimumPrice, "RM ")}</strong>
+            <span>${getPromotionSettingsV183() && !getPromotionSettingsV183().excludedProductIds.includes(String(product.id || "").toUpperCase()) ? "促销最低售价" : "最低售价"}</span><strong>${formatMoney(minimumPrice, "RM ")}${getPromotionMarginBadgeV209(product, profitInfoV205)}</strong>
           </button>
           <div><span>${averageCostLabelV205}</span><strong>${formatMoney(averageCost, "RM ")}</strong></div>
           <div class="inventory-profit-value-v207 ${profitInfoV205.profit < 0 ? "loss" : profitInfoV205.profit > 0 ? "gain" : "neutral"}"><span>利润</span><strong>${formatMoney(profitInfoV205.profit, "RM ")}</strong></div>
@@ -14799,7 +14883,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "20.8",
+      version: "21.0",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -15166,7 +15250,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V20.8 Stable",
+      updatedBy: "System V21.0 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
