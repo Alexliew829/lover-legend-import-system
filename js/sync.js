@@ -335,7 +335,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V20.5 Stable",
+      updatedBy: "System V20.6 Stable",
       ...payload
     });
 
@@ -370,7 +370,7 @@ async function commitSalesInventoryBatchToCloudV125(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V20.5 Stable",
+      updatedBy: "System V20.6 Stable",
       ...payload
     });
     if (data.conflict || data.stockChanged) {
@@ -393,7 +393,7 @@ window.commitSalesInventoryBatchToCloudV125 = commitSalesInventoryBatchToCloudV1
 
 async function commitSalesCorrectionBatchToCloudV110(payload) {
   await flushCloudQueueStrictV83(); const config=getCloudConfig(); setCloudState("syncing");
-  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V20.5 Stable",...payload});
+  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V20.6 Stable",...payload});
     if(data.conflict||data.stockChanged) throw new Error(data.message||"Google Sheet 资料已改变，全部库存差异没有处理。请同步后重试。");
     config.revision=Number(data.revision)||Number(config.revision)||0; config.lastSyncAt=new Date().toISOString(); config.bootstrapToken=String(data.bootstrapToken||config.bootstrapToken||""); config.bootstrapRevision=Number(data.revision)||Number(config.bootstrapRevision)||0; saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced"); return data;
   } catch(error){setCloudState("failed");throw error;}
@@ -407,7 +407,7 @@ async function migrateProductPrefixesV164() {
     action: "migrateProductPrefixesV164", clientVersion: APP_VERSION,
     schemaVersion: CLOUD_SCHEMA_VERSION, baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""), bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V20.5 Stable"
+    updatedBy: "System V20.6 Stable"
   });
   if (data.conflict) throw new Error(data.message || "资料已改变，请同步后重试。");
   config.revision = Number(data.revision) || Number(config.revision) || 0;
@@ -519,8 +519,8 @@ async function pullLatestSnapshot(forceBootstrap = false) {
     saveCloudConfig(config);
     renderCloudMeta(config);
     setCloudState("synced");
-    if (typeof window.repairStaleBatchUnitCostsV205 === "function") {
-      window.repairStaleBatchUnitCostsV205({ persistCloud: true });
+    if (typeof window.repairStaleBatchUnitCostsV206 === "function") {
+      window.repairStaleBatchUnitCostsV206({ persistCloud: true });
     }
     return false;
   }
@@ -587,7 +587,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V20.5 Stable",
+    updatedBy: "System V20.6 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     minimumPriceManual: Boolean(minimumPriceManual),
@@ -630,7 +630,7 @@ async function updatePromotionSettingsFastV185(promotion) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V20.5 Stable",
+    updatedBy: "System V20.6 Stable",
     promotion: promotion || null
   });
   if (data.conflict) throw new Error(data.message || "云端资料已改变，请同步后重试。");
@@ -656,7 +656,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V20.5 Stable",
+    updatedBy: "System V20.6 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
@@ -752,11 +752,11 @@ function applyRemoteData(data) {
     cloudApplyingRemote = false;
   }
 
-  // V20.5 corrected build: after a canonical Pull, repair only deterministic
+  // V20.6 corrected build: after a canonical Pull, repair only deterministic
   // stale batch-cost snapshots. The repair is idempotent and queues one normal
   // cloud Push only when unitCost/Average Cost truly differ from saved batch inputs.
-  if (typeof window.repairStaleBatchUnitCostsV205 === "function") {
-    window.repairStaleBatchUnitCostsV205({ persistCloud: true });
+  if (typeof window.repairStaleBatchUnitCostsV206 === "function") {
+    window.repairStaleBatchUnitCostsV206({ persistCloud: true });
   }
   refreshSystemViewsAfterSync();
 }

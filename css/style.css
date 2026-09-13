@@ -5163,3 +5163,9 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
   .dashboard-title-row-v204{gap:8px;flex-wrap:nowrap}.dashboard-title-row-v204 h2{font-size:1.16rem;white-space:nowrap}.system-health-row-v204{gap:5px}.import-anomaly-status-button-v202,.import-anomaly-refresh-v202{min-height:32px;height:32px;padding:5px 8px;font-size:.76rem}.minimum-price-summary-title-v202{gap:5px;flex-wrap:nowrap}.minimum-price-custom-badge-v202{font-size:11px}
 }
 
+
+/* V20.6 anomaly detail copy targets */
+.import-anomaly-copy-row-v206{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+.import-anomaly-copy-v206{border:1px solid #c9d8cf;background:#fff;color:#185f3b;border-radius:8px;padding:5px 8px;font:inherit;font-size:.88em;font-weight:700;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:transform .08s ease,background .08s ease}
+.import-anomaly-copy-v206 span{color:#68766f;font-weight:600;margin-right:5px}
+.import-anomaly-copy-v206:active{transform:scale(.97);background:#eef8f1}

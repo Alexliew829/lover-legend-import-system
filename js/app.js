@@ -961,7 +961,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V20.5 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V20.6 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -3156,7 +3156,7 @@ async function runSystemHealthCheckV203({ refreshSales = true } = {}) {
   systemHealthV203.checking = true;
   renderImportAnomalyCenterV201();
   try {
-    const data = await callGoogleApi({ action:"healthV205", clientVersion:APP_VERSION, schemaVersion:CLOUD_SCHEMA_VERSION });
+    const data = await callGoogleApi({ action:"healthV206", clientVersion:APP_VERSION, schemaVersion:CLOUD_SCHEMA_VERSION });
     systemHealthV203 = {
       checked:true, checking:true, apiOk:true,
       apiVersion:String(data?.clientVersion || ""),
@@ -3302,6 +3302,19 @@ function getImportAnomaliesV201() {
     }
   });
 
+  batches.forEach(batch => {
+    const items = Array.isArray(batch?.items) ? batch.items : [];
+    if (!items.length || !batchCostSnapshotIsStaleV206(batch, items)) return;
+    const expected = getCanonicalBatchCostSnapshotV206(batch, items);
+    const importNumber = String(batch?.importNumber || "未编号批次");
+    issues.push({
+      severity:"warning", type:"batch-cost-snapshot", importNumber,
+      title:`${importNumber} 批次成本换算资料不一致`,
+      detail:`按当前汇率与费用应为 ${formatMoney(expected.totalForeignCostsRM, "RM ")} + 海外运费 ${formatMoney(expected.shippingMY, "RM " )} = ${formatMoney(expected.grandTotal, "RM ")}`,
+      action:"请到进口记录开启修改模式后保存此进口编号；重新检查本身不会修改资料。"
+    });
+  });
+
   if (salesInventoryFeedLoadedV77) {
     const pendingRows = (salesInventoryPendingV77 || []).filter(item => !item?.v82Processed);
     const pendingGroups = salesCardGroupsV104(pendingRows);
@@ -3313,6 +3326,53 @@ function getImportAnomaliesV201() {
 
   return issues;
 }
+
+function getAnomalyCopyItemsV206(issue) {
+  const items = [];
+  const push = (label, value) => {
+    const text = String(value || "").trim();
+    if (!text || items.some(item => item.label === label && item.value === text)) return;
+    items.push({ label, value:text });
+  };
+  if (issue?.productId) {
+    const product = getProducts().find(p => String(p?.id || "") === String(issue.productId));
+    if (product?.name) push("产品", product.name);
+    push("产品编号", issue.productId);
+    const relatedImports = getImports().filter(record => String(record?.productId || "") === String(issue.productId));
+    [...new Set(relatedImports.map(record => String(record?.importNumber || "").trim()).filter(Boolean))].slice(0,6).forEach(value => push("进口编号", value));
+    const relatedBatches = getBatches().filter(batch => (Array.isArray(batch?.items) ? batch.items : []).some(item => String(item?.productId || "") === String(issue.productId)));
+    relatedBatches.forEach(batch => {
+      if (Number(batch?.rackQuantity) > 0) push("木架", String(batch.rackQuantity));
+    });
+  }
+  if (issue?.importNumber) {
+    push("进口编号", issue.importNumber);
+    const batch = getBatches().find(row => String(row?.importNumber || "") === String(issue.importNumber));
+    if (Number(batch?.rackQuantity) > 0) push("木架", String(batch.rackQuantity));
+    (Array.isArray(batch?.items) ? batch.items : []).slice(0,6).forEach(item => {
+      if (item?.productName) push("产品", item.productName);
+      if (item?.productId) push("产品编号", item.productId);
+    });
+  }
+  return items;
+}
+
+async function copyAnomalyValueV206(button) {
+  const value = String(button?.dataset?.copyValue || "").trim();
+  if (!value) return;
+  let copied = false;
+  try { await navigator.clipboard.writeText(value); copied = true; } catch (_) {}
+  if (!copied) {
+    const ta = document.createElement("textarea"); ta.value = value; ta.style.position="fixed"; ta.style.opacity="0";
+    document.body.appendChild(ta); ta.select();
+    try { copied = document.execCommand("copy"); } catch (_) {} finally { ta.remove(); }
+  }
+  if (!copied) return;
+  const old = button.textContent;
+  button.textContent = "已复制";
+  window.setTimeout(() => { button.textContent = old; }, 900);
+}
+window.copyAnomalyValueV206 = copyAnomalyValueV206;
 
 function renderImportAnomalyCenterV201() {
   const list = document.getElementById("importAnomalyListV201");
@@ -3348,15 +3408,20 @@ function renderImportAnomalyCenterV201() {
   }
   const severityOrder = {critical:0, warning:1};
   issues.sort((a,b)=>(severityOrder[a.severity]??9)-(severityOrder[b.severity]??9));
-  list.innerHTML = issues.map(issue => `
+  list.innerHTML = issues.map(issue => {
+    const copyItems = getAnomalyCopyItemsV206(issue);
+    const copyHtml = copyItems.length ? `<div class="import-anomaly-copy-row-v206">${copyItems.map(item => `<button type="button" class="import-anomaly-copy-v206" data-copy-value="${escapeHTML(item.value)}" onclick="copyAnomalyValueV206(this)" title="点击复制${escapeHTML(item.label)}"><span>${escapeHTML(item.label)}</span>${escapeHTML(item.value)}</button>`).join("")}</div>` : "";
+    return `
     <article class="import-anomaly-item-v201 ${issue.severity}">
       <div class="import-anomaly-icon-v201">${issue.severity === "critical" ? "🔴" : "🟡"}</div>
       <div class="import-anomaly-body-v201">
         <strong>${escapeHTML(issue.title)}</strong>
         <div>${escapeHTML(issue.detail || "")}</div>
+        ${copyHtml}
         <small>${escapeHTML(issue.action || "")}</small>
       </div>
-    </article>`).join("");
+    </article>`;
+  }).join("");
 }
 
 function setupImportAnomalyCenterV201() {
@@ -3523,7 +3588,7 @@ function getMinimumPriceRulesV160() {
   const normalized = {};
   Object.entries(DEFAULT_MINIMUM_PRICE_RULES_V160).forEach(([key, fallback]) => {
     let rawValue = rules[key];
-    // V20.5 migration: preserve the closest V19.9 customized value when a range was split.
+    // V20.6 migration: preserve the closest V19.9 customized value when a range was split.
     if (rawValue == null && key === "margin5000To8000") rawValue = rules.margin5000Plus;
     if (rawValue == null && key === "vndPot4mTo10m") rawValue = rules.vndPot4mPlus;
     const value = Number(rawValue);
@@ -3613,7 +3678,7 @@ function getVndPotCostV160(product, rules, originIndex = null) {
   return rules.vndPotUnder1m;
 }
 
-// V20.5: VND plants arrive without the local display pot. Their stored Average Cost
+// V20.6: VND plants arrive without the local display pot. Their stored Average Cost
 // remains the import/plant cost only; the configured VND pot cost is added only
 // when calculating selling price and profit.
 function isVndProductV205(product, originIndex = null) {
@@ -5677,6 +5742,49 @@ function getLockedBatchOriginalQuantity(item) {
   return Math.max(0, Math.floor(value || 0));
 }
 
+function getCanonicalBatchCostSnapshotV206(batch, items = []) {
+  const safeItems = Array.isArray(items) ? items : [];
+  const rate = Number(batch?.rate) > 0
+    ? Number(batch.rate)
+    : (Number(safeItems.find(item => Number(item?.rate) > 0)?.rate) || 0);
+  const totalPurchaseForeign = safeItems.reduce((sum, item) => {
+    const storedForeign = Number(item?.foreignTotal);
+    if (Number.isFinite(storedForeign) && storedForeign >= 0) return sum + storedForeign;
+    return sum + getLockedBatchOriginalQuantity(item) * Math.max(0, Number(item?.unitPrice) || 0);
+  }, 0);
+  const chinaTransportCost = Number(batch?.inlandTransportCost) || Number(batch?.chinaTransportCost) || 0;
+  const potCost = Number(batch?.potCost) || Number(batch?.potCostForeign) || 0;
+  const sharedForeign = chinaTransportCost + potCost;
+  const foreignGrandTotal = totalPurchaseForeign + sharedForeign;
+  const totalForeignCostsRM = rate > 0 ? foreignGrandTotal / rate : 0;
+  const shippingMY = Math.max(0, Number(batch?.shippingMY) || 0);
+  const shippingRate = totalForeignCostsRM > 0 ? (shippingMY / totalForeignCostsRM) * 100 : 0;
+  const grandTotal = totalForeignCostsRM + shippingMY;
+  const inlandMiscRate = totalPurchaseForeign > 0 ? (sharedForeign / totalPurchaseForeign) * 100 : 0;
+  const itemCosts = safeItems.map(item => {
+    const originalQuantity = getLockedBatchOriginalQuantity(item);
+    const foreignTotal = Math.max(0, Number(item?.foreignTotal) || originalQuantity * Math.max(0, Number(item?.unitPrice) || 0));
+    if (!(originalQuantity > 0) || !(rate > 0) || !(totalPurchaseForeign > 0) || !(foreignTotal >= 0)) {
+      return { unitCost: Math.max(0, Number(item?.unitCost) || 0), batchTotal: Math.max(0, Number(item?.batchTotal) || 0), purchaseRM: Math.max(0, Number(item?.purchaseRM) || 0) };
+    }
+    const purchaseRM = foreignTotal / rate;
+    const allocatedSharedRM = (sharedForeign / rate) * (foreignTotal / totalPurchaseForeign);
+    const batchTotal = (purchaseRM + allocatedSharedRM) * (1 + shippingRate / 100);
+    return { purchaseRM, batchTotal, unitCost: batchTotal / originalQuantity };
+  });
+  return { rate, totalPurchaseForeign, chinaTransportCost, potCost, sharedForeign, foreignGrandTotal, totalForeignCostsRM, shippingMY, shippingRate, grandTotal, inlandMiscRate, itemCosts };
+}
+
+function batchCostSnapshotIsStaleV206(batch, items = []) {
+  const expected = getCanonicalBatchCostSnapshotV206(batch, items);
+  if (!(expected.rate > 0) || !(expected.totalPurchaseForeign > 0)) return false;
+  const diff = (a,b,t=0.02) => Math.abs((Number(a)||0)-(Number(b)||0)) > t;
+  if (diff(batch?.totalForeignCostsRM, expected.totalForeignCostsRM) ||
+      diff(batch?.grandTotal, expected.grandTotal) ||
+      diff(batch?.shippingRate, expected.shippingRate, 0.01)) return true;
+  return (items || []).some((item, index) => diff(item?.unitCost, expected.itemCosts[index]?.unitCost));
+}
+
 function restoreStoredBatchRMDisplay(batch, items) {
   const safeItems = Array.isArray(items) ? items : [];
   const currency = String(
@@ -5741,19 +5849,18 @@ function restoreStoredBatchRMDisplay(batch, items) {
   const itemCount =
     document.getElementById("batchItemCount");
 
-  if (foreignRM && Number.isFinite(Number(batch?.totalForeignCostsRM))) {
-    foreignRM.textContent =
-      formatMoney(Number(batch.totalForeignCostsRM) || 0, "RM ");
+  const canonicalV206 = getCanonicalBatchCostSnapshotV206(batch, safeItems);
+
+  if (foreignRM) {
+    foreignRM.textContent = formatMoney(canonicalV206.totalForeignCostsRM, "RM ");
   }
 
   if (shippingRate) {
-    shippingRate.textContent =
-      `${formatMoney(getBatchShippingRate(batch))}%`;
+    shippingRate.textContent = `${formatMoney(canonicalV206.shippingRate)}%`;
   }
 
-  if (grandTotal && Number.isFinite(Number(batch?.grandTotal))) {
-    grandTotal.textContent =
-      formatMoney(Number(batch.grandTotal) || 0, "RM ");
+  if (grandTotal) {
+    grandTotal.textContent = formatMoney(canonicalV206.grandTotal, "RM ");
   }
 
   if (inlandRateField) {
@@ -5808,11 +5915,8 @@ function restoreStoredBatchRMDisplay(batch, items) {
       );
     }
 
-    if (
-      unitCostField &&
-      Number.isFinite(Number(item?.unitCost))
-    ) {
-      unitCostField.value = formatMoney(Number(item.unitCost) || 0);
+    if (unitCostField) {
+      unitCostField.value = formatMoney(canonicalV206.itemCosts[index]?.unitCost || 0);
     }
   });
 }
@@ -5935,12 +6039,12 @@ function repairStoredInventoryFromImports({ persistCloud = true } = {}) {
   return true;
 }
 
-// V20.5 corrected build: repair historical batch-cost snapshots whose stored
+// V20.6 corrected build: repair historical batch-cost snapshots whose stored
 // unitCost no longer matches the CURRENT saved batch cost inputs. This is a
 // deterministic cost repair only: stock quantities, Sales history, soldUnitCost
 // and database structure are untouched. Current inventory Average Cost changes
 // only by the still-remaining quantity from the repaired import lot.
-function repairStaleBatchUnitCostsV205({ persistCloud = true } = {}) {
+function repairStaleBatchUnitCostsV206({ persistCloud = true } = {}) {
   const previousProducts = getProducts();
   const previousImports = getImports();
   const previousBatches = getBatches();
@@ -5960,7 +6064,7 @@ function repairStaleBatchUnitCostsV205({ persistCloud = true } = {}) {
   let importsChanged = false;
   let batchesChanged = false;
 
-  const calculateExpected = (record, batch, totalPurchaseForeign) => {
+  const calculateExpected = (record, batch, totalPurchaseForeign, canonicalBatch) => {
     const originalQuantity = Math.max(0, Number(record?.originalQuantity ?? record?.stockAdded ?? record?.quantity) || 0);
     const rate = Number(batch?.rate) > 0 ? Number(batch.rate) : (Number(record?.rate) > 0 ? Number(record.rate) : 0);
     if (!(originalQuantity > 0) || !(rate > 0) || !(totalPurchaseForeign > 0)) return null;
@@ -5971,7 +6075,7 @@ function repairStaleBatchUnitCostsV205({ persistCloud = true } = {}) {
     const sharedForeign =
       (Number(batch?.inlandTransportCost) || Number(batch?.chinaTransportCost) || 0) +
       (Number(batch?.potCost) || Number(batch?.potCostForeign) || 0);
-    const shippingRate = Math.max(0, Number(batch?.shippingRate) || 0);
+    const shippingRate = Math.max(0, Number(canonicalBatch?.shippingRate) || 0);
     const purchaseRM = foreignTotal / rate;
     const sharedRM = sharedForeign / rate;
     const allocatedSharedRM = sharedRM * (foreignTotal / totalPurchaseForeign);
@@ -5994,8 +6098,23 @@ function repairStaleBatchUnitCostsV205({ persistCloud = true } = {}) {
     }, 0);
     if (!(totalPurchaseForeign > 0)) return;
 
+    const canonicalBatch = getCanonicalBatchCostSnapshotV206(batch, items);
+    const aggregateChanged = batchCostSnapshotIsStaleV206(batch, items);
+    if (aggregateChanged) {
+      batch.rate = canonicalBatch.rate;
+      batch.chinaTransportRM = canonicalBatch.rate > 0 ? canonicalBatch.chinaTransportCost / canonicalBatch.rate : 0;
+      batch.potRM = canonicalBatch.rate > 0 ? canonicalBatch.potCost / canonicalBatch.rate : 0;
+      batch.inlandMiscForeign = canonicalBatch.sharedForeign;
+      batch.inlandMiscRate = canonicalBatch.inlandMiscRate;
+      batch.inlandMiscPercent = canonicalBatch.inlandMiscRate;
+      batch.shippingRate = canonicalBatch.shippingRate;
+      batch.totalForeignCostsRM = canonicalBatch.totalForeignCostsRM;
+      batch.grandTotal = canonicalBatch.grandTotal;
+      batchesChanged = true;
+    }
+
     batch.items = items.map(item => {
-      const expected = calculateExpected(item, batch, totalPurchaseForeign);
+      const expected = calculateExpected(item, batch, totalPurchaseForeign, canonicalBatch);
       if (!expected) return item;
 
       const oldUnitCost = Math.max(0, Number(item?.unitCost) || 0);
@@ -6058,6 +6177,31 @@ function repairStaleBatchUnitCostsV205({ persistCloud = true } = {}) {
     productsChanged = true;
   });
 
+  // V20.6: a few old imports can have valid remaining stock but Products.averageCost = 0.
+  // Rebuild only that invalid Average Cost when the remaining import quantities exactly match
+  // Products.stock. Stock quantity itself is never changed here.
+  products.forEach((product, index) => {
+    const stock = Math.max(0, Number(product?.stock) || 0);
+    const averageCost = Number(product?.averageCost);
+    if (!(stock > 0) || (Number.isFinite(averageCost) && averageCost > 0)) return;
+    const productId = String(product?.id || "");
+    const productName = String(product?.name || "").trim().toLowerCase();
+    const matching = imports.filter(record => {
+      const sameId = productId && String(record?.productId || "") === productId;
+      const sameName = !sameId && productName && String(record?.productName || "").trim().toLowerCase() === productName;
+      return sameId || sameName;
+    });
+    const totals = matching.reduce((acc, record) => {
+      const qty = Math.max(0, Number(record?.remainingQuantity ?? record?.quantity) || 0);
+      const cost = Math.max(0, Number(record?.unitCost) || 0);
+      if (qty > 0 && cost > 0) { acc.qty += qty; acc.value += qty * cost; }
+      return acc;
+    }, { qty:0, value:0 });
+    if (Math.abs(totals.qty - stock) > 0.000001 || !(totals.value > 0)) return;
+    products[index] = { ...product, averageCost: totals.value / stock, updatedAt: now };
+    productsChanged = true;
+  });
+
   if (!productsChanged && !importsChanged && !batchesChanged) return false;
 
   localStorage.setItem("importSystemProducts", JSON.stringify(products));
@@ -6076,7 +6220,7 @@ function repairStaleBatchUnitCostsV205({ persistCloud = true } = {}) {
   });
   return true;
 }
-window.repairStaleBatchUnitCostsV205 = repairStaleBatchUnitCostsV205;
+window.repairStaleBatchUnitCostsV206 = repairStaleBatchUnitCostsV206;
 
 
 function resolveImportUnitCost(record, batch = null, fallbackProduct = null, fallbackImport = null) {
@@ -10792,7 +10936,7 @@ function saveBatchImport() {
         }));
       pendingCostRevisionLogs = logs;
 
-      // V20.5: when Cost Repair Mode changes a historical batch cost input,
+      // V20.6: when Cost Repair Mode changes a historical batch cost input,
       // recalculate this batch's item unit costs with the same formula used for
       // a new import. Only the cost layer changes; quantities and sales history
       // remain untouched. Current product Average Cost is adjusted by the cost
@@ -10880,7 +11024,7 @@ function saveBatchImport() {
       });
     }
 
-    // V20.5: Cost Repair Mode now keeps item-level unitCost/batchTotal aligned
+    // V20.6: Cost Repair Mode now keeps item-level unitCost/batchTotal aligned
     // with the corrected batch cost snapshot; quantities and sales history stay unchanged.
     const mergedItems = updatedItems.map(item => ({
       ...item,
@@ -12363,7 +12507,7 @@ async function editDisplayedMinimumPriceV199(productId) {
   const normalizedId = id.toUpperCase();
   const excluded = Boolean(promotion?.excludedProductIds?.includes(normalizedId));
 
-  // V20.5: two completely separate price domains.
+  // V20.6: two completely separate price domains.
   // No promotion, or an excluded product, edits the ORIGINAL minimum price only.
   if (!promotion || excluded) {
     return editProductMinimumPrice(id);
@@ -14367,7 +14511,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "20.5",
+      version: "20.6",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -14734,7 +14878,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V20.5 Stable",
+      updatedBy: "System V20.6 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
