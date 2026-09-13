@@ -974,7 +974,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V21.1 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V21.2 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1757,6 +1757,8 @@ const ACCESS_UNLOCK_SESSION_KEY =
   "loverLegendImportSystemUnlocked";
 const DESKTOP_SAVED_PASSWORD_KEY =
   "loverLegendDesktopSavedPassword";
+const DESKTOP_TRUSTED_ACCESS_KEY_V212 =
+  "loverLegendDesktopTrustedAccessV212";
 const RESTORE_JOB_LOCAL_KEY = "loverLegendRestoreJobV75";
 let dataOperationActive = false;
 let restoreJobPollTimer = null;
@@ -2065,6 +2067,14 @@ function unlockAccessLock(lock, input, status) {
     "1"
   );
 
+  // V21.2: mobile unlock is bound to this exact tab/history entry.
+  // A newly opened mobile tab must use the original password / Face ID flow.
+  if (isMobileOrTabletDevice()) {
+    try {
+      history.replaceState({ ...(history.state || {}), loverLegendMobileUnlockedV212: 1 }, "");
+    } catch (_) {}
+  }
+
   if (status) status.textContent = "";
   if (lock) lock.hidden = true;
 
@@ -2130,10 +2140,10 @@ function setupDeviceBiometricSettings() {
 }
 
 function setupAccessLock() {
+  // V21.2: retire the pre-V21.2 trust marker. A desktop must manually enter
+  // the password once on V21.2 before cross-tab trusted access is enabled.
   if (!isMobileOrTabletDevice()) {
-    localStorage.removeItem(
-      "loverLegendDesktopTrustedAccess"
-    );
+    localStorage.removeItem("loverLegendDesktopTrustedAccess");
   }
 
   const lock = document.getElementById("accessLock");
@@ -2154,11 +2164,15 @@ function setupAccessLock() {
   updatePasswordHintDisplays();
   updateDeviceBiometricStatus();
 
-  const savedDesktopPassword = !isMobileOrTabletDevice()
+  const desktopTrustedV212 = !isMobileOrTabletDevice() &&
+    localStorage.getItem(DESKTOP_TRUSTED_ACCESS_KEY_V212) === "1";
+  const savedDesktopPassword = desktopTrustedV212
     ? String(localStorage.getItem(DESKTOP_SAVED_PASSWORD_KEY) || "")
     : "";
 
-  if (savedDesktopPassword) {
+  // Only a desktop that has already completed a manual V21.2 login may
+  // prefill/auto-verify in another tab. First desktop entry always asks.
+  if (desktopTrustedV212 && savedDesktopPassword) {
     input.value = savedDesktopPassword;
   }
 
@@ -2224,10 +2238,11 @@ function setupAccessLock() {
     () => tryBiometricLogin()
   );
 
-  const alreadyUnlocked =
-    sessionStorage.getItem(
-      ACCESS_UNLOCK_SESSION_KEY
-    ) === "1";
+  const sessionUnlockedV212 =
+    sessionStorage.getItem(ACCESS_UNLOCK_SESSION_KEY) === "1";
+  const alreadyUnlocked = isMobileOrTabletDevice()
+    ? sessionUnlockedV212 && Number(history.state?.loverLegendMobileUnlockedV212 || 0) === 1
+    : sessionUnlockedV212;
 
   if (alreadyUnlocked) {
     lock.hidden = true;
@@ -2237,10 +2252,9 @@ function setupAccessLock() {
     document.body.classList.add("access-locked");
 
     window.setTimeout(async () => {
-      // V21.1: desktop remembers the verified password across tabs.
-      // A new tab verifies the locally saved password against the current hash
-      // and enters automatically; stale saved passwords are discarded.
-      if (!isMobileOrTabletDevice() && savedDesktopPassword) {
+      // V21.2: desktop cross-tab access is allowed only AFTER one manual
+      // V21.2 password login on this browser. Mobile never uses this path.
+      if (!isMobileOrTabletDevice() && desktopTrustedV212 && savedDesktopPassword) {
         try {
           const savedHash = await hashAccessPassword(savedDesktopPassword);
           if (savedHash === getAccessPasswordSettings().hash) {
@@ -2250,7 +2264,7 @@ function setupAccessLock() {
           localStorage.removeItem(DESKTOP_SAVED_PASSWORD_KEY);
           input.value = "";
         } catch (error) {
-          console.warn("V21.1 desktop auto-unlock skipped:", error);
+          console.warn("V21.2 desktop cross-tab auto-unlock skipped:", error);
         }
       }
 
@@ -2285,10 +2299,8 @@ function setupAccessLock() {
     }
 
     if (!isMobileOrTabletDevice()) {
-      localStorage.setItem(
-        DESKTOP_SAVED_PASSWORD_KEY,
-        password
-      );
+      localStorage.setItem(DESKTOP_SAVED_PASSWORD_KEY, password);
+      localStorage.setItem(DESKTOP_TRUSTED_ACCESS_KEY_V212, "1");
     }
 
     unlockAccessLock(lock, input, status);
@@ -2380,10 +2392,8 @@ function setupPasswordChange() {
     });
 
     if (!isMobileOrTabletDevice()) {
-      localStorage.setItem(
-        DESKTOP_SAVED_PASSWORD_KEY,
-        newPassword
-      );
+      localStorage.setItem(DESKTOP_SAVED_PASSWORD_KEY, newPassword);
+      localStorage.setItem(DESKTOP_TRUSTED_ACCESS_KEY_V212, "1");
     }
 
     if (typeof markCloudSettingsSaved === "function") {
@@ -2539,6 +2549,23 @@ function repairLegacyImportDates() {
 function setupNavigation() {
   const buttons = document.querySelectorAll(".nav-btn");
   const pages = document.querySelectorAll(".page");
+  const mobileNavV212 = isMobileOrTabletDevice();
+
+  // V21.2: on phones/tablets the bottom navigation is app navigation, not a
+  // web hyperlink. Remove href so long-press cannot offer Open Link In New Tab.
+  if (mobileNavV212) {
+    buttons.forEach(button => {
+      if (button.tagName === "A") {
+        button.dataset.desktopHrefV212 = button.getAttribute("href") || "";
+        button.removeAttribute("href");
+        button.setAttribute("role", "button");
+        button.setAttribute("draggable", "false");
+        button.classList.add("mobile-no-new-tab-v212");
+        button.addEventListener("contextmenu", event => event.preventDefault());
+        button.addEventListener("auxclick", event => event.preventDefault());
+      }
+    });
+  }
 
   buttons.forEach(button => {
     button.addEventListener("click", event => {
@@ -4376,7 +4403,7 @@ async function refreshPromotionCloudStateV209(force = false) {
     renderInventoryManagementList();
     return true;
   } catch (error) {
-    console.warn("V21.1 promotion cloud refresh skipped:", error);
+    console.warn("V21.2 promotion cloud refresh skipped:", error);
     return false;
   } finally {
     promotionCloudRefreshBusyV209 = false;
@@ -4420,6 +4447,21 @@ function refreshPromotionUiV183() {
   else if (status) status.classList.remove("promotion-status-active-v193");
   if (deleteButton) deleteButton.hidden = !promotion;
   if (toggleButton) toggleButton.hidden = !promotion;
+}
+
+function clearPromotionSearchStateV212() {
+  const searchInput = document.getElementById("promotionExcludeSearchV183");
+  const filterInput = document.getElementById("promotionExcludeFilterV184");
+  const results = document.getElementById("promotionExcludeSearchResultsV183");
+  const selectAll = document.getElementById("promotionSelectAllSearchV184");
+  const confirmButton = document.getElementById("promotionExcludeSelectedV184");
+  promotionSearchSelectionV184 = new Set();
+  if (searchInput) searchInput.value = "";
+  if (filterInput) filterInput.value = "latest";
+  if (results) results.innerHTML = "";
+  if (selectAll) { selectAll.checked = false; selectAll.indeterminate = false; }
+  if (confirmButton) { confirmButton.disabled = true; confirmButton.textContent = "确认加入排除（0）"; }
+  try { updatePromotionBatchControlsV184(); } catch (_) {}
 }
 
 function setupPromotionSettingsV183() {
@@ -4704,8 +4746,7 @@ function setupPromotionSettingsV183() {
       promotionExcludedSelectionV184 = new Set();
       promotionDraftTouchedV209 = false;
       resetPromotionDraftV183();
-      if (searchInput) searchInput.value = "";
-      if (filterInput) filterInput.value = "latest";
+      clearPromotionSearchStateV212();
       if (priceSearch) priceSearch.value = "";
       const priceSort = document.getElementById("promotionPriceListSortV185");
       if (priceSort) priceSort.value = "latest";
@@ -14909,7 +14950,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "21.1",
+      version: "21.2",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -15276,7 +15317,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V21.1 Stable",
+      updatedBy: "System V21.2 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,

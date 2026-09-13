@@ -5171,14 +5171,14 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .import-anomaly-copy-v206:active{transform:scale(.97);background:#eef8f1}
 
 
-/* V21.1: 首页库存管理利润颜色；赚=绿色、亏=红色、零=黑色。 */
+/* V21.2: 首页库存管理利润颜色；赚=绿色、亏=红色、零=黑色。 */
 .inventory-profit-value-v207.gain strong { color: #177245 !important; }
 .inventory-profit-value-v207.loss strong { color: #c62828 !important; }
 .inventory-profit-value-v207.neutral strong { color: #111 !important; }
 .average-cost-vnd-note-v207 { display: block; margin-top: 2px; font-size: .76em; line-height: 1.15; color: #6f7b73; font-weight: 600; white-space: nowrap; }
 
 
-/* V21.1: active promotion appears centered on the Dashboard title row. */
+/* V21.2: active promotion appears centered on the Dashboard title row. */
 .dashboard-promotion-status-v208{min-width:0;text-align:center;font-size:1.05rem;line-height:1.25;font-weight:800;color:#d01818;overflow-wrap:anywhere}
 .dashboard-promotion-status-v208[hidden]{display:none!important}
 @media(max-width:720px){
@@ -5191,7 +5191,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
   .dashboard-promotion-status-v208{font-size:.9rem;line-height:1.15}
 }
 
-/* V21.1: promotion target percentage sits beside the promotional minimum price; color follows actual profit. */
+/* V21.2: promotion target percentage sits beside the promotional minimum price; color follows actual profit. */
 .inventory-promotion-margin-v209{font-style:normal;font-size:.78em;font-weight:800;margin-left:6px;white-space:nowrap}
 .inventory-promotion-margin-v209.gain{color:#177245!important}
 .inventory-promotion-margin-v209.loss{color:#c62828!important}
@@ -5207,7 +5207,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .bottom-nav a.nav-btn{text-decoration:none;box-sizing:border-box;text-align:center}
 
 
-/* V21.1: mobile dashboard title keeps promotion on its own row to prevent overlap. */
+/* V21.2: mobile dashboard title keeps promotion on its own row to prevent overlap. */
 @media(max-width:720px){
   .dashboard-title-row-v204{
     display:grid!important;
@@ -5234,4 +5234,13 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
   .dashboard-title-row-v204{grid-template-columns:minmax(0,1fr) auto!important;gap:6px!important}
   .dashboard-title-row-v204 h2{font-size:1rem!important}
   .dashboard-promotion-status-v208{font-size:.82rem!important;max-width:none!important}
+}
+
+/* V21.2: mobile bottom navigation is in-app navigation only; suppress link callout/new-tab affordances. */
+@media (max-width: 900px), (hover: none) and (pointer: coarse) {
+  .bottom-nav .nav-btn.mobile-no-new-tab-v212 {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
 }
