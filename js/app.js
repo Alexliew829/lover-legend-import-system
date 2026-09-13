@@ -2886,20 +2886,119 @@ function setupSettings() {
   setupCostRepairTools();
 }
 
+const COST_REPAIR_SESSION_MS_V206 = 30 * 60 * 1000;
+let costRepairExpiryTimerV206 = 0;
+let costRepairCountdownTimerV206 = 0;
+let costRepairExpiryPendingV206 = false;
+
 function getCostRepairModeEnabled() {
   const settings = loadJSON("importSystemSettings", {});
-  return settings.costRepairMode === true;
+  if (settings.costRepairMode !== true) return false;
+
+  const expiresAt = Number(settings.costRepairModeExpiresAt) || 0;
+  if (!(expiresAt > Date.now())) {
+    // Browsers can throttle timers in the background. If the 30-minute limit
+    // is discovered by any later UI action, close the session immediately and
+    // reload the stored import so unsaved edits cannot survive the expiry.
+    if (!costRepairExpiryPendingV206) {
+      costRepairExpiryPendingV206 = true;
+      window.setTimeout(() => {
+        costRepairExpiryPendingV206 = false;
+        closeCostRepairModeV206({ rollbackUnsaved: true, expired: true });
+      }, 0);
+    }
+    return false;
+  }
+  return true;
 }
 
-function setCostRepairModeEnabled(enabled) {
+function getCostRepairModeExpiresAtV206() {
+  const settings = loadJSON("importSystemSettings", {});
+  return Number(settings.costRepairModeExpiresAt) || 0;
+}
+
+function setCostRepairModeEnabled(enabled, expiresAt = 0) {
   const settings = loadJSON("importSystemSettings", {});
   saveJSON("importSystemSettings", {
     ...settings,
-    costRepairMode: Boolean(enabled)
+    costRepairMode: Boolean(enabled),
+    costRepairModeExpiresAt: enabled ? Number(expiresAt || (Date.now() + COST_REPAIR_SESSION_MS_V206)) : 0
   });
   if (typeof markCloudSettingsSaved === "function") {
     markCloudSettingsSaved();
   }
+}
+
+function clearCostRepairTimersV206() {
+  window.clearTimeout(costRepairExpiryTimerV206);
+  window.clearInterval(costRepairCountdownTimerV206);
+  costRepairExpiryTimerV206 = 0;
+  costRepairCountdownTimerV206 = 0;
+}
+
+function formatCostRepairRemainingV206(ms) {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function reloadCurrentImportFromStoredV206(message = "") {
+  const importNumber = String(currentEditingImportNumber || "").trim();
+  if (!importNumber) return;
+  const lookup = document.getElementById("batchLookupInput");
+  if (lookup) lookup.value = importNumber;
+  loadBatchByNumber();
+  const status = document.getElementById("batchStatusText");
+  if (status && message) status.textContent = message;
+}
+
+function closeCostRepairModeV206({ rollbackUnsaved = false, expired = false } = {}) {
+  costRepairExpiryPendingV206 = false;
+  clearCostRepairTimersV206();
+  setCostRepairModeEnabled(false, 0);
+  renderCostRepairModeStatus();
+  if (rollbackUnsaved && currentEditingImportNumber) {
+    reloadCurrentImportFromStoredV206(
+      expired
+        ? "Data Repair 已满30分钟自动关闭；未保存的修改已恢复到上次保存状态。"
+        : "Data Repair 已关闭；未保存的修改已恢复到上次保存状态。"
+    );
+  }
+  const status = document.getElementById("costRepairStatus");
+  if (status) {
+    status.textContent = expired
+      ? "Data Repair 已满30分钟自动关闭。未保存修改已回滚；如需继续，请重新开启。"
+      : "修改模式已关闭。未保存修改已回滚。";
+  }
+}
+
+function startCostRepairSessionTimerV206() {
+  clearCostRepairTimersV206();
+  if (!getCostRepairModeEnabled()) {
+    renderCostRepairModeStatus();
+    return;
+  }
+
+  const expiresAt = getCostRepairModeExpiresAtV206();
+  const remaining = expiresAt - Date.now();
+  if (!(remaining > 0)) {
+    closeCostRepairModeV206({ rollbackUnsaved: true, expired: true });
+    return;
+  }
+
+  costRepairExpiryTimerV206 = window.setTimeout(() => {
+    closeCostRepairModeV206({ rollbackUnsaved: true, expired: true });
+  }, remaining);
+
+  costRepairCountdownTimerV206 = window.setInterval(() => {
+    if (!getCostRepairModeEnabled()) {
+      clearCostRepairTimersV206();
+      renderCostRepairModeStatus();
+      return;
+    }
+    renderCostRepairModeStatus();
+  }, 1000);
 }
 
 function getCostRevisionHistory() {
@@ -2942,20 +3041,55 @@ function applyBatchCostEditability() {
     field.setAttribute(
       "title",
       lockCosts
-        ? "修改模式未开启。到设置页面开启后才可修正已保存进口编号的成本、类别等资料。"
+        ? "Data Repair 未开启。旧进口成本资料已锁定。"
         : ""
     );
   });
 
-  // V6.8: category is a non-stock field. Existing imports keep it locked in
-  // normal mode and unlock it only while Data Repair mode is ON.
+  // V20.6 R3 HARD LOCK:
+  // Existing import-number records can NEVER change product identity/name or
+  // historical original import quantity from this form. Current stock/name
+  // corrections use the dedicated tools at the bottom of the Import/Edit page.
+  document.querySelectorAll('#batchRows input[id^="batchName-"]').forEach(field => {
+    field.readOnly = isEditing;
+    field.classList.toggle("cost-field-locked", isEditing);
+    field.title = isEditing
+      ? "产品名称不能通过进口编号修改；请使用页面下方专用修改功能。"
+      : "";
+  });
+  document.querySelectorAll('#batchRows input[id^="batchQty-"]').forEach(field => {
+    field.readOnly = isEditing;
+    field.classList.toggle("cost-field-locked", isEditing);
+    field.title = isEditing
+      ? "原进口数量永久锁定，不能通过进口编号或 Data Repair 修改。库存数量请使用页面下方编辑数量功能。"
+      : "";
+  });
+  document.querySelectorAll('#batchRows input[id^="batchPrice-"]').forEach(field => {
+    field.readOnly = lockCosts;
+    field.classList.toggle("cost-field-locked", lockCosts);
+    field.title = lockCosts
+      ? "原进口单价属于成本资料；开启 Data Repair 后才可修改。"
+      : "";
+  });
+  document.querySelectorAll('#batchRows .remove-item-btn').forEach(button => {
+    button.disabled = isEditing;
+    button.title = isEditing ? "已保存进口不能通过进口编号新增、删除或更换产品。" : "";
+  });
+  const addRowButton = document.getElementById("addBatchRowBtn");
+  if (addRowButton) {
+    addRowButton.disabled = isEditing;
+    addRowButton.title = isEditing ? "已保存进口不能通过进口编号新增产品。" : "";
+  }
+
+  // Category is a non-stock field. Existing imports unlock it only while
+  // Data Repair mode is ON.
   document.querySelectorAll('#batchRows select[id^="batchCategory-"]').forEach(field => {
     field.disabled = isEditing && !repairEnabled;
     field.classList.toggle("cost-field-locked", isEditing && !repairEnabled);
     field.setAttribute(
       "title",
       isEditing && !repairEnabled
-        ? "类别已锁定；到设置开启修改模式后才可修正。"
+        ? "类别已锁定；开启 Data Repair 后才可修正。"
         : ""
     );
   });
@@ -2966,8 +3100,9 @@ function renderCostRepairModeStatus() {
   const status = document.getElementById("costRepairModeStatus");
   const button = document.getElementById("toggleCostRepairModeBtn");
   if (status) {
+    const remaining = Math.max(0, getCostRepairModeExpiresAtV206() - Date.now());
     status.textContent = enabled
-      ? "ON · 可修改旧进口成本 / 类别 / 运输资料"
+      ? `ON · 成本资料可修改 · ${formatCostRepairRemainingV206(remaining)} 后自动关闭`
       : "OFF · 已锁定";
     status.classList.toggle("enabled", enabled);
   }
@@ -3026,19 +3161,41 @@ function setupCostRepairTools() {
 
   toggle?.addEventListener("click", () => {
     const next = !getCostRepairModeEnabled();
-    const confirmed = confirm(next
-      ? "开启修改模式后，可修正已经保存的进口编号成本，以及不会改变库存数量的资料（例如类别、运输资料）。确定开启并保存此设置？"
-      : "确认关闭修改模式并保存此设置？旧进口成本与类别会重新锁定。"
+    if (next) {
+      const warningAccepted = confirm(
+        "⚠️ Data Repair / 资料修改\n\n" +
+        "此模式只用于修正已保存进口编号的成本资料，例如原进口单价、汇率、海外运费、内地运输/木架、花盆费用及类别。\n\n" +
+        "修改成本会重新计算该进口编号的海外运费比例、单位成本、当前平均成本和库存总值。\n\n" +
+        "【永久锁定】产品名称与原进口数量不能通过进口编号或 Data Repair 修改。\n" +
+        "【库存保护】不会重新加入库存，也不能改变 Products.stock / remainingQuantity。\n" +
+        "库存数量或产品名称错误，请使用页面下方专用修改功能。\n\n" +
+        "Data Repair 开启30分钟后会自动关闭；届时所有尚未保存的修改会回滚。\n\n继续？"
+      );
+      if (!warningAccepted) return;
+
+      const finalAccepted = confirm(
+        "⚠️ 最后确认开启 Data Repair\n\n" +
+        "请确认你正在修改历史成本资料，不是当前库存数量。\n" +
+        "错误修改会影响平均成本和库存总值。\n\n" +
+        "产品名称、原进口数量仍保持锁定；当前库存不会重新加入。\n" +
+        "30分钟后自动关闭并丢弃未保存修改。\n\n确定开启？"
+      );
+      if (!finalAccepted) return;
+
+      setCostRepairModeEnabled(true, Date.now() + COST_REPAIR_SESSION_MS_V206);
+      startCostRepairSessionTimerV206();
+      renderCostRepairModeStatus();
+      if (status) {
+        status.textContent = "Data Repair 已开启30分钟。产品名称/原进口数量仍锁定；未保存修改到期自动回滚。";
+      }
+      return;
+    }
+
+    const confirmed = confirm(
+      "确认关闭 Data Repair？\n\n尚未保存的进口修改会立即恢复到上次保存状态。"
     );
     if (!confirmed) return;
-    setCostRepairModeEnabled(next);
-    renderCostRepairModeStatus();
-    if (status) {
-      status.textContent = next
-        ? "修改模式已开启。完成修复后建议关闭。"
-        : "修改模式已关闭。旧进口成本与类别重新锁定。";
-      setTimeout(() => { status.textContent = ""; }, 2500);
-    }
+    closeCostRepairModeV206({ rollbackUnsaved: true, expired: false });
   });
 
   showHistory?.addEventListener("click", () => {
@@ -3051,6 +3208,9 @@ function setupCostRepairTools() {
   search?.addEventListener("input", renderCostRevisionHistory);
 
   renderCostRepairModeStatus();
+  if (getCostRepairModeEnabled()) {
+    startCostRepairSessionTimerV206();
+  }
 }
 
 function setupDashboard() {
@@ -5727,10 +5887,13 @@ function getBatchDisplayTotalQuantity(
 }
 
 function getLockedBatchOriginalQuantity(item) {
+  // V20.6 R2: original import quantity is historical source data.
+  // Sales must never reduce it. Prefer explicit originalQuantity, then the
+  // legacy quantity field; stockAdded is only the final legacy fallback.
   const candidates = [
-    Number(item?.stockAdded),
     Number(item?.originalQuantity),
-    Number(item?.quantity)
+    Number(item?.quantity),
+    Number(item?.stockAdded)
   ];
 
   const value = candidates.find(
@@ -6716,10 +6879,7 @@ function loadBatchByNumber() {
   batchRowSeq = 0;
 
   batchItems.forEach(item => {
-    const originalQuantity = Math.max(
-      0,
-      Number(item.originalQuantity ?? item.quantity) || 0
-    );
+    const originalQuantity = getLockedBatchOriginalQuantity(item);
     const storedRemainingQuantity = Number(
       item.remainingQuantity ?? item.quantity
     );
@@ -6735,7 +6895,12 @@ function loadBatchByNumber() {
       category: item.category || "盆栽",
       productId: item.productId || "",
       originalQuantity,
-      quantity: remainingQuantity,
+      remainingQuantity,
+      // Historical original quantity is permanently locked on saved imports.
+      // Sales/current-stock corrections only change remainingQuantity/Products.stock
+      // through the dedicated stock quantity tool.
+      quantity: originalQuantity,
+      lockOriginalQuantity: true,
       unitPrice: Number(item.unitPrice) || 0,
       unitCost: Number(item.unitCost) || 0
     });
@@ -6751,7 +6916,7 @@ function loadBatchByNumber() {
 
   if (!currentStatus) {
     document.getElementById("batchStatusText").textContent =
-      `已载入进口编号 ${batch.importNumber}。资料已按原输入顺序恢复，可继续修改后更新。`;
+      `已载入进口编号 ${batch.importNumber}。产品名称与原进口数量已锁定；成本资料需开启 Data Repair 才可修改。`;
   }
 
   input.value = batch.importNumber;
@@ -10119,10 +10284,15 @@ function addBatchRow(prefill = {}){
   const id=++batchRowSeq,tr=document.createElement("tr");
   tr.dataset.rowId=id;
 
-  const editableMaximum = Number(prefill.originalQuantity);
-  const hasEditableMaximum = Number.isFinite(editableMaximum) && editableMaximum >= 0;
-  if (hasEditableMaximum) {
-    tr.dataset.originalQuantity = String(Math.floor(editableMaximum));
+  const storedOriginalQuantity = Number(prefill.originalQuantity);
+  const hasStoredOriginalQuantity = Number.isFinite(storedOriginalQuantity) && storedOriginalQuantity >= 0;
+  const storedRemainingQuantity = Number(prefill.remainingQuantity);
+  const hasStoredRemainingQuantity = Number.isFinite(storedRemainingQuantity) && storedRemainingQuantity >= 0;
+  if (hasStoredOriginalQuantity) {
+    tr.dataset.originalQuantity = String(Math.floor(storedOriginalQuantity));
+  }
+  if (hasStoredRemainingQuantity) {
+    tr.dataset.remainingQuantity = String(Math.floor(storedRemainingQuantity));
   }
 
   tr.innerHTML=`<td class="batch-product-cell">
@@ -10156,14 +10326,24 @@ function addBatchRow(prefill = {}){
     const quantity = Math.max(0, Math.floor(Number(prefill.quantity)));
     const quantityInput = document.getElementById(`batchQty-${id}`);
     quantityInput.value = quantity;
-    document.getElementById(`batchStock-${id}`).value = quantity;
 
-    if (hasEditableMaximum) {
-      quantityInput.max = String(Math.floor(editableMaximum));
+    const remainingForDisplay = hasStoredRemainingQuantity
+      ? Math.max(0, Math.floor(storedRemainingQuantity))
+      : quantity;
+    document.getElementById(`batchStock-${id}`).value = remainingForDisplay;
+
+    if (hasStoredOriginalQuantity) {
+      quantityInput.min = String(remainingForDisplay);
       quantityInput.setAttribute(
         "aria-label",
-        `此进口编号当前剩余数量，允许 0 至 ${Math.floor(editableMaximum)}`
+        `原进口数量；当前剩余 ${remainingForDisplay}。销售不会修改这里。`
       );
+      if (prefill.lockOriginalQuantity === true) {
+        quantityInput.readOnly = true;
+        quantityInput.title = "原进口数量永久锁定；不能通过进口编号或 Data Repair 修改";
+      } else {
+        quantityInput.title = "原进口数量永久锁定；库存数量请使用页面下方编辑数量功能";
+      }
     }
   }
   if (prefill.unitPrice) {
@@ -10412,6 +10592,15 @@ function attachBatchRowEvents(id){
     calculateBatch();
   });
   document.getElementById(`batchQty-${id}`).addEventListener("input", () => {
+    // V20.6 R2: while editing an existing import, this field is the ORIGINAL
+    // import quantity. Never mirror it into current stock/remaining quantity.
+    if (currentEditingImportNumber || tr.dataset.remainingQuantity !== undefined) {
+      const remaining = Number(tr.dataset.remainingQuantity);
+      document.getElementById(`batchStock-${id}`).value = Number.isFinite(remaining)
+        ? Math.max(0, Math.floor(remaining))
+        : "";
+      return;
+    }
     const quantity = Math.max(0, Math.floor(parseAmount(document.getElementById(`batchQty-${id}`).value)));
     document.getElementById(`batchStock-${id}`).value = quantity || "";
   });
@@ -10559,7 +10748,13 @@ function calculateBatch() {
     const stockCell = document.getElementById(
       `batchStock-${row.id}`
     );
-    if (stockCell) stockCell.value = stockAdded || "";
+    if (stockCell) {
+      const tr = document.querySelector(`#batchRows tr[data-row-id="${row.id}"]`);
+      const storedRemaining = Number(tr?.dataset?.remainingQuantity);
+      stockCell.value = currentEditingImportNumber && Number.isFinite(storedRemaining)
+        ? Math.max(0, Math.floor(storedRemaining))
+        : (stockAdded || "");
+    }
   });
 
   rows.filter(row => !valid.includes(row)).forEach(row => {
@@ -10638,11 +10833,10 @@ function calculateBatch() {
       formatMoney(grandTotal, "RM ");
   }
 
-  // V6.8: inventory movement is NOT an import-cost recalculation.
-  // When editing an existing import number, always restore the original paid
-  // batch snapshot for inland-misc ratio, overseas-shipping ratio, foreign
-  // totals and unit costs. Only remaining inventory may change.
-  if (currentEditingImportNumber) {
+  // V20.6 R3: outside Data Repair, editing an old import keeps its saved cost
+  // snapshot. In Data Repair, cost inputs may preview corrected batch math.
+  // Product name and historical original quantity remain permanently locked.
+  if (currentEditingImportNumber && !getCostRepairModeEnabled()) {
     const storedBatch = getBatches().find(
       batch => batch.importNumber === currentEditingImportNumber
     );
@@ -10718,6 +10912,16 @@ function saveBatchImport() {
     const oldBatch = batches[batchIndex];
     const oldItems = getBatchItemsForDisplay(oldBatch);
     const repairEnabled = getCostRepairModeEnabled();
+    const stockTotalBeforeRepairV206 = products.reduce(
+      (sum, product) => sum + Math.max(0, Number(product?.stock) || 0),
+      0
+    );
+    const remainingByImportIdBeforeV206 = new Map(
+      oldItems.map(item => [
+        String(item?.id || `${item?.productId || ""}|${item?.productName || ""}`),
+        Math.max(0, Number(item?.remainingQuantity ?? item?.quantity) || 0)
+      ])
+    );
 
     // V6.8: in Repair Mode, category is allowed to change because it does not
     // alter stock quantity or cost. Product identity remains locked by productId.
@@ -10752,27 +10956,32 @@ function saveBatchImport() {
         return;
       }
 
-      const originalQuantity =
-        getLockedBatchOriginalQuantity(oldItem);
+      const oldOriginalQuantity = getLockedBatchOriginalQuantity(oldItem);
       const oldRemainingRaw = Number(
         oldItem.remainingQuantity ?? oldItem.quantity
       );
       const oldRemaining = Number.isFinite(oldRemainingRaw)
         ? Math.min(
-            originalQuantity,
+            oldOriginalQuantity,
             Math.max(0, Math.floor(oldRemainingRaw))
           )
-        : originalQuantity;
-      const parsedRemaining = Number(edited.quantity);
-      const newRemaining = Number.isFinite(parsedRemaining)
-        ? Math.max(0, Math.floor(parsedRemaining))
-        : oldRemaining;
+        : oldOriginalQuantity;
 
-      if (newRemaining > originalQuantity) {
-        status.textContent =
-          `${oldItem.productName || edited.name || "此产品"} 原进口 ${originalQuantity}，此进口编号的当前剩余数量只允许输入 0 至 ${originalQuantity}，不能保存 ${newRemaining}。`;
+      // V20.6 R3 HARD RULE: product name/identity and historical original
+      // import quantity can NEVER be changed from an import-number edit,
+      // including Data Repair. Current stock corrections use the dedicated
+      // quantity tool at the bottom of the page.
+      const parsedOriginal = Number(edited.quantity);
+      if (Number.isFinite(parsedOriginal) && Math.floor(parsedOriginal) !== oldOriginalQuantity) {
+        status.textContent = `${oldItem.productName || "此产品"} 的原进口数量已永久锁定，不能通过进口编号修改。`;
         return;
       }
+      if (String(edited?.name || "").trim() !== String(oldItem.productName || "").trim()) {
+        status.textContent = `${oldItem.productName || "此产品"} 的产品名称已锁定，不能通过进口编号修改。`;
+        return;
+      }
+      const originalQuantity = oldOriginalQuantity;
+      const newRemaining = oldRemaining;
 
       const productIndex = products.findIndex(product =>
         product.id === oldItem.productId ||
@@ -10826,31 +11035,35 @@ function saveBatchImport() {
         preservedUnitCost > 0 ? preservedUnitCost * originalQuantity : 0
       ].find(value => Number.isFinite(value) && value > 0) || 0;
 
-      // 编辑旧批次只按剩余数量差额调整当前库存。
-      // 销售或退货不能触发旧 Imports 全量重建，也不能改变 Average Cost。
-      if (productIndex !== -1) {
-        const stockDifference = newRemaining - oldRemaining;
-        const currentStock = Math.max(0, Number(products[productIndex].stock) || 0);
-
+      // V20.6 R2 HARD RULE: editing/import-cost repair must NEVER move stock.
+      // Sales/stock adjustments own Products.stock and remainingQuantity.
+      if (productIndex !== -1 && nextCategory !== oldCategory) {
         products[productIndex] = {
           ...products[productIndex],
           category: nextCategory,
-          stock: Math.max(0, currentStock + stockDifference),
-          averageCost: Math.max(0, Number(products[productIndex].averageCost) || 0),
-          inventoryArchived: currentStock + stockDifference > 0
-            ? false
-            : products[productIndex].inventoryArchived,
           updatedAt: new Date().toISOString()
         };
       }
 
+      const oldUnitPrice = Math.max(0, Number(oldItem.unitPrice) || 0);
+      const editedUnitPrice = Math.max(0, Number(edited.unitPrice) || 0);
+      const nextUnitPrice = repairEnabled ? editedUnitPrice : oldUnitPrice;
+      if (!(nextUnitPrice > 0) && originalQuantity > 0) {
+        status.textContent = `${oldItem.productName || "此产品"} 的原进口单价必须大于0。`;
+        return;
+      }
+      const nextForeignTotal = originalQuantity * nextUnitPrice;
       updatedItems.push({
         ...oldItem,
+        productName: oldItem.productName,
+        productId: oldItem.productId,
         category: nextCategory,
         originalQuantity,
         quantity: originalQuantity,
         remainingQuantity: newRemaining,
         stockAdded: originalQuantity,
+        unitPrice: nextUnitPrice,
+        foreignTotal: nextForeignTotal,
         unitCost: preservedUnitCost,
         batchTotal: preservedBatchTotal,
         updatedAt: new Date().toISOString()
@@ -10879,18 +11092,33 @@ function saveBatchImport() {
     };
 
     let updatedCostSnapshot = {};
+    let repairChangesCostV206 = false;
     if (repairEnabled) {
       const nextChina = Number(parseAmount(document.getElementById("batchChinaTransportCost").value)) || 0;
       const nextPot = Number(parseAmount(document.getElementById("batchPotCost").value)) || 0;
       const nextShippingMY = Number(parseAmount(document.getElementById("batchShippingMY").value)) || 0;
       const nextRate = Number(parseAmount(document.getElementById("batchRate").value)) || 0;
 
-      const totalPurchaseForeign = oldItems.reduce((sum, item) => {
-        const foreignTotal = Number(item.foreignTotal);
-        if (Number.isFinite(foreignTotal) && foreignTotal >= 0) return sum + foreignTotal;
-        return sum +
-          (getLockedBatchOriginalQuantity(item) *
-           (Number(item.unitPrice) || 0));
+      const unitPriceChangedV206 = updatedItems.some((item, index) =>
+        Math.abs((Number(oldItems[index]?.unitPrice) || 0) - (Number(item?.unitPrice) || 0)) > 0.000001
+      );
+      const costInputChangedV206 = [
+        [Number(oldBatch.chinaTransportCost) || 0, nextChina],
+        [Number(oldBatch.potCost) || 0, nextPot],
+        [Number(oldBatch.shippingMY) || 0, nextShippingMY],
+        [Number(oldBatch.rate) || Number(oldItems.find(item => Number(item?.rate) > 0)?.rate) || 0, nextRate]
+      ].some(([before, after]) => Math.abs(before - after) > 0.000001);
+      repairChangesCostV206 = unitPriceChangedV206 || costInputChangedV206;
+
+      // Conservative repair: if neither an item unit price nor another cost
+      // input changed, preserve the entire existing cost snapshot exactly.
+      if (!repairChangesCostV206) {
+        updatedCostSnapshot = {};
+      }
+
+      const totalPurchaseForeign = updatedItems.reduce((sum, item) => {
+        const originalQty = getLockedBatchOriginalQuantity(item);
+        return sum + originalQty * Math.max(0, Number(item.unitPrice) || 0);
       }, 0);
       const foreignGrandTotal = totalPurchaseForeign + nextChina + nextPot;
       const totalForeignCostsRM = nextRate > 0 ? foreignGrandTotal / nextRate : 0;
@@ -10903,7 +11131,7 @@ function saveBatchImport() {
         : 0;
       const nextGrandTotal = totalForeignCostsRM + nextShippingMY;
 
-      updatedCostSnapshot = {
+      if (repairChangesCostV206) updatedCostSnapshot = {
         chinaTransportCost: nextChina,
         chinaTransportRM: nextRate > 0 ? nextChina / nextRate : 0,
         potCost: nextPot,
@@ -10934,18 +11162,31 @@ function saveBatchImport() {
           before: formatMoney(before),
           after: formatMoney(after)
         }));
-      pendingCostRevisionLogs = logs;
+      updatedItems.forEach((item, index) => {
+        const before = Number(oldItems[index]?.unitPrice) || 0;
+        const after = Number(item?.unitPrice) || 0;
+        if (Math.abs(before - after) <= 0.000001) return;
+        logs.push({
+          id: `COSTREV${Date.now()}${Math.random().toString(36).slice(2, 7)}`,
+          timestamp: new Date().toLocaleString("zh-MY", { hour12: false }),
+          importNumber: oldBatch.importNumber,
+          fieldLabel: `原进口单价 · ${item.productName || item.productId || "产品"}`,
+          before: formatMoney(before),
+          after: formatMoney(after)
+        });
+      });
+      pendingCostRevisionLogs = repairChangesCostV206 ? logs : [];
 
-      // V20.6: when Cost Repair Mode changes a historical batch cost input,
-      // recalculate this batch's item unit costs with the same formula used for
-      // a new import. Only the cost layer changes; quantities and sales history
-      // remain untouched. Current product Average Cost is adjusted by the cost
+      if (repairChangesCostV206) {
+      // V20.6 R3: when Data Repair changes a historical cost input (including
+      // original unit price), recalculate this batch with the same cost formula
+      // used for a new import. Product name/original quantity/current stock and
+      // sales history remain untouched. Current product Average Cost is adjusted by the cost
       // delta of the still-remaining quantity from this batch.
-      const totalPurchaseForeignV205 = oldItems.reduce((sum, item) => {
-        const foreign = Number(item.foreignTotal);
-        if (Number.isFinite(foreign) && foreign >= 0) return sum + foreign;
-        return sum + (getLockedBatchOriginalQuantity(item) * (Number(item.unitPrice) || 0));
-      }, 0);
+      const totalPurchaseForeignV205 = updatedItems.reduce((sum, item) =>
+        sum + (getLockedBatchOriginalQuantity(item) * Math.max(0, Number(item.unitPrice) || 0)),
+        0
+      );
       const sharedForeignV205 = (Number(updatedCostSnapshot.chinaTransportCost) || 0) +
         (Number(updatedCostSnapshot.potCost) || 0);
       const rateV205 = Number(updatedCostSnapshot.rate) || 0;
@@ -10990,6 +11231,7 @@ function saveBatchImport() {
         updatedItems[index] = {
           ...item,
           rate: rateV205,
+          foreignTotal,
           purchaseRM,
           inlandMiscRate: Number(updatedCostSnapshot.inlandMiscRate) || 0,
           inlandMiscPercent: Number(updatedCostSnapshot.inlandMiscPercent) || 0,
@@ -10999,6 +11241,7 @@ function saveBatchImport() {
           updatedAt: new Date().toISOString()
         };
       });
+      }
     }
 
     // V6.8: category correction follows the same productId through the
@@ -11034,7 +11277,7 @@ function saveBatchImport() {
       containerDate: updatedBatchMeta.containerDate,
       arrivalDate: updatedBatchMeta.arrivalDate,
       transitDays: updatedBatchMeta.transitDays,
-      ...(repairEnabled ? {
+      ...(repairEnabled && repairChangesCostV206 ? {
         rate: updatedCostSnapshot.rate,
         inlandMiscRate: updatedCostSnapshot.inlandMiscRate,
         inlandMiscPercent: updatedCostSnapshot.inlandMiscPercent,
@@ -11053,7 +11296,7 @@ function saveBatchImport() {
       ...updatedBatchMeta,
       ...updatedCostSnapshot,
       items: mergedItems,
-      totalQuantity: oldItems.reduce(
+      totalQuantity: mergedItems.reduce(
         (sum, item) =>
           sum + getLockedBatchOriginalQuantity(item),
         0
@@ -11065,12 +11308,33 @@ function saveBatchImport() {
       updatedAt: new Date().toISOString()
     };
 
+    // V20.6 R2 hard safety gate: repair may change historical quantity/cost,
+    // never current inventory. Abort before save if even one remaining quantity
+    // or total Products.stock moved.
+    for (const item of mergedItems) {
+      const key = String(item?.id || `${item?.productId || ""}|${item?.productName || ""}`);
+      const beforeRemaining = remainingByImportIdBeforeV206.get(key);
+      const afterRemaining = Math.max(0, Number(item?.remainingQuantity) || 0);
+      if (beforeRemaining !== undefined && Math.abs(beforeRemaining - afterRemaining) > 0.000001) {
+        status.textContent = `安全检查失败：${item.productName || item.productId || "产品"} 当前剩余数量发生变化，已停止保存。`;
+        return;
+      }
+    }
+    const stockTotalAfterRepairV206 = products.reduce(
+      (sum, product) => sum + Math.max(0, Number(product?.stock) || 0),
+      0
+    );
+    if (Math.abs(stockTotalAfterRepairV206 - stockTotalBeforeRepairV206) > 0.000001) {
+      status.textContent = `安全检查失败：修复前库存 ${formatNumber(stockTotalBeforeRepairV206)}，修复后 ${formatNumber(stockTotalAfterRepairV206)}。已停止保存。`;
+      return;
+    }
+
     const updateSummary = mergedItems.map(item => {
       const label = item.productName || item.name || item.productId || "产品";
-      return `• ${label}：剩余 ${formatNumber(item.remainingQuantity)} / 原进口 ${formatNumber(item.originalQuantity)}`;
+      return `• ${label}：原进口 ${formatNumber(item.originalQuantity)}（锁定） · 当前剩余 ${formatNumber(item.remainingQuantity)}（不变）`;
     }).join("\n");
     if (!window.confirm(
-      `⚠️ 最后确认保存进口修改？\n\n进口编号：${oldBatch.importNumber}\n${updateSummary}\n\n保存会按数量差额更新库存；此动作会写入 Products、Imports 与 Batches。\n只有按「确定」后才会真正保存。`
+      `⚠️ 最后确认保存进口成本修改？\n\n进口编号：${oldBatch.importNumber}\n${updateSummary}\n\n永久锁：产品名称与原进口数量不会修改。\n库存安全锁：当前库存总数 ${formatNumber(stockTotalBeforeRepairV206)} 保持不变；不会重复加入库存，Sales 历史与 remainingQuantity 不修改。\n只有按「确定」后才会真正保存。`
     )) {
       status.textContent = "已取消保存，资料没有写入";
       return;
@@ -11088,7 +11352,7 @@ function saveBatchImport() {
 
     clearBatchAfterSuccessfulAction();
     document.getElementById("batchStatusText").textContent =
-      `已更新 ${currentEditingImportNumber || oldBatch.importNumber}。库存按数量差额调整；${getCostRepairModeEnabled() ? "修改模式资料已保存，相关批次单位成本与当前平均成本已同步重算；" : "成本与类别字段保持锁定；"}`;
+      `已更新 ${currentEditingImportNumber || oldBatch.importNumber}。产品名称与原进口数量保持锁定；当前库存保持 ${formatNumber(stockTotalBeforeRepairV206)} 不变；${repairEnabled && repairChangesCostV206 ? "成本资料已重算相关批次单位成本与当前平均成本；" : "原成本资料未被重算；"}`;
     return;
   }
 
