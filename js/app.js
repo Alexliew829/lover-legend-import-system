@@ -5935,6 +5935,149 @@ function repairStoredInventoryFromImports({ persistCloud = true } = {}) {
   return true;
 }
 
+// V20.5 corrected build: repair historical batch-cost snapshots whose stored
+// unitCost no longer matches the CURRENT saved batch cost inputs. This is a
+// deterministic cost repair only: stock quantities, Sales history, soldUnitCost
+// and database structure are untouched. Current inventory Average Cost changes
+// only by the still-remaining quantity from the repaired import lot.
+function repairStaleBatchUnitCostsV205({ persistCloud = true } = {}) {
+  const previousProducts = getProducts();
+  const previousImports = getImports();
+  const previousBatches = getBatches();
+  if (!previousProducts.length || !previousImports.length || !previousBatches.length) return false;
+
+  const products = previousProducts.map(item => ({ ...item }));
+  const imports = previousImports.map(item => ({ ...item }));
+  const batches = previousBatches.map(batch => ({
+    ...batch,
+    items: Array.isArray(batch?.items) ? batch.items.map(item => ({ ...item })) : []
+  }));
+
+  const productIndexById = new Map(products.map((product, index) => [String(product.id || ""), index]));
+  const importIndexById = new Map(imports.map((record, index) => [String(record.id || ""), index]));
+  const inventoryValueDeltaByProduct = new Map();
+  const now = new Date().toISOString();
+  let importsChanged = false;
+  let batchesChanged = false;
+
+  const calculateExpected = (record, batch, totalPurchaseForeign) => {
+    const originalQuantity = Math.max(0, Number(record?.originalQuantity ?? record?.stockAdded ?? record?.quantity) || 0);
+    const rate = Number(batch?.rate) > 0 ? Number(batch.rate) : (Number(record?.rate) > 0 ? Number(record.rate) : 0);
+    if (!(originalQuantity > 0) || !(rate > 0) || !(totalPurchaseForeign > 0)) return null;
+
+    const foreignTotal = Math.max(0, Number(record?.foreignTotal) || (originalQuantity * (Number(record?.unitPrice) || 0)));
+    if (!(foreignTotal > 0)) return null;
+
+    const sharedForeign =
+      (Number(batch?.inlandTransportCost) || Number(batch?.chinaTransportCost) || 0) +
+      (Number(batch?.potCost) || Number(batch?.potCostForeign) || 0);
+    const shippingRate = Math.max(0, Number(batch?.shippingRate) || 0);
+    const purchaseRM = foreignTotal / rate;
+    const sharedRM = sharedForeign / rate;
+    const allocatedSharedRM = sharedRM * (foreignTotal / totalPurchaseForeign);
+    const batchTotal = (purchaseRM + allocatedSharedRM) * (1 + shippingRate / 100);
+    const unitCost = batchTotal / originalQuantity;
+    if (!Number.isFinite(unitCost) || unitCost < 0) return null;
+
+    return { unitCost, batchTotal, purchaseRM, rate, shippingRate };
+  };
+
+  batches.forEach(batch => {
+    const items = Array.isArray(batch.items) ? batch.items : [];
+    if (!items.length) return;
+
+    const totalPurchaseForeign = items.reduce((sum, item) => {
+      const foreign = Number(item?.foreignTotal);
+      if (Number.isFinite(foreign) && foreign > 0) return sum + foreign;
+      const qty = Math.max(0, Number(item?.originalQuantity ?? item?.stockAdded ?? item?.quantity) || 0);
+      return sum + qty * Math.max(0, Number(item?.unitPrice) || 0);
+    }, 0);
+    if (!(totalPurchaseForeign > 0)) return;
+
+    batch.items = items.map(item => {
+      const expected = calculateExpected(item, batch, totalPurchaseForeign);
+      if (!expected) return item;
+
+      const oldUnitCost = Math.max(0, Number(item?.unitCost) || 0);
+      if (Math.abs(expected.unitCost - oldUnitCost) <= 0.005) return item;
+
+      const remainingQuantity = Math.max(0, Number(item?.remainingQuantity ?? item?.stockAdded ?? item?.quantity) || 0);
+      const productId = String(item?.productId || "");
+      if (remainingQuantity > 0 && productId) {
+        inventoryValueDeltaByProduct.set(
+          productId,
+          (Number(inventoryValueDeltaByProduct.get(productId)) || 0) +
+            remainingQuantity * (expected.unitCost - oldUnitCost)
+        );
+      }
+
+      const repaired = {
+        ...item,
+        rate: expected.rate,
+        purchaseRM: expected.purchaseRM,
+        shippingRate: expected.shippingRate,
+        unitCost: expected.unitCost,
+        batchTotal: expected.batchTotal,
+        updatedAt: now
+      };
+      batchesChanged = true;
+
+      const importIndex = importIndexById.get(String(item?.id || ""));
+      if (importIndex !== undefined) {
+        imports[importIndex] = { ...imports[importIndex], ...repaired };
+        importsChanged = true;
+      } else {
+        const fallbackIndex = imports.findIndex(record =>
+          (String(record?.batchId || "") === String(batch?.id || "") ||
+           String(record?.importNumber || "") === String(batch?.importNumber || "")) &&
+          String(record?.productId || "") === productId
+        );
+        if (fallbackIndex >= 0) {
+          imports[fallbackIndex] = { ...imports[fallbackIndex], ...repaired, id: imports[fallbackIndex].id };
+          importsChanged = true;
+        }
+      }
+
+      return repaired;
+    });
+
+    if (batchesChanged) batch.updatedAt = now;
+  });
+
+  let productsChanged = false;
+  inventoryValueDeltaByProduct.forEach((delta, productId) => {
+    const index = productIndexById.get(String(productId));
+    if (index === undefined) return;
+    const stock = Math.max(0, Number(products[index]?.stock) || 0);
+    const averageCost = Math.max(0, Number(products[index]?.averageCost) || 0);
+    if (!(stock > 0) || Math.abs(delta) <= 0.005) return;
+    const nextInventoryValue = Math.max(0, stock * averageCost + delta);
+    const nextAverageCost = nextInventoryValue / stock;
+    if (Math.abs(nextAverageCost - averageCost) <= 0.005) return;
+    products[index] = { ...products[index], averageCost: nextAverageCost, updatedAt: now };
+    productsChanged = true;
+  });
+
+  if (!productsChanged && !importsChanged && !batchesChanged) return false;
+
+  localStorage.setItem("importSystemProducts", JSON.stringify(products));
+  localStorage.setItem("importSystemImports", JSON.stringify(imports));
+  localStorage.setItem("importSystemBatches", JSON.stringify(batches));
+  if (typeof invalidateMinimumPriceOriginIndexV160 === "function") invalidateMinimumPriceOriginIndexV160();
+
+  if (persistCloud && typeof markCloudCollectionSaved === "function") {
+    if (productsChanged) markCloudCollectionSaved("products", previousProducts, products);
+    if (importsChanged) markCloudCollectionSaved("imports", previousImports, imports);
+    if (batchesChanged) markCloudCollectionSaved("batches", previousBatches, batches);
+  }
+
+  ["renderDashboard", "renderInventoryManagementList", "renderProductList", "renderBatchList"].forEach(name => {
+    try { if (typeof window[name] === "function") window[name](); } catch (error) { console.warn(`${name} refresh skipped:`, error); }
+  });
+  return true;
+}
+window.repairStaleBatchUnitCostsV205 = repairStaleBatchUnitCostsV205;
+
 
 function resolveImportUnitCost(record, batch = null, fallbackProduct = null, fallbackImport = null) {
   const direct = Number(record?.unitCost);

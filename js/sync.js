@@ -519,6 +519,9 @@ async function pullLatestSnapshot(forceBootstrap = false) {
     saveCloudConfig(config);
     renderCloudMeta(config);
     setCloudState("synced");
+    if (typeof window.repairStaleBatchUnitCostsV205 === "function") {
+      window.repairStaleBatchUnitCostsV205({ persistCloud: true });
+    }
     return false;
   }
 
@@ -749,7 +752,12 @@ function applyRemoteData(data) {
     cloudApplyingRemote = false;
   }
 
-  // 云端拉取后只刷新画面，不自动重建或上传，避免同步循环与Restore后反向覆盖。
+  // V20.5 corrected build: after a canonical Pull, repair only deterministic
+  // stale batch-cost snapshots. The repair is idempotent and queues one normal
+  // cloud Push only when unitCost/Average Cost truly differ from saved batch inputs.
+  if (typeof window.repairStaleBatchUnitCostsV205 === "function") {
+    window.repairStaleBatchUnitCostsV205({ persistCloud: true });
+  }
   refreshSystemViewsAfterSync();
 }
 
