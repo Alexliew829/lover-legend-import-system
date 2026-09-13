@@ -5169,3 +5169,10 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .import-anomaly-copy-v206{border:1px solid #c9d8cf;background:#fff;color:#185f3b;border-radius:8px;padding:5px 8px;font:inherit;font-size:.88em;font-weight:700;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:transform .08s ease,background .08s ease}
 .import-anomaly-copy-v206 span{color:#68766f;font-weight:600;margin-right:5px}
 .import-anomaly-copy-v206:active{transform:scale(.97);background:#eef8f1}
+
+
+/* V20.7: 首页库存管理利润颜色；赚=绿色、亏=红色、零=黑色。 */
+.inventory-profit-value-v207.gain strong { color: #177245 !important; }
+.inventory-profit-value-v207.loss strong { color: #c62828 !important; }
+.inventory-profit-value-v207.neutral strong { color: #111 !important; }
+.average-cost-vnd-note-v207 { display: block; margin-top: 2px; font-size: .76em; line-height: 1.15; color: #6f7b73; font-weight: 600; white-space: nowrap; }

@@ -961,7 +961,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V20.6 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V20.7 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -3656,8 +3656,8 @@ function renderInventoryList(products) {
             <span>最低售价</span><strong>${formatMoney(minimumPrice, "RM ")}</strong>
           </button>
           <div><span>${averageCostLabel}</span><strong>${formatMoney(averageCost, "RM ")}</strong></div>
-          <div><span>利润</span><strong>${formatMoney(profitInfo.profit, "RM ")}</strong></div>
-          <div><span>利润率</span><strong>${formatMoney(profitInfo.profitRate)}%</strong></div>
+          <div class="inventory-profit-value-v207 ${profitInfo.profit < 0 ? "loss" : profitInfo.profit > 0 ? "gain" : "neutral"}"><span>利润</span><strong>${formatMoney(profitInfo.profit, "RM ")}</strong></div>
+          <div class="inventory-profit-value-v207 ${profitInfo.profit < 0 ? "loss" : profitInfo.profit > 0 ? "gain" : "neutral"}"><span>利润率</span><strong>${formatMoney(profitInfo.profitRate)}%</strong></div>
           <div><span>库存成本</span><strong>${formatMoney(value, "RM ")}</strong></div>
           <div><span>最后进口</span><strong>${escapeHTML(getLatestImportDateByProduct(item.id) || "")}</strong></div>
         </div>
@@ -3851,7 +3851,7 @@ function isVndProductV205(product, originIndex = null) {
 }
 
 function getAverageCostLabelV205(product, originIndex = null) {
-  return isVndProductV205(product, originIndex) ? "平均成本（不含盆）" : "平均成本";
+  return isVndProductV205(product, originIndex) ? "平均成本（VND不含盆）" : "平均成本";
 }
 
 function getProductMinimumProfitV205(product, promotion = null, rules = null, originIndex = null) {
@@ -4248,7 +4248,7 @@ function renderPromotionPriceListV183() {
     }).join("") || `<div class="promotion-empty-v183">没有符合的产品</div>`;
   } else {
     list.className = "promotion-compact-list-v193";
-    list.innerHTML = `<div class="promotion-compact-head-v193"><span>产品名</span><span>库存</span><span>平均成本（VND不含盆）</span><span>原最低售价</span><span>促销最低售价</span><span>预计利润</span></div>` + products.map(product => {
+    list.innerHTML = `<div class="promotion-compact-head-v193"><span>产品名</span><span>库存</span><span>平均成本</span><span>原最低售价</span><span>促销最低售价</span><span>预计利润</span></div>` + products.map(product => {
       const id = String(product.id || "").toUpperCase();
       const excluded = promotion.excludedProductIds.includes(id);
       const originalPrice = Math.max(0, Number(product.minimumPrice) || 0);
@@ -4258,7 +4258,7 @@ function renderPromotionPriceListV183() {
       const profit = promotionCurrentProfitV183(product, effectivePrice, promotion, rules, originIndex);
       return `<div class="promotion-compact-row-v193 ${excluded ? "excluded" : ""}">
         <span class="promotion-compact-product-v193"><button type="button" class="promotion-compact-name-v193" data-product-name="${escapeHTML(product.name)}" onclick="copyInventoryProductName(this)">${escapeHTML(product.name)}</button>${buildProductIdCopyButtonV166(product.id, "promotion-product-id-v183")}</span>
-        <span>${formatNumber(product.stock)}</span><span>${formatPromotionMoneyV194(product.averageCost)}</span><span>${formatPromotionMoneyV194(originalPrice)}</span>
+        <span>${formatNumber(product.stock)}</span><span>${formatPromotionMoneyV194(product.averageCost)}${isVndProductV205(product, originIndex) ? `<small class="average-cost-vnd-note-v207">（VND不含盆）</small>` : ""}</span><span>${formatPromotionMoneyV194(originalPrice)}</span>
         <span>${excluded ? `<b>${formatPromotionMoneyV194(originalPrice)}</b>` : `<button type="button" class="promotion-price-edit-v193" data-promo-price-edit-v193="${escapeHTML(id)}" data-current-price-v193="${effectivePrice}" title="长按修改本次促销最低售价" aria-label="长按修改 ${escapeHTML(product.name)} 本次促销最低售价">${formatPromotionMoneyV194(effectivePrice)}</button>`}${override && !excluded ? `<small class="promotion-manual-note-v193">已手动调整</small>` : ""}</span>
         <span class="${profit < 0 ? "loss" : "gain"}">${profit < 0 ? "亏 " : "赚 "}${formatPromotionMoneyV194(Math.abs(profit))}</span>
       </div>`;
@@ -13961,8 +13961,8 @@ function renderInventoryManagementList() {
             <span>${getPromotionSettingsV183() && !getPromotionSettingsV183().excludedProductIds.includes(String(product.id || "").toUpperCase()) ? "促销最低售价" : "最低售价"}</span><strong>${formatMoney(minimumPrice, "RM ")}</strong>
           </button>
           <div><span>${averageCostLabelV205}</span><strong>${formatMoney(averageCost, "RM ")}</strong></div>
-          <div><span>利润</span><strong>${formatMoney(profitInfoV205.profit, "RM ")}</strong></div>
-          <div><span>利润率</span><strong>${formatMoney(profitInfoV205.profitRate)}%</strong></div>
+          <div class="inventory-profit-value-v207 ${profitInfoV205.profit < 0 ? "loss" : profitInfoV205.profit > 0 ? "gain" : "neutral"}"><span>利润</span><strong>${formatMoney(profitInfoV205.profit, "RM ")}</strong></div>
+          <div class="inventory-profit-value-v207 ${profitInfoV205.profit < 0 ? "loss" : profitInfoV205.profit > 0 ? "gain" : "neutral"}"><span>利润率</span><strong>${formatMoney(profitInfoV205.profitRate)}%</strong></div>
           <div><span>库存成本总值</span><strong>${formatMoney(inventoryValue, "RM ")}</strong></div>
           <div><span>最后进口</span><strong>${escapeHTML(normalizeDateToDDMMYYYY(product.displayLastImport) || "-")}</strong></div>
         </div>
@@ -14031,7 +14031,7 @@ function renderOriginalCostPanel(visibleProducts = inventoryVisibleProductsV153)
                   title="长按修改当前库存">${formatNumber(row.stock)}</button>
         </td>
         <td class="money-cell original-currency-cell">${originalCostText}</td>
-        <td class="money-cell">${formatMoney(row.averageCost, "RM ")}</td>
+        <td class="money-cell">${formatMoney(row.averageCost, "RM ")}${row.originalCurrency === "VND" ? `<small class="average-cost-vnd-note-v207">（VND不含盆）</small>` : ""}</td>
         <td class="money-cell minimum-price-cell">
           <button class="original-cost-minimum-price-btn" type="button"
                   data-product-id="${escapeHTML(row.id)}"
@@ -14232,7 +14232,7 @@ function exportOriginalCostExcel() {
     `</Styles>` +
     excelWorksheet(
       "原成本清单",
-      ["产品名", "当前库存", "原成本", "平均成本（VND不含盆）", "最低售价"],
+      ["产品名", "当前库存", "原成本", "平均成本", "最低售价"],
       excelRows,
       ["text", "integer", "text", "money", "money"]
     ) +
@@ -14738,7 +14738,7 @@ function exportSystemExcel() {
     `</Styles>` +
     excelWorksheet(
       "Inventory",
-      ["产品编号", "产品名称", "类别", "当前库存", "平均成本（VND不含盆）", "最低售价", "库存成本总值", "最后进口", "状态"],
+      ["产品编号", "产品名称", "类别", "当前库存", "平均成本", "最低售价", "库存成本总值", "最后进口", "状态"],
       inventoryRows,
       ["text", "text", "text", "integer", "money", "money", "money", "text", "text"]
     ) +
@@ -14775,7 +14775,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "20.6",
+      version: "20.7",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -15142,7 +15142,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V20.6 Stable",
+      updatedBy: "System V20.7 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
