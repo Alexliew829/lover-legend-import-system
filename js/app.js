@@ -961,7 +961,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V20.7 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V20.8 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -2795,7 +2795,7 @@ function setupMinimumPriceSettingsV160() {
       renderInventoryManagementList();
       renderDashboard();
       const status = document.getElementById("minimumPriceSettingsStatus");
-      if (status) status.textContent = "已恢复原设置，自动原最低售价已重新计算；手动原价与促销价未改变";
+      if (status) status.textContent = "已恢复原设置，自动原最低售价已重新计算；手动原最低售价与促销最低售价未改变";
       setTimeout(() => { if (status) status.textContent = ""; }, 3600);
     });
   }
@@ -3213,6 +3213,29 @@ function setupCostRepairTools() {
   }
 }
 
+function getPromotionRunningDayV208(createdAt) {
+  const started = new Date(String(createdAt || ""));
+  if (Number.isNaN(started.getTime())) return 1;
+  const now = new Date();
+  const startDay = Date.UTC(started.getFullYear(), started.getMonth(), started.getDate());
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.max(1, Math.floor((today - startDay) / 86400000) + 1);
+}
+
+function renderDashboardPromotionStatusV208() {
+  const target = document.getElementById("dashboardPromotionStatusV208");
+  if (!target) return;
+  const promotion = getPromotionSettingsV183();
+  if (!promotion) {
+    target.hidden = true;
+    target.textContent = "";
+    return;
+  }
+  const day = getPromotionRunningDayV208(promotion.createdAt);
+  target.textContent = `${promotion.name} 促销进行中 · 第${day}天`;
+  target.hidden = false;
+}
+
 function setupDashboard() {
   setupImportAnomalyCenterV201();
   renderDashboard();
@@ -3271,6 +3294,7 @@ function renderDashboard() {
   document.getElementById("lastImport").textContent =
     latestBatchImportDate || "";
 
+  renderDashboardPromotionStatusV208();
   renderImportAnomalyCenterV201();
   renderSystemInformationV203();
 }
@@ -4193,7 +4217,7 @@ function renderPromotionExcludeSearchV183() {
     return `<div class="promotion-search-result-v183">
       <input class="promotion-row-check-v184" type="checkbox" data-select-search-v184="${escapeHTML(id)}" ${promotionSearchSelectionV184.has(id) ? "checked" : ""} aria-label="选择 ${escapeHTML(product.name)}" />
       <div><button type="button" class="inventory-product-name-copy promotion-search-name-v186" data-product-name="${escapeHTML(product.name)}" onclick="copyInventoryProductName(this)" title="点击复制产品名称">${escapeHTML(product.name)}</button>${buildProductIdCopyButtonV166(id, "promotion-product-id-v183")}
-      <span>库存 ${formatNumber(product.stock)} · ${getAverageCostLabelV205(product, originIndex)} ${formatMoney(product.averageCost, "RM ")} · 原价 ${formatMoney(product.minimumPrice, "RM ")} · 促销价 ${formatMoney(promoPrice, "RM ")}</span></div>
+      <span>库存 ${formatNumber(product.stock)} · ${getAverageCostLabelV205(product, originIndex)} ${formatMoney(product.averageCost, "RM ")} · 原最低售价 ${formatMoney(product.minimumPrice, "RM ")} · 促销最低售价 ${formatMoney(promoPrice, "RM ")}</span></div>
       <button type="button" data-add-promotion-exclusion="${escapeHTML(id)}">加入排除</button>
     </div>`;
   }).join("") : `<div class="promotion-empty-v183">${query ? "当前搜索没有更多可加入产品" : "当前筛选下没有更多可加入产品"}</div>`;
@@ -12792,7 +12816,7 @@ async function editDisplayedMinimumPriceV199(productId) {
   }
   if (Math.abs(nextPromotionPrice - currentPromotionPrice) < 0.005) return;
   if (!window.confirm(
-    `确认修改促销最低售价？\n\n产品：${product.name}\n目前促销价：${formatMoney(currentPromotionPrice, "RM ")}\n修改为：${formatMoney(nextPromotionPrice, "RM ")}\n\n原最低售价 ${formatMoney(Math.max(0, Number(product.minimumPrice) || 0), "RM ")} 不会改变；删除促销后会恢复原最低售价。`
+    `确认修改促销最低售价？\n\n产品：${product.name}\n目前促销最低售价：${formatMoney(currentPromotionPrice, "RM ")}\n修改为：${formatMoney(nextPromotionPrice, "RM ")}\n\n原最低售价 ${formatMoney(Math.max(0, Number(product.minimumPrice) || 0), "RM ")} 不会改变；删除促销后会恢复原最低售价。`
   )) return;
 
   if (typeof updatePromotionSettingsFastV185 !== "function") {
@@ -14775,7 +14799,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "20.7",
+      version: "20.8",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -15142,7 +15166,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V20.7 Stable",
+      updatedBy: "System V20.8 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,

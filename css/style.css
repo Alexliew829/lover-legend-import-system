@@ -5137,8 +5137,8 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 
 
 /* V20.4 — dashboard-inline system status + system information */
-.dashboard-title-row-v204{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:nowrap}
-.dashboard-title-row-v204 h2{margin:0;min-width:0}
+.dashboard-title-row-v204{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:14px;position:relative}
+.dashboard-title-row-v204 h2{margin:0;min-width:0;white-space:nowrap}
 .system-health-row-v204{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-left:auto;flex:0 0 auto}
 .import-anomaly-status-button-v202,.import-anomaly-refresh-v202{min-height:34px;height:34px;border-radius:999px;padding:5px 10px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font:inherit;font-size:.84rem;font-weight:800;line-height:1;box-sizing:border-box}
 .import-anomaly-status-button-v202{border:1px solid #dfe6e2;background:#fff;color:#425047}
@@ -5171,8 +5171,22 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .import-anomaly-copy-v206:active{transform:scale(.97);background:#eef8f1}
 
 
-/* V20.7: 首页库存管理利润颜色；赚=绿色、亏=红色、零=黑色。 */
+/* V20.8: 首页库存管理利润颜色；赚=绿色、亏=红色、零=黑色。 */
 .inventory-profit-value-v207.gain strong { color: #177245 !important; }
 .inventory-profit-value-v207.loss strong { color: #c62828 !important; }
 .inventory-profit-value-v207.neutral strong { color: #111 !important; }
 .average-cost-vnd-note-v207 { display: block; margin-top: 2px; font-size: .76em; line-height: 1.15; color: #6f7b73; font-weight: 600; white-space: nowrap; }
+
+
+/* V20.8: active promotion appears centered on the Dashboard title row. */
+.dashboard-promotion-status-v208{min-width:0;text-align:center;font-size:1.05rem;line-height:1.25;font-weight:800;color:#d01818;overflow-wrap:anywhere}
+.dashboard-promotion-status-v208[hidden]{display:none!important}
+@media(max-width:720px){
+  .dashboard-title-row-v204{grid-template-columns:auto minmax(110px,1fr) auto;gap:7px}
+  .dashboard-promotion-status-v208{font-size:.94rem;line-height:1.18}
+}
+@media(max-width:430px){
+  .dashboard-title-row-v204{gap:5px}
+  .dashboard-title-row-v204 h2{font-size:1.05rem!important}
+  .dashboard-promotion-status-v208{font-size:.9rem;line-height:1.15}
+}
