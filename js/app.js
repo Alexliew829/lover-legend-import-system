@@ -974,7 +974,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V21.0 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V21.1 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -2154,15 +2154,12 @@ function setupAccessLock() {
   updatePasswordHintDisplays();
   updateDeviceBiometricStatus();
 
-  if (!isMobileOrTabletDevice()) {
-    const savedDesktopPassword =
-      localStorage.getItem(
-        DESKTOP_SAVED_PASSWORD_KEY
-      );
+  const savedDesktopPassword = !isMobileOrTabletDevice()
+    ? String(localStorage.getItem(DESKTOP_SAVED_PASSWORD_KEY) || "")
+    : "";
 
-    if (savedDesktopPassword) {
-      input.value = savedDesktopPassword;
-    }
+  if (savedDesktopPassword) {
+    input.value = savedDesktopPassword;
   }
 
   hintButton?.addEventListener("click", () => {
@@ -2240,6 +2237,23 @@ function setupAccessLock() {
     document.body.classList.add("access-locked");
 
     window.setTimeout(async () => {
+      // V21.1: desktop remembers the verified password across tabs.
+      // A new tab verifies the locally saved password against the current hash
+      // and enters automatically; stale saved passwords are discarded.
+      if (!isMobileOrTabletDevice() && savedDesktopPassword) {
+        try {
+          const savedHash = await hashAccessPassword(savedDesktopPassword);
+          if (savedHash === getAccessPasswordSettings().hash) {
+            unlockAccessLock(lock, input, status);
+            return;
+          }
+          localStorage.removeItem(DESKTOP_SAVED_PASSWORD_KEY);
+          input.value = "";
+        } catch (error) {
+          console.warn("V21.1 desktop auto-unlock skipped:", error);
+        }
+      }
+
       const biometricUsed =
         await tryBiometricLogin({
           automatic: true
@@ -2248,7 +2262,7 @@ function setupAccessLock() {
       if (!biometricUsed) {
         input.focus();
       }
-    }, 220);
+    }, 160);
   }
 
   form.addEventListener("submit", async event => {
@@ -4028,12 +4042,24 @@ let promotionDraftTouchedV209 = false;
 let promotionCloudRefreshBusyV209 = false;
 let promotionCloudRefreshLastAtV209 = 0;
 
+function parsePromotionPercentV211(value) {
+  const normalized = String(value ?? "")
+    .trim()
+    .replace(/[％%]/g, "")
+    .replace(/，/g, ".")
+    .replace(/,/g, ".")
+    .replace(/\s+/g, "");
+  if (!normalized) return NaN;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
 function getPromotionDraftV183() {
   return {
     active: true,
     name: String(document.getElementById("promotionNameV183")?.value || "年尾清货").trim() || "年尾清货",
-    commissionRate: Number(document.getElementById("promotionCommissionV183")?.value),
-    targetMarginRate: Number(document.getElementById("promotionMarginV183")?.value),
+    commissionRate: parsePromotionPercentV211(document.getElementById("promotionCommissionV183")?.value),
+    targetMarginRate: parsePromotionPercentV211(document.getElementById("promotionMarginV183")?.value),
     excludedProductIds: Array.from(promotionExcludedDraftV183),
     priceOverrides: { ...promotionPriceOverridesDraftV193 }
   };
@@ -4350,7 +4376,7 @@ async function refreshPromotionCloudStateV209(force = false) {
     renderInventoryManagementList();
     return true;
   } catch (error) {
-    console.warn("V21.0 promotion cloud refresh skipped:", error);
+    console.warn("V21.1 promotion cloud refresh skipped:", error);
     return false;
   } finally {
     promotionCloudRefreshBusyV209 = false;
@@ -14883,7 +14909,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "21.0",
+      version: "21.1",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -15250,7 +15276,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V21.0 Stable",
+      updatedBy: "System V21.1 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
