@@ -974,7 +974,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V21.3 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V21.4 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -2065,7 +2065,7 @@ function unlockAccessLock(lock, input, status) {
     "1"
   );
 
-  // V21.3: mobile unlock is bound to this exact tab/history entry.
+  // V21.4: mobile unlock is bound to this exact tab/history entry.
   // A newly opened mobile tab must use the original password / Face ID flow.
   if (isMobileOrTabletDevice()) {
     try {
@@ -2138,7 +2138,7 @@ function setupDeviceBiometricSettings() {
 }
 
 function setupAccessLock() {
-  // V21.3: follow the proven V20.8 desktop access flow.
+  // V21.4: follow the proven V20.8 desktop access flow.
   // Desktop may remember/prefill the saved password, but a new tab must still
   // show the password screen and wait for the user to click “进入系统”.
   if (!isMobileOrTabletDevice()) {
@@ -2249,7 +2249,7 @@ function setupAccessLock() {
     document.body.classList.add("access-locked");
 
     window.setTimeout(async () => {
-      // V21.3: no desktop auto-unlock. Even with a cached password, the user
+      // V21.4: no desktop auto-unlock. Even with a cached password, the user
       // must explicitly click “进入系统”. Mobile keeps the original biometric flow.
       const biometricUsed =
         await tryBiometricLogin({
@@ -2532,7 +2532,7 @@ function setupNavigation() {
   const pages = document.querySelectorAll(".page");
   const mobileNavV212 = isMobileOrTabletDevice();
 
-  // V21.3: on phones/tablets the bottom navigation is app navigation, not a
+  // V21.4: on phones/tablets the bottom navigation is app navigation, not a
   // web hyperlink. Remove href so long-press cannot offer Open Link In New Tab.
   if (mobileNavV212) {
     buttons.forEach(button => {
@@ -4384,7 +4384,7 @@ async function refreshPromotionCloudStateV209(force = false) {
     renderInventoryManagementList();
     return true;
   } catch (error) {
-    console.warn("V21.3 promotion cloud refresh skipped:", error);
+    console.warn("V21.4 promotion cloud refresh skipped:", error);
     return false;
   } finally {
     promotionCloudRefreshBusyV209 = false;
@@ -8483,7 +8483,7 @@ function getHistoryRangeDates(range) {
     current.setUTCDate(current.getUTCDate() + 1);
   }
 
-  return dates.reverse();
+  return dates;
 }
 
 function getTrustedHistoryUnitCost(item) {
@@ -8888,7 +8888,7 @@ function buildHistorySoldCostSummary(options = {}) {
         <span>卖出总成本</span>
         <strong>${salesCostText}</strong>
       </div>
-      <div class="history-total-profit-summary-v137">
+      <div class="history-total-profit-summary-v137 ${!salesFinancialReady ? "neutral" : profitSummary.totalProfit > 0 ? "gain" : profitSummary.totalProfit < 0 ? "loss" : "neutral"}">
         <span>销售总利润</span>
         <strong>${salesProfitText}</strong>
       </div>
@@ -9286,10 +9286,16 @@ function renderCompactProductHistoryByRange(
                 )
               );
             })
-            .sort((a, b) =>
-              parseDDMMYYYY(a.date) -
-              parseDDMMYYYY(b.date)
-            );
+            .sort((a, b) => {
+              const dayDiff = parseDDMMYYYY(historyAdjustmentEventDateV134(a)) -
+                parseDDMMYYYY(historyAdjustmentEventDateV134(b));
+              if (dayDiff) return dayDiff;
+              const timeDiff = String(historyAdjustmentTimeV131(a) || "").localeCompare(
+                String(historyAdjustmentTimeV131(b) || "")
+              );
+              if (timeDiff) return timeDiff;
+              return String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
+            });
 
         const importTransactionInRange =
           isDateWithinHistoryRange(
@@ -9341,8 +9347,8 @@ function renderCompactProductHistoryByRange(
       const bImportTransaction =
         parseDDMMYYYY(getHistoryImportTransactionDate(b.batch)) || 0;
 
-      return Math.max(bLatestAdjustment, bImportTransaction) -
-        Math.max(aLatestAdjustment, aImportTransaction);
+      return Math.max(aLatestAdjustment, aImportTransaction) -
+        Math.max(bLatestAdjustment, bImportTransaction);
     });
 
   if (!productMatches.length) {
@@ -9577,9 +9583,11 @@ function renderHistorySalesSourceLookupV149(keyword, range, output) {
   const adjustments = lots
     .map(lot => ({ ...lot.adjustment, delta: -Math.max(0, Number(lot.remainingQuantity) || 0) }))
     .sort((a, b) => {
-      const dayDiff = parseDDMMYYYY(historyAdjustmentEventDateV134(b)) - parseDDMMYYYY(historyAdjustmentEventDateV134(a));
+      const dayDiff = parseDDMMYYYY(historyAdjustmentEventDateV134(a)) - parseDDMMYYYY(historyAdjustmentEventDateV134(b));
       if (dayDiff) return dayDiff;
-      return String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
+      const timeDiff = String(historyAdjustmentTimeV131(a) || "").localeCompare(String(historyAdjustmentTimeV131(b) || ""));
+      if (timeDiff) return timeDiff;
+      return String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
     });
   const dateText = range ? (range.isSingleDay ? range.startDate : `${range.startDate} 至 ${range.endDate}`) : "全部历史";
   const groups = new Map();
@@ -14931,7 +14939,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "21.3",
+      version: "21.4",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -15298,7 +15306,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V21.3 Stable",
+      updatedBy: "System V21.4 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
