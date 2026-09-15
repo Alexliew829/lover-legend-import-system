@@ -974,7 +974,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V21.4 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V21.5 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1343,9 +1343,17 @@ function salesItemAlreadyProcessedLocallyV104(item, product) {
     }
   }
 
+  // V21.5: batch commits store a unique commit key plus the stable Sales
+  // accounting key.  Either one proves that inventory was already committed.
+  // This keeps a still-pending Sales card visible as ACK-only after a timeout
+  // instead of silently dropping it and risking a later duplicate deduction.
   return rows.some(adj =>
     Array.isArray(adj?.salesLinks) &&
-    adj.salesLinks.some(link => String(link?.key || "").trim() === key)
+    adj.salesLinks.some(link => {
+      const commitKey = String(link?.key || "").trim();
+      const accountingKey = String(link?.accountingKey || "").trim();
+      return commitKey === key || accountingKey === key;
+    })
   );
 }
 
@@ -1590,11 +1598,24 @@ function showStartupSalesInventoryReminderV80() {
       if(!salesStartupSessionItemsV82.length)closeStartupSalesInventoryReminderV81(true);else renderStartupSalesInventoryReminderV81();
     }catch(error){
       setSalesInventoryOperationLockV117(false);
-      await refreshSalesInventoryFeedV77({silent:true}).catch(()=>{});
-      recomputeSalesInventoryPendingV77();
-      salesStartupSessionItemsV82=salesInventoryPendingV77.map(item=>({...item,v82Processed:false}));
-      if(salesStartupSessionItemsV82.length)renderStartupSalesInventoryReminderV81();
-      alert("❌ 处理未完成："+String(error?.message||error)+"\n\n系统已重新核对状态。已成功写入的 Sales Key 不会重复扣库存；未写入的项目才会继续等待处理。");
+      const message=String(error?.message||error);
+      const restorePrecheckFailed=/Sales Restore 状态读取超时|无法连接 Sales System 读取 Restore 状态|无法读取 Sales Restore 状态/i.test(message);
+
+      if(restorePrecheckFailed){
+        // V21.5: prepareSalesInventoryOperationV117 runs before any inventory
+        // commit.  If that read-only Restore precheck times out, nothing has been
+        // deducted yet, so keep the frozen reminder exactly as-is.  Do not replace
+        // it with a transient/empty feed result and make the card disappear.
+        salesStartupSessionItemsV82=salesStartupSessionItemsV82.map(item=>({...item,v82Processed:false}));
+        renderStartupSalesInventoryReminderV81();
+        alert("❌ 处理未完成："+message+"\n\n本次尚未开始扣库存，待处理销售卡已保留。请稍后重试；已写入的 Sales Key 仍会防止重复扣库存。");
+      }else{
+        await refreshSalesInventoryFeedV77({silent:true}).catch(()=>{});
+        recomputeSalesInventoryPendingV77();
+        salesStartupSessionItemsV82=salesInventoryPendingV77.map(item=>({...item,v82Processed:false}));
+        if(salesStartupSessionItemsV82.length)renderStartupSalesInventoryReminderV81();
+        alert("❌ 处理未完成："+message+"\n\n系统已重新核对状态。已成功写入的 Sales Key 不会重复扣库存；未写入的项目才会继续等待处理。");
+      }
     } finally { setSalesInventoryOperationLockV117(false); }
   });
 
@@ -14939,7 +14960,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "21.4",
+      version: "21.5",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -15306,7 +15327,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V21.4 Stable",
+      updatedBy: "System V21.5 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
