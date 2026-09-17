@@ -5252,7 +5252,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 
-/* V22.0 Dedicated Original Cost correction: the blue value is the sole
+/* V22.1 Dedicated Original Cost correction: the blue value is the sole
    controlled historical Original Cost edit entrance. */
 .product-stock-original-cost-btn-v219 {
   border: 0;
@@ -5280,7 +5280,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .original-cost-edit-meta-v219 { display:flex; flex-direction:column; gap:3px; margin-bottom:14px; }
 .original-cost-edit-meta-v219 span { color:#6b7280; font-size:.88rem; }
 .original-cost-edit-dialog-v219 label { display:flex; flex-direction:column; gap:7px; font-weight:700; color:#1769aa; }
-.original-cost-edit-dialog-v219 input { width:100%; box-sizing:border-box; font-size:1.1rem; padding:11px 12px; border:1px solid #9ca3af; border-radius:10px; }
+.original-cost-edit-dialog-v219 input { width:100%; box-sizing:border-box; font-size:1.1rem; padding:11px 12px; border:1px solid #9ca3af; border-radius:10px; text-align:left; }
 .original-cost-edit-dialog-v219 p { margin:12px 0 16px; font-size:.9rem; line-height:1.5; color:#4b5563; }
 .original-cost-edit-actions-v219 { display:flex; justify-content:flex-end; gap:10px; }
 
