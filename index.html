@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=21.8" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=21.8" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=21.8" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=21.8" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=21.8" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=21.8" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=21.8" />
+  <link rel="manifest" href="./manifest.json?v=21.9" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=21.9" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=21.9" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=21.9" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=21.9" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=21.9" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=21.9" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=21.8" />
-  <link rel="stylesheet" href="./css/style.css?v=21.8" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=21.9" />
+  <link rel="stylesheet" href="./css/style.css?v=21.9" />
 </head>
 <body>
   <div id="accessLock"
@@ -84,7 +84,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 21.8 Stable</div>
+          <div class="app-header-version">正式版 21.9 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -773,41 +773,9 @@
           </div>
         </section>
 
-        <section class="panel cost-repair-panel">
-          <h3>资料修改 / Data Repair</h3>
-          <p class="settings-help">
-            正常保持关闭。仅用于修正已保存进口编号的成本资料（原进口单价、汇率、海外运费、内地运输/木架、花盆费用、类别等）。产品名称与原进口数量永久锁定，不能通过进口编号或 Data Repair 修改；库存数量/产品名称请使用页面下方专用修改功能。开启后30分钟自动关闭，未保存修改自动回滚；成本修改仍记录在“成本修改记录”。
-          </p>
-
-          <div class="cost-repair-control-row">
-            <div>
-              <strong>修改模式</strong>
-              <span id="costRepairModeStatus">OFF · 已锁定</span>
-            </div>
-            <button id="toggleCostRepairModeBtn" class="secondary-btn" type="button">开启修改模式</button>
-          </div>
-
-          <div class="settings-tools-grid cost-revision-tools">
-            <button id="showCostRevisionHistoryBtn" class="tool-action-btn" type="button">
-              <span class="tool-action-icon">🧾</span>
-              <span>成本修改记录</span>
-            </button>
-          </div>
-
-          <div id="costRevisionHistoryPanel" class="cost-revision-history-panel" hidden>
-            <div class="cost-revision-history-head">
-              <strong>成本修改记录</strong>
-              <button id="closeCostRevisionHistoryBtn" class="ghost-btn" type="button">关闭</button>
-            </div>
-            <input id="costRevisionHistorySearch" type="search" placeholder="搜索进口编号 / 修改项目" autocomplete="off">
-            <div id="costRevisionHistoryList" class="cost-revision-history-list"></div>
-          </div>
-          <div id="costRepairStatus" class="status-text"></div>
-        </section>
-
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 21.8 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 21.9 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
@@ -828,7 +796,7 @@
         <span>🏠</span><small>首页</small>
       </a>
       <a class="nav-btn" data-page="importPage" href="./?page=import">
-        <span>📦</span><small>产品/进口<br>修改/编辑</small>
+        <span>📦</span><small>产品/进口<br>查询/新增</small>
       </a>
       <a class="nav-btn" data-page="historyPage" href="./?page=history">
         <span>📜</span><small>历史查询</small>
@@ -839,8 +807,8 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=21.8"></script>
-  <script src="./js/sync.js?v=21.8"></script>
-  <script src="./js/app.js?v=21.8"></script>
+  <script src="./js/common.js?v=21.9"></script>
+  <script src="./js/sync.js?v=21.9"></script>
+  <script src="./js/app.js?v=21.9"></script>
 </body>
 </html>
