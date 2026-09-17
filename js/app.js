@@ -974,7 +974,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V21.7 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V21.8 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1343,7 +1343,7 @@ function salesItemAlreadyProcessedLocallyV104(item, product) {
     }
   }
 
-  // V21.7: batch commits store a unique commit key plus the stable Sales
+  // V21.8: batch commits store a unique commit key plus the stable Sales
   // accounting key.  Either one proves that inventory was already committed.
   // This keeps a still-pending Sales card visible as ACK-only after a timeout
   // instead of silently dropping it and risking a later duplicate deduction.
@@ -1602,7 +1602,7 @@ function showStartupSalesInventoryReminderV80() {
       const restorePrecheckFailed=/Sales Restore 状态读取超时|无法连接 Sales System 读取 Restore 状态|无法读取 Sales Restore 状态/i.test(message);
 
       if(restorePrecheckFailed){
-        // V21.7: prepareSalesInventoryOperationV117 runs before any inventory
+        // V21.8: prepareSalesInventoryOperationV117 runs before any inventory
         // commit.  If that read-only Restore precheck times out, nothing has been
         // deducted yet, so keep the frozen reminder exactly as-is.  Do not replace
         // it with a transient/empty feed result and make the card disappear.
@@ -4154,9 +4154,15 @@ function getPromotionSearchProductsV185(query, sortMode = "latest") {
       netSoldQuantity: Number(sales.quantityById.get(id) || sales.quantityByName.get(name.toLowerCase()) || 0),
       cumulativeSoldProfit: Number(sales.profitById.get(id) || sales.profitByName.get(name.toLowerCase()) || 0)
     };
-  }).filter(product => !keyword || smartSearchMatches(`${product.id} ${product.name} ${product.category}`, keyword) ||
-    sequentialSearchMatches(product.importNumbers, keyword) || sequentialSearchMatches(product.trackingNumbers, keyword) ||
-    product.originalCostValuesV216.some(value => originalCostNumberMatchesV216(value, keyword)));
+  }).filter(product => {
+    if (!keyword) return true;
+    if (isOriginalCostOnlySearchV218(keyword)) {
+      return product.originalCostValuesV216.some(value => originalCostNumberMatchesV216(value, keyword));
+    }
+    return smartSearchMatches(`${product.id} ${product.name} ${product.category}`, keyword) ||
+      sequentialSearchMatches(product.importNumbers, keyword) ||
+      sequentialSearchMatches(product.trackingNumbers, keyword);
+  });
   products.sort((a, b) => {
     const stockA=Number(a.stock)||0,stockB=Number(b.stock)||0,costA=Number(a.averageCost)||0,costB=Number(b.averageCost)||0;
     if(sortMode==="name")return String(a.name).localeCompare(String(b.name),"zh");
@@ -5218,7 +5224,7 @@ function sequentialSearchMatches(searchableValue, queryValue) {
   return source.includes(query);
 }
 
-// V21.7: shared read-only Original Cost matcher for every product-search surface.
+// V21.8: shared read-only Original Cost matcher for every product-search surface.
 // Pure numeric queries (commas/spaces/decimals allowed) match unitPrice exactly,
 // regardless of currency. This helper only reads already-loaded local collections.
 function parseOriginalCostSearchQueryV216(queryValue) {
@@ -5249,11 +5255,34 @@ function originalCostMatchesProductV216(product, queryValue, imports = null) {
   });
 }
 
-// V21.7: record/batch-level searches must match the Original Cost stored on
+// V21.8: record/batch-level searches must match the Original Cost stored on
 // that exact row. Never fall back to another import row of the same Product ID,
 // otherwise a 320 search can incorrectly pull in a 200 batch for the same product.
 function originalCostMatchesBatchItemV216(item, queryValue) {
   return originalCostNumberMatchesV216(item?.unitPrice, queryValue);
+}
+
+// V21.8: a pure numeric product-search query is reserved exclusively for
+// exact Original Cost matching. It must never fall through to product names,
+// IDs, import numbers, tracking numbers, dates, quantities, or other numeric text.
+function isOriginalCostOnlySearchV218(queryValue) {
+  return parseOriginalCostSearchQueryV216(queryValue) !== null;
+}
+
+function productSearchMatchesV218(searchableValue, product, queryValue, imports = null) {
+  if (!String(queryValue || '').trim()) return true;
+  if (isOriginalCostOnlySearchV218(queryValue)) {
+    return originalCostMatchesProductV216(product, queryValue, imports);
+  }
+  return smartSearchMatches(searchableValue, queryValue);
+}
+
+function batchItemSearchMatchesV218(searchableValue, item, queryValue) {
+  if (!String(queryValue || '').trim()) return true;
+  if (isOriginalCostOnlySearchV218(queryValue)) {
+    return originalCostMatchesBatchItemV216(item, queryValue);
+  }
+  return smartSearchMatches(searchableValue, queryValue);
 }
 
 function renderProductList() {
@@ -5262,8 +5291,7 @@ function renderProductList() {
   const filtered = products.filter(product => {
     const target =
       `${product.id} ${product.name} ${product.category}`;
-    return smartSearchMatches(target, keyword) ||
-      originalCostMatchesProductV216(product, keyword);
+    return productSearchMatchesV218(target, product, keyword);
   });
 
   document.getElementById("productListCount").textContent = `${filtered.length} 项`;
@@ -8106,11 +8134,14 @@ function historyProductMatchesKeyword(product, keyword) {
     product?.category
   ].map(value => String(value || "")).join(" ");
 
-  return smartSearchMatches(searchable, keyword) ||
-    originalCostMatchesProductV216({
-      id: product?.id || product?.productId,
-      name: product?.name || product?.productName
-    }, keyword);
+  if (isOriginalCostOnlySearchV218(keyword) && product && product.unitPrice !== undefined) {
+    return originalCostMatchesBatchItemV216(product, keyword);
+  }
+
+  return productSearchMatchesV218(searchable, {
+    id: product?.id || product?.productId,
+    name: product?.name || product?.productName
+  }, keyword);
 }
 
 function getDailyStockAdjustments(selectedDate, keyword = "") {
@@ -8663,7 +8694,7 @@ function getHistoryRelevantAdjustments(options = {}) {
         adjustment,
         normalizedKeyword
       );
-      const importMatch = sequentialSearchMatches(
+      const importMatch = !isOriginalCostOnlySearchV218(normalizedKeyword) && sequentialSearchMatches(
         adjustment.importNumber,
         normalizedKeyword
       );
@@ -9029,7 +9060,7 @@ function getHistorySingleDateEventCount(
     }
 
     const importNumberMatch =
-      sequentialSearchMatches(
+      !isOriginalCostOnlySearchV218(normalizedKeyword) && sequentialSearchMatches(
         batch.importNumber,
         normalizedKeyword
       );
@@ -9092,7 +9123,7 @@ function renderHistorySingleDateSection(
       }
 
       const importNumberMatch =
-        sequentialSearchMatches(
+        !isOriginalCostOnlySearchV218(normalizedKeyword) && sequentialSearchMatches(
           batch.importNumber,
           normalizedKeyword
         );
@@ -9268,10 +9299,11 @@ function renderCompactProductHistoryByRange(
             String(value || "").toLowerCase()
           ).join(" ");
 
-          return smartSearchMatches(
+          return batchItemSearchMatchesV218(
             searchable,
-            normalizedKeyword.toLowerCase()
-          ) || originalCostMatchesBatchItemV216(item, normalizedKeyword);
+            item,
+            normalizedKeyword
+          );
         })
         .map(item => ({
           batch,
@@ -9295,10 +9327,11 @@ function renderCompactProductHistoryByRange(
             String(value || "").toLowerCase()
           ).join(" ");
 
-          return smartSearchMatches(
+          return batchItemSearchMatchesV218(
             searchable,
-            normalizedKeyword.toLowerCase()
-          ) || originalCostMatchesBatchItemV216(item, normalizedKeyword);
+            item,
+            normalizedKeyword
+          );
         });
 
       if (!matchingItems.length) return null;
@@ -9830,13 +9863,15 @@ function renderImportHistoryNowV134() {
     return;
   }
 
-  if (renderHistorySalesSourceLookupV149(keyword, null, output)) {
+  const numericOriginalCostOnlyV218 = isOriginalCostOnlySearchV218(keyword);
+
+  if (!numericOriginalCostOnlyV218 && renderHistorySalesSourceLookupV149(keyword, null, output)) {
     return;
   }
 
   const normalizedKeyword = keyword.toLowerCase();
   const batches = getBatches();
-  const exactBatch = batches.find(item =>
+  const exactBatch = numericOriginalCostOnlyV218 ? null : batches.find(item =>
     String(item.importNumber || "").trim().toLowerCase() === normalizedKeyword
   );
 
@@ -9853,7 +9888,7 @@ function renderImportHistoryNowV134() {
     return;
   }
 
-  const partialBatchMatches = batches.filter(batch =>
+  const partialBatchMatches = numericOriginalCostOnlyV218 ? [] : batches.filter(batch =>
     sequentialSearchMatches(batch.importNumber, keyword)
   );
 
@@ -9884,11 +9919,12 @@ function renderImportHistoryNowV134() {
   const exactHistoryProduct = String(
     input.dataset.exactHistoryProduct || ""
   ).trim().toLowerCase();
-  // V21.7: stable Product ID linkage is only for the original text/product search.
+  // V21.8: stable Product ID linkage is only for the original text/product search.
   // A numeric Original Cost hit must remain row/batch-specific; it must not turn
   // into a Product ID hit that automatically includes every historical batch.
   const matchedProductIds = new Set(
     getProducts().filter(product => {
+      if (numericOriginalCostOnlyV218) return false;
       const name = String(product.name || "").trim().toLowerCase();
       const id = String(product.id || "").trim().toLowerCase();
       const category = String(product.category || "").trim().toLowerCase();
@@ -9917,8 +9953,7 @@ function renderImportHistoryNowV134() {
         item.category
       ].map(value => String(value || "").toLowerCase()).join(" ");
 
-      return smartSearchMatches(searchable, normalizedKeyword) ||
-        originalCostMatchesBatchItemV216(item, keyword);
+      return batchItemSearchMatchesV218(searchable, item, keyword);
     });
 
     return { batch, matchingItems };
@@ -10646,10 +10681,7 @@ function renderBatchRowSuggestionBox(id) {
         product.category
       ].join(" ");
 
-      return smartSearchMatches(
-        searchable,
-        value
-      ) || originalCostMatchesProductV216(product, value);
+      return productSearchMatchesV218(searchable, product, value);
     })
     .sort((a, b) =>
       String(a.id || "").localeCompare(
@@ -11837,6 +11869,13 @@ function renderBatchList() {
       )
       .join(" ");
 
+    const originalCostMatchV216 =
+      items.some(item => originalCostMatchesBatchItemV216(item, keyword));
+
+    if (isOriginalCostOnlySearchV218(keyword)) {
+      return originalCostMatchV216;
+    }
+
     const numberOrTransportMatch = [
       batch.importNumber,
       batch.trackingNumber,
@@ -11847,10 +11886,8 @@ function renderBatchList() {
 
     const productMatch =
       smartSearchMatches(productText, keyword);
-    const originalCostMatchV216 =
-      items.some(item => originalCostMatchesBatchItemV216(item, keyword));
 
-    return numberOrTransportMatch || productMatch || originalCostMatchV216;
+    return numberOrTransportMatch || productMatch;
   });
 
   const displayLimit = 10;
@@ -11952,10 +11989,11 @@ function renderBatchProductStockResults() {
 
   const products = getProducts()
     .filter(product =>
-      smartSearchMatches(
+      productSearchMatchesV218(
         `${product.id || ""} ${product.name || ""} ${product.category || ""}`,
+        product,
         keyword
-      ) || originalCostMatchesProductV216(product, keyword)
+      )
     )
     .sort((a, b) =>
       String(a.name || "").localeCompare(String(b.name || ""), "zh")
@@ -13961,7 +13999,7 @@ function renderInventoryManagementList() {
         )
       ).join(" ");
 
-      // V21.7: cache original import-cost numbers while matching imports are
+      // V21.8: cache original import-cost numbers while matching imports are
       // already in memory. This adds no save/sync/delete calls and leaves the
       // existing smart-search pipeline untouched.
       const originalCostValuesV216 = matchingImports
@@ -14043,7 +14081,7 @@ function renderInventoryManagementList() {
           keyword
         );
 
-      // V21.7: when the query is purely numeric (commas and decimals allowed),
+      // V21.8: when the query is purely numeric (commas and decimals allowed),
       // match the numeric Original Cost exactly, regardless of currency.
       // Existing product/import/tracking searches continue to run unchanged.
       const originalCostQueryTextV216 = String(keyword || "")
@@ -14058,11 +14096,14 @@ function renderInventoryManagementList() {
           Math.abs(Number(value) - originalCostQueryV216) < 0.000001
         );
 
+      if (isOriginalCostOnlySearchV218(keyword)) {
+        return originalCostMatchV216;
+      }
+
       return (
         productMatch ||
         importNumberMatch ||
-        overseasTrackingMatch ||
-        originalCostMatchV216
+        overseasTrackingMatch
       );
     });
 
@@ -15034,7 +15075,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "21.7",
+      version: "21.8",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -15401,7 +15442,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V21.7 Stable",
+      updatedBy: "System V21.8 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
