@@ -974,7 +974,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V21.6 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V21.7 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1343,7 +1343,7 @@ function salesItemAlreadyProcessedLocallyV104(item, product) {
     }
   }
 
-  // V21.6: batch commits store a unique commit key plus the stable Sales
+  // V21.7: batch commits store a unique commit key plus the stable Sales
   // accounting key.  Either one proves that inventory was already committed.
   // This keeps a still-pending Sales card visible as ACK-only after a timeout
   // instead of silently dropping it and risking a later duplicate deduction.
@@ -1602,7 +1602,7 @@ function showStartupSalesInventoryReminderV80() {
       const restorePrecheckFailed=/Sales Restore 状态读取超时|无法连接 Sales System 读取 Restore 状态|无法读取 Sales Restore 状态/i.test(message);
 
       if(restorePrecheckFailed){
-        // V21.6: prepareSalesInventoryOperationV117 runs before any inventory
+        // V21.7: prepareSalesInventoryOperationV117 runs before any inventory
         // commit.  If that read-only Restore precheck times out, nothing has been
         // deducted yet, so keep the frozen reminder exactly as-is.  Do not replace
         // it with a transient/empty feed result and make the card disappear.
@@ -5218,7 +5218,7 @@ function sequentialSearchMatches(searchableValue, queryValue) {
   return source.includes(query);
 }
 
-// V21.6: shared read-only Original Cost matcher for every product-search surface.
+// V21.7: shared read-only Original Cost matcher for every product-search surface.
 // Pure numeric queries (commas/spaces/decimals allowed) match unitPrice exactly,
 // regardless of currency. This helper only reads already-loaded local collections.
 function parseOriginalCostSearchQueryV216(queryValue) {
@@ -5249,12 +5249,11 @@ function originalCostMatchesProductV216(product, queryValue, imports = null) {
   });
 }
 
+// V21.7: record/batch-level searches must match the Original Cost stored on
+// that exact row. Never fall back to another import row of the same Product ID,
+// otherwise a 320 search can incorrectly pull in a 200 batch for the same product.
 function originalCostMatchesBatchItemV216(item, queryValue) {
-  if (originalCostNumberMatchesV216(item?.unitPrice, queryValue)) return true;
-  return originalCostMatchesProductV216({
-    id: item?.productId,
-    name: item?.productName || item?.name
-  }, queryValue);
+  return originalCostNumberMatchesV216(item?.unitPrice, queryValue);
 }
 
 function renderProductList() {
@@ -9885,16 +9884,17 @@ function renderImportHistoryNowV134() {
   const exactHistoryProduct = String(
     input.dataset.exactHistoryProduct || ""
   ).trim().toLowerCase();
-  const currentProductMatches = getProducts().filter(product => {
-    const name = String(product.name || "").trim().toLowerCase();
-    const id = String(product.id || "").trim().toLowerCase();
-    const category = String(product.category || "").trim().toLowerCase();
-    if (exactHistoryProduct) return name === exactHistoryProduct;
-    return smartSearchMatches([name, id, category].join(" "), normalizedKeyword) ||
-      originalCostMatchesProductV216(product, keyword);
-  });
+  // V21.7: stable Product ID linkage is only for the original text/product search.
+  // A numeric Original Cost hit must remain row/batch-specific; it must not turn
+  // into a Product ID hit that automatically includes every historical batch.
   const matchedProductIds = new Set(
-    currentProductMatches.map(product => String(product.id || "").trim()).filter(Boolean)
+    getProducts().filter(product => {
+      const name = String(product.name || "").trim().toLowerCase();
+      const id = String(product.id || "").trim().toLowerCase();
+      const category = String(product.category || "").trim().toLowerCase();
+      if (exactHistoryProduct) return name === exactHistoryProduct;
+      return smartSearchMatches([name, id, category].join(" "), normalizedKeyword);
+    }).map(product => String(product.id || "").trim()).filter(Boolean)
   );
 
   const productMatches = batches.map(batch => {
@@ -13961,7 +13961,7 @@ function renderInventoryManagementList() {
         )
       ).join(" ");
 
-      // V21.6: cache original import-cost numbers while matching imports are
+      // V21.7: cache original import-cost numbers while matching imports are
       // already in memory. This adds no save/sync/delete calls and leaves the
       // existing smart-search pipeline untouched.
       const originalCostValuesV216 = matchingImports
@@ -14043,7 +14043,7 @@ function renderInventoryManagementList() {
           keyword
         );
 
-      // V21.6: when the query is purely numeric (commas and decimals allowed),
+      // V21.7: when the query is purely numeric (commas and decimals allowed),
       // match the numeric Original Cost exactly, regardless of currency.
       // Existing product/import/tracking searches continue to run unchanged.
       const originalCostQueryTextV216 = String(keyword || "")
@@ -15034,7 +15034,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "21.6",
+      version: "21.7",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -15401,7 +15401,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V21.6 Stable",
+      updatedBy: "System V21.7 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
