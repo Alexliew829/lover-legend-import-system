@@ -5252,7 +5252,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 
-/* V22.6 Dedicated Original Cost correction: the blue value is the sole
+/* V22.7 Dedicated Original Cost correction: the blue value is the sole
    controlled historical Original Cost edit entrance. */
 .product-stock-original-cost-btn-v219 {
   border: 0;
@@ -5286,7 +5286,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 
 
 
-/* V22.6 UI + full revision history */
+/* V22.7 UI + full revision history */
 #costRevisionHistorySearch {
   text-align: left !important;
   direction: ltr;
@@ -5327,7 +5327,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
   .product-stock-result-row { grid-template-columns: minmax(0, 1fr) 155px; }
 }
 
-/* V22.6 mobile fit + touch-selection polish */
+/* V22.7 mobile fit + touch-selection polish */
 .original-cost-edit-actions-v219 button,
 .original-cost-edit-actions-v219 button *,
 #saveOriginalCostEditV219,
@@ -5376,7 +5376,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 
-/* V22.6 desktop result-space use + original-cost dialog copy/selection polish */
+/* V22.7 desktop result-space use + original-cost dialog copy/selection polish */
 @media (min-width: 701px) {
   .product-stock-result-row {
     grid-template-columns: minmax(0, 1fr) minmax(220px, 32%);
@@ -5412,7 +5412,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
   -webkit-touch-callout: none !important;
 }
 
-/* V22.6 original-cost editor: prevent mobile text selection everywhere except the numeric input. */
+/* V22.7 original-cost editor: prevent mobile text selection everywhere except the numeric input. */
 .original-cost-edit-dialog-v219,
 .original-cost-edit-dialog-v219 *:not(input):not(textarea) {
   -webkit-user-select: none !important;
@@ -5428,3 +5428,13 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .original-cost-edit-product-copy-v224 {
   touch-action: manipulation;
 }
+
+
+/* V22.7 product category management */
+.product-category-list-v227 { display: grid; gap: 8px; margin: 10px 0 12px; }
+.product-category-row-v227 { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--border, #d8e2da); border-radius: 10px; background: #fff; }
+.product-category-row-v227 span { font-weight: 700; overflow-wrap: anywhere; }
+.product-category-row-v227 .secondary-btn { width: auto; min-width: 72px; margin: 0; }
+.product-category-add-v227 { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 10px; }
+.product-category-add-v227 .primary-btn { width: auto; min-width: 140px; margin: 0; }
+@media (max-width: 680px) { .product-category-add-v227 { grid-template-columns: 1fr; } .product-category-add-v227 .primary-btn { width: 100%; } }

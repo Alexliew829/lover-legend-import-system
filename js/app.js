@@ -976,7 +976,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V22.6 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V22.7 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1345,7 +1345,7 @@ function salesItemAlreadyProcessedLocallyV104(item, product) {
     }
   }
 
-  // V22.6: batch commits store a unique commit key plus the stable Sales
+  // V22.7: batch commits store a unique commit key plus the stable Sales
   // accounting key.  Either one proves that inventory was already committed.
   // This keeps a still-pending Sales card visible as ACK-only after a timeout
   // instead of silently dropping it and risking a later duplicate deduction.
@@ -1604,7 +1604,7 @@ function showStartupSalesInventoryReminderV80() {
       const restorePrecheckFailed=/Sales Restore 状态读取超时|无法连接 Sales System 读取 Restore 状态|无法读取 Sales Restore 状态/i.test(message);
 
       if(restorePrecheckFailed){
-        // V22.6: prepareSalesInventoryOperationV117 runs before any inventory
+        // V22.7: prepareSalesInventoryOperationV117 runs before any inventory
         // commit.  If that read-only Restore precheck times out, nothing has been
         // deducted yet, so keep the frozen reminder exactly as-is.  Do not replace
         // it with a transient/empty feed result and make the card disappear.
@@ -2583,7 +2583,9 @@ function setupNavigation() {
       if(target!==current&&!confirmLeaveOriginalCostEditV219())return;
       if(target!==current&&promotionDeleteInProgressV184&&!window.confirm("促销删除仍在同步中。\n\n现在切换页面可能无法立即确认云端删除结果，建议等待显示删除完成。\n\n仍要切换页面吗？"))return;
       if(target!==current&&current==="settingsPage"){
+        if(!confirmDiscardStaleZeroStockSelectionV227())return;
         if(!confirmLeaveSettingsV160())return;
+        collapseStaleZeroStockPanelV227();
         collapseSettingsPanelsV196();
       }
       if(target!==current&&restoreLeaveProtectionActiveV133()&&!confirmRestoreNavigationV133())return;
@@ -2639,6 +2641,7 @@ function setupNavigation() {
       }
 
       if (target === "settingsPage") {
+        collapseStaleZeroStockPanelV227();
         refreshPromotionCloudStateV209(true);
       }
 
@@ -2675,7 +2678,8 @@ const DEFAULT_EXCHANGE_RATES_V160 = Object.freeze({
   CNY: 1.60,
   NTD: 7.69,
   VND: 6300.00,
-  IDR: 3571.00
+  IDR: 3571.00,
+  MYR: 1.00
 });
 
 function hasUnsavedSettingsChangesV160() {
@@ -2696,7 +2700,7 @@ function hasUnsavedSettingsChangesV160() {
   if (passwordDraftIds.some(id => String(document.getElementById(id)?.value || "") !== "")) {
     return true;
   }
-  if (["newProductPrefixKeyword", "newProductPrefixCode"].some(id =>
+  if (["newProductPrefixKeyword", "newProductPrefixCode", "newProductCategoryName"].some(id =>
     String(document.getElementById(id)?.value || "").trim() !== "")) return true;
   if (typeof hasPromotionDraftChangesV183 === "function" && hasPromotionDraftChangesV183()) return true;
 
@@ -2721,7 +2725,7 @@ function discardSettingsDraftV160() {
     const input = document.getElementById(id);
     if (input) input.value = "";
   });
-  ["newProductPrefixKeyword", "newProductPrefixCode"].forEach(id => {
+  ["newProductPrefixKeyword", "newProductPrefixCode", "newProductCategoryName"].forEach(id => {
     const input = document.getElementById(id);
     if (input) input.value = "";
   });
@@ -2779,7 +2783,7 @@ function setupMinimumPriceSettingsV160() {
   if (!window.minimumPriceSettingsLeaveGuardBoundV160) {
     window.minimumPriceSettingsLeaveGuardBoundV160 = true;
     window.addEventListener("beforeunload", event => {
-      if (!hasUnsavedSettingsChangesV160()) return;
+      if (!hasUnsavedSettingsChangesV160() && !hasSelectedStaleZeroStockProductsV227()) return;
       event.preventDefault();
       event.returnValue = "";
     });
@@ -2946,6 +2950,7 @@ function setupSettings() {
   setupMinimumPriceSettingsV160();
   setupPromotionSettingsV183();
   setupProductPrefixSettingsV181();
+  setupProductCategorySettingsV227();
   setupDeviceBiometricSettings();
   setupDataTools();
   setupHistoricalSalesRepairTools();
@@ -3109,7 +3114,7 @@ function applyBatchCostEditability() {
   const repairEnabled = getCostRepairModeEnabled();
   const lockedSaved = isEditing && !repairEnabled;
 
-  // V22.6: China-side/core import facts are immutable once saved, even when
+  // V22.7: China-side/core import facts are immutable once saved, even when
   // Data Repair is ON. If they are wrong, copy the whole import as a new draft,
   // save the corrected new import number, then delete the wrong old import.
   [
@@ -3333,6 +3338,7 @@ function setupDashboard() {
 }
 
 function renderDashboard() {
+  if (typeof migrateLegacyProductCategoriesV227 === "function") migrateLegacyProductCategoriesV227();
   const products = loadJSON("importSystemProducts", []);
   // 库存数量才是首页是否显示的最终依据。
   // 旧版本或删除批次后可能遗留 inventoryArchived=true，
@@ -3342,9 +3348,9 @@ function renderDashboard() {
   );
 
   const productCount = activeInventoryProducts.length;
-  const categoryOrder = ["盆栽", "花盆", "周边产品"];
+  const categoryOrder = typeof getProductCategoriesV227 === "function" ? getProductCategoriesV227() : ["盆栽"];
   const categoryCounts = activeInventoryProducts.reduce((counts, item) => {
-    const category = item.category || "盆栽";
+    const category = item.category === "周边产品" ? "其他" : (item.category === "花盆" ? "花盆 / 配件 / 工具" : (item.category || "盆栽"));
     counts[category] = (counts[category] || 0) + 1;
     return counts;
   }, {});
@@ -4907,6 +4913,169 @@ function saveProducts(products) {
   }
 }
 
+
+const DEFAULT_PRODUCT_CATEGORIES_V227 = Object.freeze([
+  "盆栽",
+  "杂花杂木",
+  "肥料 / 农药",
+  "泥土 / 介质",
+  "花盆 / 配件 / 工具",
+  "其他"
+]);
+
+function normalizeProductCategoryNameV227(value) {
+  return String(value || "").normalize("NFKC").replace(/[\s\u3000]+/g, " ").trim();
+}
+
+function getProductCategoriesV227() {
+  const settings = loadJSON("importSystemSettings", {});
+  const hasSaved = Array.isArray(settings.productCategoriesV227) && settings.productCategoriesV227.length > 0;
+  const source = hasSaved ? settings.productCategoriesV227 : DEFAULT_PRODUCT_CATEGORIES_V227;
+  const result = [];
+  const used = new Set();
+  source.forEach(value => {
+    const name = normalizeProductCategoryNameV227(value);
+    const key = name.toLocaleLowerCase();
+    if (!name || used.has(key) || name === "周边产品" || name === "花盆") return;
+    used.add(key);
+    result.push(name);
+  });
+  return result;
+}
+
+function productCategoryOptionsHTMLV227(selected = "盆栽") {
+  const wanted = normalizeProductCategoryNameV227(selected) || "盆栽";
+  const categories = getProductCategoriesV227();
+  if (!categories.some(name => name === wanted)) categories.push(wanted);
+  return categories.map(name => `<option value="${escapeHTML(name)}"${name === wanted ? " selected" : ""}>${escapeHTML(name)}</option>`).join("");
+}
+
+function migrateLegacyProductCategoriesV227() {
+  const mappings = new Map([["周边产品", "其他"], ["花盆", "花盆 / 配件 / 工具"]]);
+  const products = getProducts();
+  const imports = getImports();
+  const batches = getBatches();
+  let pChanged = false, iChanged = false, bChanged = false;
+  const nextProducts = products.map(item => {
+    const next = mappings.get(String(item?.category || ""));
+    if (!next) return item;
+    pChanged = true;
+    return { ...item, category: next };
+  });
+  const nextImports = imports.map(item => {
+    const next = mappings.get(String(item?.category || ""));
+    if (!next) return item;
+    iChanged = true;
+    return { ...item, category: next };
+  });
+  const nextBatches = batches.map(batch => {
+    let changed = false;
+    const items = (Array.isArray(batch?.items) ? batch.items : []).map(item => {
+      const next = mappings.get(String(item?.category || ""));
+      if (!next) return item;
+      changed = true;
+      return { ...item, category: next };
+    });
+    if (!changed) return batch;
+    bChanged = true;
+    return { ...batch, items };
+  });
+  if (pChanged) {
+    saveJSON("importSystemProducts", nextProducts);
+    if (typeof markCloudCollectionSaved === "function") markCloudCollectionSaved("products", products, nextProducts);
+  }
+  if (iChanged) {
+    saveJSON("importSystemImports", nextImports);
+    if (typeof markCloudCollectionSaved === "function") markCloudCollectionSaved("imports", imports, nextImports);
+  }
+  if (bChanged) {
+    saveJSON("importSystemBatches", nextBatches);
+    if (typeof markCloudCollectionSaved === "function") markCloudCollectionSaved("batches", batches, nextBatches);
+  }
+}
+
+function renderProductCategoriesV227() {
+  const list = document.getElementById("productCategoryRulesList");
+  if (!list) return;
+  list.innerHTML = getProductCategoriesV227().map((name, index) => `
+    <div class="product-category-row-v227">
+      <span>${escapeHTML(name)}</span>
+      <button type="button" class="secondary-btn edit-product-category-v227" data-category-index="${index}" data-category-name="${escapeHTML(name)}">修改</button>
+    </div>`).join("");
+}
+
+function renameProductCategoryV227(oldName, nextName) {
+  const oldValue = normalizeProductCategoryNameV227(oldName);
+  const nextValue = normalizeProductCategoryNameV227(nextName);
+  if (!oldValue || !nextValue || oldValue === nextValue) return false;
+  const categories = getProductCategoriesV227();
+  if (categories.some(name => name.toLocaleLowerCase() === nextValue.toLocaleLowerCase() && name !== oldValue)) {
+    alert("已经有相同的产品类别名称。");
+    return false;
+  }
+  const products = getProducts();
+  const imports = getImports();
+  const batches = getBatches();
+  const nextProducts = products.map(item => String(item?.category || "") === oldValue ? { ...item, category: nextValue } : item);
+  const nextImports = imports.map(item => String(item?.category || "") === oldValue ? { ...item, category: nextValue } : item);
+  const nextBatches = batches.map(batch => ({ ...batch, items: (Array.isArray(batch?.items) ? batch.items : []).map(item => String(item?.category || "") === oldValue ? { ...item, category: nextValue } : item) }));
+  const settings = loadJSON("importSystemSettings", {});
+  const nextCategories = categories.map(name => name === oldValue ? nextValue : name);
+  saveJSON("importSystemProducts", nextProducts);
+  saveJSON("importSystemImports", nextImports);
+  saveJSON("importSystemBatches", nextBatches);
+  saveJSON("importSystemSettings", { ...settings, productCategoriesV227: nextCategories });
+  if (typeof markCloudCollectionSaved === "function") {
+    markCloudCollectionSaved("products", products, nextProducts);
+    markCloudCollectionSaved("imports", imports, nextImports);
+    markCloudCollectionSaved("batches", batches, nextBatches);
+  }
+  if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
+  return true;
+}
+
+function setupProductCategorySettingsV227() {
+  migrateLegacyProductCategoriesV227();
+  renderProductCategoriesV227();
+  const list = document.getElementById("productCategoryRulesList");
+  const input = document.getElementById("newProductCategoryName");
+  const addButton = document.getElementById("addProductCategoryBtn");
+  const status = document.getElementById("productCategoryStatus");
+  list?.addEventListener("click", event => {
+    const button = event.target.closest(".edit-product-category-v227");
+    if (!button) return;
+    const oldName = String(button.dataset.categoryName || "");
+    const draft = window.prompt(`修改产品类别名称：\n\n${oldName}`, oldName);
+    if (draft === null) return;
+    const nextName = normalizeProductCategoryNameV227(draft);
+    if (!nextName || nextName === oldName) return;
+    if (!window.confirm(`确认把产品类别：\n\n${oldName}\n\n修改为：\n\n${nextName}\n\n现有该类别的产品、进口记录及批次类别会一并更新；库存、成本和产品编号不会改变。`)) return;
+    if (renameProductCategoryV227(oldName, nextName)) {
+      renderProductCategoriesV227();
+      renderDashboard();
+      renderInventoryManagementList();
+      renderBatchSuggestions();
+      if (status) status.textContent = `已修改类别：${oldName} → ${nextName}`;
+    }
+  });
+  addButton?.addEventListener("click", () => {
+    const name = normalizeProductCategoryNameV227(input?.value);
+    if (!name) { if (status) status.textContent = "请输入产品类别名称"; input?.focus(); return; }
+    if (getProductCategoriesV227().some(item => item.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+      if (status) status.textContent = "这个产品类别已经存在";
+      return;
+    }
+    if (!window.confirm(`确认新增产品类别：${name}？\n\n新增后会立即出现在产品进口类别选择中。`)) return;
+    const settings = loadJSON("importSystemSettings", {});
+    const next = [...getProductCategoriesV227(), name];
+    saveJSON("importSystemSettings", { ...settings, productCategoriesV227: next });
+    if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
+    if (input) input.value = "";
+    renderProductCategoriesV227();
+    if (status) status.textContent = `已新增产品类别：${name}`;
+  });
+}
+
 const PRODUCT_PREFIX_RULES_V163 = Object.freeze([
   ["黄杨", "BX"], ["凌珊", "BB"], ["罗汉松", "PD"], ["李氏樱桃", "SK"],
   ["水梅", "JL"], ["酸豆", "AS"], ["寿娘子", "SC"], ["三角梅", "BV"],
@@ -5028,7 +5197,7 @@ function setupProductPrefixSettingsV181() {
 }
 
 function getProductPrefix(category, name = "") {
-  if (category === "花盆") return "PS";
+  if (category === "花盆" || (category === "花盆 / 配件 / 工具" && normalizeProductPrefixKeywordV181(name).includes(normalizeProductPrefixKeywordV181("花盆")))) return "PS";
   const compact = normalizeProductPrefixKeywordV181(name);
   const matched = getProductPrefixRulesV181().find(([keyword]) => compact.includes(normalizeProductPrefixKeywordV181(keyword)));
   return matched ? matched[1] : "PZ";
@@ -5270,7 +5439,7 @@ function sequentialSearchMatches(searchableValue, queryValue) {
   return source.includes(query);
 }
 
-// V22.6: shared read-only Original Cost matcher for every product-search surface.
+// V22.7: shared read-only Original Cost matcher for every product-search surface.
 // Pure numeric queries (commas/spaces/decimals allowed) match unitPrice exactly,
 // regardless of currency. This helper only reads already-loaded local collections.
 function parseOriginalCostSearchQueryV216(queryValue) {
@@ -5301,14 +5470,14 @@ function originalCostMatchesProductV216(product, queryValue, imports = null) {
   });
 }
 
-// V22.6: record/batch-level searches must match the Original Cost stored on
+// V22.7: record/batch-level searches must match the Original Cost stored on
 // that exact row. Never fall back to another import row of the same Product ID,
 // otherwise a 320 search can incorrectly pull in a 200 batch for the same product.
 function originalCostMatchesBatchItemV216(item, queryValue) {
   return originalCostNumberMatchesV216(item?.unitPrice, queryValue);
 }
 
-// V22.6: a pure numeric product-search query is reserved exclusively for
+// V22.7: a pure numeric product-search query is reserved exclusively for
 // exact Original Cost matching. It must never fall through to product names,
 // IDs, import numbers, tracking numbers, dates, quantities, or other numeric text.
 function isOriginalCostOnlySearchV218(queryValue) {
@@ -7057,11 +7226,13 @@ function getStoredBatchValue(batch, items, key, fallback = "") {
 }
 
 function getDefaultExchangeRate(currency) {
+  if (String(currency || "").toUpperCase() === "MYR") return 1.00;
   const defaults = {
     CNY: 1.60,
     NTD: 7.69,
     VND: 6300.00,
-    IDR: 3571.00
+    IDR: 3571.00,
+    MYR: 1.00
   };
 
   const saved = loadJSON("importSystemSettings", {});
@@ -10065,7 +10236,7 @@ function renderImportHistoryNowV134() {
   const exactHistoryProduct = String(
     input.dataset.exactHistoryProduct || ""
   ).trim().toLowerCase();
-  // V22.6: stable Product ID linkage is only for the original text/product search.
+  // V22.7: stable Product ID linkage is only for the original text/product search.
   // A numeric Original Cost hit must remain row/batch-specific; it must not turn
   // into a Product ID hit that automatically includes every historical batch.
   const matchedProductIds = new Set(
@@ -10379,7 +10550,8 @@ function applyBatchRate(){
     CNY: 1.60,
     NTD: 7.69,
     VND: 6300.00,
-    IDR: 3571.00
+    IDR: 3571.00,
+    MYR: 1.00
   };
 
   const saved = loadJSON("importSystemSettings", {});
@@ -10389,10 +10561,14 @@ function applyBatchRate(){
   };
 
   const currency = document.getElementById("batchCurrency").value;
-  const rate = Number(settings[currency]);
-
-  document.getElementById("batchRate").value =
+  const rateInput = document.getElementById("batchRate");
+  const rate = currency === "MYR" ? 1 : Number(settings[currency]);
+  rateInput.value = currency === "MYR" ? "1.00" :
     formatMoney(Number.isFinite(rate) && rate > 0 ? rate : defaults[currency] || 0);
+  const savedImportLocked = Boolean(currentEditingImportNumber);
+  rateInput.disabled = currency === "MYR" || savedImportLocked;
+  rateInput.classList.toggle("cost-field-locked", currency === "MYR" || savedImportLocked);
+  rateInput.title = currency === "MYR" ? "MYR 本币无需换算，汇率固定 1.00" : (savedImportLocked ? "已保存进口的汇率永久锁定。" : "");
 }
 
 function formatNativeDateToDDMMYYYY(value) {
@@ -10670,7 +10846,7 @@ function resetBatchForm(options = {}) {
   if (transitDays) transitDays.value = "-";
 
   const currency = document.getElementById("batchCurrency");
-  if (currency) currency.value = "CNY";
+  if (currency) { currency.value = "CNY"; applyBatchRate(); }
 
   applyBatchRate();
 
@@ -10723,17 +10899,13 @@ function addBatchRow(prefill = {}){
   <td><input id="batchQty-${id}" inputmode="numeric" placeholder="0"></td>
   <td><input id="batchPrice-${id}" inputmode="decimal" placeholder="0.00"></td>
   <td><input id="batchPurchaseForeign-${id}" value="0.00" disabled></td>
-  <td><select id="batchCategory-${id}">
-    <option value="盆栽">盆栽</option>
-    <option value="花盆">花盆</option>
-    <option value="周边产品">周边产品</option>
-  </select></td>
+  <td><select id="batchCategory-${id}">${productCategoryOptionsHTMLV227(prefill.category || "盆栽")}</select></td>
   <td><input id="batchStock-${id}" inputmode="numeric" placeholder="0" disabled></td>
   <td><input id="batchUnitCost-${id}" value="0.00" disabled></td>
   <td><button type="button" class="remove-item-btn" onclick="removeBatchRow(${id})">删除</button></td>`;
   document.getElementById("batchRows").appendChild(tr);
   document.getElementById(`batchCategory-${id}`).value =
-    prefill.category || "盆栽";
+    (prefill.category === "周边产品" ? "其他" : (prefill.category === "花盆" ? "花盆 / 配件 / 工具" : (prefill.category || "盆栽")));
   if (Number.isFinite(Number(prefill.quantity))) {
     const quantity = Math.max(0, Math.floor(Number(prefill.quantity)));
     const quantityInput = document.getElementById(`batchQty-${id}`);
@@ -10990,10 +11162,10 @@ function attachBatchRowEvents(id){
     );
     const currency = document.getElementById("batchCurrency");
 
-    if (price >= 100000 && currency.value !== "VND") {
+    if (currency.value === "CNY" && price >= 100000) {
       currency.value = "VND";
       applyBatchRate();
-    } else if (price < 100000 && currency.value === "VND") {
+    } else if (currency.value === "VND" && price < 100000) {
       currency.value = "CNY";
       applyBatchRate();
     }
@@ -11504,7 +11676,7 @@ function saveBatchImport() {
       transitDays: updateTransitDays()
     };
 
-    // V22.6: revision history records every allowed Data Repair field, not only costs.
+    // V22.7: revision history records every allowed Data Repair field, not only costs.
     const repairLogTimeV222 = new Date().toLocaleString("zh-MY", { hour12: false });
     const addRepairLogV222 = (fieldLabel, before, after) => {
       if (String(before ?? "") === String(after ?? "")) return;
@@ -11527,7 +11699,7 @@ function saveBatchImport() {
     let updatedCostSnapshot = {};
     let repairChangesCostV206 = false;
     if (repairEnabled) {
-      // V22.6 Data Repair may change only the Malaysia-side overseas freight
+      // V22.7 Data Repair may change only the Malaysia-side overseas freight
       // among cost-bearing fields. China-side costs, original prices, currency
       // and exchange rate are immutable here.
       const nextChina = Number(oldBatch.chinaTransportCost) || 0;
@@ -12081,7 +12253,7 @@ function renderBatchList() {
   }).join("");
 }
 
-// ================= V22.6 Dedicated Original Cost Correction =================
+// ================= V22.7 Dedicated Original Cost Correction =================
 let originalCostEditPendingV219 = null;
 
 function getPreferredOriginalCostRecordV219(product, queryValue = "", explicitImportId = "") {
@@ -14410,7 +14582,7 @@ function renderInventoryManagementList() {
         )
       ).join(" ");
 
-      // V22.6: cache original import-cost numbers while matching imports are
+      // V22.7: cache original import-cost numbers while matching imports are
       // already in memory. This adds no save/sync/delete calls and leaves the
       // existing smart-search pipeline untouched.
       const originalCostValuesV216 = matchingImports
@@ -14492,7 +14664,7 @@ function renderInventoryManagementList() {
           keyword
         );
 
-      // V22.6: when the query is purely numeric (commas and decimals allowed),
+      // V22.7: when the query is purely numeric (commas and decimals allowed),
       // match the numeric Original Cost exactly, regardless of currency.
       // Existing product/import/tracking searches continue to run unchanged.
       const originalCostQueryTextV216 = String(keyword || "")
@@ -14988,10 +15160,16 @@ function setupDataTools() {
   restoreButton?.addEventListener("click", () => restoreInput?.click());
   restoreInput?.addEventListener("change", restoreSystemData);
 
-  findStaleButton?.addEventListener(
-    "click",
-    renderStaleZeroStockProducts
-  );
+  findStaleButton?.addEventListener("click", () => {
+    const panel = document.getElementById("staleZeroStockPanel");
+    if (!panel) return;
+    if (!panel.hidden) {
+      if (!confirmDiscardStaleZeroStockSelectionV227()) return;
+      collapseStaleZeroStockPanelV227();
+      return;
+    }
+    renderStaleZeroStockProducts();
+  });
 
   staleList?.addEventListener("change", () => {
     updateStaleDeleteButtonState();
@@ -15004,6 +15182,29 @@ function setupDataTools() {
 }
 
 
+
+
+function hasSelectedStaleZeroStockProductsV227() {
+  return Boolean(document.querySelector(".stale-zero-stock-checkbox:checked"));
+}
+
+function discardStaleZeroStockSelectionV227() {
+  document.querySelectorAll(".stale-zero-stock-checkbox:checked").forEach(input => { input.checked = false; });
+  updateStaleDeleteButtonState();
+}
+
+function confirmDiscardStaleZeroStockSelectionV227() {
+  if (!hasSelectedStaleZeroStockProductsV227()) return true;
+  const ok = window.confirm("有已选择但尚未删除的零库存产品。\n\n确定离开并放弃这些选择吗？\n不会执行任何删除。");
+  if (ok) discardStaleZeroStockSelectionV227();
+  return ok;
+}
+
+function collapseStaleZeroStockPanelV227() {
+  const panel = document.getElementById("staleZeroStockPanel");
+  if (panel) panel.hidden = true;
+  discardStaleZeroStockSelectionV227();
+}
 
 function getStaleProductActivityTime(product, imports, batches) {
   const productId = String(product?.id || "").trim();
@@ -15298,7 +15499,7 @@ function deleteSelectedStaleZeroStockProducts() {
   renderBatchList();
   renderBatchProductStockResults();
   renderImportHistory();
-  renderStaleZeroStockProducts();
+  collapseStaleZeroStockPanelV227();
 
   showDataToolsStatus(`已永久删除 ${formatNumber(selectedProducts.length)} 个零库存产品及相关进口资料，正在同步 Google Sheet`);
 }
@@ -15486,7 +15687,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "22.6",
+      version: "22.7",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -15853,7 +16054,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V22.6 Stable",
+      updatedBy: "System V22.7 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
