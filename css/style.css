@@ -5252,7 +5252,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 
-/* V22.3 Dedicated Original Cost correction: the blue value is the sole
+/* V22.4 Dedicated Original Cost correction: the blue value is the sole
    controlled historical Original Cost edit entrance. */
 .product-stock-original-cost-btn-v219 {
   border: 0;
@@ -5286,7 +5286,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 
 
 
-/* V22.3 UI + full revision history */
+/* V22.4 UI + full revision history */
 #costRevisionHistorySearch {
   text-align: left !important;
   direction: ltr;
@@ -5327,7 +5327,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
   .product-stock-result-row { grid-template-columns: minmax(0, 1fr) 155px; }
 }
 
-/* V22.3 mobile fit + touch-selection polish */
+/* V22.4 mobile fit + touch-selection polish */
 .original-cost-edit-actions-v219 button,
 .original-cost-edit-actions-v219 button *,
 #saveOriginalCostEditV219,
@@ -5373,4 +5373,41 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
     padding-left: 4px !important;
     padding-right: 4px !important;
   }
+}
+
+
+/* V22.4 desktop result-space use + original-cost dialog copy/selection polish */
+@media (min-width: 701px) {
+  .product-stock-result-row {
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 32%);
+  }
+  .product-stock-minimum-price-btn {
+    width: 100%;
+    justify-content: flex-start;
+    overflow: visible;
+    font-size: .94rem !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+}
+.original-cost-edit-product-copy-v224 {
+  display: inline-block;
+  width: fit-content;
+  max-width: 100%;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.25;
+  color: #18211b;
+  text-align: left;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
+}
+.original-cost-edit-dialog-v219 p,
+.original-cost-edit-dialog-v219 p *,
+.original-cost-edit-product-copy-v224,
+.original-cost-edit-product-copy-v224 * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
 }
