@@ -1,4 +1,4 @@
-const APP_VERSION = "22.9";
+const APP_VERSION = "23.0";
 
 function formatMoney(value, prefix = "") {
   const number = Number(value) || 0;

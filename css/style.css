@@ -5252,7 +5252,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 
-/* V22.9 Dedicated Original Cost correction: the blue value is the sole
+/* V23.0 Dedicated Original Cost correction: the blue value is the sole
    controlled historical Original Cost edit entrance. */
 .product-stock-original-cost-btn-v219 {
   border: 0;
@@ -5286,7 +5286,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 
 
 
-/* V22.9 UI + full revision history */
+/* V23.0 UI + full revision history */
 #costRevisionHistorySearch {
   text-align: left !important;
   direction: ltr;
@@ -5327,7 +5327,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
   .product-stock-result-row { grid-template-columns: minmax(0, 1fr) 155px; }
 }
 
-/* V22.9 mobile fit + touch-selection polish */
+/* V23.0 mobile fit + touch-selection polish */
 .original-cost-edit-actions-v219 button,
 .original-cost-edit-actions-v219 button *,
 #saveOriginalCostEditV219,
@@ -5376,7 +5376,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 
-/* V22.9 desktop result-space use + original-cost dialog copy/selection polish */
+/* V23.0 desktop result-space use + original-cost dialog copy/selection polish */
 @media (min-width: 701px) {
   .product-stock-result-row {
     grid-template-columns: minmax(0, 1fr) minmax(220px, 32%);
@@ -5412,7 +5412,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
   -webkit-touch-callout: none !important;
 }
 
-/* V22.9 original-cost editor: prevent mobile text selection everywhere except the numeric input. */
+/* V23.0 original-cost editor: prevent mobile text selection everywhere except the numeric input. */
 .original-cost-edit-dialog-v219,
 .original-cost-edit-dialog-v219 *:not(input):not(textarea) {
   -webkit-user-select: none !important;
@@ -5430,7 +5430,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 
-/* V22.9 product category management */
+/* V23.0 product category management */
 .product-category-list-v227 { display: grid; gap: 8px; margin: 10px 0 12px; }
 .product-category-row-v227 { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--border, #d8e2da); border-radius: 10px; background: #fff; }
 .product-category-row-v227 span { font-weight: 700; overflow-wrap: anywhere; }
@@ -5439,14 +5439,14 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .product-category-add-v227 .primary-btn { width: auto; min-width: 140px; margin: 0; }
 @media (max-width: 680px) { .product-category-add-v227 { grid-template-columns: 1fr; } .product-category-add-v227 .primary-btn { width: 100%; } }
 
-/* V22.9 category + immutable prefix management */
+/* V23.0 category + immutable prefix management */
 .product-category-row-v227 strong{margin-left:auto;color:#155f3a;min-width:88px;text-align:center}
 .product-category-row-v227 em{font-style:normal;color:#758077;font-size:.85em}
 .product-category-add-v227{grid-template-columns:minmax(0,1fr) 140px auto}
 @media(max-width:680px){.product-category-add-v227{grid-template-columns:1fr}.product-category-row-v227{align-items:center}.product-category-row-v227 strong{min-width:72px}}
 
 
-/* V22.9 category guidance/editability + inventory media links */
+/* V23.0 category guidance/editability + inventory media links */
 .inventory-product-code-v166{margin-top:2px!important;font-size:1.02rem;font-weight:700;line-height:1.2;}
 .category-prefix-guide-v229,.category-edit-v229,.prefix-edit-v229{white-space:nowrap;}
 .product-category-row-v227 em{white-space:nowrap;}
@@ -5456,3 +5456,24 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .inventory-media-delete-v229{color:#b42318;background:#fff7f6;border-color:#f1c7c2;}
 .inventory-media-copy-v229{max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 @media(max-width:680px){.inventory-media-links-v229{gap:5px;margin-top:5px}.inventory-media-add-v229,.inventory-media-copy-v229,.inventory-media-delete-v229{font-size:.78rem;padding:5px 7px}.inventory-media-copy-v229{max-width:150px}.category-prefix-guide-v229{white-space:normal;text-align:center}}
+
+
+/* V23.0 media usability + mobile readability */
+.inventory-media-add-v229,.inventory-media-open-v230{
+  color:#0b67c2;
+  border-color:#b9d8f5;
+  background:#f4f9ff;
+  font-size:.96rem;
+  font-weight:800;
+  text-decoration:none;
+  line-height:1.2;
+}
+.inventory-media-open-v230{
+  display:inline-flex;align-items:center;border:1px solid #b9d8f5;border-radius:8px;padding:6px 9px;cursor:pointer;
+  user-select:none;-webkit-user-select:none;
+}
+@media(max-width:680px){
+  .inventory-media-add-v229,.inventory-media-open-v230{font-size:1.05rem;padding:8px 10px;}
+  .inventory-media-copy-v229,.inventory-media-delete-v229{font-size:.9rem;padding:7px 9px;}
+  .inventory-media-copy-v229{max-width:none;}
+}

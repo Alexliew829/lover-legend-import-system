@@ -976,7 +976,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V22.9 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V23.0 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1345,7 +1345,7 @@ function salesItemAlreadyProcessedLocallyV104(item, product) {
     }
   }
 
-  // V22.9: batch commits store a unique commit key plus the stable Sales
+  // V23.0: batch commits store a unique commit key plus the stable Sales
   // accounting key.  Either one proves that inventory was already committed.
   // This keeps a still-pending Sales card visible as ACK-only after a timeout
   // instead of silently dropping it and risking a later duplicate deduction.
@@ -1604,7 +1604,7 @@ function showStartupSalesInventoryReminderV80() {
       const restorePrecheckFailed=/Sales Restore 状态读取超时|无法连接 Sales System 读取 Restore 状态|无法读取 Sales Restore 状态/i.test(message);
 
       if(restorePrecheckFailed){
-        // V22.9: prepareSalesInventoryOperationV117 runs before any inventory
+        // V23.0: prepareSalesInventoryOperationV117 runs before any inventory
         // commit.  If that read-only Restore precheck times out, nothing has been
         // deducted yet, so keep the frozen reminder exactly as-is.  Do not replace
         // it with a transient/empty feed result and make the card disappear.
@@ -3114,7 +3114,7 @@ function applyBatchCostEditability() {
   const repairEnabled = getCostRepairModeEnabled();
   const lockedSaved = isEditing && !repairEnabled;
 
-  // V22.9: China-side/core import facts are immutable once saved, even when
+  // V23.0: China-side/core import facts are immutable once saved, even when
   // Data Repair is ON. If they are wrong, copy the whole import as a new draft,
   // save the corrected new import number, then delete the wrong old import.
   [
@@ -5647,7 +5647,7 @@ function sequentialSearchMatches(searchableValue, queryValue) {
   return source.includes(query);
 }
 
-// V22.9: shared read-only Original Cost matcher for every product-search surface.
+// V23.0: shared read-only Original Cost matcher for every product-search surface.
 // Pure numeric queries (commas/spaces/decimals allowed) match unitPrice exactly,
 // regardless of currency. This helper only reads already-loaded local collections.
 function parseOriginalCostSearchQueryV216(queryValue) {
@@ -5678,14 +5678,14 @@ function originalCostMatchesProductV216(product, queryValue, imports = null) {
   });
 }
 
-// V22.9: record/batch-level searches must match the Original Cost stored on
+// V23.0: record/batch-level searches must match the Original Cost stored on
 // that exact row. Never fall back to another import row of the same Product ID,
 // otherwise a 320 search can incorrectly pull in a 200 batch for the same product.
 function originalCostMatchesBatchItemV216(item, queryValue) {
   return originalCostNumberMatchesV216(item?.unitPrice, queryValue);
 }
 
-// V22.9: a pure numeric product-search query is reserved exclusively for
+// V23.0: a pure numeric product-search query is reserved exclusively for
 // exact Original Cost matching. It must never fall through to product names,
 // IDs, import numbers, tracking numbers, dates, quantities, or other numeric text.
 function isOriginalCostOnlySearchV218(queryValue) {
@@ -6041,6 +6041,7 @@ function setupImportModule(){
   });
   document.getElementById("batchCurrency").addEventListener("change",()=>{
     batchCurrencyManuallySelectedV229 = true;
+    clearAutoArrivalWhenLeavingMYRV230();
     applyBatchRate();
     setTodayArrivalForMYRV229();
     calculateBatch();
@@ -7676,6 +7677,7 @@ function loadBatchByNumber() {
     formatDDMMYYYYToNative(containerDate);
   document.getElementById("batchArrivalDatePicker").value =
     formatDDMMYYYYToNative(arrivalDate);
+  batchArrivalAutoFilledByMYRV230 = false;
 
   document.getElementById("batchRows").innerHTML = "";
   batchRowSeq = 0;
@@ -10479,7 +10481,7 @@ function renderImportHistoryNowV134() {
   const exactHistoryProduct = String(
     input.dataset.exactHistoryProduct || ""
   ).trim().toLowerCase();
-  // V22.9: stable Product ID linkage is only for the original text/product search.
+  // V23.0: stable Product ID linkage is only for the original text/product search.
   // A numeric Original Cost hit must remain row/batch-specific; it must not turn
   // into a Product ID hit that automatically includes every historical batch.
   const matchedProductIds = new Set(
@@ -10815,6 +10817,7 @@ function applyBatchRate(){
 }
 
 let batchCurrencyManuallySelectedV229 = false;
+let batchArrivalAutoFilledByMYRV230 = false;
 
 function setTodayArrivalForMYRV229() {
   const currency = document.getElementById("batchCurrency");
@@ -10824,6 +10827,18 @@ function setTodayArrivalForMYRV229() {
   const today = formatDateDDMMYYYY(new Date());
   arrival.value = today;
   if (picker) picker.value = formatDDMMYYYYToNative(today);
+  batchArrivalAutoFilledByMYRV230 = true;
+  updateTransitDays();
+}
+
+function clearAutoArrivalWhenLeavingMYRV230() {
+  const currency = document.getElementById("batchCurrency");
+  if (!currency || currency.value === "MYR" || !batchArrivalAutoFilledByMYRV230) return;
+  const arrival = document.getElementById("batchArrivalDate");
+  const picker = document.getElementById("batchArrivalDatePicker");
+  if (arrival) arrival.value = "";
+  if (picker) picker.value = "";
+  batchArrivalAutoFilledByMYRV230 = false;
   updateTransitDays();
 }
 
@@ -10909,8 +10924,13 @@ function setupDatePickers() {
 
     picker.addEventListener("change", () => {
       textInput.value = formatNativeDateToDDMMYYYY(picker.value);
+      if (textId === "batchArrivalDate") batchArrivalAutoFilledByMYRV230 = false;
       updateTransitDays();
       calculateBatch();
+    });
+
+    textInput.addEventListener("input", () => {
+      if (textId === "batchArrivalDate") batchArrivalAutoFilledByMYRV230 = false;
     });
 
     textInput.addEventListener("blur", () => {
@@ -11112,6 +11132,7 @@ function resetBatchForm(options = {}) {
   if (transitDays) transitDays.value = "-";
 
   batchCurrencyManuallySelectedV229 = false;
+  batchArrivalAutoFilledByMYRV230 = false;
   const currency = document.getElementById("batchCurrency");
   if (currency) { currency.value = "CNY"; applyBatchRate(); }
 
@@ -11952,7 +11973,7 @@ function saveBatchImport() {
       transitDays: updateTransitDays()
     };
 
-    // V22.9: revision history records every allowed Data Repair field, not only costs.
+    // V23.0: revision history records every allowed Data Repair field, not only costs.
     const repairLogTimeV222 = new Date().toLocaleString("zh-MY", { hour12: false });
     const addRepairLogV222 = (fieldLabel, before, after) => {
       if (String(before ?? "") === String(after ?? "")) return;
@@ -11975,7 +11996,7 @@ function saveBatchImport() {
     let updatedCostSnapshot = {};
     let repairChangesCostV206 = false;
     if (repairEnabled) {
-      // V22.9 Data Repair may change only the Malaysia-side overseas freight
+      // V23.0 Data Repair may change only the Malaysia-side overseas freight
       // among cost-bearing fields. China-side costs, original prices, currency
       // and exchange rate are immutable here.
       const nextChina = Number(oldBatch.chinaTransportCost) || 0;
@@ -12529,7 +12550,7 @@ function renderBatchList() {
   }).join("");
 }
 
-// ================= V22.9 Dedicated Original Cost Correction =================
+// ================= V23.0 Dedicated Original Cost Correction =================
 let originalCostEditPendingV219 = null;
 
 function getPreferredOriginalCostRecordV219(product, queryValue = "", explicitImportId = "") {
@@ -14858,7 +14879,7 @@ function renderInventoryManagementList() {
         )
       ).join(" ");
 
-      // V22.9: cache original import-cost numbers while matching imports are
+      // V23.0: cache original import-cost numbers while matching imports are
       // already in memory. This adds no save/sync/delete calls and leaves the
       // existing smart-search pipeline untouched.
       const originalCostValuesV216 = matchingImports
@@ -14940,7 +14961,7 @@ function renderInventoryManagementList() {
           keyword
         );
 
-      // V22.9: when the query is purely numeric (commas and decimals allowed),
+      // V23.0: when the query is purely numeric (commas and decimals allowed),
       // match the numeric Original Cost exactly, regardless of currency.
       // Existing product/import/tracking searches continue to run unchanged.
       const originalCostQueryTextV216 = String(keyword || "")
@@ -15163,7 +15184,7 @@ function renderProductMediaButtonsV229(productId, mediaMap = null) {
   const item = (type, label) => {
     const url = String(media[type] || "").trim();
     return url
-      ? `<span class="inventory-media-item-v229"><button type="button" class="inventory-media-copy-v229" data-media-product-v229="${escapeHTML(productId)}" data-media-type-v229="${type}">${label}链接 · 点击复制</button><button type="button" class="inventory-media-delete-v229" data-media-delete-product-v229="${escapeHTML(productId)}" data-media-delete-type-v229="${type}" aria-label="删除${label}链接">删除</button></span>`
+      ? `<span class="inventory-media-item-v229"><a class="inventory-media-open-v230" href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer" aria-label="打开${label}">${label}链接 · 打开</a><button type="button" class="inventory-media-copy-v229" data-media-product-v229="${escapeHTML(productId)}" data-media-type-v229="${type}">复制</button><button type="button" class="inventory-media-delete-v229" data-media-delete-product-v229="${escapeHTML(productId)}" data-media-delete-type-v229="${type}" aria-label="删除${label}链接">删除</button></span>`
       : `<button type="button" class="inventory-media-add-v229" data-media-add-product-v229="${escapeHTML(productId)}" data-media-add-type-v229="${type}">+ ${label}链接</button>`;
   };
   return `<div class="inventory-media-links-v229">${item("photo", "照片")}${item("video", "视频")}</div>`;
@@ -16042,7 +16063,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "22.9",
+      version: "23.0",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -16409,7 +16430,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V22.9 Stable",
+      updatedBy: "System V23.0 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
