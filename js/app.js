@@ -974,7 +974,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V21.5 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V21.6 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1343,7 +1343,7 @@ function salesItemAlreadyProcessedLocallyV104(item, product) {
     }
   }
 
-  // V21.5: batch commits store a unique commit key plus the stable Sales
+  // V21.6: batch commits store a unique commit key plus the stable Sales
   // accounting key.  Either one proves that inventory was already committed.
   // This keeps a still-pending Sales card visible as ACK-only after a timeout
   // instead of silently dropping it and risking a later duplicate deduction.
@@ -1602,7 +1602,7 @@ function showStartupSalesInventoryReminderV80() {
       const restorePrecheckFailed=/Sales Restore 状态读取超时|无法连接 Sales System 读取 Restore 状态|无法读取 Sales Restore 状态/i.test(message);
 
       if(restorePrecheckFailed){
-        // V21.5: prepareSalesInventoryOperationV117 runs before any inventory
+        // V21.6: prepareSalesInventoryOperationV117 runs before any inventory
         // commit.  If that read-only Restore precheck times out, nothing has been
         // deducted yet, so keep the frozen reminder exactly as-is.  Do not replace
         // it with a transient/empty feed result and make the card disappear.
@@ -4146,15 +4146,17 @@ function getPromotionSearchProductsV185(query, sortMode = "latest") {
     const trackingNumbers = rows.map(row => `${row?.trackingNumber || ""} ${row?.overseasTrackingNumber || ""}`).join(" ");
     const id = String(product?.id || "").trim();
     const name = String(product?.name || "").trim();
+    const originalCostValuesV216 = rows.map(row => Number(row?.unitPrice)).filter(Number.isFinite);
     return {
-      ...product, importNumbers, trackingNumbers,
+      ...product, importNumbers, trackingNumbers, originalCostValuesV216,
       displayLastImport: getLatestImportDateByProduct(id) || String(product?.lastImport || ""),
       latestSoldAt: Number(sales.latestById.get(id) || sales.latestByName.get(name.toLowerCase()) || 0),
       netSoldQuantity: Number(sales.quantityById.get(id) || sales.quantityByName.get(name.toLowerCase()) || 0),
       cumulativeSoldProfit: Number(sales.profitById.get(id) || sales.profitByName.get(name.toLowerCase()) || 0)
     };
   }).filter(product => !keyword || smartSearchMatches(`${product.id} ${product.name} ${product.category}`, keyword) ||
-    sequentialSearchMatches(product.importNumbers, keyword) || sequentialSearchMatches(product.trackingNumbers, keyword));
+    sequentialSearchMatches(product.importNumbers, keyword) || sequentialSearchMatches(product.trackingNumbers, keyword) ||
+    product.originalCostValuesV216.some(value => originalCostNumberMatchesV216(value, keyword)));
   products.sort((a, b) => {
     const stockA=Number(a.stock)||0,stockB=Number(b.stock)||0,costA=Number(a.averageCost)||0,costB=Number(b.averageCost)||0;
     if(sortMode==="name")return String(a.name).localeCompare(String(b.name),"zh");
@@ -5216,13 +5218,53 @@ function sequentialSearchMatches(searchableValue, queryValue) {
   return source.includes(query);
 }
 
+// V21.6: shared read-only Original Cost matcher for every product-search surface.
+// Pure numeric queries (commas/spaces/decimals allowed) match unitPrice exactly,
+// regardless of currency. This helper only reads already-loaded local collections.
+function parseOriginalCostSearchQueryV216(queryValue) {
+  const text = String(queryValue || "")
+    .normalize("NFKC")
+    .replace(/[,，\s]/g, "");
+  if (!/^\d+(?:\.\d+)?$/.test(text)) return null;
+  const value = Number(text);
+  return Number.isFinite(value) ? value : null;
+}
+
+function originalCostNumberMatchesV216(value, queryValue) {
+  const query = parseOriginalCostSearchQueryV216(queryValue);
+  if (query === null) return false;
+  const cost = Number(value);
+  return Number.isFinite(cost) && Math.abs(cost - query) < 0.000001;
+}
+
+function originalCostMatchesProductV216(product, queryValue, imports = null) {
+  if (parseOriginalCostSearchQueryV216(queryValue) === null) return false;
+  const rows = Array.isArray(imports) ? imports : getImports();
+  const productId = String(product?.id || product?.productId || "").trim();
+  const productName = String(product?.name || product?.productName || "").trim().toLowerCase();
+  return rows.some(row => {
+    const sameId = productId && String(row?.productId || "").trim() === productId;
+    const sameName = productName && String(row?.productName || "").trim().toLowerCase() === productName;
+    return (sameId || sameName) && originalCostNumberMatchesV216(row?.unitPrice, queryValue);
+  });
+}
+
+function originalCostMatchesBatchItemV216(item, queryValue) {
+  if (originalCostNumberMatchesV216(item?.unitPrice, queryValue)) return true;
+  return originalCostMatchesProductV216({
+    id: item?.productId,
+    name: item?.productName || item?.name
+  }, queryValue);
+}
+
 function renderProductList() {
   const products = getProducts();
   const keyword = document.getElementById("productSearch").value.trim().toLowerCase();
   const filtered = products.filter(product => {
     const target =
       `${product.id} ${product.name} ${product.category}`;
-    return smartSearchMatches(target, keyword);
+    return smartSearchMatches(target, keyword) ||
+      originalCostMatchesProductV216(product, keyword);
   });
 
   document.getElementById("productListCount").textContent = `${filtered.length} 项`;
@@ -8065,7 +8107,11 @@ function historyProductMatchesKeyword(product, keyword) {
     product?.category
   ].map(value => String(value || "")).join(" ");
 
-  return smartSearchMatches(searchable, keyword);
+  return smartSearchMatches(searchable, keyword) ||
+    originalCostMatchesProductV216({
+      id: product?.id || product?.productId,
+      name: product?.name || product?.productName
+    }, keyword);
 }
 
 function getDailyStockAdjustments(selectedDate, keyword = "") {
@@ -9226,7 +9272,7 @@ function renderCompactProductHistoryByRange(
           return smartSearchMatches(
             searchable,
             normalizedKeyword.toLowerCase()
-          );
+          ) || originalCostMatchesBatchItemV216(item, normalizedKeyword);
         })
         .map(item => ({
           batch,
@@ -9253,7 +9299,7 @@ function renderCompactProductHistoryByRange(
           return smartSearchMatches(
             searchable,
             normalizedKeyword.toLowerCase()
-          );
+          ) || originalCostMatchesBatchItemV216(item, normalizedKeyword);
         });
 
       if (!matchingItems.length) return null;
@@ -9844,7 +9890,8 @@ function renderImportHistoryNowV134() {
     const id = String(product.id || "").trim().toLowerCase();
     const category = String(product.category || "").trim().toLowerCase();
     if (exactHistoryProduct) return name === exactHistoryProduct;
-    return smartSearchMatches([name, id, category].join(" "), normalizedKeyword);
+    return smartSearchMatches([name, id, category].join(" "), normalizedKeyword) ||
+      originalCostMatchesProductV216(product, keyword);
   });
   const matchedProductIds = new Set(
     currentProductMatches.map(product => String(product.id || "").trim()).filter(Boolean)
@@ -9870,7 +9917,8 @@ function renderImportHistoryNowV134() {
         item.category
       ].map(value => String(value || "").toLowerCase()).join(" ");
 
-      return smartSearchMatches(searchable, normalizedKeyword);
+      return smartSearchMatches(searchable, normalizedKeyword) ||
+        originalCostMatchesBatchItemV216(item, keyword);
     });
 
     return { batch, matchingItems };
@@ -10601,7 +10649,7 @@ function renderBatchRowSuggestionBox(id) {
       return smartSearchMatches(
         searchable,
         value
-      );
+      ) || originalCostMatchesProductV216(product, value);
     })
     .sort((a, b) =>
       String(a.id || "").localeCompare(
@@ -11799,8 +11847,10 @@ function renderBatchList() {
 
     const productMatch =
       smartSearchMatches(productText, keyword);
+    const originalCostMatchV216 =
+      items.some(item => originalCostMatchesBatchItemV216(item, keyword));
 
-    return numberOrTransportMatch || productMatch;
+    return numberOrTransportMatch || productMatch || originalCostMatchV216;
   });
 
   const displayLimit = 10;
@@ -11905,7 +11955,7 @@ function renderBatchProductStockResults() {
       smartSearchMatches(
         `${product.id || ""} ${product.name || ""} ${product.category || ""}`,
         keyword
-      )
+      ) || originalCostMatchesProductV216(product, keyword)
     )
     .sort((a, b) =>
       String(a.name || "").localeCompare(String(b.name || ""), "zh")
@@ -13911,6 +13961,13 @@ function renderInventoryManagementList() {
         )
       ).join(" ");
 
+      // V21.6: cache original import-cost numbers while matching imports are
+      // already in memory. This adds no save/sync/delete calls and leaves the
+      // existing smart-search pipeline untouched.
+      const originalCostValuesV216 = matchingImports
+        .map(record => Number(record?.unitPrice))
+        .filter(value => Number.isFinite(value) && value >= 0);
+
       const latestActiveImportNumber = String(batchStocks[0]?.importNumber || "").trim().toLowerCase();
       const latestOriginalCostRecord =
         (latestActiveImportNumber
@@ -13936,6 +13993,7 @@ function renderInventoryManagementList() {
         ...product,
         importNumbers,
         overseasTrackingNumbers,
+        originalCostValuesV216,
         batchStocks,
         latestOriginalCost,
         latestOriginalCurrency,
@@ -13985,10 +14043,26 @@ function renderInventoryManagementList() {
           keyword
         );
 
+      // V21.6: when the query is purely numeric (commas and decimals allowed),
+      // match the numeric Original Cost exactly, regardless of currency.
+      // Existing product/import/tracking searches continue to run unchanged.
+      const originalCostQueryTextV216 = String(keyword || "")
+        .normalize("NFKC")
+        .replace(/[,，\s]/g, "");
+      const originalCostQueryV216 = /^\d+(?:\.\d+)?$/.test(originalCostQueryTextV216)
+        ? Number(originalCostQueryTextV216)
+        : null;
+      const originalCostMatchV216 =
+        originalCostQueryV216 !== null &&
+        product.originalCostValuesV216.some(value =>
+          Math.abs(Number(value) - originalCostQueryV216) < 0.000001
+        );
+
       return (
         productMatch ||
         importNumberMatch ||
-        overseasTrackingMatch
+        overseasTrackingMatch ||
+        originalCostMatchV216
       );
     });
 
@@ -14960,7 +15034,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "21.5",
+      version: "21.6",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -15327,7 +15401,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V21.5 Stable",
+      updatedBy: "System V21.6 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
