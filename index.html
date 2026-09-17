@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=22.7" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=22.7" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=22.7" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=22.7" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=22.7" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=22.7" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=22.7" />
+  <link rel="manifest" href="./manifest.json?v=22.8" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=22.8" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=22.8" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=22.8" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=22.8" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=22.8" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=22.8" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=22.7" />
-  <link rel="stylesheet" href="./css/style.css?v=22.7" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=22.8" />
+  <link rel="stylesheet" href="./css/style.css?v=22.8" />
 </head>
 <body>
   <div id="accessLock"
@@ -84,7 +84,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 22.7 Stable</div>
+          <div class="app-header-version">正式版 22.8 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -585,7 +585,7 @@
         </details>
 
         <details class="panel collapsible-settings-v181 product-prefix-settings-v181">
-          <summary><span>产品编号前缀管理</span><small>只影响以后新增产品</small></summary>
+          <summary><span>产品编号前缀管理</span><small>盆栽：按产品名生成前缀</small></summary>
           <p class="settings-help">
             所有已保存规则永久只读，不能修改关键词、前缀或删除。这里只能新增未使用过的产品名称关键词；保存后只影响以后新增的产品，不修改现有编号、进口、历史、库存或成本。
           </p>
@@ -597,16 +597,17 @@
           </div>
           <button id="addProductPrefixRuleBtn" class="primary-btn" type="button">新增并锁定产品前缀</button>
           <div id="productPrefixRulesStatus" class="status-text"></div>
-          <p class="settings-help">产品名称含“花盆”固定使用 PS；其他无法识别的产品使用 PZ。不同产品允许使用相同前缀，但产品名称关键词不能重复。</p>
+          <p class="settings-help">这里只管理「盆栽」产品的名称关键词前缀；例如黄杨 → BX。盆栽无法识别时使用 PZ。非盆栽产品一律由「产品类别管理」的类别前缀生成编号。</p>
         </details>
 
         <details class="panel collapsible-settings-v181 product-category-settings-v227">
-          <summary><span>产品类别管理</span><small>新增 / 修改产品类别</small></summary>
-          <p class="settings-help">产品类别会用于新增进口、库存显示、搜索及 Excel。可新增类别，也可修改现有类别名称；修改类别名称会同步更新该类别现有产品、进口记录与批次资料，不改变库存、成本或产品编号。</p>
+          <summary><span>产品类别管理</span><small>非盆栽：类别 + 前缀永久锁定</small></summary>
+          <p class="settings-help">盆栽：继续按产品名称关键词规则生成编号前缀。非盆栽：一律按产品类别的默认前缀生成编号。类别与前缀新增后永久锁定，只影响以后新增产品；现有产品编号不会改变。</p>
           <div id="productCategoryRulesList" class="product-category-list-v227"></div>
           <div class="product-category-add-v227">
             <label>新增产品类别<input id="newProductCategoryName" maxlength="24" autocomplete="off" placeholder="例如：园艺用品" /></label>
-            <button id="addProductCategoryBtn" class="primary-btn" type="button">新增产品类别</button>
+            <label>编号前缀<input id="newProductCategoryPrefix" maxlength="2" autocomplete="off" placeholder="例如：YY" /></label>
+            <button id="addProductCategoryBtn" class="primary-btn" type="button">新增并锁定类别</button>
           </div>
           <div id="productCategoryStatus" class="status-text"></div>
         </details>
@@ -822,7 +823,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 22.7 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 22.8 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
@@ -854,8 +855,8 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=22.7"></script>
-  <script src="./js/sync.js?v=22.7"></script>
-  <script src="./js/app.js?v=22.7"></script>
+  <script src="./js/common.js?v=22.8"></script>
+  <script src="./js/sync.js?v=22.8"></script>
+  <script src="./js/app.js?v=22.8"></script>
 </body>
 </html>

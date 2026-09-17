@@ -976,7 +976,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V22.7 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V22.8 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1345,7 +1345,7 @@ function salesItemAlreadyProcessedLocallyV104(item, product) {
     }
   }
 
-  // V22.7: batch commits store a unique commit key plus the stable Sales
+  // V22.8: batch commits store a unique commit key plus the stable Sales
   // accounting key.  Either one proves that inventory was already committed.
   // This keeps a still-pending Sales card visible as ACK-only after a timeout
   // instead of silently dropping it and risking a later duplicate deduction.
@@ -1604,7 +1604,7 @@ function showStartupSalesInventoryReminderV80() {
       const restorePrecheckFailed=/Sales Restore 状态读取超时|无法连接 Sales System 读取 Restore 状态|无法读取 Sales Restore 状态/i.test(message);
 
       if(restorePrecheckFailed){
-        // V22.7: prepareSalesInventoryOperationV117 runs before any inventory
+        // V22.8: prepareSalesInventoryOperationV117 runs before any inventory
         // commit.  If that read-only Restore precheck times out, nothing has been
         // deducted yet, so keep the frozen reminder exactly as-is.  Do not replace
         // it with a transient/empty feed result and make the card disappear.
@@ -3114,7 +3114,7 @@ function applyBatchCostEditability() {
   const repairEnabled = getCostRepairModeEnabled();
   const lockedSaved = isEditing && !repairEnabled;
 
-  // V22.7: China-side/core import facts are immutable once saved, even when
+  // V22.8: China-side/core import facts are immutable once saved, even when
   // Data Repair is ON. If they are wrong, copy the whole import as a new draft,
   // save the corrected new import number, then delete the wrong old import.
   [
@@ -4914,33 +4914,56 @@ function saveProducts(products) {
 }
 
 
-const DEFAULT_PRODUCT_CATEGORIES_V227 = Object.freeze([
-  "盆栽",
-  "杂花杂木",
-  "肥料 / 农药",
-  "泥土 / 介质",
-  "花盆 / 配件 / 工具",
-  "其他"
+const DEFAULT_PRODUCT_CATEGORY_RULES_V228 = Object.freeze([
+  { name: "盆栽", prefix: "", mode: "name" },
+  { name: "杂花杂木", prefix: "ZZ", mode: "category" },
+  { name: "肥料 / 农药", prefix: "FL", mode: "category" },
+  { name: "泥土 / 介质", prefix: "NT", mode: "category" },
+  { name: "花盆 / 配件 / 工具", prefix: "GP", mode: "category" },
+  { name: "其他", prefix: "QT", mode: "category" }
 ]);
 
 function normalizeProductCategoryNameV227(value) {
   return String(value || "").normalize("NFKC").replace(/[\s\u3000]+/g, " ").trim();
 }
 
-function getProductCategoriesV227() {
+function normalizeCategoryPrefixV228(value) {
+  return String(value || "").replace(/[^a-z]/gi, "").toUpperCase().slice(0, 2);
+}
+
+function getProductCategoryRulesV228() {
   const settings = loadJSON("importSystemSettings", {});
-  const hasSaved = Array.isArray(settings.productCategoriesV227) && settings.productCategoriesV227.length > 0;
-  const source = hasSaved ? settings.productCategoriesV227 : DEFAULT_PRODUCT_CATEGORIES_V227;
+  const savedRules = Array.isArray(settings.productCategoryRulesV228) ? settings.productCategoryRulesV228 : [];
+  const legacyNames = Array.isArray(settings.productCategoriesV227) ? settings.productCategoriesV227 : [];
+  const source = savedRules.length
+    ? savedRules
+    : (legacyNames.length
+      ? legacyNames.map(name => {
+          const normalized = normalizeProductCategoryNameV227(name);
+          const preset = DEFAULT_PRODUCT_CATEGORY_RULES_V228.find(rule => rule.name === normalized);
+          return preset ? { ...preset } : { name: normalized, prefix: "QT", mode: normalized === "盆栽" ? "name" : "category" };
+        })
+      : DEFAULT_PRODUCT_CATEGORY_RULES_V228.map(rule => ({ ...rule })));
+
   const result = [];
-  const used = new Set();
-  source.forEach(value => {
-    const name = normalizeProductCategoryNameV227(value);
+  const usedNames = new Set();
+  source.forEach(raw => {
+    const name = normalizeProductCategoryNameV227(raw?.name ?? raw);
+    if (!name || name === "周边产品" || name === "花盆") return;
     const key = name.toLocaleLowerCase();
-    if (!name || used.has(key) || name === "周边产品" || name === "花盆") return;
-    used.add(key);
-    result.push(name);
+    if (usedNames.has(key)) return;
+    usedNames.add(key);
+    const preset = DEFAULT_PRODUCT_CATEGORY_RULES_V228.find(rule => rule.name === name);
+    const mode = name === "盆栽" ? "name" : "category";
+    const prefix = mode === "name" ? "" : (normalizeCategoryPrefixV228(raw?.prefix) || preset?.prefix || "QT");
+    result.push({ name, prefix, mode, locked: true });
   });
+  if (!result.some(rule => rule.name === "盆栽")) result.unshift({ name: "盆栽", prefix: "", mode: "name", locked: true });
   return result;
+}
+
+function getProductCategoriesV227() {
+  return getProductCategoryRulesV228().map(rule => rule.name);
 }
 
 function productCategoryOptionsHTMLV227(selected = "盆栽") {
@@ -4992,87 +5015,55 @@ function migrateLegacyProductCategoriesV227() {
     saveJSON("importSystemBatches", nextBatches);
     if (typeof markCloudCollectionSaved === "function") markCloudCollectionSaved("batches", batches, nextBatches);
   }
+
+  const settings = loadJSON("importSystemSettings", {});
+  if (!Array.isArray(settings.productCategoryRulesV228) || !settings.productCategoryRulesV228.length) {
+    saveJSON("importSystemSettings", { ...settings, productCategoryRulesV228: getProductCategoryRulesV228() });
+    if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
+  }
 }
 
 function renderProductCategoriesV227() {
   const list = document.getElementById("productCategoryRulesList");
   if (!list) return;
-  list.innerHTML = getProductCategoriesV227().map((name, index) => `
+  list.innerHTML = getProductCategoryRulesV228().map(rule => `
     <div class="product-category-row-v227">
-      <span>${escapeHTML(name)}</span>
-      <button type="button" class="secondary-btn edit-product-category-v227" data-category-index="${index}" data-category-name="${escapeHTML(name)}">修改</button>
+      <span>${escapeHTML(rule.name)}</span>
+      <strong>${rule.mode === "name" ? "按产品名规则" : escapeHTML(rule.prefix)}</strong>
+      <em>已锁定</em>
     </div>`).join("");
-}
-
-function renameProductCategoryV227(oldName, nextName) {
-  const oldValue = normalizeProductCategoryNameV227(oldName);
-  const nextValue = normalizeProductCategoryNameV227(nextName);
-  if (!oldValue || !nextValue || oldValue === nextValue) return false;
-  const categories = getProductCategoriesV227();
-  if (categories.some(name => name.toLocaleLowerCase() === nextValue.toLocaleLowerCase() && name !== oldValue)) {
-    alert("已经有相同的产品类别名称。");
-    return false;
-  }
-  const products = getProducts();
-  const imports = getImports();
-  const batches = getBatches();
-  const nextProducts = products.map(item => String(item?.category || "") === oldValue ? { ...item, category: nextValue } : item);
-  const nextImports = imports.map(item => String(item?.category || "") === oldValue ? { ...item, category: nextValue } : item);
-  const nextBatches = batches.map(batch => ({ ...batch, items: (Array.isArray(batch?.items) ? batch.items : []).map(item => String(item?.category || "") === oldValue ? { ...item, category: nextValue } : item) }));
-  const settings = loadJSON("importSystemSettings", {});
-  const nextCategories = categories.map(name => name === oldValue ? nextValue : name);
-  saveJSON("importSystemProducts", nextProducts);
-  saveJSON("importSystemImports", nextImports);
-  saveJSON("importSystemBatches", nextBatches);
-  saveJSON("importSystemSettings", { ...settings, productCategoriesV227: nextCategories });
-  if (typeof markCloudCollectionSaved === "function") {
-    markCloudCollectionSaved("products", products, nextProducts);
-    markCloudCollectionSaved("imports", imports, nextImports);
-    markCloudCollectionSaved("batches", batches, nextBatches);
-  }
-  if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
-  return true;
 }
 
 function setupProductCategorySettingsV227() {
   migrateLegacyProductCategoriesV227();
   renderProductCategoriesV227();
-  const list = document.getElementById("productCategoryRulesList");
   const input = document.getElementById("newProductCategoryName");
+  const prefixInput = document.getElementById("newProductCategoryPrefix");
   const addButton = document.getElementById("addProductCategoryBtn");
   const status = document.getElementById("productCategoryStatus");
-  list?.addEventListener("click", event => {
-    const button = event.target.closest(".edit-product-category-v227");
-    if (!button) return;
-    const oldName = String(button.dataset.categoryName || "");
-    const draft = window.prompt(`修改产品类别名称：\n\n${oldName}`, oldName);
-    if (draft === null) return;
-    const nextName = normalizeProductCategoryNameV227(draft);
-    if (!nextName || nextName === oldName) return;
-    if (!window.confirm(`确认把产品类别：\n\n${oldName}\n\n修改为：\n\n${nextName}\n\n现有该类别的产品、进口记录及批次类别会一并更新；库存、成本和产品编号不会改变。`)) return;
-    if (renameProductCategoryV227(oldName, nextName)) {
-      renderProductCategoriesV227();
-      renderDashboard();
-      renderInventoryManagementList();
-      renderBatchSuggestions();
-      if (status) status.textContent = `已修改类别：${oldName} → ${nextName}`;
-    }
+  prefixInput?.addEventListener("input", () => {
+    prefixInput.value = normalizeCategoryPrefixV228(prefixInput.value);
   });
   addButton?.addEventListener("click", () => {
     const name = normalizeProductCategoryNameV227(input?.value);
+    const prefix = normalizeCategoryPrefixV228(prefixInput?.value);
     if (!name) { if (status) status.textContent = "请输入产品类别名称"; input?.focus(); return; }
-    if (getProductCategoriesV227().some(item => item.toLocaleLowerCase() === name.toLocaleLowerCase())) {
-      if (status) status.textContent = "这个产品类别已经存在";
+    if (name === "盆栽") { if (status) status.textContent = "盆栽已经存在，并固定按产品名称规则生成前缀"; return; }
+    if (!/^[A-Z]{2}$/.test(prefix)) { if (status) status.textContent = "类别编号前缀必须是2个英文字母"; prefixInput?.focus(); return; }
+    if (getProductCategoryRulesV228().some(rule => rule.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+      if (status) status.textContent = "这个产品类别已经存在，已锁定不能修改";
       return;
     }
-    if (!window.confirm(`确认新增产品类别：${name}？\n\n新增后会立即出现在产品进口类别选择中。`)) return;
+    if (!window.confirm(`请最后检查一次：\n\n产品类别：${name}\n默认编号前缀：${prefix}\n\n⚠️ 保存后永久锁定：\n• 不能修改类别名称\n• 不能修改类别前缀\n• 不能删除\n\n只影响以后新增的非盆栽产品；现有产品编号不会改变。\n\n确认资料完全正确并保存？`)) return;
     const settings = loadJSON("importSystemSettings", {});
-    const next = [...getProductCategoriesV227(), name];
-    saveJSON("importSystemSettings", { ...settings, productCategoriesV227: next });
+    const rules = getProductCategoryRulesV228();
+    rules.push({ name, prefix, mode: "category", locked: true, lockedAt: new Date().toISOString() });
+    saveJSON("importSystemSettings", { ...settings, productCategoryRulesV228: rules });
     if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
     if (input) input.value = "";
+    if (prefixInput) prefixInput.value = "";
     renderProductCategoriesV227();
-    if (status) status.textContent = `已新增产品类别：${name}`;
+    if (status) status.textContent = `已新增并锁定：${name} → ${prefix}`;
   });
 }
 
@@ -5158,10 +5149,6 @@ function setupProductPrefixSettingsV181() {
       window.alert(message);
       return;
     }
-    if (normalizedKeyword === normalizeProductPrefixKeywordV181("花盆")) {
-      if (status) status.textContent = "花盆已固定使用 PS，不能重复新增";
-      return;
-    }
     const sharedPrefixNames = getProductPrefixRulesV181()
       .filter(([, savedPrefix]) => savedPrefix === prefix)
       .map(([savedKeyword]) => savedKeyword);
@@ -5197,7 +5184,11 @@ function setupProductPrefixSettingsV181() {
 }
 
 function getProductPrefix(category, name = "") {
-  if (category === "花盆" || (category === "花盆 / 配件 / 工具" && normalizeProductPrefixKeywordV181(name).includes(normalizeProductPrefixKeywordV181("花盆")))) return "PS";
+  const normalizedCategory = normalizeProductCategoryNameV227(category) || "盆栽";
+  if (normalizedCategory !== "盆栽") {
+    const rule = getProductCategoryRulesV228().find(item => item.name === normalizedCategory);
+    return rule?.prefix || "QT";
+  }
   const compact = normalizeProductPrefixKeywordV181(name);
   const matched = getProductPrefixRulesV181().find(([keyword]) => compact.includes(normalizeProductPrefixKeywordV181(keyword)));
   return matched ? matched[1] : "PZ";
@@ -5214,6 +5205,7 @@ function generateNextProductId(products, category = "盆栽", name = "") {
   ]);
   for (let number = 1; number <= 9999; number += 1) {
     const candidate = `${prefix}${String(number).padStart(4, "0")}`;
+    if (candidate === "PZ0002") continue; // 永久保留：历史产品编号变更参考位，不得分配给新产品。
     if (!used.has(candidate)) return candidate;
   }
   throw new Error(`${prefix} 编号已经用完，请检查资料。`);
@@ -5439,7 +5431,7 @@ function sequentialSearchMatches(searchableValue, queryValue) {
   return source.includes(query);
 }
 
-// V22.7: shared read-only Original Cost matcher for every product-search surface.
+// V22.8: shared read-only Original Cost matcher for every product-search surface.
 // Pure numeric queries (commas/spaces/decimals allowed) match unitPrice exactly,
 // regardless of currency. This helper only reads already-loaded local collections.
 function parseOriginalCostSearchQueryV216(queryValue) {
@@ -5470,14 +5462,14 @@ function originalCostMatchesProductV216(product, queryValue, imports = null) {
   });
 }
 
-// V22.7: record/batch-level searches must match the Original Cost stored on
+// V22.8: record/batch-level searches must match the Original Cost stored on
 // that exact row. Never fall back to another import row of the same Product ID,
 // otherwise a 320 search can incorrectly pull in a 200 batch for the same product.
 function originalCostMatchesBatchItemV216(item, queryValue) {
   return originalCostNumberMatchesV216(item?.unitPrice, queryValue);
 }
 
-// V22.7: a pure numeric product-search query is reserved exclusively for
+// V22.8: a pure numeric product-search query is reserved exclusively for
 // exact Original Cost matching. It must never fall through to product names,
 // IDs, import numbers, tracking numbers, dates, quantities, or other numeric text.
 function isOriginalCostOnlySearchV218(queryValue) {
@@ -7118,7 +7110,7 @@ function copyBatchAsNewDraftV221(importNumber) {
   return true;
 }
 
-function deleteBatchByNumber(importNumber) {
+async function deleteBatchByNumber(importNumber) {
 
   const batches = getBatches();
   const batchIndex = batches.findIndex(
@@ -7188,9 +7180,39 @@ function deleteBatchByNumber(importNumber) {
 
   batches.splice(batchIndex, 1);
 
+  const beforeDeleteProductsV228 = getProducts().map(item => ({ ...item }));
+  const beforeDeleteImportsV228 = getImports().map(item => ({ ...item }));
+  const beforeDeleteBatchesV228 = getBatches().map(batchItem => ({ ...batchItem, items: Array.isArray(batchItem.items) ? batchItem.items.map(item => ({ ...item })) : [] }));
+
   saveProducts(products);
   saveImports(remainingImports);
   saveBatches(batches);
+
+  const deleteStatusV228 = document.getElementById("batchStatusText");
+  if (deleteStatusV228) deleteStatusV228.textContent = `正在同步删除 ${batch.importNumber} 到 Google Sheet…`;
+  try {
+    if (typeof window.flushCloudQueueStrictV228 === "function") {
+      await window.flushCloudQueueStrictV228();
+    }
+    if (typeof getCloudQueue === "function" && getCloudQueue()?.dirty) {
+      throw new Error("云端仍有资料等待同步");
+    }
+  } catch (error) {
+    saveProducts(beforeDeleteProductsV228);
+    saveImports(beforeDeleteImportsV228);
+    saveBatches(beforeDeleteBatchesV228);
+    if (deleteStatusV228) deleteStatusV228.textContent = `删除未同步成功，已恢复本机资料：${error?.message || error}`;
+    alert(`删除 ${batch.importNumber} 未成功同步到 Google Sheet。
+
+系统已恢复本机资料，不会假装删除成功。
+
+原因：${error?.message || error}`);
+    renderBatchSuggestions();
+    renderBatchList();
+    renderInventoryManagementList();
+    renderDashboard();
+    return;
+  }
 
   if (
     String(currentEditingImportNumber || "").toLowerCase() ===
@@ -7205,7 +7227,7 @@ function deleteBatchByNumber(importNumber) {
   renderDashboard();
 
   document.getElementById("batchStatusText").textContent =
-    `已删除整批进口 ${batch.importNumber}，库存数量、平均成本及库存成本总值已自动调整。`;
+    `已删除整批进口 ${batch.importNumber}，并已确认同步到 Google Sheet；库存数量、平均成本及库存成本总值已自动调整。`;
 }
 
 
@@ -10236,7 +10258,7 @@ function renderImportHistoryNowV134() {
   const exactHistoryProduct = String(
     input.dataset.exactHistoryProduct || ""
   ).trim().toLowerCase();
-  // V22.7: stable Product ID linkage is only for the original text/product search.
+  // V22.8: stable Product ID linkage is only for the original text/product search.
   // A numeric Original Cost hit must remain row/batch-specific; it must not turn
   // into a Product ID hit that automatically includes every historical batch.
   const matchedProductIds = new Set(
@@ -11676,7 +11698,7 @@ function saveBatchImport() {
       transitDays: updateTransitDays()
     };
 
-    // V22.7: revision history records every allowed Data Repair field, not only costs.
+    // V22.8: revision history records every allowed Data Repair field, not only costs.
     const repairLogTimeV222 = new Date().toLocaleString("zh-MY", { hour12: false });
     const addRepairLogV222 = (fieldLabel, before, after) => {
       if (String(before ?? "") === String(after ?? "")) return;
@@ -11699,7 +11721,7 @@ function saveBatchImport() {
     let updatedCostSnapshot = {};
     let repairChangesCostV206 = false;
     if (repairEnabled) {
-      // V22.7 Data Repair may change only the Malaysia-side overseas freight
+      // V22.8 Data Repair may change only the Malaysia-side overseas freight
       // among cost-bearing fields. China-side costs, original prices, currency
       // and exchange rate are immutable here.
       const nextChina = Number(oldBatch.chinaTransportCost) || 0;
@@ -12253,7 +12275,7 @@ function renderBatchList() {
   }).join("");
 }
 
-// ================= V22.7 Dedicated Original Cost Correction =================
+// ================= V22.8 Dedicated Original Cost Correction =================
 let originalCostEditPendingV219 = null;
 
 function getPreferredOriginalCostRecordV219(product, queryValue = "", explicitImportId = "") {
@@ -14582,7 +14604,7 @@ function renderInventoryManagementList() {
         )
       ).join(" ");
 
-      // V22.7: cache original import-cost numbers while matching imports are
+      // V22.8: cache original import-cost numbers while matching imports are
       // already in memory. This adds no save/sync/delete calls and leaves the
       // existing smart-search pipeline untouched.
       const originalCostValuesV216 = matchingImports
@@ -14664,7 +14686,7 @@ function renderInventoryManagementList() {
           keyword
         );
 
-      // V22.7: when the query is purely numeric (commas and decimals allowed),
+      // V22.8: when the query is purely numeric (commas and decimals allowed),
       // match the numeric Original Cost exactly, regardless of currency.
       // Existing product/import/tracking searches continue to run unchanged.
       const originalCostQueryTextV216 = String(keyword || "")
@@ -15687,7 +15709,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "22.7",
+      version: "22.8",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -16054,7 +16076,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V22.7 Stable",
+      updatedBy: "System V22.8 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
