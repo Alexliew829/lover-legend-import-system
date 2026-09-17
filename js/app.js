@@ -976,7 +976,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V23.3 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V23.4 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1345,7 +1345,7 @@ function salesItemAlreadyProcessedLocallyV104(item, product) {
     }
   }
 
-  // V23.3: batch commits store a unique commit key plus the stable Sales
+  // V23.4: batch commits store a unique commit key plus the stable Sales
   // accounting key.  Either one proves that inventory was already committed.
   // This keeps a still-pending Sales card visible as ACK-only after a timeout
   // instead of silently dropping it and risking a later duplicate deduction.
@@ -1604,7 +1604,7 @@ function showStartupSalesInventoryReminderV80() {
       const restorePrecheckFailed=/Sales Restore 状态读取超时|无法连接 Sales System 读取 Restore 状态|无法读取 Sales Restore 状态/i.test(message);
 
       if(restorePrecheckFailed){
-        // V23.3: prepareSalesInventoryOperationV117 runs before any inventory
+        // V23.4: prepareSalesInventoryOperationV117 runs before any inventory
         // commit.  If that read-only Restore precheck times out, nothing has been
         // deducted yet, so keep the frozen reminder exactly as-is.  Do not replace
         // it with a transient/empty feed result and make the card disappear.
@@ -3114,7 +3114,7 @@ function applyBatchCostEditability() {
   const repairEnabled = getCostRepairModeEnabled();
   const lockedSaved = isEditing && !repairEnabled;
 
-  // V23.3: China-side/core import facts are immutable once saved, even when
+  // V23.4: China-side/core import facts are immutable once saved, even when
   // Data Repair is ON. If they are wrong, copy the whole import as a new draft,
   // save the corrected new import number, then delete the wrong old import.
   [
@@ -4934,7 +4934,7 @@ function normalizeCategoryPrefixV228(value) {
 function isProductCategoryUsedV229(categoryName) {
   const wanted = normalizeProductCategoryNameV227(categoryName);
   if (!wanted) return false;
-  // V23.3: stock=0 alone MUST NOT unlock a category. As long as the product still
+  // V23.4: stock=0 alone MUST NOT unlock a category. As long as the product still
   // exists in active Products / Imports / Batches, the rule stays locked. Only the
   // explicit “清理零库存产品” flow removes those active references and can unlock it.
   if (getProducts().some(product => normalizeProductCategoryNameV227(product?.category) === wanted)) return true;
@@ -4999,7 +4999,7 @@ function getProductCategoryRulesV228() {
     const mode = name === "盆栽" ? "name" : "category";
     const prefix = mode === "name" ? "" : (normalizeCategoryPrefixV228(raw?.prefix) || preset?.prefix || "QT");
     const lockedByUsageV229 = raw?.lockedByUsageV229 === true;
-    // V23.3: usage lock is derived from current active data, not a permanent flag.
+    // V23.4: usage lock is derived from current active data, not a permanent flag.
     // After the user explicitly cleans the last zero-stock product, the rule may unlock.
     const locked = name === "盆栽" ? true : isProductCategoryUsedV229(name);
     result.push({ name, prefix, mode, locked, lockedByUsageV229 });
@@ -5079,7 +5079,7 @@ function goToProductPrefixSettingsV229() {
 let editingProductCategoryNameV229 = "";
 
 function persistUsedCategoryLocksV229() {
-  // V23.3: no permanent usage flag. Lock state is derived from active
+  // V23.4: no permanent usage flag. Lock state is derived from active
   // Products / Imports / Batches so zero-stock cleanup can legitimately unlock.
 }
 
@@ -5312,7 +5312,7 @@ function isProductPrefixRuleUsedV229(keyword, prefix) {
     normalizeProductPrefixKeywordV181(product?.name).includes(normalizedKeyword) &&
     String(product?.id || "").trim().toUpperCase().startsWith(wantedPrefix)
   );
-  // V23.3: product existence itself keeps the rule locked, even at stock 0.
+  // V23.4: product existence itself keeps the rule locked, even at stock 0.
   // Explicit zero-stock cleanup removes the product and can then unlock the rule.
   return matchingProducts.length > 0;
 }
@@ -5344,7 +5344,7 @@ function isProductPrefixRuleLockedV229(keyword, prefix) {
 }
 
 function persistUsedPrefixRuleLocksV229() {
-  // V23.3: lock is derived from active Products, so cleanup can unlock it.
+  // V23.4: lock is derived from active Products, so cleanup can unlock it.
 }
 
 function renderProductPrefixRulesV181() {
@@ -5757,7 +5757,7 @@ function sequentialSearchMatches(searchableValue, queryValue) {
   return source.includes(query);
 }
 
-// V23.3: shared read-only Original Cost matcher for every product-search surface.
+// V23.4: shared read-only Original Cost matcher for every product-search surface.
 // Pure numeric queries (commas/spaces/decimals allowed) match unitPrice exactly,
 // regardless of currency. This helper only reads already-loaded local collections.
 function parseOriginalCostSearchQueryV216(queryValue) {
@@ -5788,14 +5788,14 @@ function originalCostMatchesProductV216(product, queryValue, imports = null) {
   });
 }
 
-// V23.3: record/batch-level searches must match the Original Cost stored on
+// V23.4: record/batch-level searches must match the Original Cost stored on
 // that exact row. Never fall back to another import row of the same Product ID,
 // otherwise a 320 search can incorrectly pull in a 200 batch for the same product.
 function originalCostMatchesBatchItemV216(item, queryValue) {
   return originalCostNumberMatchesV216(item?.unitPrice, queryValue);
 }
 
-// V23.3: a pure numeric product-search query is reserved exclusively for
+// V23.4: a pure numeric product-search query is reserved exclusively for
 // exact Original Cost matching. It must never fall through to product names,
 // IDs, import numbers, tracking numbers, dates, quantities, or other numeric text.
 function isOriginalCostOnlySearchV218(queryValue) {
@@ -7361,6 +7361,64 @@ function reverseBatchInventoryImpact(products, batchItems, remainingImports) {
   return affectedProductIds;
 }
 
+function isSameDeletedBatchProductV234(item, product) {
+  const productId = String(product?.id || "").trim();
+  const itemProductId = String(item?.productId || "").trim();
+  if (productId && itemProductId && productId === itemProductId) return true;
+  const productName = String(product?.name || "").trim().toLowerCase();
+  const itemName = String(item?.productName || item?.name || "").trim().toLowerCase();
+  const productCategory = normalizeProductCategoryNameV227(product?.category || "盆栽");
+  const itemCategory = normalizeProductCategoryNameV227(item?.category || "盆栽");
+  return Boolean(productName && itemName && productName === itemName && productCategory === itemCategory);
+}
+
+function productHasProtectedHistoryV234(product) {
+  try {
+    const adjustments = typeof getProductStockAdjustments === "function"
+      ? getProductStockAdjustments(product)
+      : [];
+    return Array.isArray(adjustments) && adjustments.length > 0;
+  } catch (_) {
+    return false;
+  }
+}
+
+function removeOrphanedProductsAfterBatchDeleteV234(products, deletedBatchItems, remainingImports, remainingBatches) {
+  const deletedItems = Array.isArray(deletedBatchItems) ? deletedBatchItems : [];
+  if (!deletedItems.length) return products;
+  return products.filter(product => {
+    const belongedToDeletedBatch = deletedItems.some(item => isSameDeletedBatchProductV234(item, product));
+    if (!belongedToDeletedBatch) return true;
+    if ((Number(product?.stock) || 0) !== 0) return true;
+    if (productHasProtectedHistoryV234(product)) return true;
+    const stillInImports = (remainingImports || []).some(item => isSameDeletedBatchProductV234(item, product));
+    if (stillInImports) return true;
+    const stillInBatches = (remainingBatches || []).some(batch =>
+      (Array.isArray(batch?.items) ? batch.items : []).some(item => isSameDeletedBatchProductV234(item, product))
+    );
+    return stillInBatches;
+  });
+}
+
+function clearRecentImportDeleteViewV234(importNumber) {
+  const batchSearch = document.getElementById("batchSearch");
+  const productSearch = document.getElementById("batchProductStockSearch");
+  const productResults = document.getElementById("batchProductStockResults");
+  const productStatus = document.getElementById("batchProductStockStatus");
+  if (batchSearch) batchSearch.value = "";
+  if (productSearch) productSearch.value = "";
+  if (productResults) {
+    productResults.innerHTML = "";
+    productResults.hidden = true;
+  }
+  if (productStatus) productStatus.textContent = "";
+  batchListExpanded = false;
+  renderBatchList();
+  if (typeof showHistoryCopyToast === "function") {
+    showHistoryCopyToast(`✓ 成功删除进口编号：${importNumber}`);
+  }
+}
+
 function copyBatchAsNewDraftV221(importNumber) {
   const normalized = String(importNumber || "").trim().toLowerCase();
   const batch = getBatches().find(item =>
@@ -7466,7 +7524,7 @@ async function deleteBatchByNumber(importNumber) {
   const effectiveItems =
     batchItems.length ? batchItems : (batch.items || []);
 
-  // V23.3: “复制”已经是独立按钮，删除按钮只负责删除。
+  // V23.4: “复制”已经是独立按钮，删除按钮只负责删除。
   // 不再使用 confirm 的“确定=复制 / 取消=继续删除”反向流程，
   // 避免用户明确点击删除却实际只复制一份。
   const confirmed = confirm(
@@ -7504,6 +7562,16 @@ async function deleteBatchByNumber(importNumber) {
 
   batches.splice(batchIndex, 1);
 
+  // V23.4: deleting the only import for a test/new product should also remove the
+  // resulting zero-stock orphan product, so its category/prefix can unlock. A
+  // product with any protected stock-adjustment/sales history is kept.
+  const nextProductsV234 = removeOrphanedProductsAfterBatchDeleteV234(
+    products,
+    effectiveItems,
+    remainingImports,
+    batches
+  );
+
   const beforeDeleteProductsV228 = getProducts().map(item => ({ ...item }));
   const beforeDeleteImportsV228 = getImports().map(item => ({ ...item }));
   const beforeDeleteBatchesV228 = getBatches().map(batchItem => ({ ...batchItem, items: Array.isArray(batchItem.items) ? batchItem.items.map(item => ({ ...item })) : [] }));
@@ -7511,7 +7579,7 @@ async function deleteBatchByNumber(importNumber) {
   if (typeof window.markCloudImportNumberDeletedV232 === "function") {
     window.markCloudImportNumberDeletedV232(batch.importNumber, batch.id);
   }
-  saveProducts(products);
+  saveProducts(nextProductsV234);
   saveImports(remainingImports);
   saveBatches(batches);
 
@@ -7566,12 +7634,17 @@ async function deleteBatchByNumber(importNumber) {
   }
 
   renderBatchSuggestions();
-  renderBatchList();
+  clearRecentImportDeleteViewV234(batch.importNumber);
   renderInventoryManagementList();
   renderDashboard();
+  renderProductPrefixRulesV181();
+  renderProductCategoriesV227();
 
-  document.getElementById("batchStatusText").textContent =
-    `已删除整批进口 ${batch.importNumber}，并已确认同步到 Google Sheet；库存数量、平均成本及库存成本总值已自动调整。`;
+  const successStatusV234 = document.getElementById("batchStatusText");
+  if (successStatusV234) {
+    successStatusV234.textContent =
+      `成功删除进口编号 ${batch.importNumber}，并已确认同步到 Google Sheet。对应产品如已无其他进口／库存／历史占用，产品前缀与类别已自动重新检查并解锁。`;
+  }
 }
 
 
@@ -10603,7 +10676,7 @@ function renderImportHistoryNowV134() {
   const exactHistoryProduct = String(
     input.dataset.exactHistoryProduct || ""
   ).trim().toLowerCase();
-  // V23.3: stable Product ID linkage is only for the original text/product search.
+  // V23.4: stable Product ID linkage is only for the original text/product search.
   // A numeric Original Cost hit must remain row/batch-specific; it must not turn
   // into a Product ID hit that automatically includes every historical batch.
   const matchedProductIds = new Set(
@@ -11726,7 +11799,7 @@ function attachBatchRowEvents(id){
   n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();n.value=Array.from(t).slice(0,15).join("");n.dispatchEvent(new Event("input",{bubbles:true}));});
   [`batchQty-${id}`,`batchPrice-${id}`].forEach(k=>{const x=document.getElementById(k);x.addEventListener("focus",()=>x.select());x.addEventListener("input",calculateBatch);x.addEventListener("blur",()=>{if(!k.includes("Qty")&&!k.includes("Stock"))formatInputAmount(x);calculateBatch();});});
   document.getElementById(`batchPrice-${id}`).addEventListener("input", () => {
-    // V23.3: currency follows explicit batch selection / product-history defaults,
+    // V23.4: currency follows explicit batch selection / product-history defaults,
     // never a unit-price threshold heuristic.
     calculateBatch();
   });
@@ -12243,7 +12316,7 @@ function saveBatchImport() {
       transitDays: updateTransitDays()
     };
 
-    // V23.3: revision history records every allowed Data Repair field, not only costs.
+    // V23.4: revision history records every allowed Data Repair field, not only costs.
     const repairLogTimeV222 = new Date().toLocaleString("zh-MY", { hour12: false });
     const addRepairLogV222 = (fieldLabel, before, after) => {
       if (String(before ?? "") === String(after ?? "")) return;
@@ -12266,7 +12339,7 @@ function saveBatchImport() {
     let updatedCostSnapshot = {};
     let repairChangesCostV206 = false;
     if (repairEnabled) {
-      // V23.3 Data Repair may change only the Malaysia-side overseas freight
+      // V23.4 Data Repair may change only the Malaysia-side overseas freight
       // among cost-bearing fields. China-side costs, original prices, currency
       // and exchange rate are immutable here.
       const nextChina = Number(oldBatch.chinaTransportCost) || 0;
@@ -12819,7 +12892,7 @@ function renderBatchList() {
   }).join("");
 }
 
-// ================= V23.3 Dedicated Original Cost Correction =================
+// ================= V23.4 Dedicated Original Cost Correction =================
 let originalCostEditPendingV219 = null;
 
 function getPreferredOriginalCostRecordV219(product, queryValue = "", explicitImportId = "") {
@@ -15148,7 +15221,7 @@ function renderInventoryManagementList() {
         )
       ).join(" ");
 
-      // V23.3: cache original import-cost numbers while matching imports are
+      // V23.4: cache original import-cost numbers while matching imports are
       // already in memory. This adds no save/sync/delete calls and leaves the
       // existing smart-search pipeline untouched.
       const originalCostValuesV216 = matchingImports
@@ -15230,7 +15303,7 @@ function renderInventoryManagementList() {
           keyword
         );
 
-      // V23.3: when the query is purely numeric (commas and decimals allowed),
+      // V23.4: when the query is purely numeric (commas and decimals allowed),
       // match the numeric Original Cost exactly, regardless of currency.
       // Existing product/import/tracking searches continue to run unchanged.
       const originalCostQueryTextV216 = String(keyword || "")
@@ -16334,7 +16407,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "23.3",
+      version: "23.4",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -16701,7 +16774,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V23.3 Stable",
+      updatedBy: "System V23.4 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
