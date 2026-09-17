@@ -976,7 +976,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V23.0 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V23.1 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1345,7 +1345,7 @@ function salesItemAlreadyProcessedLocallyV104(item, product) {
     }
   }
 
-  // V23.0: batch commits store a unique commit key plus the stable Sales
+  // V23.1: batch commits store a unique commit key plus the stable Sales
   // accounting key.  Either one proves that inventory was already committed.
   // This keeps a still-pending Sales card visible as ACK-only after a timeout
   // instead of silently dropping it and risking a later duplicate deduction.
@@ -1604,7 +1604,7 @@ function showStartupSalesInventoryReminderV80() {
       const restorePrecheckFailed=/Sales Restore 状态读取超时|无法连接 Sales System 读取 Restore 状态|无法读取 Sales Restore 状态/i.test(message);
 
       if(restorePrecheckFailed){
-        // V23.0: prepareSalesInventoryOperationV117 runs before any inventory
+        // V23.1: prepareSalesInventoryOperationV117 runs before any inventory
         // commit.  If that read-only Restore precheck times out, nothing has been
         // deducted yet, so keep the frozen reminder exactly as-is.  Do not replace
         // it with a transient/empty feed result and make the card disappear.
@@ -3114,7 +3114,7 @@ function applyBatchCostEditability() {
   const repairEnabled = getCostRepairModeEnabled();
   const lockedSaved = isEditing && !repairEnabled;
 
-  // V23.0: China-side/core import facts are immutable once saved, even when
+  // V23.1: China-side/core import facts are immutable once saved, even when
   // Data Repair is ON. If they are wrong, copy the whole import as a new draft,
   // save the corrected new import number, then delete the wrong old import.
   [
@@ -4934,8 +4934,11 @@ function normalizeCategoryPrefixV228(value) {
 function isProductCategoryUsedV229(categoryName) {
   const wanted = normalizeProductCategoryNameV227(categoryName);
   if (!wanted) return false;
-  const importUsed = getImports().some(row => normalizeProductCategoryNameV227(row?.category) === wanted);
-  if (importUsed) return true;
+  // V23.1: stock=0 alone MUST NOT unlock a category. As long as the product still
+  // exists in active Products / Imports / Batches, the rule stays locked. Only the
+  // explicit “清理零库存产品” flow removes those active references and can unlock it.
+  if (getProducts().some(product => normalizeProductCategoryNameV227(product?.category) === wanted)) return true;
+  if (getImports().some(row => normalizeProductCategoryNameV227(row?.category) === wanted)) return true;
   return getBatches().some(batch => (Array.isArray(batch?.items) ? batch.items : [])
     .some(item => normalizeProductCategoryNameV227(item?.category) === wanted));
 }
@@ -4996,7 +4999,9 @@ function getProductCategoryRulesV228() {
     const mode = name === "盆栽" ? "name" : "category";
     const prefix = mode === "name" ? "" : (normalizeCategoryPrefixV228(raw?.prefix) || preset?.prefix || "QT");
     const lockedByUsageV229 = raw?.lockedByUsageV229 === true;
-    const locked = name === "盆栽" ? true : (lockedByUsageV229 || isProductCategoryUsedV229(name));
+    // V23.1: usage lock is derived from current active data, not a permanent flag.
+    // After the user explicitly cleans the last zero-stock product, the rule may unlock.
+    const locked = name === "盆栽" ? true : isProductCategoryUsedV229(name);
     result.push({ name, prefix, mode, locked, lockedByUsageV229 });
   });
   if (!result.some(rule => rule.name === "盆栽")) result.unshift({ name: "盆栽", prefix: "", mode: "name", locked: true });
@@ -5074,20 +5079,8 @@ function goToProductPrefixSettingsV229() {
 let editingProductCategoryNameV229 = "";
 
 function persistUsedCategoryLocksV229() {
-  const settings = loadJSON("importSystemSettings", {});
-  const saved = Array.isArray(settings.productCategoryRulesV228) ? settings.productCategoryRulesV228 : [];
-  if (!saved.length) return;
-  let changed = false;
-  const next = saved.map(raw => {
-    const name = normalizeProductCategoryNameV227(raw?.name ?? raw);
-    if (!name || name === "盆栽" || raw?.lockedByUsageV229 === true) return raw;
-    if (!isProductCategoryUsedV229(name)) return raw;
-    changed = true;
-    return { ...(typeof raw === "object" ? raw : { name }), lockedByUsageV229: true, lockedAtV229: new Date().toISOString() };
-  });
-  if (!changed) return;
-  saveJSON("importSystemSettings", { ...settings, productCategoryRulesV228: next });
-  if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
+  // V23.1: no permanent usage flag. Lock state is derived from active
+  // Products / Imports / Batches so zero-stock cleanup can legitimately unlock.
 }
 
 function renderProductCategoriesV227() {
@@ -5098,15 +5091,20 @@ function renderProductCategoriesV227() {
       <div class="product-category-row-v227">
         <span>${escapeHTML(rule.name)}</span>
         <strong>按产品名规则</strong>
-        <button type="button" class="secondary-btn category-prefix-guide-v229" onclick="goToProductPrefixSettingsV229()">前往产品编号前缀管理</button>
+        <div class="rule-actions-v231">
+          <button type="button" class="secondary-btn category-prefix-guide-v229" onclick="goToProductPrefixSettingsV229()">前往产品编号前缀管理</button>
+        </div>
       </div>`;
     return `
       <div class="product-category-row-v227">
         <span>${escapeHTML(rule.name)}</span>
         <strong>${escapeHTML(rule.prefix)}</strong>
         ${rule.locked
-          ? `<em>已进口 · 锁定</em>`
-          : `<button type="button" class="secondary-btn category-edit-v229" data-category-edit-v229="${escapeHTML(rule.name)}">修改</button>`}
+          ? `<em>已使用 · 已锁定</em>`
+          : `<div class="rule-actions-v231">
+               <button type="button" class="secondary-btn category-edit-v229" data-category-edit-v229="${escapeHTML(rule.name)}">修改</button>
+               <button type="button" class="danger-btn rule-delete-v231" data-category-delete-v231="${escapeHTML(rule.name)}">删除</button>
+             </div>`}
       </div>`;
   }).join("");
 }
@@ -5132,13 +5130,36 @@ function setupProductCategorySettingsV227() {
   });
 
   document.getElementById("productCategoryRulesList")?.addEventListener("click", event => {
+    const deleteButton = event.target.closest("[data-category-delete-v231]");
+    if (deleteButton) {
+      const name = normalizeProductCategoryNameV227(deleteButton.dataset.categoryDeleteV231);
+      const rule = getProductCategoryRulesV228().find(item => item.name === name);
+      if (!rule || rule.name === "盆栽") return;
+      if (isProductCategoryUsedV229(rule.name)) {
+        window.alert("这个类别仍有产品／进口资料使用，即使库存为0也保持锁定。请先在『清理零库存产品』彻底清理对应产品后再删除。");
+        renderProductCategoriesV227();
+        return;
+      }
+      if (!window.confirm(`⚠️ 删除产品类别？\n\n类别：${rule.name}\n编号前缀：${rule.prefix}\n\n删除后这个类别将不再出现在新产品类别选项。现有产品编号不会自动改变。\n\n确定删除？`)) return;
+      const settings = loadJSON("importSystemSettings", {});
+      const rules = getProductCategoryRulesV228()
+        .filter(item => item.name !== rule.name)
+        .map(item => ({ name: item.name, prefix: item.prefix, mode: item.mode }));
+      saveJSON("importSystemSettings", { ...settings, productCategoryRulesV228: rules });
+      if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
+      if (editingProductCategoryNameV229 === rule.name) resetEditor();
+      renderProductCategoriesV227();
+      if (status) status.textContent = `已删除未使用类别：${rule.name}（${rule.prefix}）`;
+      return;
+    }
+
     const button = event.target.closest("[data-category-edit-v229]");
     if (!button) return;
     const name = normalizeProductCategoryNameV227(button.dataset.categoryEditV229);
     const rule = getProductCategoryRulesV228().find(item => item.name === name);
     if (!rule || rule.name === "盆栽") return;
     if (rule.locked || isProductCategoryUsedV229(rule.name)) {
-      window.alert("这个类别已经有进口记录／库存历史，类别名称和编号前缀已经锁定，不能修改。");
+      window.alert("这个类别仍有产品／进口资料使用，即使库存为0也保持锁定。请先在『清理零库存产品』彻底清理对应产品后再修改。");
       renderProductCategoriesV227();
       return;
     }
@@ -5146,7 +5167,7 @@ function setupProductCategorySettingsV227() {
     if (input) input.value = rule.name;
     if (prefixInput) prefixInput.value = rule.prefix;
     if (addButton) addButton.textContent = "保存类别修改";
-    if (status) status.textContent = "尚未有进口记录，可以修改；一旦实际进口后会自动锁定。";
+    if (status) status.textContent = "尚未有产品／进口资料使用，可以修改；一旦实际使用后会自动锁定。";
     input?.focus();
   });
 
@@ -5160,7 +5181,7 @@ function setupProductCategorySettingsV227() {
 
     const editingRuleV229 = editingName ? getProductCategoryRulesV228().find(rule => rule.name === editingName) : null;
     if (editingName && (editingRuleV229?.locked || isProductCategoryUsedV229(editingName))) {
-      const message = "这个类别已经产生进口记录／库存历史，现已自动锁定，不能再修改。";
+      const message = "这个类别仍有产品／进口资料使用，即使库存为0也保持锁定；请先清理零库存产品后再修改。";
       if (status) status.textContent = message;
       window.alert(message);
       resetEditor(); renderProductCategoriesV227(); return;
@@ -5182,12 +5203,12 @@ function setupProductCategorySettingsV227() {
     }
 
     const verb = editingName ? "修改" : "新增";
-    if (!window.confirm(`${verb}产品类别？\n\n类别：${name}\n编号前缀：${prefix}\n\n在尚未真正进口使用前仍可修改；一旦该类别产生进口记录／库存历史，就会自动永久锁定。\n现有产品编号永远不会自动改号。`)) return;
+    if (!window.confirm(`${verb}产品类别？\n\n类别：${name}\n编号前缀：${prefix}\n\n只要仍有产品／进口资料使用就会锁定；库存变成0也不会自动解锁，必须先清理零库存产品。\n现有产品编号永远不会自动改号。`)) return;
 
     const settings = loadJSON("importSystemSettings", {});
     const rules = getProductCategoryRulesV228().map(rule => ({
       name: rule.name, prefix: rule.prefix, mode: rule.mode,
-      ...(rule.lockedByUsageV229 ? { lockedByUsageV229: true } : {})
+
     }));
     if (editingName) {
       const index = rules.findIndex(rule => rule.name === editingName);
@@ -5200,7 +5221,7 @@ function setupProductCategorySettingsV227() {
     if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
     resetEditor();
     renderProductCategoriesV227();
-    if (status) status.textContent = `${verb}成功：${name} → ${prefix}；实际进口后将自动锁定`;
+    if (status) status.textContent = `${verb}成功：${name} → ${prefix}；实际使用后将自动锁定`;
   });
 }
 
@@ -5216,14 +5237,28 @@ function normalizeProductPrefixKeywordV181(value) {
 
 function getProductPrefixRulesV181() {
   const settings = loadJSON("importSystemSettings", {});
+  const overrides = settings.productPrefixOverridesV231 && typeof settings.productPrefixOverridesV231 === "object"
+    ? settings.productPrefixOverridesV231 : {};
   const additional = Array.isArray(settings.productPrefixAdditionalRules) ? settings.productPrefixAdditionalRules : [];
-  const rules = PRODUCT_PREFIX_RULES_V163.map(([keyword, prefix]) => [keyword, prefix]);
-  const usedKeywords = new Set(rules.map(([keyword]) => normalizeProductPrefixKeywordV181(keyword)));
+  const rules = [];
+  const usedKeywords = new Set();
+
+  PRODUCT_PREFIX_RULES_V163.forEach(([baseKeyword, basePrefix]) => {
+    const key = normalizeProductPrefixKeywordV181(baseKeyword);
+    const override = overrides[key];
+    if (override?.deleted === true) return;
+    const keyword = String(override?.keyword || baseKeyword).trim();
+    const prefix = String(override?.prefix || basePrefix).trim().toUpperCase();
+    const normalizedKeyword = normalizeProductPrefixKeywordV181(keyword);
+    if (!normalizedKeyword || !/^[A-Z]{2}$/.test(prefix) || usedKeywords.has(normalizedKeyword)) return;
+    usedKeywords.add(normalizedKeyword);
+    rules.push([keyword, prefix]);
+  });
+
   additional.forEach(rule => {
     const keyword = String(Array.isArray(rule) ? rule[0] : rule?.keyword || "").trim();
     const prefix = String(Array.isArray(rule) ? rule[1] : rule?.prefix || "").trim().toUpperCase();
     const normalizedKeyword = normalizeProductPrefixKeywordV181(keyword);
-    // V19.8 one-time removal of the user's test-only rule.
     if (normalizedKeyword === normalizeProductPrefixKeywordV181("白蜡") && prefix === "BX") return;
     if (!normalizedKeyword || usedKeywords.has(normalizedKeyword) || !/^[A-Z]{2}$/.test(prefix)) return;
     usedKeywords.add(normalizedKeyword);
@@ -5240,14 +5275,26 @@ function isProductPrefixRuleUsedV229(keyword, prefix) {
     normalizeProductPrefixKeywordV181(product?.name).includes(normalizedKeyword) &&
     String(product?.id || "").trim().toUpperCase().startsWith(wantedPrefix)
   );
-  if (!matchingProducts.length) return false;
-  const ids = new Set(matchingProducts.map(product => String(product.id || "").trim()));
-  return getImports().some(row => ids.has(String(row?.productId || "").trim())) ||
-    getBatches().some(batch => (Array.isArray(batch?.items) ? batch.items : []).some(item => ids.has(String(item?.productId || "").trim())));
+  // V23.1: product existence itself keeps the rule locked, even at stock 0.
+  // Explicit zero-stock cleanup removes the product and can then unlock the rule.
+  return matchingProducts.length > 0;
 }
 
 let editingProductPrefixKeywordV229 = "";
 
+
+function getBuiltInPrefixBaseKeyV231(effectiveKeyword) {
+  const wanted = normalizeProductPrefixKeywordV181(effectiveKeyword);
+  const settings = loadJSON("importSystemSettings", {});
+  const overrides = settings.productPrefixOverridesV231 && typeof settings.productPrefixOverridesV231 === "object"
+    ? settings.productPrefixOverridesV231 : {};
+  for (const [baseKeyword] of PRODUCT_PREFIX_RULES_V163) {
+    const baseKey = normalizeProductPrefixKeywordV181(baseKeyword);
+    if (baseKey === wanted) return baseKey;
+    if (normalizeProductPrefixKeywordV181(overrides[baseKey]?.keyword) === wanted) return baseKey;
+  }
+  return "";
+}
 function getAdditionalPrefixRuleMetaV229(keyword) {
   const normalized = normalizeProductPrefixKeywordV181(keyword);
   const settings = loadJSON("importSystemSettings", {});
@@ -5256,41 +5303,27 @@ function getAdditionalPrefixRuleMetaV229(keyword) {
 }
 
 function isProductPrefixRuleLockedV229(keyword, prefix) {
-  const builtIn = PRODUCT_PREFIX_RULES_V163.some(([savedKeyword]) => normalizeProductPrefixKeywordV181(savedKeyword) === normalizeProductPrefixKeywordV181(keyword));
-  if (builtIn) return true;
-  const meta = getAdditionalPrefixRuleMetaV229(keyword);
-  return meta?.lockedByUsageV229 === true || isProductPrefixRuleUsedV229(keyword, prefix);
+  return isProductPrefixRuleUsedV229(keyword, prefix);
 }
 
 function persistUsedPrefixRuleLocksV229() {
-  const settings = loadJSON("importSystemSettings", {});
-  const additional = Array.isArray(settings.productPrefixAdditionalRules) ? settings.productPrefixAdditionalRules : [];
-  let changed = false;
-  const next = additional.map(rule => {
-    const keyword = String(Array.isArray(rule) ? rule[0] : rule?.keyword || "").trim();
-    const prefix = String(Array.isArray(rule) ? rule[1] : rule?.prefix || "").trim().toUpperCase();
-    if (!keyword || !prefix || rule?.lockedByUsageV229 === true || !isProductPrefixRuleUsedV229(keyword, prefix)) return rule;
-    changed = true;
-    return { ...(Array.isArray(rule) ? { keyword, prefix } : rule), keyword, prefix, lockedByUsageV229: true, lockedAtV229: new Date().toISOString() };
-  });
-  if (!changed) return;
-  saveJSON("importSystemSettings", { ...settings, productPrefixAdditionalRules: next });
-  if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
+  // V23.1: lock is derived from active Products, so cleanup can unlock it.
 }
 
 function renderProductPrefixRulesV181() {
   const list = document.getElementById("productPrefixRulesList");
   if (!list) return;
-  const builtInKeys = new Set(PRODUCT_PREFIX_RULES_V163.map(([keyword]) => normalizeProductPrefixKeywordV181(keyword)));
   list.innerHTML = getProductPrefixRulesV181().map(([keyword, prefix]) => {
-    const builtIn = builtInKeys.has(normalizeProductPrefixKeywordV181(keyword));
-    const used = builtIn || isProductPrefixRuleLockedV229(keyword, prefix);
+    const used = isProductPrefixRuleLockedV229(keyword, prefix);
     return `
       <div class="product-prefix-locked-row-v181">
         <span>${escapeHTML(keyword)}</span><strong>${escapeHTML(prefix)}</strong>
         ${used
-          ? `<em>${builtIn ? "系统／历史规则" : "已进口 · 锁定"}</em>`
-          : `<button type="button" class="secondary-btn prefix-edit-v229" data-prefix-edit-v229="${escapeHTML(keyword)}">修改</button>`}
+          ? `<em>已使用 · 已锁定</em>`
+          : `<div class="rule-actions-v231">
+               <button type="button" class="secondary-btn prefix-edit-v229" data-prefix-edit-v229="${escapeHTML(keyword)}">修改</button>
+               <button type="button" class="danger-btn rule-delete-v231" data-prefix-delete-v231="${escapeHTML(keyword)}">删除</button>
+             </div>`}
       </div>`;
   }).join("");
 }
@@ -5330,19 +5363,47 @@ function setupProductPrefixSettingsV181() {
   });
 
   document.getElementById("productPrefixRulesList")?.addEventListener("click", event => {
+    const deleteButton = event.target.closest("[data-prefix-delete-v231]");
+    if (deleteButton) {
+      const keyword = String(deleteButton.dataset.prefixDeleteV231 || "").trim();
+      const rule = getProductPrefixRulesV181().find(([savedKeyword]) => normalizeProductPrefixKeywordV181(savedKeyword) === normalizeProductPrefixKeywordV181(keyword));
+      if (!rule) return;
+      if (isProductPrefixRuleLockedV229(rule[0], rule[1])) {
+        window.alert("这个盆栽前缀规则仍有产品使用，即使库存为0也保持锁定。请先在『清理零库存产品』彻底清理对应产品后再删除。");
+        renderProductPrefixRulesV181(); return;
+      }
+      if (!window.confirm(`⚠️ 删除盆栽产品前缀规则？\n\n产品名称关键词：${rule[0]}\n编号前缀：${rule[1]}\n\n删除后，新产品不会再按这条规则生成编号。\n\n确定删除？`)) return;
+      const settings = loadJSON("importSystemSettings", {});
+      const normalized = normalizeProductPrefixKeywordV181(rule[0]);
+      const builtInBaseKey = getBuiltInPrefixBaseKeyV231(rule[0]);
+      let additional = Array.isArray(settings.productPrefixAdditionalRules) ? settings.productPrefixAdditionalRules.slice() : [];
+      const overrides = { ...(settings.productPrefixOverridesV231 || {}) };
+      if (builtInBaseKey) {
+        overrides[builtInBaseKey] = { keyword: rule[0], prefix: rule[1], deleted: true };
+      } else {
+        additional = additional.filter(item => normalizeProductPrefixKeywordV181(Array.isArray(item) ? item[0] : item?.keyword) !== normalized);
+      }
+      saveJSON("importSystemSettings", { ...settings, productPrefixAdditionalRules: additional, productPrefixOverridesV231: overrides });
+      if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
+      if (normalizeProductPrefixKeywordV181(editingProductPrefixKeywordV229) === normalized) resetEditor();
+      renderProductPrefixRulesV181();
+      if (status) status.textContent = `已删除未使用前缀规则：${rule[0]} → ${rule[1]}`;
+      return;
+    }
+
     const button = event.target.closest("[data-prefix-edit-v229]");
     if (!button) return;
     const keyword = String(button.dataset.prefixEditV229 || "").trim();
     const rule = getProductPrefixRulesV181().find(([savedKeyword]) => normalizeProductPrefixKeywordV181(savedKeyword) === normalizeProductPrefixKeywordV181(keyword));
     if (!rule || isProductPrefixRuleLockedV229(rule[0], rule[1])) {
-      window.alert("这个盆栽前缀规则已经有进口产品使用，现已锁定不能修改。");
+      window.alert("这个盆栽前缀规则仍有产品使用，即使库存为0也保持锁定。请先在『清理零库存产品』彻底清理对应产品后再修改。");
       renderProductPrefixRulesV181(); return;
     }
     editingProductPrefixKeywordV229 = rule[0];
     keywordInput.value = rule[0];
     prefixInput.value = rule[1];
     addButton.textContent = "保存前缀修改";
-    if (status) status.textContent = "尚未有进口产品使用，可以修改；实际进口后会自动锁定。";
+    if (status) status.textContent = "尚未有产品使用，可以修改；一旦实际使用后会自动锁定。";
     keywordInput.focus();
   });
 
@@ -5381,21 +5442,28 @@ function setupProductPrefixSettingsV181() {
     if (sharedPrefixNames.length && !window.confirm(`编号前缀 ${prefix} 已由“${sharedPrefixNames.join("、")}”使用。\n\n确认这些盆栽名称继续共用前缀 ${prefix}？`)) return;
 
     const verb = editingKeyword ? "修改" : "新增";
-    if (!window.confirm(`${verb}盆栽产品前缀规则？\n\n产品名称关键词：${keyword}\n产品编号前缀：${prefix}\n\n尚未真正进口使用前仍可修改；一旦有进口产品使用就会自动锁定。\n现有产品编号永远不会自动改号。`)) return;
+    if (!window.confirm(`${verb}盆栽产品前缀规则？\n\n产品名称关键词：${keyword}\n产品编号前缀：${prefix}\n\n只要仍有产品使用就会锁定；库存变成0也不会自动解锁，必须先清理零库存产品。\n现有产品编号永远不会自动改号。`)) return;
 
     const settings = loadJSON("importSystemSettings", {});
     const additional = Array.isArray(settings.productPrefixAdditionalRules) ? settings.productPrefixAdditionalRules.slice() : [];
+    const overrides = { ...(settings.productPrefixOverridesV231 || {}) };
     if (editingKeyword) {
       const index = additional.findIndex(rule => normalizeProductPrefixKeywordV181(Array.isArray(rule) ? rule[0] : rule?.keyword) === normalizedEditing);
-      if (index < 0) { if (status) status.textContent = "系统内置／历史规则不能修改"; return; }
-      additional[index] = { keyword, prefix, ...(additional[index]?.lockedByUsageV229 ? { lockedByUsageV229: true } : {}) };
+      const builtInBaseKey = getBuiltInPrefixBaseKeyV231(editingKeyword);
+      if (index >= 0) {
+        additional[index] = { keyword, prefix };
+      } else if (builtInBaseKey) {
+        overrides[builtInBaseKey] = { keyword, prefix, deleted: false };
+      } else {
+        if (status) status.textContent = "找不到这条前缀规则"; return;
+      }
     } else {
       additional.push({ keyword, prefix });
     }
-    saveJSON("importSystemSettings", { ...settings, productPrefixAdditionalRules: additional });
+    saveJSON("importSystemSettings", { ...settings, productPrefixAdditionalRules: additional, productPrefixOverridesV231: overrides });
     if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
     resetEditor(); renderProductPrefixRulesV181();
-    if (status) status.textContent = `${verb}成功：${keyword} → ${prefix}；实际进口后将自动锁定`;
+    if (status) status.textContent = `${verb}成功：${keyword} → ${prefix}；实际使用后将自动锁定`;
   });
 }
 
@@ -5647,7 +5715,7 @@ function sequentialSearchMatches(searchableValue, queryValue) {
   return source.includes(query);
 }
 
-// V23.0: shared read-only Original Cost matcher for every product-search surface.
+// V23.1: shared read-only Original Cost matcher for every product-search surface.
 // Pure numeric queries (commas/spaces/decimals allowed) match unitPrice exactly,
 // regardless of currency. This helper only reads already-loaded local collections.
 function parseOriginalCostSearchQueryV216(queryValue) {
@@ -5678,14 +5746,14 @@ function originalCostMatchesProductV216(product, queryValue, imports = null) {
   });
 }
 
-// V23.0: record/batch-level searches must match the Original Cost stored on
+// V23.1: record/batch-level searches must match the Original Cost stored on
 // that exact row. Never fall back to another import row of the same Product ID,
 // otherwise a 320 search can incorrectly pull in a 200 batch for the same product.
 function originalCostMatchesBatchItemV216(item, queryValue) {
   return originalCostNumberMatchesV216(item?.unitPrice, queryValue);
 }
 
-// V23.0: a pure numeric product-search query is reserved exclusively for
+// V23.1: a pure numeric product-search query is reserved exclusively for
 // exact Original Cost matching. It must never fall through to product names,
 // IDs, import numbers, tracking numbers, dates, quantities, or other numeric text.
 function isOriginalCostOnlySearchV218(queryValue) {
@@ -7418,6 +7486,20 @@ async function deleteBatchByNumber(importNumber) {
     }
     if (typeof getCloudQueue === "function" && getCloudQueue()?.dirty) {
       throw new Error("云端仍有资料等待同步");
+    }
+    if (typeof window.pullLatestAfterSalesCommitV83 === "function") {
+      await window.pullLatestAfterSalesCommitV83(true);
+    }
+    const stillHasBatchV231 = getBatches().some(item =>
+      String(item?.id || "") === String(batch.id || "") ||
+      String(item?.importNumber || "").trim().toLowerCase() === normalizedImportNumber
+    );
+    const stillHasImportV231 = getImports().some(item =>
+      String(item?.batchId || "") === String(batch.id || "") ||
+      String(item?.importNumber || "").trim().toLowerCase() === normalizedImportNumber
+    );
+    if (stillHasBatchV231 || stillHasImportV231) {
+      throw new Error("Google Sheet 删除验证失败：云端仍存在这个进口编号");
     }
   } catch (error) {
     saveProducts(beforeDeleteProductsV228);
@@ -10481,7 +10563,7 @@ function renderImportHistoryNowV134() {
   const exactHistoryProduct = String(
     input.dataset.exactHistoryProduct || ""
   ).trim().toLowerCase();
-  // V23.0: stable Product ID linkage is only for the original text/product search.
+  // V23.1: stable Product ID linkage is only for the original text/product search.
   // A numeric Original Cost hit must remain row/batch-specific; it must not turn
   // into a Product ID hit that automatically includes every historical batch.
   const matchedProductIds = new Set(
@@ -11156,6 +11238,133 @@ function resetBatchForm(options = {}) {
   addBatchRow();
   calculateBatch();
 }
+
+function findExactProductByNameV231(name) {
+  const wanted = String(name || "").trim().toLowerCase();
+  if (!wanted) return null;
+  return getProducts().find(product => String(product?.name || "").trim().toLowerCase() === wanted) || null;
+}
+
+function findNamePrefixRuleV231(name) {
+  const compact = normalizeProductPrefixKeywordV181(name);
+  if (!compact) return null;
+  return getProductPrefixRulesV181().find(([keyword]) => compact.includes(normalizeProductPrefixKeywordV181(keyword))) || null;
+}
+
+function getHistoricalProductCurrencyV231(product) {
+  if (!product) return "";
+  const pid = String(product.id || "").trim();
+  const pname = String(product.name || "").trim().toLowerCase();
+  const batchById = new Map(getBatches().map(batch => [String(batch?.id || ""), batch]));
+  const matches = getImports().filter(record => {
+    const sameId = pid && String(record?.productId || "").trim() === pid;
+    const sameName = !sameId && pname && String(record?.productName || "").trim().toLowerCase() === pname;
+    return sameId || sameName;
+  }).map(record => {
+    const batch = batchById.get(String(record?.batchId || ""));
+    const currency = String(record?.currency || batch?.currency || "").trim().toUpperCase();
+    const stamp = Math.max(
+      Date.parse(String(record?.updatedAt || "")) || 0,
+      Date.parse(String(record?.createdAt || "")) || 0,
+      parseDDMMYYYY(record?.arrivalDate || batch?.arrivalDate || ""),
+      parseDDMMYYYY(record?.date || batch?.date || "")
+    );
+    return { currency, stamp };
+  }).filter(item => item.currency);
+  matches.sort((a,b) => b.stamp - a.stamp);
+  return matches[0]?.currency || "";
+}
+
+function getRowSuggestedCurrencyV231(rowId) {
+  const name = document.getElementById(`batchName-${rowId}`)?.value?.trim() || "";
+  if (!name) return "";
+  const product = findExactProductByNameV231(name);
+  if (product) return getHistoricalProductCurrencyV231(product);
+  const category = normalizeProductCategoryNameV227(document.getElementById(`batchCategory-${rowId}`)?.value || "");
+  if (category === "杂花杂木") return "MYR";
+  // New matched 盆栽 and other explicit categories keep the normal global default (CNY)
+  // unless the user manually chooses another currency.
+  return category === "盆栽" ? "CNY" : "";
+}
+
+function getOtherPopulatedRowsV231(rowId) {
+  return Array.from(document.querySelectorAll("#batchRows tr"))
+    .filter(row => Number(row.dataset.rowId) !== Number(rowId))
+    .filter(row => String(document.getElementById(`batchName-${row.dataset.rowId}`)?.value || "").trim());
+}
+
+function maybeApplySuggestedBatchCurrencyV231(rowId, suggestedCurrency, label = "") {
+  const wanted = String(suggestedCurrency || "").trim().toUpperCase();
+  if (!wanted) return;
+  const currency = document.getElementById("batchCurrency");
+  if (!currency) return;
+  const otherRows = getOtherPopulatedRowsV231(rowId);
+  const otherSuggestions = [...new Set(otherRows.map(row => getRowSuggestedCurrencyV231(row.dataset.rowId)).filter(Boolean))];
+  const conflict = otherSuggestions.find(value => value !== wanted);
+  if (conflict) {
+    const message = `${label || "这个产品"} 的历史／默认进口货币为 ${wanted}，但同批其他产品对应 ${conflict}。\n\n同一个进口编号只能使用一种货币。请统一整批货币，或把不同货币产品分开建立进口编号。`;
+    const status = document.getElementById("batchStatusText");
+    if (status) status.textContent = message.replace(/\n+/g, " ");
+    const row = document.querySelector(`#batchRows tr[data-row-id="${rowId}"]`);
+    const signature = `${wanted}|${conflict}|${String(label || "")}`;
+    if (!row || row.dataset.lastCurrencyConflictV231 !== signature) {
+      if (row) row.dataset.lastCurrencyConflictV231 = signature;
+      window.alert(message);
+    }
+    return;
+  }
+  const currentRow = document.querySelector(`#batchRows tr[data-row-id="${rowId}"]`);
+  if (currentRow) currentRow.dataset.lastCurrencyConflictV231 = "";
+  // If this is the only populated row, or the other rows agree, product change is
+  // allowed to refresh the default. User can still manually change afterwards.
+  if (!otherRows.length || otherSuggestions.every(value => value === wanted)) {
+    currency.value = wanted;
+    batchCurrencyManuallySelectedV229 = false;
+    clearAutoArrivalWhenLeavingMYRV230();
+    applyBatchRate();
+    setTodayArrivalForMYRV229();
+  }
+}
+
+function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false } = {}) {
+  const tr = document.querySelector(`#batchRows tr[data-row-id="${rowId}"]`);
+  const nameInput = document.getElementById(`batchName-${rowId}`);
+  const categoryField = document.getElementById(`batchCategory-${rowId}`);
+  const productIdField = document.getElementById(`batchProductId-${rowId}`);
+  if (!tr || !nameInput || !categoryField || !productIdField) return;
+  const name = String(nameInput.value || "").trim();
+  const normalizedName = name.toLowerCase();
+  if (!name) {
+    productIdField.value = "";
+    tr.dataset.categoryManualForName = "";
+    tr.dataset.lastIdentityNameV231 = "";
+    return;
+  }
+
+  const product = findExactProductByNameV231(name);
+  if (product) {
+    productIdField.value = product.id || "";
+    categoryField.value = normalizeProductCategoryNameV227(product.category) || "盆栽";
+    tr.dataset.categoryManualForName = normalizedName;
+    tr.dataset.lastIdentityNameV231 = normalizedName;
+    const historicalCurrency = getHistoricalProductCurrencyV231(product);
+    if (historicalCurrency) maybeApplySuggestedBatchCurrencyV231(rowId, historicalCurrency, product.name || name);
+    return;
+  }
+
+  productIdField.value = "";
+  const manualForSameName = tr.dataset.categoryManualForName === normalizedName;
+  if (!fromCategoryChange && !manualForSameName) {
+    const prefixRule = findNamePrefixRuleV231(name);
+    categoryField.value = prefixRule ? "盆栽" : "杂花杂木";
+  }
+  tr.dataset.lastIdentityNameV231 = normalizedName;
+
+  const category = normalizeProductCategoryNameV227(categoryField.value);
+  if (category === "杂花杂木") maybeApplySuggestedBatchCurrencyV231(rowId, "MYR", name);
+  else if (category === "盆栽" && findNamePrefixRuleV231(name)) maybeApplySuggestedBatchCurrencyV231(rowId, "CNY", name);
+}
+
 function addBatchRow(prefill = {}){
   const id=++batchRowSeq,tr=document.createElement("tr");
   tr.dataset.rowId=id;
@@ -11345,20 +11554,10 @@ function attachBatchRowEvents(id){
       n.value.toLowerCase()
     );
 
-    document.getElementById(
-      `batchProductId-${id}`
-    ).value = product?.id || "";
-
-    document.getElementById(
-      `batchCategory-${id}`
-    ).value =
-      product?.category ||
-      document.getElementById(
-        `batchCategory-${id}`
-      ).value ||
-      "盆栽";
-
-    maybeDefaultMYRForCategoryV229(document.getElementById(`batchCategory-${id}`).value);
+    document.getElementById(`batchProductId-${id}`).value = product?.id || "";
+    const tr = document.querySelector(`#batchRows tr[data-row-id="${id}"]`);
+    if (tr) tr.dataset.categoryManualForName = "";
+    applyProductIdentityDefaultsV231(id);
     hideBatchRowSuggestionBox(id);
     calculateBatch();
   };
@@ -11375,20 +11574,13 @@ function attachBatchRowEvents(id){
       n.value.trim().toLowerCase()
     );
 
-    document.getElementById(
-      `batchProductId-${id}`
-    ).value = product?.id || "";
-
-    document.getElementById(
-      `batchCategory-${id}`
-    ).value =
-      product?.category ||
-      document.getElementById(
-        `batchCategory-${id}`
-      ).value ||
-      "盆栽";
-
-    maybeDefaultMYRForCategoryV229(document.getElementById(`batchCategory-${id}`).value);
+    document.getElementById(`batchProductId-${id}`).value = product?.id || "";
+    const tr = document.querySelector(`#batchRows tr[data-row-id="${id}"]`);
+    const currentName = n.value.trim().toLowerCase();
+    if (tr && tr.dataset.categoryManualForName && tr.dataset.categoryManualForName !== currentName) {
+      tr.dataset.categoryManualForName = "";
+    }
+    applyProductIdentityDefaultsV231(id);
     renderBatchRowSuggestionBox(id);
     calculateBatch();
   });
@@ -11447,19 +11639,8 @@ function attachBatchRowEvents(id){
   n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();n.value=Array.from(t).slice(0,15).join("");n.dispatchEvent(new Event("input",{bubbles:true}));});
   [`batchQty-${id}`,`batchPrice-${id}`].forEach(k=>{const x=document.getElementById(k);x.addEventListener("focus",()=>x.select());x.addEventListener("input",calculateBatch);x.addEventListener("blur",()=>{if(!k.includes("Qty")&&!k.includes("Stock"))formatInputAmount(x);calculateBatch();});});
   document.getElementById(`batchPrice-${id}`).addEventListener("input", () => {
-    const price = parseAmount(
-      document.getElementById(`batchPrice-${id}`).value
-    );
-    const currency = document.getElementById("batchCurrency");
-
-    if (currency.value === "CNY" && price >= 100000) {
-      currency.value = "VND";
-      applyBatchRate();
-    } else if (currency.value === "VND" && price < 100000) {
-      currency.value = "CNY";
-      applyBatchRate();
-    }
-
+    // V23.1: currency follows explicit batch selection / product-history defaults,
+    // never a unit-price threshold heuristic.
     calculateBatch();
   });
   document.getElementById(`batchQty-${id}`).addEventListener("input", () => {
@@ -11493,7 +11674,9 @@ function attachBatchRowEvents(id){
     );
 
     productIdField.value = product?.id || "";
-    maybeDefaultMYRForCategoryV229(category);
+    const tr = document.querySelector(`#batchRows tr[data-row-id="${id}"]`);
+    if (tr) tr.dataset.categoryManualForName = name;
+    applyProductIdentityDefaultsV231(id, { fromCategoryChange: true });
     calculateBatch();
   });
 }
@@ -11973,7 +12156,7 @@ function saveBatchImport() {
       transitDays: updateTransitDays()
     };
 
-    // V23.0: revision history records every allowed Data Repair field, not only costs.
+    // V23.1: revision history records every allowed Data Repair field, not only costs.
     const repairLogTimeV222 = new Date().toLocaleString("zh-MY", { hour12: false });
     const addRepairLogV222 = (fieldLabel, before, after) => {
       if (String(before ?? "") === String(after ?? "")) return;
@@ -11996,7 +12179,7 @@ function saveBatchImport() {
     let updatedCostSnapshot = {};
     let repairChangesCostV206 = false;
     if (repairEnabled) {
-      // V23.0 Data Repair may change only the Malaysia-side overseas freight
+      // V23.1 Data Repair may change only the Malaysia-side overseas freight
       // among cost-bearing fields. China-side costs, original prices, currency
       // and exchange rate are immutable here.
       const nextChina = Number(oldBatch.chinaTransportCost) || 0;
@@ -12550,7 +12733,7 @@ function renderBatchList() {
   }).join("");
 }
 
-// ================= V23.0 Dedicated Original Cost Correction =================
+// ================= V23.1 Dedicated Original Cost Correction =================
 let originalCostEditPendingV219 = null;
 
 function getPreferredOriginalCostRecordV219(product, queryValue = "", explicitImportId = "") {
@@ -14879,7 +15062,7 @@ function renderInventoryManagementList() {
         )
       ).join(" ");
 
-      // V23.0: cache original import-cost numbers while matching imports are
+      // V23.1: cache original import-cost numbers while matching imports are
       // already in memory. This adds no save/sync/delete calls and leaves the
       // existing smart-search pipeline untouched.
       const originalCostValuesV216 = matchingImports
@@ -14961,7 +15144,7 @@ function renderInventoryManagementList() {
           keyword
         );
 
-      // V23.0: when the query is purely numeric (commas and decimals allowed),
+      // V23.1: when the query is purely numeric (commas and decimals allowed),
       // match the numeric Original Cost exactly, regardless of currency.
       // Existing product/import/tracking searches continue to run unchanged.
       const originalCostQueryTextV216 = String(keyword || "")
@@ -15875,9 +16058,11 @@ function deleteSelectedStaleZeroStockProducts() {
   renderBatchList();
   renderBatchProductStockResults();
   renderImportHistory();
+  renderProductPrefixRulesV181();
+  renderProductCategoriesV227();
   collapseStaleZeroStockPanelV227();
 
-  showDataToolsStatus(`已永久删除 ${formatNumber(selectedProducts.length)} 个零库存产品及相关进口资料，正在同步 Google Sheet`);
+  showDataToolsStatus(`已永久删除 ${formatNumber(selectedProducts.length)} 个零库存产品及相关进口资料；对应前缀／类别如已无其他产品使用会自动解锁，正在同步 Google Sheet`);
 }
 
 
@@ -16063,7 +16248,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "23.0",
+      version: "23.1",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -16430,7 +16615,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V23.0 Stable",
+      updatedBy: "System V23.1 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
