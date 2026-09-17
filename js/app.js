@@ -974,7 +974,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V22.1 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V22.2 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1343,7 +1343,7 @@ function salesItemAlreadyProcessedLocallyV104(item, product) {
     }
   }
 
-  // V22.1: batch commits store a unique commit key plus the stable Sales
+  // V22.2: batch commits store a unique commit key plus the stable Sales
   // accounting key.  Either one proves that inventory was already committed.
   // This keeps a still-pending Sales card visible as ACK-only after a timeout
   // instead of silently dropping it and risking a later duplicate deduction.
@@ -1602,7 +1602,7 @@ function showStartupSalesInventoryReminderV80() {
       const restorePrecheckFailed=/Sales Restore 状态读取超时|无法连接 Sales System 读取 Restore 状态|无法读取 Sales Restore 状态/i.test(message);
 
       if(restorePrecheckFailed){
-        // V22.1: prepareSalesInventoryOperationV117 runs before any inventory
+        // V22.2: prepareSalesInventoryOperationV117 runs before any inventory
         // commit.  If that read-only Restore precheck times out, nothing has been
         // deducted yet, so keep the frozen reminder exactly as-is.  Do not replace
         // it with a transient/empty feed result and make the card disappear.
@@ -3085,12 +3085,29 @@ function appendCostRevisionHistory(entries = []) {
   }
 }
 
+function clearCostRevisionHistoryV222() {
+  const current = getCostRevisionHistory();
+  if (!current.length) {
+    const status = document.getElementById("costRepairStatus");
+    if (status) status.textContent = "目前没有修改历史可清除。";
+    return;
+  }
+  if (!window.confirm(`⚠️ 清除修改历史？\n\n将清除目前 ${current.length} 条资料 / 成本修改记录。\n\n这只会删除修改日志，不会改变任何进口资料、库存、成本、Sales ACK、Restore 或销售历史。`)) return;
+  if (!window.confirm("最后确认：确定永久清除全部修改历史？\n\n清除后无法从系统内恢复这些日志。")) return;
+  const settings = loadJSON("importSystemSettings", {});
+  saveJSON("importSystemSettings", { ...settings, costRevisionHistory: [] });
+  if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
+  renderCostRevisionHistory();
+  const status = document.getElementById("costRepairStatus");
+  if (status) status.textContent = "修改历史已清除；进口资料、库存和成本没有改变。";
+}
+
 function applyBatchCostEditability() {
   const isEditing = Boolean(currentEditingImportNumber);
   const repairEnabled = getCostRepairModeEnabled();
   const lockedSaved = isEditing && !repairEnabled;
 
-  // V22.1: China-side/core import facts are immutable once saved, even when
+  // V22.2: China-side/core import facts are immutable once saved, even when
   // Data Repair is ON. If they are wrong, copy the whole import as a new draft,
   // save the corrected new import number, then delete the wrong old import.
   [
@@ -3212,7 +3229,7 @@ function renderCostRevisionHistory() {
   });
 
   if (!rows.length) {
-    list.innerHTML = '<div class="empty-state">没有成本修改记录。</div>';
+    list.innerHTML = '<div class="empty-state">没有资料 / 成本修改记录。</div>';
     return;
   }
 
@@ -3235,6 +3252,7 @@ function setupCostRepairTools() {
   const toggle = document.getElementById("toggleCostRepairModeBtn");
   const showHistory = document.getElementById("showCostRevisionHistoryBtn");
   const closeHistory = document.getElementById("closeCostRevisionHistoryBtn");
+  const clearHistory = document.getElementById("clearCostRevisionHistoryBtn");
   const panel = document.getElementById("costRevisionHistoryPanel");
   const search = document.getElementById("costRevisionHistorySearch");
   const status = document.getElementById("costRepairStatus");
@@ -3276,6 +3294,7 @@ function setupCostRepairTools() {
     renderCostRevisionHistory();
   });
   closeHistory?.addEventListener("click", () => { if (panel) panel.hidden = true; });
+  clearHistory?.addEventListener("click", clearCostRevisionHistoryV222);
   search?.addEventListener("input", renderCostRevisionHistory);
 
   renderCostRepairModeStatus();
@@ -5231,7 +5250,7 @@ function sequentialSearchMatches(searchableValue, queryValue) {
   return source.includes(query);
 }
 
-// V22.1: shared read-only Original Cost matcher for every product-search surface.
+// V22.2: shared read-only Original Cost matcher for every product-search surface.
 // Pure numeric queries (commas/spaces/decimals allowed) match unitPrice exactly,
 // regardless of currency. This helper only reads already-loaded local collections.
 function parseOriginalCostSearchQueryV216(queryValue) {
@@ -5262,14 +5281,14 @@ function originalCostMatchesProductV216(product, queryValue, imports = null) {
   });
 }
 
-// V22.1: record/batch-level searches must match the Original Cost stored on
+// V22.2: record/batch-level searches must match the Original Cost stored on
 // that exact row. Never fall back to another import row of the same Product ID,
 // otherwise a 320 search can incorrectly pull in a 200 batch for the same product.
 function originalCostMatchesBatchItemV216(item, queryValue) {
   return originalCostNumberMatchesV216(item?.unitPrice, queryValue);
 }
 
-// V22.1: a pure numeric product-search query is reserved exclusively for
+// V22.2: a pure numeric product-search query is reserved exclusively for
 // exact Original Cost matching. It must never fall through to product names,
 // IDs, import numbers, tracking numbers, dates, quantities, or other numeric text.
 function isOriginalCostOnlySearchV218(queryValue) {
@@ -10026,7 +10045,7 @@ function renderImportHistoryNowV134() {
   const exactHistoryProduct = String(
     input.dataset.exactHistoryProduct || ""
   ).trim().toLowerCase();
-  // V22.1: stable Product ID linkage is only for the original text/product search.
+  // V22.2: stable Product ID linkage is only for the original text/product search.
   // A numeric Original Cost hit must remain row/batch-specific; it must not turn
   // into a Product ID hit that automatically includes every historical batch.
   const matchedProductIds = new Set(
@@ -11465,10 +11484,30 @@ function saveBatchImport() {
       transitDays: updateTransitDays()
     };
 
+    // V22.2: revision history records every allowed Data Repair field, not only costs.
+    const repairLogTimeV222 = new Date().toLocaleString("zh-MY", { hour12: false });
+    const addRepairLogV222 = (fieldLabel, before, after) => {
+      if (String(before ?? "") === String(after ?? "")) return;
+      pendingCostRevisionLogs.push({
+        id: `REV${Date.now()}${Math.random().toString(36).slice(2, 7)}`,
+        timestamp: repairLogTimeV222,
+        importNumber: oldBatch.importNumber,
+        fieldLabel,
+        before: String(before ?? "—"),
+        after: String(after ?? "—")
+      });
+    };
+    addRepairLogV222("木架数量", Math.max(0, Number(oldBatch.rackQuantity) || 0), updatedBatchMeta.rackQuantity);
+    addRepairLogV222("运输单号", String(oldBatch.trackingNumber || "—"), updatedBatchMeta.trackingNumber || "—");
+    addRepairLogV222("海外运输单号", String(oldBatch.overseasTrackingNumber || "—"), updatedBatchMeta.overseasTrackingNumber || "—");
+    addRepairLogV222("装柜日期", String(oldBatch.containerDate || "—"), updatedBatchMeta.containerDate || "—");
+    addRepairLogV222("抵达日期", String(oldBatch.arrivalDate || "—"), updatedBatchMeta.arrivalDate || "—");
+    addRepairLogV222("运输天数", String(oldBatch.transitDays ?? "—"), String(updatedBatchMeta.transitDays ?? "—"));
+
     let updatedCostSnapshot = {};
     let repairChangesCostV206 = false;
     if (repairEnabled) {
-      // V22.1 Data Repair may change only the Malaysia-side overseas freight
+      // V22.2 Data Repair may change only the Malaysia-side overseas freight
       // among cost-bearing fields. China-side costs, original prices, currency
       // and exchange rate are immutable here.
       const nextChina = Number(oldBatch.chinaTransportCost) || 0;
@@ -11505,14 +11544,14 @@ function saveBatchImport() {
           rate: nextRate
         };
 
-        pendingCostRevisionLogs = [{
+        pendingCostRevisionLogs.push({
           id: `COSTREV${Date.now()}${Math.random().toString(36).slice(2, 7)}`,
-          timestamp: new Date().toLocaleString("zh-MY", { hour12: false }),
+          timestamp: repairLogTimeV222,
           importNumber: oldBatch.importNumber,
           fieldLabel: "海外到大马运费（RM）",
           before: formatMoney(oldShippingMY),
           after: formatMoney(nextShippingMY)
-        }];
+        });
 
         const totalPurchaseForeignV205 = updatedItems.reduce((sum, item) =>
           sum + (getLockedBatchOriginalQuantity(item) * Math.max(0, Number(item.unitPrice) || 0)),
@@ -12022,7 +12061,7 @@ function renderBatchList() {
   }).join("");
 }
 
-// ================= V22.1 Dedicated Original Cost Correction =================
+// ================= V22.2 Dedicated Original Cost Correction =================
 let originalCostEditPendingV219 = null;
 
 function getPreferredOriginalCostRecordV219(product, queryValue = "", explicitImportId = "") {
@@ -12706,6 +12745,15 @@ function editProductNameFromImportPage(productId) {
     return changed ? { ...batch, items: nextItems, updatedAt: now } : batch;
   });
   saveInventoryConsistencySnapshot(products, nextProducts, imports, nextImports, batches, nextBatches);
+  appendCostRevisionHistory([{
+    id: `DATAREV${Date.now()}${Math.random().toString(36).slice(2, 7)}`,
+    timestamp: new Date().toLocaleString("zh-MY", { hour12: false }),
+    importNumber: id || "-",
+    fieldLabel: `产品名称 · ${id || "未编号"}`,
+    before: oldName,
+    after: nextName
+  }]);
+  renderCostRevisionHistory();
   renderBatchProductStockResults();
   renderInventoryManagementList();
   renderDashboard();
@@ -13325,6 +13373,15 @@ async function editProductStockFromImportPage(productId) {
     previousBatches,
     allocation.nextBatches
   );
+  appendCostRevisionHistory([{
+    id: `DATAREV${Date.now()}${Math.random().toString(36).slice(2, 7)}`,
+    timestamp: new Date().toLocaleString("zh-MY", { hour12: false }),
+    importNumber: product.id || "-",
+    fieldLabel: `当前库存 · ${product.name || "未命名产品"}`,
+    before: formatNumber(currentStock),
+    after: formatNumber(nextStock)
+  }]);
+  renderCostRevisionHistory();
   renderBatchProductStockResults();
   renderInventoryManagementList();
   renderDashboard();
@@ -13488,6 +13545,15 @@ async function editProductMinimumPrice(productId) {
 
   try {
     await updateProductMinimumPriceFast(id, nextMinimumPrice, updatedAt, nextMinimumPriceManual);
+    appendCostRevisionHistory([{
+      id: `DATAREV${Date.now()}${Math.random().toString(36).slice(2, 7)}`,
+      timestamp: new Date().toLocaleString("zh-MY", { hour12: false }),
+      importNumber: product.id || "-",
+      fieldLabel: `最低售价 · ${product.name || "未命名产品"}`,
+      before: formatMoney(currentMinimumPrice, "RM "),
+      after: formatMoney(nextMinimumPrice, "RM ")
+    }]);
+    renderCostRevisionHistory();
     if (status) status.textContent = `已更新：${product.name} 最低售价 ${formatMoney(nextMinimumPrice, "RM ")}`;
   } catch (error) {
     const latestProducts = getProducts();
@@ -14322,7 +14388,7 @@ function renderInventoryManagementList() {
         )
       ).join(" ");
 
-      // V22.1: cache original import-cost numbers while matching imports are
+      // V22.2: cache original import-cost numbers while matching imports are
       // already in memory. This adds no save/sync/delete calls and leaves the
       // existing smart-search pipeline untouched.
       const originalCostValuesV216 = matchingImports
@@ -14404,7 +14470,7 @@ function renderInventoryManagementList() {
           keyword
         );
 
-      // V22.1: when the query is purely numeric (commas and decimals allowed),
+      // V22.2: when the query is purely numeric (commas and decimals allowed),
       // match the numeric Original Cost exactly, regardless of currency.
       // Existing product/import/tracking searches continue to run unchanged.
       const originalCostQueryTextV216 = String(keyword || "")
@@ -15398,7 +15464,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "22.1",
+      version: "22.2",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -15765,7 +15831,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V22.1 Stable",
+      updatedBy: "System V22.2 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,

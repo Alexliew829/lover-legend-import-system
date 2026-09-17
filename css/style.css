@@ -5252,7 +5252,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 
-/* V22.1 Dedicated Original Cost correction: the blue value is the sole
+/* V22.2 Dedicated Original Cost correction: the blue value is the sole
    controlled historical Original Cost edit entrance. */
 .product-stock-original-cost-btn-v219 {
   border: 0;
@@ -5284,3 +5284,45 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .original-cost-edit-dialog-v219 p { margin:12px 0 16px; font-size:.9rem; line-height:1.5; color:#4b5563; }
 .original-cost-edit-actions-v219 { display:flex; justify-content:flex-end; gap:10px; }
 
+
+
+/* V22.2 UI + full revision history */
+#costRevisionHistorySearch {
+  text-align: left !important;
+  direction: ltr;
+}
+#costRevisionHistorySearch::placeholder { text-align: left; direction: ltr; }
+.cost-revision-history-actions-v222 { display:flex; align-items:center; gap:8px; }
+.cost-revision-clear-btn-v222 { color:#b42318; border-color:#e7b1ad; }
+.product-stock-name-edit-btn {
+  font-size: 1.08rem !important;
+  font-weight: 800 !important;
+}
+.product-stock-original-cost-btn-v219 {
+  font-size: 1.04rem !important;
+}
+.product-stock-original-cost-btn-v219 strong {
+  font-size: 1.04em;
+  font-weight: 800;
+}
+.product-stock-minimum-price-btn {
+  white-space: nowrap !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  font-size: .94rem !important;
+}
+.product-stock-minimum-price-btn strong {
+  display: inline !important;
+  white-space: nowrap !important;
+  font-size: inherit !important;
+}
+@media (max-width: 700px) {
+  .cost-revision-history-head { align-items:flex-start; }
+  .cost-revision-history-actions-v222 { flex-wrap:wrap; justify-content:flex-end; }
+  .product-stock-minimum-price-btn { font-size: .90rem !important; }
+}
+@media (max-width: 700px) {
+  .product-stock-result-row { grid-template-columns: minmax(0, 1fr) 155px; }
+}
