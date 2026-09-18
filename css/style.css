@@ -5532,11 +5532,11 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .inventory-media-dot-v236.video{background:#1787e8;}
 @media(max-width:680px){.inventory-media-status-v236{gap:4px;margin-left:2px}.inventory-media-dot-v236{width:11px;height:11px}}
 
-/* V24.5 — prefix-rule suggestions for partial new-product input. */
+/* V24.6 — prefix-rule suggestions for partial new-product input. */
 .batch-prefix-rule-suggestion-v237 small { font-weight: 700; }
 
 
-/* V24.5 — read-only virtual warehouse / product reference library. */
+/* V24.6 — read-only virtual warehouse / product reference library. */
 .virtual-warehouse-panel-v240>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;font-weight:800}
 .virtual-warehouse-panel-v240>summary small{font-weight:700;color:#65736b}
 .virtual-warehouse-panel-v240 .search-input{margin:10px 0}
@@ -5561,7 +5561,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
   .virtual-warehouse-row-v240 strong:nth-of-type(4)::before{content:"成本 ";font-weight:500;color:#6b756e}
 }
 
-/* V24.5 — Supplier prefix reference manager + richer virtual warehouse reference. */
+/* V24.6 — Supplier prefix reference manager + richer virtual warehouse reference. */
 .supplier-prefix-panel-v241>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;font-weight:800}
 .supplier-prefix-head-v241,.supplier-prefix-row-v241{display:grid;grid-template-columns:minmax(220px,1.5fr) 90px minmax(150px,.9fr);gap:10px;align-items:center}
 .supplier-prefix-head-v241{padding:8px 10px;font-size:.82rem;font-weight:800;color:#66736b;border-bottom:1px solid #dce5de}
@@ -5575,17 +5575,10 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 @media (max-width:720px){.supplier-prefix-head-v241{display:none}.supplier-prefix-row-v241{grid-template-columns:1fr auto}.supplier-prefix-row-v241>div,.supplier-prefix-row-v241>em{grid-column:1/-1}.supplier-prefix-add-v241{grid-template-columns:1fr}.virtual-warehouse-row-v240{grid-template-columns:1fr auto auto}.virtual-warehouse-description-v240,.virtual-warehouse-name-v240{grid-column:1/-1;white-space:normal}}
 
 
-/* V24.5 Photo Import + cloud draft workflow */
-.photo-import-panel-v242,.import-draft-panel-v242{margin:0 0 14px;padding:12px;border:1px solid var(--border,#d8d8d8);border-radius:12px;background:var(--card,#fff)}
-.photo-import-head-v242,.import-draft-head-v242{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.photo-import-head-v242 h3,.import-draft-head-v242 h3{margin:0}
-.photo-import-head-v242 p{margin:4px 0 0;font-size:.9rem;opacity:.8}
-.photo-import-actions-v242{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center}
-.photo-file-btn-v242{display:inline-flex;align-items:center;justify-content:center;padding:9px 12px;border:1px solid var(--border,#bbb);border-radius:10px;cursor:pointer;font-weight:700}
-.photo-file-btn-v242 input{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
-.photo-file-list-v242{display:flex;flex-direction:column;gap:3px;margin-top:8px;font-size:.88rem}
-.photo-ocr-text-v242{display:block;margin-top:10px;font-weight:700}
-.photo-ocr-text-v242 textarea{width:100%;margin-top:5px;resize:vertical;text-align:left;white-space:pre-wrap}
+/* V24.6 Photo Import + cloud draft workflow */
+.import-draft-panel-v242{margin:0 0 14px;padding:12px;border:1px solid var(--border,#d8d8d8);border-radius:12px;background:var(--card,#fff)}
+.import-draft-head-v242{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.import-draft-head-v242 h3{margin:0}
 .import-draft-list-v242{display:grid;gap:7px;margin-top:8px}
 .import-draft-card-v242{display:flex;align-items:stretch;gap:6px;border:1px solid var(--border,#ddd);border-radius:10px;padding:6px}
 .import-draft-card-v242.active{outline:2px solid currentColor}
@@ -5593,12 +5586,19 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .import-draft-main-v242 strong{font-size:.95rem}.import-draft-main-v242 span{font-size:.78rem;opacity:.72}
 .import-draft-delete-v242{flex:0 0 auto}
 #activeDraftLabelV242{font-size:.78rem;opacity:.75}
-@media(max-width:640px){.photo-import-head-v242,.import-draft-head-v242{align-items:flex-start}.photo-import-actions-v242>*{flex:1 1 calc(50% - 8px)}.import-draft-card-v242{align-items:center}}
 
-/* V24.5 Supplier reference entry follows the user's left-aligned typing habit. */
+/* V24.6 Supplier reference entry follows the user's left-aligned typing habit. */
 .supplier-prefix-add-v241 input{text-align:left!important;direction:ltr}
 
-/* V24.5 — OCR/photo import temporarily hidden; cloud drafts remain available. */
-.photo-import-panel-v242[hidden]{display:none!important}
 
 #newSupplierFullNameV241,#newSupplierPrefixV241{text-align:left!important;direction:ltr}
+
+/* V24.6 draft-first import flow: compact saved-draft list + guided 24h reminder */
+.import-draft-panel-v242[hidden]{display:none!important}
+.import-draft-panel-v242{margin:0 0 10px;padding:10px 12px;border:1px solid var(--border,#d8d8d8);border-radius:12px;background:var(--card,#fff)}
+.import-draft-head-v242{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.import-draft-head-v242 h3{margin:0;font-size:1rem}
+.import-draft-list-v242{display:grid;gap:6px;margin-top:7px}
+.import-draft-reminder-guide-v246{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.38);display:flex;align-items:center;justify-content:center;padding:18px}
+.import-draft-reminder-card-v246{width:min(560px,100%);max-height:80vh;overflow:auto;background:var(--card,#fff);border-radius:14px;padding:16px;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+.import-draft-reminder-head-v246{display:flex;align-items:center;justify-content:space-between;gap:12px}.import-draft-reminder-head-v246 strong{font-size:1.08rem}.import-draft-reminder-card-v246 p{margin:10px 0}.import-draft-reminder-list-v246{display:grid;gap:8px}.import-draft-reminder-list-v246 button{text-align:left}

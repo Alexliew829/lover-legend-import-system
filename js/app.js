@@ -18,7 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   setupDashboard();
   setupImportModule();
-  setupPhotoImportAndDraftV242();
+  setupImportDraftV246();
   setupImportHistory();
   setupInventoryModule();
   setupGlobalMobilePullDownClear();
@@ -977,7 +977,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V24.5 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V24.6 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1346,7 +1346,7 @@ function salesItemAlreadyProcessedLocallyV104(item, product) {
     }
   }
 
-  // V24.5: batch commits store a unique commit key plus the stable Sales
+  // V24.6: batch commits store a unique commit key plus the stable Sales
   // accounting key.  Either one proves that inventory was already committed.
   // This keeps a still-pending Sales card visible as ACK-only after a timeout
   // instead of silently dropping it and risking a later duplicate deduction.
@@ -1605,7 +1605,7 @@ function showStartupSalesInventoryReminderV80() {
       const restorePrecheckFailed=/Sales Restore 状态读取超时|无法连接 Sales System 读取 Restore 状态|无法读取 Sales Restore 状态/i.test(message);
 
       if(restorePrecheckFailed){
-        // V24.5: prepareSalesInventoryOperationV117 runs before any inventory
+        // V24.6: prepareSalesInventoryOperationV117 runs before any inventory
         // commit.  If that read-only Restore precheck times out, nothing has been
         // deducted yet, so keep the frozen reminder exactly as-is.  Do not replace
         // it with a transient/empty feed result and make the card disappear.
@@ -2649,7 +2649,8 @@ function setupNavigation() {
       }
 
       if (target === "historyPage") {
-        renderImportHistory();
+        // V24.6: entering History must not auto-run a heavy query just because
+        // the keyword box still contains text. Query only on 查看历史 / Enter / date action.
       }
 
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -2964,7 +2965,7 @@ function setupSettings() {
 
 
 
-// ================= V24.5 Supplier Prefix Reference Manager =================
+// ================= V24.6 Supplier Prefix Reference Manager =================
 const DEFAULT_SUPPLIER_PREFIX_RULES_V241 = Object.freeze([
   { fullName: "Ocean Landscaping", prefix: "OLS" },
   { fullName: "Soong Huat Enterprise", prefix: "SHE" },
@@ -3087,7 +3088,7 @@ function setupSupplierPrefixSettingsV241() {
   });
 }
 
-// ================= V24.5 Virtual Warehouse / Product Reference Library =================
+// ================= V24.6 Virtual Warehouse / Product Reference Library =================
 function normalizeVirtualWarehouseNameV240(value) {
   return String(value || "").trim().normalize("NFKC").toLocaleLowerCase();
 }
@@ -3400,7 +3401,7 @@ function applyBatchCostEditability() {
   const repairEnabled = getCostRepairModeEnabled();
   const lockedSaved = isEditing && !repairEnabled;
 
-  // V24.5: China-side/core import facts are immutable once saved, even when
+  // V24.6: China-side/core import facts are immutable once saved, even when
   // Data Repair is ON. If they are wrong, copy the whole import as a new draft,
   // save the corrected new import number, then delete the wrong old import.
   [
@@ -5229,7 +5230,7 @@ function normalizeCategoryPrefixV228(value) {
 function isProductCategoryUsedV229(categoryName) {
   const wanted = normalizeProductCategoryNameV227(categoryName);
   if (!wanted) return false;
-  // V24.5: stock=0 alone MUST NOT unlock a category. As long as the product still
+  // V24.6: stock=0 alone MUST NOT unlock a category. As long as the product still
   // exists in active Products / Imports / Batches, the rule stays locked. Only the
   // explicit “清理零库存产品” flow removes those active references and can unlock it.
   if (getProducts().some(product => normalizeProductCategoryNameV227(product?.category) === wanted)) return true;
@@ -5294,7 +5295,7 @@ function getProductCategoryRulesV228() {
     const mode = name === "盆栽" ? "name" : "category";
     const prefix = mode === "name" ? "" : (normalizeCategoryPrefixV228(raw?.prefix) || preset?.prefix || "QT");
     const lockedByUsageV229 = raw?.lockedByUsageV229 === true;
-    // V24.5: usage lock is derived from current active data, not a permanent flag.
+    // V24.6: usage lock is derived from current active data, not a permanent flag.
     // After the user explicitly cleans the last zero-stock product, the rule may unlock.
     const locked = name === "盆栽" ? true : isProductCategoryUsedV229(name);
     result.push({ name, prefix, mode, locked, lockedByUsageV229 });
@@ -5374,7 +5375,7 @@ function goToProductPrefixSettingsV229() {
 let editingProductCategoryNameV229 = "";
 
 function persistUsedCategoryLocksV229() {
-  // V24.5: no permanent usage flag. Lock state is derived from active
+  // V24.6: no permanent usage flag. Lock state is derived from active
   // Products / Imports / Batches so zero-stock cleanup can legitimately unlock.
 }
 
@@ -5461,7 +5462,7 @@ function ensureApprovedPrefixRulesV244() {
 function setupProductCategorySettingsV227() {
   migrateLegacyProductCategoriesV227();
   ensureApprovedPrefixRulesV244();
-  // V24.5 one-time safe cleanup for the old test-only 杂花杂木 / ZZ records.
+  // V24.6 one-time safe cleanup for the old test-only 杂花杂木 / ZZ records.
   // It runs only when there is no import/batch/history/stock left, so real data is never removed.
   cleanupUnusedTestCategoryProductsV237("杂花杂木");
   persistUsedCategoryLocksV229();
@@ -5666,7 +5667,7 @@ function isProductPrefixRuleUsedV229(keyword, prefix) {
     normalizeProductPrefixKeywordV181(product?.name).includes(normalizedKeyword) &&
     String(product?.id || "").trim().toUpperCase().startsWith(wantedPrefix)
   );
-  // V24.5: product existence itself keeps the rule locked, even at stock 0.
+  // V24.6: product existence itself keeps the rule locked, even at stock 0.
   // Explicit zero-stock cleanup removes the product and can then unlock the rule.
   return matchingProducts.length > 0;
 }
@@ -5698,13 +5699,13 @@ function isProductPrefixRuleLockedV229(keyword, prefix) {
 }
 
 function persistUsedPrefixRuleLocksV229() {
-  // V24.5: lock is derived from active Products, so cleanup can unlock it.
+  // V24.6: lock is derived from active Products, so cleanup can unlock it.
 }
 
 function renderProductPrefixRulesV181() {
   const list = document.getElementById("productPrefixRulesList");
   if (!list) return;
-  // V24.5: keep rules that share the same prefix adjacent for easier management.
+  // V24.6: keep rules that share the same prefix adjacent for easier management.
   // Preserve first-prefix appearance order, then preserve the original order inside each group.
   const originalRulesV237 = getProductPrefixRulesV181();
   const prefixOrderV237 = [];
@@ -6128,7 +6129,7 @@ function sequentialSearchMatches(searchableValue, queryValue) {
   return source.includes(query);
 }
 
-// V24.5: shared read-only Original Cost matcher for every product-search surface.
+// V24.6: shared read-only Original Cost matcher for every product-search surface.
 // Pure numeric queries (commas/spaces/decimals allowed) match unitPrice exactly,
 // regardless of currency. This helper only reads already-loaded local collections.
 function parseOriginalCostSearchQueryV216(queryValue) {
@@ -6159,14 +6160,14 @@ function originalCostMatchesProductV216(product, queryValue, imports = null) {
   });
 }
 
-// V24.5: record/batch-level searches must match the Original Cost stored on
+// V24.6: record/batch-level searches must match the Original Cost stored on
 // that exact row. Never fall back to another import row of the same Product ID,
 // otherwise a 320 search can incorrectly pull in a 200 batch for the same product.
 function originalCostMatchesBatchItemV216(item, queryValue) {
   return originalCostNumberMatchesV216(item?.unitPrice, queryValue);
 }
 
-// V24.5: a pure numeric product-search query is reserved exclusively for
+// V24.6: a pure numeric product-search query is reserved exclusively for
 // exact Original Cost matching. It must never fall through to product names,
 // IDs, import numbers, tracking numbers, dates, quantities, or other numeric text.
 function isOriginalCostOnlySearchV218(queryValue) {
@@ -6229,7 +6230,7 @@ function productSearchMatchesV218(searchableValue, product, queryValue, imports 
     return originalCostMatchesProductV216(product, queryValue, imports);
   }
   if (productExactOrPrefixSearchMatchesV238(product, queryValue)) return true;
-  // V24.5 regression fix: real inventory must keep accepting embedded code-like
+  // V24.6 regression fix: real inventory must keep accepting embedded code-like
   // fragments such as BX680 / bx680 / Bx680 even though they contain only two
   // Latin letters. This runs before virtual-warehouse matching and never broadens
   // single-letter queries.
@@ -6251,7 +6252,7 @@ function batchItemSearchMatchesV218(searchableValue, item, queryValue) {
   return smartSearchMatches(searchableValue, queryValue);
 }
 
-// V24.5: shared read-only shipment/local-number search helper.
+// V24.6: shared read-only shipment/local-number search helper.
 // Uses the same stored field (overseasTrackingNumber) but the UI now labels it
 // “海外运输单号 / 本地单号”. Symbol-tolerant smart matching means XX-A430
 // can be found with A430, xx a430, etc.
@@ -6693,11 +6694,10 @@ function setupImportModule(){
 }
 
 
-// ================= V24.5 Photo Import + Cloud Draft =================
+// ================= V24.6 Cloud Draft =================
 const IMPORT_DRAFTS_KEY_V242 = "importDraftsV242";
 let activeImportDraftIdV242 = "";
 let importDraftCleanFingerprintV244 = "";
-let photoImportFilesV242 = [];
 
 function getImportDraftsV242() {
   const settings = loadJSON("importSystemSettings", {});
@@ -6712,7 +6712,7 @@ function writeImportDraftsV242(drafts) {
 }
 
 
-// V24.5: every NEW import must be saved as a cloud draft first. Any later edit
+// V24.6: every NEW import must be saved as a cloud draft first. Any later edit
 // closes the formal-save gate until the draft is saved again.
 function importDraftFingerprintV243(state) {
   const rows = (Array.isArray(state?.rows) ? state.rows : []).map(row => ({
@@ -6731,7 +6731,7 @@ function importDraftFingerprintV243(state) {
     currency: String(common.currency || "CNY"), rate: String(common.rate || "").trim(),
     overseasTrackingNumber: String(common.overseasTrackingNumber || "").trim(), containerDate: String(common.containerDate || "").trim(),
     arrivalDate: String(common.arrivalDate || "").trim(), shippingMY: String(common.shippingMY || "").trim()
-  }, ocrText: String(state?.ocrText || "").trim() });
+  } });
 }
 function getActiveImportDraftV243() {
   if (!activeImportDraftIdV242) return null;
@@ -6747,27 +6747,45 @@ function hasMeaningfulImportDraftInputV243() {
   }
   return fingerprint !== importDraftCleanFingerprintV244;
 }
-function importDraftStateHasUserDataV245(state) {
+function importDraftStateHasUserDataV246(state) {
   const rows = Array.isArray(state?.rows) ? state.rows : [];
   if (rows.some(row => String(row?.name || "").trim() || String(row?.productId || "").trim() ||
     (Number(row?.quantity) || 0) > 0 || (Number(row?.unitPrice) || 0) > 0 ||
     String(row?.virtualWarehouseNameV240 || "").trim())) return true;
+
   const common = state?.common || {};
-  if (String(common.trackingNumber || "").trim() || String(common.overseasTrackingNumber || "").trim() ||
-      String(common.containerDate || "").trim() || String(common.arrivalDate || "").trim() ||
-      (Number(common.rackQuantity) || 0) > 0 || (Number(common.chinaTransportCost) || 0) > 0 ||
-      (Number(common.potCost) || 0) > 0 || (Number(common.shippingMY) || 0) > 0) return true;
-  if (String(common.currency || "CNY").trim().toUpperCase() !== "CNY") return true;
-  return Boolean(String(state?.ocrText || "").trim());
+  // V24.6: when there is no product row, automatic currency/rate/arrival defaults
+  // are not user data. A search that is later cleared must return to a clean page.
+  if (!rows.length) {
+    return Boolean(
+      String(common.trackingNumber || "").trim() ||
+      String(common.overseasTrackingNumber || "").trim() ||
+      String(common.containerDate || "").trim() ||
+      (String(common.arrivalDate || "").trim() && !batchArrivalAutoFilledByMYRV230) ||
+      (Number(common.rackQuantity) || 0) > 0 ||
+      (Number(common.chinaTransportCost) || 0) > 0 ||
+      (Number(common.potCost) || 0) > 0 ||
+      (Number(common.shippingMY) || 0) > 0
+    );
+  }
+
+  return Boolean(
+    String(common.trackingNumber || "").trim() ||
+    String(common.overseasTrackingNumber || "").trim() ||
+    String(common.containerDate || "").trim() ||
+    String(common.arrivalDate || "").trim() ||
+    (Number(common.rackQuantity) || 0) > 0 ||
+    (Number(common.chinaTransportCost) || 0) > 0 ||
+    (Number(common.potCost) || 0) > 0 ||
+    (Number(common.shippingMY) || 0) > 0 ||
+    String(common.currency || "CNY").trim().toUpperCase() !== "CNY"
+  );
 }
 function hasUnsavedImportDraftChangesV243() {
   if (currentEditingImportNumber) return false;
   const current = collectImportDraftStateV242();
   const active = getActiveImportDraftV243();
-  // V24.5: opening/browsing the page with the default blank row is clean.
-  if (!active && !importDraftStateHasUserDataV245(current)) return false;
-  if (!hasMeaningfulImportDraftInputV243()) return false;
-  if (!active) return true;
+  if (!active) return importDraftStateHasUserDataV246(current);
   return importDraftFingerprintV243(current) !== importDraftFingerprintV243(active);
 }
 function confirmDiscardImportDraftChangesV243(actionLabel = "离开") {
@@ -6793,6 +6811,48 @@ function ensureDraftReadyForFormalSaveV243(status) {
 function localDateKeyV243(date = new Date()) {
   return [date.getFullYear(), String(date.getMonth()+1).padStart(2,"0"), String(date.getDate()).padStart(2,"0")].join("-");
 }
+function openImportDraftFromReminderV246(draftId) {
+  const nav = document.querySelector('.nav-btn[data-page="importPage"]');
+  if (nav && !nav.classList.contains("active")) nav.click();
+  window.setTimeout(() => {
+    applyImportDraftV242(draftId);
+    document.getElementById("batchImportForm")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, 80);
+}
+
+function showImportDraftReminderGuideV246(overdue) {
+  document.getElementById("importDraftReminderGuideV246")?.remove();
+  if (!overdue.length) return;
+  const panel = document.createElement("section");
+  panel.id = "importDraftReminderGuideV246";
+  panel.className = "import-draft-reminder-guide-v246";
+  panel.innerHTML = `
+    <div class="import-draft-reminder-card-v246">
+      <div class="import-draft-reminder-head-v246">
+        <strong>进口草稿未确认</strong>
+        <button type="button" class="ghost-btn" data-close-draft-reminder-v246>关闭</button>
+      </div>
+      <p>以下草稿已保存超过24小时。每天提醒一次，正式保存或删除后停止提醒。</p>
+      <div class="import-draft-reminder-list-v246">
+        ${overdue.map(draft => {
+          const rows = Array.isArray(draft.rows) ? draft.rows : [];
+          const first = rows.find(row => row?.name)?.name || "未命名草稿";
+          return `<button type="button" class="secondary-btn" data-open-draft-reminder-v246="${escapeHTML(draft.id || "")}">${escapeHTML(first)} · 查看草稿</button>`;
+        }).join("")}
+      </div>
+    </div>`;
+  document.body.appendChild(panel);
+  panel.addEventListener("click", event => {
+    const close = event.target.closest("[data-close-draft-reminder-v246]");
+    if (close) { panel.remove(); return; }
+    const open = event.target.closest("[data-open-draft-reminder-v246]");
+    if (!open) return;
+    const id = String(open.dataset.openDraftReminderV246 || "");
+    panel.remove();
+    openImportDraftFromReminderV246(id);
+  });
+}
+
 function checkImportDraftRemindersV243() {
   const drafts = getImportDraftsV242(); if (!drafts.length) return;
   const now = Date.now(), todayKey = localDateKeyV243();
@@ -6801,14 +6861,9 @@ function checkImportDraftRemindersV243() {
     return draft?.status === "draft" && Number.isFinite(created) && now-created >= 86400000 && draft?.lastReminderDateV243 !== todayKey;
   });
   if (!overdue.length) return;
-  const lines = overdue.slice(0,5).map(draft => {
-    const rows = Array.isArray(draft.rows) ? draft.rows : [];
-    return `• ${rows.find(row=>row?.name)?.name || "待检查 DO"} · ${formatDraftTimeV242(draft.createdAt)}`;
-  });
-  if (overdue.length > 5) lines.push(`• 另外 ${overdue.length-5} 份草稿`);
-  alert(`⚠️ 有 ${overdue.length} 份进口草稿保存超过24小时仍未正式确认。\n\n${lines.join("\n")}\n\n请到「产品 / 进口」检查并确认。`);
-  const ids = new Set(overdue.map(d=>String(d.id||"")));
-  writeImportDraftsV242(drafts.map(d=>ids.has(String(d.id||"")) ? {...d,lastReminderDateV243:todayKey} : d));
+  showImportDraftReminderGuideV246(overdue);
+  const ids = new Set(overdue.map(d => String(d.id || "")));
+  writeImportDraftsV242(drafts.map(d => ids.has(String(d.id || "")) ? {...d,lastReminderDateV243:todayKey} : d));
 }
 
 function collectImportDraftStateV242() {
@@ -6840,9 +6895,7 @@ function collectImportDraftStateV242() {
       containerDate: val("batchContainerDate"),
       arrivalDate: val("batchArrivalDate"),
       shippingMY: val("batchShippingMY")
-    },
-    ocrText: String(document.getElementById("photoImportTextV242")?.value || "").trim(),
-    photoNames: photoImportFilesV242.map(file => file.name).filter(Boolean)
+    }
   };
 }
 
@@ -6852,8 +6905,8 @@ function saveImportDraftV242() {
     return;
   }
   const state = collectImportDraftStateV242();
-  if (!state.rows.length && !state.ocrText && !state.photoNames.length) {
-    alert("\u8bf7\u5148\u8f93\u5165\u4ea7\u54c1\u6216\u62cd\u7167 / \u4e0a\u4f20 DO\u3002");
+  if (!state.rows.length) {
+    alert("请先输入至少一个产品，再保存草稿。");
     return;
   }
   const drafts = getImportDraftsV242();
@@ -6912,7 +6965,6 @@ function applyImportDraftV242(draftId) {
   set("batchContainerDate", common.containerDate);
   set("batchArrivalDate", common.arrivalDate);
   set("batchShippingMY", common.shippingMY);
-  set("photoImportTextV242", draft.ocrText || "");
   activeImportDraftIdV242 = String(draft.id || "");
   batchCurrencyManuallySelectedV229 = Boolean(common.currency);
   calculateBatch();
@@ -6943,187 +6995,34 @@ function formatDraftTimeV242(value) {
 }
 
 function renderImportDraftsV242() {
+  const panel = document.getElementById("importDraftPanelV242");
   const list = document.getElementById("importDraftListV242");
   const label = document.getElementById("activeDraftLabelV242");
   if (!list) return;
   const drafts = getImportDraftsV242().slice().sort((a, b) => Date.parse(b.updatedAt || "") - Date.parse(a.updatedAt || ""));
-  if (label) label.textContent = activeImportDraftIdV242 ? `\u5f53\u524d\u8349\u7a3f\uff1a${activeImportDraftIdV242}` : "";
+  if (panel) panel.hidden = drafts.length === 0;
+  if (label) label.textContent = activeImportDraftIdV242 ? `当前草稿：${activeImportDraftIdV242}` : "";
   if (!drafts.length) {
-    list.innerHTML = '<div class="empty-state">\u6682\u65e0\u8349\u7a3f</div>';
+    list.innerHTML = "";
     return;
   }
   list.innerHTML = drafts.slice(0, 8).map(draft => {
     const rows = Array.isArray(draft.rows) ? draft.rows : [];
-    const first = rows.find(row => row?.name)?.name || "\u5f85\u68c0\u67e5 DO";
+    const first = rows.find(row => row?.name)?.name || "未命名草稿";
     const count = rows.filter(row => row?.name).length;
     return `<article class="import-draft-card-v242 ${draft.id === activeImportDraftIdV242 ? "active" : ""}">
       <button type="button" class="import-draft-main-v242" data-load-draft-v242="${escapeHTML(draft.id || "")}">
         <strong>${escapeHTML(first)}</strong>
-        <span>${count} \u4e2a\u4ea7\u54c1 \u00b7 ${escapeHTML(formatDraftTimeV242(draft.updatedAt))}</span>
+        <span>${count} 个产品 · ${escapeHTML(formatDraftTimeV242(draft.updatedAt))}</span>
       </button>
-      <button type="button" class="ghost-btn import-draft-delete-v242" data-delete-draft-v242="${escapeHTML(draft.id || "")}">\u5220\u9664</button>
+      <button type="button" class="ghost-btn import-draft-delete-v242" data-delete-draft-v242="${escapeHTML(draft.id || "")}">删除</button>
     </article>`;
   }).join("");
 }
 window.renderImportDraftsV242 = renderImportDraftsV242;
 
-function loadTesseractV242() {
-  if (window.Tesseract?.recognize) return Promise.resolve(window.Tesseract);
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector('script[data-tesseract-v242="1"]');
-    if (existing) {
-      existing.addEventListener("load", () => resolve(window.Tesseract));
-      existing.addEventListener("error", reject);
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
-    script.async = true;
-    script.dataset.tesseractV242 = "1";
-    script.onload = () => resolve(window.Tesseract);
-    script.onerror = () => reject(new Error("OCR \u7ec4\u4ef6\u8f7d\u5165\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u7f51\u7edc\u3002"));
-    document.head.appendChild(script);
-  });
-}
-
-function normalizeOcrTextV242(value) {
-  return String(value || "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").replace(/\s+/g, " ").trim();
-}
-
-function realInventoryOcrMatchV243(line) {
-  const rawLine = String(line || "").normalize("NFKC").toLocaleLowerCase();
-  const normalizedLine = normalizeOcrTextV242(line);
-  let best = null, bestScore = 0;
-  getProducts().forEach(product => {
-    const rawName = String(product?.name || "").normalize("NFKC").trim().toLocaleLowerCase();
-    const id = normalizeOcrTextV242(product?.id || "");
-    let score = 0;
-    if (rawName && rawName.length >= 3 && rawLine.includes(rawName)) score = 120 + rawName.length;
-    if (id && normalizedLine.includes(id)) score = Math.max(score, 110 + id.length);
-    if (score > bestScore) { bestScore = score; best = {source:"real",product,line,score}; }
-  });
-  return best;
-}
-function virtualWarehouseOcrMatchV242(line) {
-  const normalizedLine = normalizeOcrTextV242(line); if (!normalizedLine) return null;
-  let best=null,bestScore=0;
-  getVirtualWarehouseSourceV240().forEach((item,index)=>{
-    const desc=normalizeOcrTextV242(item.description||""); if(!desc)return;
-    const tokens=desc.split(" ").filter(token=>token.length>=3&&!/^\d+$/.test(token)); if(!tokens.length)return;
-    const hits=tokens.filter(token=>normalizedLine.includes(token)).length;
-    const needed=tokens.length<=1?1:Math.min(2,tokens.length); if(hits<needed)return;
-    let score=hits*10;
-    const size=normalizeOcrTextV242(item.size||""); if(size&&normalizedLine.includes(size))score+=4;
-    const supplier=normalizeOcrTextV242(item.supplierPrefix||""); if(supplier&&normalizedLine.includes(supplier))score+=2;
-    if(score<=bestScore)return;
-    const realProduct=getProducts().find(product=>normalizeVirtualWarehouseNameV240(product?.name)===normalizeVirtualWarehouseNameV240(item?.name));
-    bestScore=score;
-    best=realProduct?{source:"real",product:realProduct,referenceItem:item,sourceIndex:index,line,score:100+score}:{source:"virtual",item,sourceIndex:index,line,score};
-  });
-  return best;
-}
-function ocrProductMatchV243(line) { return realInventoryOcrMatchV243(line) || virtualWarehouseOcrMatchV242(line); }
-
-function inferQuantityFromOcrLineV242(line, item) {
-  const sizeNums = (String(item?.size || "").match(/\d+(?:\.\d+)?/g) || []).map(Number);
-  const cost = Number(item?.cost);
-  const nums = (String(line || "").match(/\d+(?:[.,]\d+)?/g) || []).map(value => Number(value.replace(",", "."))).filter(Number.isFinite);
-  const candidates = nums.filter(value => Number.isInteger(value) && value > 0 && value <= 999 && !sizeNums.some(size => Math.abs(size - value) < 0.001) && !(Number.isFinite(cost) && Math.abs(cost - value) < 0.01));
-  return candidates.length === 1 ? candidates[0] : 0;
-}
-
-function applyOcrMatchesToImportV242(text) {
-  const lines=String(text||"").split(/\r?\n/).map(line=>line.trim()).filter(Boolean),matches=[],used=new Set();
-  lines.forEach(line=>{const match=ocrProductMatchV243(line);if(!match)return;const key=match.source==="real"?`real:${String(match.product?.id||match.product?.name||"").toLowerCase()}`:`virtual:${String(match.item?.name||"").toLowerCase()}`;if(used.has(key))return;used.add(key);matches.push(match);});
-  if(!matches.length)return 0;
-  const tbody=document.getElementById("batchRows");if(tbody)tbody.innerHTML="";batchRowSeq=0;
-  matches.forEach(match=>{
-    if(match.source==="real"&&match.product){const ref=match.referenceItem||{};addBatchRow({name:match.product.name,productId:match.product.id,category:match.product.category||"盆栽",quantity:inferQuantityFromOcrLineV242(match.line,ref),unitPrice:Number(ref.cost)||0});return;}
-    if(!match.item)return;
-    addBatchRow({name:match.item.name,category:resolveVirtualWarehouseCategoryV240(match.item),quantity:inferQuantityFromOcrLineV242(match.line,match.item),unitPrice:Number(match.item.cost)||0});
-    const tr=document.querySelector("#batchRows tr:last-child");if(!tr)return;const rowId=tr.dataset.rowId,sourceIndex=Number(match.sourceIndex);
-    tr.dataset.virtualWarehouseNameV240=String(match.item.name||"").trim().toLowerCase();tr.dataset.virtualWarehousePrefixV240=normalizeCategoryPrefixV228(match.item.productPrefix||"");tr.dataset.virtualWarehouseIndexV240=Number.isInteger(sourceIndex)&&sourceIndex>=0?String(sourceIndex):"";tr.dataset.virtualWarehouseCategoryV240=resolveVirtualWarehouseCategoryV240(match.item);
-    const price=document.getElementById(`batchPrice-${rowId}`);if(price&&Number(match.item.cost)>0)price.value=formatMoney(Number(match.item.cost));
-  });
-  if(matches.length&&matches.every(match=>match.source==="virtual"&&String(match.item?.category||"")!=="盆栽")){const currency=document.getElementById("batchCurrency");if(currency){currency.value="MYR";applyBatchRate();setTodayArrivalForMYRV229();}}
-  calculateBatch();return matches.length;
-}
-
-async function runPhotoOcrV242() {
-  const progress = document.getElementById("photoImportProgressV242");
-  const textArea = document.getElementById("photoImportTextV242");
-  if (!photoImportFilesV242.length) { alert("\u8bf7\u5148\u62cd\u7167\u6216\u9009\u62e9\u7167\u7247\u3002"); return; }
-  const hasExistingRows = Array.from(document.querySelectorAll("#batchRows tr")).some(tr => {
-    const id = Number(tr.dataset.rowId);
-    return String(document.getElementById(`batchName-${id}`)?.value || "").trim() || Number(parseAmount(document.getElementById(`batchQty-${id}`)?.value)) > 0 || Number(parseAmount(document.getElementById(`batchPrice-${id}`)?.value)) > 0;
-  });
-  if ((hasExistingRows || String(textArea?.value || "").trim()) && !window.confirm("⚠️ 重新 OCR 会覆盖当前产品行 / OCR 文字。\n\n请先保存草稿；如确认继续，请按「确定」。")) return;
-  const button = document.getElementById("runPhotoOcrV242");
-  if (button) button.disabled = true;
-  try {
-    if (progress) progress.textContent = "\u6b63\u5728\u8f7d\u5165\u514d\u8d39 OCR\u2026\u7b2c\u4e00\u6b21\u53ef\u80fd\u8f83\u6162\u3002";
-    const Tesseract = await loadTesseractV242();
-    const texts = [];
-    for (let i = 0; i < photoImportFilesV242.length; i += 1) {
-      const file = photoImportFilesV242[i];
-      if (progress) progress.textContent = `OCR ${i + 1} / ${photoImportFilesV242.length}\uff1a${file.name || "photo"}`;
-      const result = await Tesseract.recognize(file, "eng", { logger: message => { if (progress && message?.status) progress.textContent = `${i + 1}/${photoImportFilesV242.length} \u00b7 ${message.status} ${message.progress ? Math.round(message.progress * 100) + "%" : ""}`; } });
-      texts.push(String(result?.data?.text || ""));
-    }
-    const allText = texts.join("\n\n--- PAGE ---\n\n").trim();
-    if (textArea) textArea.value = allText;
-    const count = applyOcrMatchesToImportV242(allText);
-    if (progress) progress.textContent = count ? `\u5df2\u5339\u914d ${count} \u4e2a\u4ea7\u54c1\u3002\u8bf7\u68c0\u67e5\u4ea7\u54c1\u3001Size\u3001\u6570\u91cf\u4e0e\u539f\u6210\u672c\uff0c\u7136\u540e\u4fdd\u5b58\u8349\u7a3f\u3002` : "\u5df2\u8bc6\u522b\u6587\u5b57\uff0c\u4f46\u672a\u80fd\u81ea\u52a8\u5339\u914d\u865a\u62df\u4ed3\u5e93\u3002\u8bf7\u624b\u52a8\u68c0\u67e5\u540e\u586b\u5165\u3002";
-  } catch (error) {
-    console.error("V24.5 OCR failed", error);
-    if (progress) progress.textContent = `OCR \u5931\u8d25\uff1a${error?.message || "\u65e0\u6cd5\u8bc6\u522b"}`;
-  } finally {
-    if (button) button.disabled = false;
-  }
-}
-
-function setupPhotoImportAndDraftV242() {
+function setupImportDraftV246() {
   document.getElementById("saveImportDraftBtnV242")?.addEventListener("click", saveImportDraftV242);
-  const toggle = document.getElementById("togglePhotoImportV242");
-  const body = document.getElementById("photoImportBodyV242");
-  toggle?.addEventListener("click", () => {
-    if (!body) return;
-    body.hidden = !body.hidden;
-    toggle.textContent = body.hidden ? "\u6253\u5f00" : "\u6536\u8d77";
-    toggle.setAttribute("aria-expanded", String(!body.hidden));
-  });
-  const refreshPhotoListV242 = () => {
-    const list = document.getElementById("photoImportFileListV242");
-    if (list) list.innerHTML = photoImportFilesV242.length ? photoImportFilesV242.map((file, index) => `<span>${index + 1}. ${escapeHTML(file.name || "photo")}</span>`).join("") : "";
-  };
-  document.getElementById("photoImportFilesV242")?.addEventListener("change", event => {
-    const nextFiles = Array.from(event.target.files || []).filter(file => String(file.type || "").startsWith("image/"));
-    if (photoImportFilesV242.length && nextFiles.length && !window.confirm("⚠️ 选择新的相册照片会替换当前已选照片。\n\n确认替换吗？")) { event.target.value = ""; return; }
-    photoImportFilesV242 = nextFiles;
-    refreshPhotoListV242();
-  });
-  document.getElementById("photoImportCameraV242")?.addEventListener("change", event => {
-    const captured = Array.from(event.target.files || []).filter(file => String(file.type || "").startsWith("image/"));
-    if (captured.length) photoImportFilesV242 = [...photoImportFilesV242, ...captured].slice(0, 12);
-    event.target.value = "";
-    refreshPhotoListV242();
-  });
-  document.getElementById("runPhotoOcrV242")?.addEventListener("click", runPhotoOcrV242);
-  document.getElementById("clearPhotoImportV242")?.addEventListener("click", () => {
-    const hasPhotoData = photoImportFilesV242.length || String(document.getElementById("photoImportTextV242")?.value || "").trim();
-    if (hasPhotoData && !window.confirm("⚠️ 清除照片 / OCR 文字会造成尚未保存的识别资料遗失。\n\n确认清除吗？")) return;
-    photoImportFilesV242 = [];
-    const input = document.getElementById("photoImportFilesV242");
-    if (input) input.value = "";
-    const camera = document.getElementById("photoImportCameraV242");
-    if (camera) camera.value = "";
-    const list = document.getElementById("photoImportFileListV242");
-    if (list) list.innerHTML = "";
-    const text = document.getElementById("photoImportTextV242");
-    if (text) text.value = "";
-    const progress = document.getElementById("photoImportProgressV242");
-    if (progress) progress.textContent = "";
-  });
   const list = document.getElementById("importDraftListV242");
   list?.addEventListener("click", event => {
     const load = event.target.closest("[data-load-draft-v242]");
@@ -7131,7 +7030,11 @@ function setupPhotoImportAndDraftV242() {
     const del = event.target.closest("[data-delete-draft-v242]");
     if (del) deleteImportDraftV242(del.dataset.deleteDraftV242);
   });
-  window.addEventListener("beforeunload", event => { if (!hasUnsavedImportDraftChangesV243()) return; event.preventDefault(); event.returnValue = ""; });
+  window.addEventListener("beforeunload", event => {
+    if (!hasUnsavedImportDraftChangesV243()) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
   window.addEventListener("focus", checkImportDraftRemindersV243);
   renderImportDraftsV242();
   window.setTimeout(checkImportDraftRemindersV243, 700);
@@ -8445,7 +8348,7 @@ async function deleteBatchByNumber(importNumber) {
   const effectiveItems =
     batchItems.length ? batchItems : (batch.items || []);
 
-  // V24.5: “复制”已经是独立按钮，删除按钮只负责删除。
+  // V24.6: “复制”已经是独立按钮，删除按钮只负责删除。
   // 不再使用 confirm 的“确定=复制 / 取消=继续删除”反向流程，
   // 避免用户明确点击删除却实际只复制一份。
   const confirmed = confirm(
@@ -8483,7 +8386,7 @@ async function deleteBatchByNumber(importNumber) {
 
   batches.splice(batchIndex, 1);
 
-  // V24.5: deleting the only import for a test/new product should also remove the
+  // V24.6: deleting the only import for a test/new product should also remove the
   // resulting zero-stock orphan product, so its category/prefix can unlock. A
   // product with any protected stock-adjustment/sales history is kept.
   const nextProductsV234 = removeOrphanedProductsAfterBatchDeleteV234(
@@ -8989,6 +8892,7 @@ function buildHistoryImportNumberButton(importNumber) {
 }
 
 function clearHistoryPageView() {
+  historyManualLookupReadyV246 = false;
   const input =
     document.getElementById("historyLookupInput");
   const startInput =
@@ -9023,6 +8927,8 @@ function clearHistoryPageView() {
 
   showHistoryCopyToast("已清空本页");
 }
+
+let historyManualLookupReadyV246 = false;
 
 function setupImportHistory() {
   const input = document.getElementById("historyLookupInput");
@@ -9106,6 +9012,7 @@ function setupImportHistory() {
     }
 
     lastCompletedHistoryLookup = lookupKey;
+    historyManualLookupReadyV246 = true;
     renderImportHistory();
 
     if (blurAfter && document.activeElement === input) {
@@ -9133,6 +9040,7 @@ function setupImportHistory() {
     }
 
     lastCompletedHistoryLookup = "";
+    historyManualLookupReadyV246 = true;
     renderImportHistory();
   };
 
@@ -9147,6 +9055,7 @@ function setupImportHistory() {
 
   input?.addEventListener("input", () => {
     lastCompletedHistoryLookup = "";
+    historyManualLookupReadyV246 = false;
     delete input.dataset.exactHistoryProduct;
   });
 
@@ -9162,13 +9071,13 @@ function setupImportHistory() {
   });
 
   input?.addEventListener("change", () => {
-    runHistoryLookup();
+    // V24.6: keep typed keyword only. Do not launch history scans automatically.
+    lastCompletedHistoryLookup = "";
   });
 
   input?.addEventListener("blur", () => {
-    historyLookupTimer = window.setTimeout(() => {
-      runHistoryLookup();
-    }, 0);
+    // V24.6: leaving/switching pages must remain instant even when this field has text.
+    window.clearTimeout(historyLookupTimer);
   });
 
   startPicker?.addEventListener("change", () => {
@@ -9176,6 +9085,7 @@ function setupImportHistory() {
       formatNativeDateToDDMMYYYY(startPicker.value);
     startInput.classList.remove("date-error");
     lastCompletedHistoryLookup = "";
+    historyManualLookupReadyV246 = true;
     renderImportHistory();
   });
 
@@ -9184,6 +9094,7 @@ function setupImportHistory() {
       formatNativeDateToDDMMYYYY(endPicker.value);
     endInput.classList.remove("date-error");
     lastCompletedHistoryLookup = "";
+    historyManualLookupReadyV246 = true;
     renderImportHistory();
   });
 
@@ -9219,11 +9130,13 @@ function setupImportHistory() {
     if (endPicker) endPicker.value = "";
 
     lastCompletedHistoryLookup = "";
+    historyManualLookupReadyV246 = true;
     renderImportHistory();
   });
 
   clearPageButton?.addEventListener("click", () => {
     lastCompletedHistoryLookup = "";
+    historyManualLookupReadyV246 = false;
     clearHistoryPageView();
   });
 
@@ -9265,6 +9178,7 @@ function setupImportHistory() {
       input.value = productName;
       input.dataset.exactHistoryProduct = productName;
       lastCompletedHistoryLookup = "";
+      historyManualLookupReadyV246 = true;
       renderImportHistory();
       return;
     }
@@ -11643,7 +11557,7 @@ function renderImportHistoryNowV134() {
   const exactHistoryProduct = String(
     input.dataset.exactHistoryProduct || ""
   ).trim().toLowerCase();
-  // V24.5: stable Product ID linkage is only for the original text/product search.
+  // V24.6: stable Product ID linkage is only for the original text/product search.
   // A numeric Original Cost hit must remain row/batch-specific; it must not turn
   // into a Product ID hit that automatically includes every historical batch.
   const matchedProductIds = new Set(
@@ -11894,6 +11808,10 @@ function renderImportHistoryNowV134() {
 }
 
 async function renderImportHistory() {
+  // V24.6: history is manual-query only. Keeping text in the box must never
+  // trigger expensive history scans from blur, navigation, sync refresh, etc.
+  if (!historyManualLookupReadyV246) return;
+  if (!document.getElementById("historyPage")?.classList.contains("active")) return;
   const token = ++historyLookupRenderTokenV134;
   hydrateHistorySalesCacheV179();
   renderImportHistoryNowV134();
@@ -12326,7 +12244,13 @@ function resetBatchForm(options = {}) {
 function findExactProductByNameV231(name) {
   const wanted = String(name || "").trim().toLowerCase();
   if (!wanted) return null;
-  return getProducts().find(product => String(product?.name || "").trim().toLowerCase() === wanted) || null;
+  // V24.6: use raw product storage for identity lookup. Minimum-price
+  // normalization is unrelated here and was making the typing path expensive.
+  const products = loadJSON("importSystemProducts", []);
+  return products.find(product =>
+    String(product?.name || "").trim().toLowerCase() === wanted ||
+    String(product?.id || "").trim().toLowerCase() === wanted
+  ) || null;
 }
 
 const AMBIGUOUS_BONSAI_PREFIX_KEYWORDS_V239 = Object.freeze(["仙丹", "ixora"]);
@@ -12347,7 +12271,7 @@ function isAmbiguousBonsaiPrefixRuleV239(keyword) {
 }
 
 function canAutoApplyBonsaiPrefixRuleV239(name, keyword) {
-  // V24.5: species such as Ixora / 仙丹 may be either bonsai or ordinary nursery stock.
+  // V24.6: species such as Ixora / 仙丹 may be either bonsai or ordinary nursery stock.
   // Only auto-classify the ambiguous species as bonsai when the product name carries
   // an explicit bonsai/form cue. Manual category selection remains available.
   if (!isAmbiguousBonsaiPrefixRuleV239(keyword)) return true;
@@ -12364,7 +12288,7 @@ function findNamePrefixRuleV231(name) {
     canAutoApplyBonsaiPrefixRuleV239(name, keyword)
   );
   if (direct) return direct;
-  // V24.5: while entering a NEW product, allow a meaningful partial keyword to
+  // V24.6: while entering a NEW product, allow a meaningful partial keyword to
   // resolve a configured rule. Ambiguous bonsai/ordinary species still require
   // a form cue before they are auto-classified as bonsai.
   if (!isProductFuzzySearchReadyV238(name)) return null;
@@ -12517,8 +12441,8 @@ function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, c
   const categoryField = document.getElementById(`batchCategory-${rowId}`);
   const productIdField = document.getElementById(`batchProductId-${rowId}`);
   if (!tr || !nameInput || !categoryField || !productIdField) return;
-  const name = String(nameInput.value || "").trim();
-  const normalizedName = name.toLowerCase();
+  let name = String(nameInput.value || "").trim();
+  let normalizedName = name.toLowerCase();
   if (!name) {
     productIdField.value = "";
     tr.dataset.categoryManualForName = "";
@@ -12528,11 +12452,19 @@ function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, c
 
   const product = findExactProductByNameV231(name);
   if (product) {
+    const matchedById = String(product?.id || "").trim().toLowerCase() === normalizedName &&
+      String(product?.name || "").trim().toLowerCase() !== normalizedName;
+    if (matchedById) {
+      nameInput.value = String(product.name || name).trim();
+      name = String(nameInput.value || "").trim();
+      normalizedName = name.toLowerCase();
+    }
+    const identityChanged = tr.dataset.lastIdentityNameV231 !== normalizedName;
     productIdField.value = product.id || "";
     categoryField.value = normalizeProductCategoryNameV227(product.category) || "盆栽";
     tr.dataset.categoryManualForName = normalizedName;
     tr.dataset.lastIdentityNameV231 = normalizedName;
-    fillExistingProductOriginalCostV244(rowId, product, { force: false });
+    fillExistingProductOriginalCostV244(rowId, product, { force: identityChanged });
     applyExistingProductCurrencyV232(rowId, product, { commitCurrency });
     return;
   }
@@ -12671,116 +12603,158 @@ function positionBatchRowSuggestionBox(id) {
   box.style.width = `${preferredWidth}px`;
 }
 
+let batchRowSearchBaseCacheV246 = null;
+function getBatchRowSearchBaseV246() {
+  const productsRaw = localStorage.getItem("importSystemProducts") || "[]";
+  const importsRaw = localStorage.getItem("importSystemImports") || "[]";
+  const batchesRaw = localStorage.getItem("importSystemBatches") || "[]";
+  const cache = batchRowSearchBaseCacheV246;
+  if (cache && cache.productsRaw === productsRaw && cache.importsRaw === importsRaw && cache.batchesRaw === batchesRaw) {
+    return cache;
+  }
+
+  let products = [], imports = [], batches = [];
+  try { products = JSON.parse(productsRaw); } catch (_) {}
+  try { imports = JSON.parse(importsRaw); } catch (_) {}
+  try { batches = JSON.parse(batchesRaw); } catch (_) {}
+  if (!Array.isArray(products)) products = [];
+  if (!Array.isArray(imports)) imports = [];
+  if (!Array.isArray(batches)) batches = [];
+
+  const batchByNumber = new Map(batches.map(batch => [String(batch?.importNumber || "").trim().toLowerCase(), batch]));
+  const shipmentByKey = new Map();
+  const preferredByKey = new Map();
+  const recordsByKey = new Map();
+  const scoreRecord = (record, batch) => {
+    const active = Math.max(0, Number(record?.remainingQuantity ?? record?.quantity) || 0) > 0 ? 1 : 0;
+    const stamp = Date.parse(String(record?.updatedAt || record?.createdAt || "")) || parseDDMMYYYY(record?.arrivalDate || batch?.arrivalDate || record?.date || batch?.date || "") || 0;
+    return active * 10**15 + stamp;
+  };
+
+  imports.forEach(record => {
+    const idKey = String(record?.productId || "").trim().toLowerCase();
+    const nameKey = String(record?.productName || "").trim().toLowerCase();
+    const keys = [idKey ? `id:${idKey}` : "", nameKey ? `name:${nameKey}` : ""].filter(Boolean);
+    const batch = batchByNumber.get(String(record?.importNumber || "").trim().toLowerCase()) || {};
+    const shipment = String(record?.overseasTrackingNumber || batch?.overseasTrackingNumber || batch?.trackingNumber || "").trim();
+    const score = scoreRecord(record, batch);
+    keys.forEach(key => {
+      if (!recordsByKey.has(key)) recordsByKey.set(key, []);
+      recordsByKey.get(key).push(record);
+      if (shipment) shipmentByKey.set(key, `${shipmentByKey.get(key) || ""} ${shipment}`.trim());
+      const prev = preferredByKey.get(key);
+      if (!prev || score > prev.score) preferredByKey.set(key, { record, batch, score });
+    });
+  });
+
+  batchRowSearchBaseCacheV246 = { productsRaw, importsRaw, batchesRaw, products, imports, batches, batchByNumber, shipmentByKey, preferredByKey, recordsByKey };
+  return batchRowSearchBaseCacheV246;
+}
+
+function getBatchRowSearchContextV246(value) {
+  const base = getBatchRowSearchBaseV246();
+  const originalCostQuery = parseOriginalCostSearchQueryV216(value);
+  const costKeys = new Set();
+  if (originalCostQuery !== null) {
+    for (const [key, records] of base.recordsByKey.entries()) {
+      if (records.some(record => originalCostNumberMatchesV216(record?.unitPrice, value))) costKeys.add(key);
+    }
+  }
+  return { ...base, originalCostQuery, costKeys };
+}
+
 function renderBatchRowSuggestionBox(id) {
-  const input =
-    document.getElementById(`batchName-${id}`);
-  const box =
-    document.getElementById(`batchSuggestionBox-${id}`);
-
+  const input = document.getElementById(`batchName-${id}`);
+  const box = document.getElementById(`batchSuggestionBox-${id}`);
   if (!input || !box) return;
-
   const value = String(input.value || "").trim();
+  if (!value) { hideBatchRowSuggestionBox(id); return; }
 
-  // V24.5: keep typing/search responsive on desktop and mobile.
-  // Read the large collections once per keystroke instead of once for every product.
-  // Real inventory is checked first; shipment-number lookup is only the fallback.
-  const productsV245 = getProducts().slice();
-  const importsV245 = getImports();
-  const batchesV245 = getBatches();
-  const normalizedValueV245 = normalizeSmartSearchText(value);
-  const suggestions = productsV245
-    .filter(product => {
-      if (!value) return true;
+  const context = getBatchRowSearchContextV246(value);
+  const normalizedQuery = normalizeSmartSearchText(value);
+  const fuzzyReady = isProductFuzzySearchReadyV238(value);
+  const codeQuery = /[a-z]/i.test(normalizedQuery) && /\d/.test(normalizedQuery) && normalizedQuery.length >= 3;
+  const prefixQuery = /^[a-z]{2}$/i.test(String(value || "").trim());
 
-      const searchable = [
-        product.name,
-        product.id,
-        product.category
-      ].join(" ");
-      const quickTargetV245 = normalizeSmartSearchText(searchable);
-      if (normalizedValueV245 && quickTargetV245.includes(normalizedValueV245)) return true;
+  const matchedReal = [];
+  for (const product of context.products) {
+    const idRaw = String(product?.id || "").trim();
+    const nameRaw = String(product?.name || "").trim();
+    const categoryRaw = String(product?.category || "").trim();
+    const idNorm = normalizeSmartSearchText(idRaw);
+    const nameNorm = normalizeSmartSearchText(nameRaw);
+    const categoryNorm = normalizeSmartSearchText(categoryRaw);
+    const keys = [idRaw ? `id:${idRaw.toLowerCase()}` : "", nameRaw ? `name:${nameRaw.toLowerCase()}` : ""].filter(Boolean);
+    let match = false;
+    if (context.originalCostQuery !== null) match = keys.some(key => context.costKeys.has(key));
+    else {
+      if (idNorm && normalizedQuery.length >= 2 && idNorm.includes(normalizedQuery)) match = true;
+      if (!match && nameNorm && nameNorm.includes(normalizedQuery)) match = true;
+      if (!match && prefixQuery && idNorm.slice(0, 2) === normalizedQuery) match = true;
+      if (!match && codeQuery && (smartSearchMatches(`${nameRaw} ${idRaw}`, value) || sequentialSearchMatches(`${nameRaw} ${idRaw}`, value))) match = true;
+      if (!match && fuzzyReady && (smartSearchMatches(`${nameRaw} ${idRaw} ${categoryRaw}`, value) || categoryNorm.includes(normalizedQuery))) match = true;
+      if (!match && (fuzzyReady || codeQuery) && keys.some(key => shipmentLocalNumberMatchesV235(context.shipmentByKey.get(key) || "", value))) match = true;
+    }
+    if (!match) continue;
+    let preferred = null;
+    for (const key of keys) {
+      const candidate = context.preferredByKey.get(key);
+      if (candidate && (!preferred || candidate.score > preferred.score)) preferred = candidate;
+    }
+    matchedReal.push({ product, preferred });
+    if (matchedReal.length >= 40) break;
+  }
+  matchedReal.sort((a, b) => String(a.product?.id || "").localeCompare(String(b.product?.id || "")));
 
-      return productSearchMatchesWithShipmentV235(
-        searchable, product, value, importsV245, batchesV245
-      );
-    })
-    .sort((a, b) =>
-      String(a.id || "").localeCompare(
-        String(b.id || "")
-      )
-    );
-
-  // V24.5: prefix rules are also valid suggestions for a brand-new product.
-  // This lets a partial input such as “虎尾” surface “虎尾兰Sansevieria / SS”
-  // before the row is incorrectly treated as an unmatched 杂花杂木 product.
   const compactQueryV237 = normalizeProductPrefixKeywordV181(value);
-  const productNameSetV237 = new Set(suggestions.map(product => String(product?.name || "").trim().toLowerCase()));
-  const fuzzyReadyV238 = isProductFuzzySearchReadyV238(value);
-  const normalizedQueryV238 = normalizeSmartSearchText(value);
-  const prefixSuggestionsV237 = (fuzzyReadyV238 || /^[a-z]{2}$/i.test(String(value || "").trim()))
+  const productNameSetV237 = new Set(matchedReal.map(item => String(item.product?.name || "").trim().toLowerCase()));
+  const prefixSuggestionsV237 = (fuzzyReady || prefixQuery)
     ? getProductPrefixRulesV181().filter(([keyword, prefix]) => {
         const normalizedKeyword = normalizeProductPrefixKeywordV181(keyword);
         const normalizedPrefix = normalizeSmartSearchText(prefix);
-        return (
-          (fuzzyReadyV238 && normalizedKeyword.includes(compactQueryV237)) ||
-          normalizedPrefix === normalizedQueryV238
-        ) && canAutoApplyBonsaiPrefixRuleV239(value, keyword)
+        return ((fuzzyReady && normalizedKeyword.includes(compactQueryV237)) || normalizedPrefix === normalizedQuery)
+          && canAutoApplyBonsaiPrefixRuleV239(value, keyword)
           && !productNameSetV237.has(String(keyword || "").trim().toLowerCase());
-      })
+      }).slice(0, 12)
     : [];
-  const categorySuggestionsV238 = (fuzzyReadyV238 || /^[a-z]{2}$/i.test(String(value || "").trim()))
+  const categorySuggestionsV238 = (fuzzyReady || prefixQuery)
     ? getProductCategoryRulesV228().filter(rule => {
         if (!rule || rule.mode !== "category" || rule.name === "盆栽") return false;
         const normalizedName = normalizeSmartSearchText(rule.name);
         const normalizedPrefix = normalizeSmartSearchText(rule.prefix);
-        return (fuzzyReadyV238 && normalizedName.includes(normalizedQueryV238)) ||
-          normalizedPrefix === normalizedQueryV238;
-      })
+        return (fuzzyReady && normalizedName.includes(normalizedQuery)) || normalizedPrefix === normalizedQuery;
+      }).slice(0, 12)
     : [];
-  const virtualWarehouseSuggestionsV240 = virtualWarehouseSearchSuggestionsV240(value);
+  const virtualWarehouseSuggestionsV240 = (fuzzyReady || prefixQuery || codeQuery)
+    ? virtualWarehouseSearchSuggestionsV240(value).slice(0, 25)
+    : [];
 
-  if (!suggestions.length && !virtualWarehouseSuggestionsV240.length && !prefixSuggestionsV237.length && !categorySuggestionsV238.length) {
-    box.innerHTML = `
-      <div class="batch-product-suggestion-empty">
-        找不到符合“${escapeHTML(value)}”的产品
-      </div>
-    `;
+  if (!matchedReal.length && !virtualWarehouseSuggestionsV240.length && !prefixSuggestionsV237.length && !categorySuggestionsV238.length) {
+    box.innerHTML = `<div class="batch-product-suggestion-empty">找不到符合“${escapeHTML(value)}”的产品</div>`;
   } else {
-    box.innerHTML = suggestions.map(product => `
-      <button type="button"
-              class="batch-product-suggestion-item"
-              data-batch-suggestion="${escapeHTML(product.name)}">
+    box.innerHTML = matchedReal.map(({product, preferred}) => {
+      const record = preferred?.record || null;
+      const batch = preferred?.batch || {};
+      const cost = Math.max(0, Number(record?.unitPrice) || 0);
+      const currency = String(record?.currency || batch?.currency || "").trim().toUpperCase();
+      const costLabel = cost > 0 ? ` · 原成本 ${formatMoney(cost)}${currency ? ` ${escapeHTML(currency)}` : ""}` : "";
+      return `<button type="button" class="batch-product-suggestion-item" data-batch-suggestion="${escapeHTML(product.name)}">
         <strong>${escapeHTML(product.name)}</strong>
-        <small>
-          ${escapeHTML(product.id || "-")} ·
-          ${escapeHTML(product.category || "盆栽")}
-        </small>
-      </button>
-    `).join("") + virtualWarehouseSuggestionsV240.map(item => `
-      <button type="button"
-              class="batch-product-suggestion-item batch-virtual-warehouse-suggestion-v240"
-              data-batch-virtual-warehouse="${item._virtualIndexV240}">
+        <small>${escapeHTML(product.id || "-")} · ${escapeHTML(product.category || "盆栽")}${costLabel}</small>
+      </button>`;
+    }).join("") + virtualWarehouseSuggestionsV240.map(item => `
+      <button type="button" class="batch-product-suggestion-item batch-virtual-warehouse-suggestion-v240" data-batch-virtual-warehouse="${item._virtualIndexV240}">
         <strong>${escapeHTML(item.description || item.name || "-")}</strong>
         <span class="batch-vw-product-name-v241">${escapeHTML(item.name || "-")}</span>
         <small>Size ${escapeHTML(item.size || "-")} · Supplier ${escapeHTML(item.supplierPrefix || "-")} · ${escapeHTML(item.productPrefix || "-")} · 原成本 ${Number.isFinite(Number(item.cost)) ? formatMoney(Number(item.cost)) : "-"}</small>
-      </button>
-    `).join("") + prefixSuggestionsV237.map(([keyword, prefix]) => `
-      <button type="button"
-              class="batch-product-suggestion-item batch-prefix-rule-suggestion-v237"
-              data-batch-suggestion="${escapeHTML(keyword)}">
-        <strong>${escapeHTML(keyword)}</strong>
-        <small>${escapeHTML(prefix)} · 盆栽前缀规则</small>
-      </button>
-    `).join("") + categorySuggestionsV238.map(rule => `
-      <button type="button"
-              class="batch-product-suggestion-item batch-prefix-rule-suggestion-v237 batch-category-rule-hint-v238"
-              data-batch-category-rule="${escapeHTML(rule.name)}">
-        <strong>${escapeHTML(rule.name)}</strong>
-        <small>${escapeHTML(rule.prefix)} · 非盆栽前缀规则</small>
-      </button>
-    `).join("");
+      </button>`).join("") + prefixSuggestionsV237.map(([keyword, prefix]) => `
+      <button type="button" class="batch-product-suggestion-item batch-prefix-rule-suggestion-v237" data-batch-suggestion="${escapeHTML(keyword)}">
+        <strong>${escapeHTML(keyword)}</strong><small>${escapeHTML(prefix)} · 盆栽前缀规则</small>
+      </button>`).join("") + categorySuggestionsV238.map(rule => `
+      <button type="button" class="batch-product-suggestion-item batch-prefix-rule-suggestion-v237 batch-category-rule-hint-v238" data-batch-category-rule="${escapeHTML(rule.name)}">
+        <strong>${escapeHTML(rule.name)}</strong><small>${escapeHTML(rule.prefix)} · 非盆栽前缀规则</small>
+      </button>`).join("");
   }
-
   box.hidden = false;
   positionBatchRowSuggestionBox(id);
 }
@@ -12820,41 +12794,48 @@ function attachBatchRowEvents(id){
     calculateBatch();
   };
 
+  let batchNameSearchTimerV246 = 0;
+  let batchNameComposingV246 = false;
+  const scheduleBatchNameSearchV246 = (delay = 220) => {
+    window.clearTimeout(batchNameSearchTimerV246);
+    batchNameSearchTimerV246 = window.setTimeout(() => {
+      if (!String(n.value || "").trim()) { hideBatchRowSuggestionBox(id); calculateBatch(); return; }
+      applyProductIdentityDefaultsV231(id, { commitCurrency: false });
+      renderBatchRowSuggestionBox(id);
+      calculateBatch();
+    }, delay);
+  };
+
+  n.addEventListener("compositionstart", () => { batchNameComposingV246 = true; window.clearTimeout(batchNameSearchTimerV246); });
+  n.addEventListener("compositionend", () => { batchNameComposingV246 = false; scheduleBatchNameSearchV246(20); });
+
   n.addEventListener("input", () => {
     let chars = Array.from(n.value);
+    if (chars.length > 15) n.value = chars.slice(0, 15).join("");
 
-    if (chars.length > 15) {
-      n.value = chars.slice(0, 15).join("");
-    }
-
-    const product = getProducts().find(item =>
-      String(item.name || "").toLowerCase() ===
-      n.value.trim().toLowerCase()
-    );
-
-    document.getElementById(`batchProductId-${id}`).value = product?.id || "";
+    // V24.6: the keystroke path does no product/import/batch scans. Only clear
+    // stale identity metadata synchronously, then search after the user pauses.
+    const productIdField = document.getElementById(`batchProductId-${id}`);
+    if (productIdField) productIdField.value = "";
     const tr = document.querySelector(`#batchRows tr[data-row-id="${id}"]`);
     const currentName = n.value.trim().toLowerCase();
-    if (tr && tr.dataset.categoryManualForName && tr.dataset.categoryManualForName !== currentName) {
-      tr.dataset.categoryManualForName = "";
-    }
+    if (tr && tr.dataset.categoryManualForName && tr.dataset.categoryManualForName !== currentName) tr.dataset.categoryManualForName = "";
     if (tr && tr.dataset.virtualWarehouseNameV240 && tr.dataset.virtualWarehouseNameV240 !== currentName) {
       delete tr.dataset.virtualWarehouseNameV240;
       delete tr.dataset.virtualWarehousePrefixV240;
       delete tr.dataset.virtualWarehouseIndexV240;
       delete tr.dataset.virtualWarehouseCategoryV240;
     }
-    applyProductIdentityDefaultsV231(id, { commitCurrency: false });
-    renderBatchRowSuggestionBox(id);
-    calculateBatch();
+    if (!currentName) hideBatchRowSuggestionBox(id);
+    if (!batchNameComposingV246) scheduleBatchNameSearchV246();
   });
 
   n.addEventListener("focus", () => {
-    renderBatchRowSuggestionBox(id);
+    if (String(n.value || "").trim()) scheduleBatchNameSearchV246(0);
   });
 
   n.addEventListener("click", () => {
-    renderBatchRowSuggestionBox(id);
+    if (String(n.value || "").trim()) scheduleBatchNameSearchV246(0);
   });
 
   const repositionSuggestion = () => {
@@ -12913,6 +12894,7 @@ function attachBatchRowEvents(id){
   });
 
   n.addEventListener("blur", () => {
+    window.clearTimeout(batchNameSearchTimerV246);
     applyProductIdentityDefaultsV231(id, { commitCurrency: true });
     calculateBatch();
     window.setTimeout(() => {
@@ -12927,7 +12909,7 @@ function attachBatchRowEvents(id){
   n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();n.value=Array.from(t).slice(0,15).join("");n.dispatchEvent(new Event("input",{bubbles:true}));});
   [`batchQty-${id}`,`batchPrice-${id}`].forEach(k=>{const x=document.getElementById(k);x.addEventListener("focus",()=>x.select());x.addEventListener("input",calculateBatch);x.addEventListener("blur",()=>{if(!k.includes("Qty")&&!k.includes("Stock"))formatInputAmount(x);calculateBatch();});});
   document.getElementById(`batchPrice-${id}`).addEventListener("input", () => {
-    // V24.5: currency follows explicit batch selection / product-history defaults,
+    // V24.6: currency follows explicit batch selection / product-history defaults,
     // never a unit-price threshold heuristic.
     calculateBatch();
   });
@@ -13453,7 +13435,7 @@ function saveBatchImport() {
       transitDays: updateTransitDays()
     };
 
-    // V24.5: revision history records every allowed Data Repair field, not only costs.
+    // V24.6: revision history records every allowed Data Repair field, not only costs.
     const repairLogTimeV222 = new Date().toLocaleString("zh-MY", { hour12: false });
     const addRepairLogV222 = (fieldLabel, before, after) => {
       if (String(before ?? "") === String(after ?? "")) return;
@@ -13476,7 +13458,7 @@ function saveBatchImport() {
     let updatedCostSnapshot = {};
     let repairChangesCostV206 = false;
     if (repairEnabled) {
-      // V24.5 Data Repair may change only the Malaysia-side overseas freight
+      // V24.6 Data Repair may change only the Malaysia-side overseas freight
       // among cost-bearing fields. China-side costs, original prices, currency
       // and exchange rate are immutable here.
       const nextChina = Number(oldBatch.chinaTransportCost) || 0;
@@ -14029,7 +14011,7 @@ function renderBatchList() {
   }).join("");
 }
 
-// ================= V24.5 Dedicated Original Cost Correction =================
+// ================= V24.6 Dedicated Original Cost Correction =================
 let originalCostEditPendingV219 = null;
 
 function getPreferredOriginalCostRecordV219(product, queryValue = "", explicitImportId = "") {
@@ -16358,7 +16340,7 @@ function renderInventoryManagementList() {
         )
       ).join(" ");
 
-      // V24.5: cache original import-cost numbers while matching imports are
+      // V24.6: cache original import-cost numbers while matching imports are
       // already in memory. This adds no save/sync/delete calls and leaves the
       // existing smart-search pipeline untouched.
       const originalCostValuesV216 = matchingImports
@@ -16440,7 +16422,7 @@ function renderInventoryManagementList() {
           keyword
         );
 
-      // V24.5: when the query is purely numeric (commas and decimals allowed),
+      // V24.6: when the query is purely numeric (commas and decimals allowed),
       // match the numeric Original Cost exactly, regardless of currency.
       // Existing product/import/tracking searches continue to run unchanged.
       const originalCostQueryTextV216 = String(keyword || "")
@@ -17553,7 +17535,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "24.5",
+      version: "24.6",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -17920,7 +17902,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V24.5 Stable",
+      updatedBy: "System V24.6 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
