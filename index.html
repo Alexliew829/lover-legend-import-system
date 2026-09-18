@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=24.0" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=24.0" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=24.0" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=24.0" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=24.0" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=24.0" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=24.0" />
+  <link rel="manifest" href="./manifest.json?v=24.1" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=24.1" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=24.1" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=24.1" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=24.1" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=24.1" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=24.1" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=24.0" />
-  <link rel="stylesheet" href="./css/style.css?v=24.0" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=24.1" />
+  <link rel="stylesheet" href="./css/style.css?v=24.1" />
 </head>
 <body>
   <div id="accessLock"
@@ -84,7 +84,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 24.0 Stable</div>
+          <div class="app-header-version">正式版 24.1 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -617,15 +617,31 @@
           </div>
         </section>
 
+        <details class="panel collapsible-settings-v181 supplier-prefix-panel-v241" id="supplierPrefixPanelV241">
+          <summary>
+            <span>Supplier 前缀管理</span>
+            <small>供应商简称参考库</small>
+          </summary>
+          <p class="settings-help">只供新增产品命名时参考，不参与产品编号生成，也不会自动改产品名。Supplier Full Name 与前缀都防重复；虚拟仓库已使用的前缀保持锁定。</p>
+          <div class="supplier-prefix-head-v241"><span>Supplier Full Name</span><span>前缀</span><span>状态 / 操作</span></div>
+          <div id="supplierPrefixRulesListV241" class="supplier-prefix-list-v241"></div>
+          <div class="supplier-prefix-add-v241">
+            <label>Supplier Full Name<input id="newSupplierFullNameV241" maxlength="60" autocomplete="off" placeholder="例如：ABC Nursery Sdn Bhd" /></label>
+            <label>Supplier 前缀<input id="newSupplierPrefixV241" maxlength="6" autocomplete="off" autocapitalize="characters" placeholder="例如：ABC" /></label>
+            <button id="addSupplierPrefixBtnV241" class="primary-btn" type="button">新增 Supplier</button>
+          </div>
+          <div id="supplierPrefixStatusV241" class="status-text"></div>
+        </details>
+
         <details class="panel virtual-warehouse-panel-v240" id="virtualWarehousePanelV240">
           <summary>
             <span>虚拟仓库 / 产品参考库</span>
             <small id="virtualWarehouseCountV240">载入中…</small>
           </summary>
           <p class="settings-help">只保存过去买过的产品作参考，不计库存、不参与平均成本、不写入 Imports / Batches。产品再次进口并成功保存后，会自动进入真实仓库，并从这里的可用列表隐藏。</p>
-          <input id="virtualWarehouseSearchV240" class="search-input text-left-input" type="search" autocomplete="off" placeholder="搜索产品名、Description、Supplier 前缀、产品编号前缀或成本" />
+          <input id="virtualWarehouseSearchV240" class="search-input text-left-input" type="search" autocomplete="off" placeholder="搜索产品名、Description、Size、Supplier 前缀、产品编号前缀或成本" />
           <div class="virtual-warehouse-head-v240" aria-hidden="true">
-            <span>产品名</span><span>Description</span><span>Supplier</span><span>编号前缀</span><span>成本</span>
+            <span>Description</span><span>产品名</span><span>Size</span><span>Supplier</span><span>编号前缀</span><span>成本</span>
           </div>
           <div id="virtualWarehouseListV240" class="virtual-warehouse-list-v240"></div>
           <div id="virtualWarehouseStatusV240" class="status-text"></div>
@@ -842,7 +858,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 24.0 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 24.1 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
@@ -874,9 +890,9 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=24.0"></script>
-  <script src="./js/sync.js?v=24.0"></script>
-  <script src="./js/virtual-warehouse.js?v=24.0"></script>
-  <script src="./js/app.js?v=24.0"></script>
+  <script src="./js/common.js?v=24.1"></script>
+  <script src="./js/sync.js?v=24.1"></script>
+  <script src="./js/virtual-warehouse.js?v=24.1"></script>
+  <script src="./js/app.js?v=24.1"></script>
 </body>
 </html>
