@@ -2581,6 +2581,10 @@ function setupNavigation() {
       // V13.7: a Restore remains protected until the persisted server job is
       // success/failed, including final verification and polling intervals.
       const current=document.querySelector('.nav-btn.active')?.dataset?.page||'';
+      if(target!==current&&typeof isInventoryMediaSaveInProgressV252==="function"&&isInventoryMediaSaveInProgressV252()){
+        window.alert("照片／视频正在上传并确认云端状态，请等待显示上传成功或失败后再切换页面。");
+        return;
+      }
       if(target!==current&&!confirmLeaveOriginalCostEditV219())return;
       if(target!==current&&current==="importPage"&&!confirmDiscardImportDraftChangesV243("切换页面"))return;
       if(target!==current&&promotionDeleteInProgressV184&&!window.confirm("促销删除仍在同步中。\n\n现在切换页面可能无法立即确认云端删除结果，建议等待显示删除完成。\n\n仍要切换页面吗？"))return;
@@ -3234,7 +3238,7 @@ function applyVirtualWarehouseSelectionV240(rowId, indexValue) {
   tr.dataset.virtualWarehouseIndexV240 = String(indexValue);
   tr.dataset.virtualWarehouseCategoryV240 = categoryField.value;
   if (Number.isFinite(Number(item.cost)) && Number(item.cost) > 0) {
-    // V25.1: virtual-warehouse reference costs are MYR supplier costs. Seed them
+    // V25.2: virtual-warehouse reference costs are MYR supplier costs. Seed them
     // through the same auto-original-cost path so foreign batches convert them.
     setAutoOriginalCostV249(rowId, { unitPrice: Number(item.cost), currency: "MYR" }, { force: true });
   }
@@ -6717,7 +6721,7 @@ function setupImportModule(){
 }
 
 
-// ================= V25.1 Two-stage Import Save =================
+// ================= V25.2 Two-stage Import Save =================
 const IMPORT_DRAFTS_KEY_V242 = "importDraftsV242";
 const IMPORT_DRAFT_DELETED_IDS_KEY_V250 = "importDraftDeletedIdsV250";
 let activeImportDraftIdV242 = "";
@@ -6984,7 +6988,7 @@ function saveImportDraftV242() {
   activeImportDraftIdV242 = id;
   writeImportDraftsV242(next);
 
-  // V25.1: saving a draft must NEVER leave the original import editor.
+  // V25.2: saving a draft must NEVER leave the original import editor.
   // Keep the just-saved draft active and preserve every field in the same input area.
   // Some sync/view refresh paths may redraw the page after settings are queued; if that
   // unexpectedly leaves the import editor blank, restore this exact saved draft.
@@ -7059,13 +7063,20 @@ function deleteImportDraftV242(draftId) {
   const draft = getImportDraftsV242().find(item => String(item?.id || "") === String(draftId || ""));
   if (!draft) return;
   if (!confirm("⚠️ 确认删除这份草稿？\n\n这会永久删除尚未正式保存的进口草稿资料，删除后无法恢复。\n\n已正式保存的库存资料不会受到影响。")) return;
-  // V25.1 Local-First: clear active state before the local render, then persist a
-  // deletion tombstone so a stale cloud copy cannot reappear on the next merge.
-  if (String(activeImportDraftIdV242 || "") === String(draftId || "")) activeImportDraftIdV242 = "";
+  const wasActiveV252 = String(activeImportDraftIdV242 || "") === String(draftId || "");
+  // V25.2 Local-First: clear active state and persist the tombstone immediately,
+  // then clear the editor only when the deleted draft is the one currently open.
+  if (wasActiveV252) activeImportDraftIdV242 = "";
   markImportDraftDeletedV250(draftId);
   const next = getImportDraftsV242().filter(item => String(item?.id || "") !== String(draftId || ""));
   writeImportDraftsV242(next);
   document.getElementById("importDraftPickerV248")?.remove();
+  document.getElementById("importDraftReminderGuideV246")?.remove();
+  if (wasActiveV252 && !currentEditingImportNumber) {
+    resetBatchForm({ clearLookup: true, clearStatus: true });
+    const statusV252 = document.getElementById("batchStatusText");
+    if (statusV252) statusV252.textContent = "草稿已删除，当前进口输入区已清空。";
+  }
   renderImportDraftsV242();
 }
 
@@ -7073,7 +7084,11 @@ function consumeActiveImportDraftV242() {
   if (!activeImportDraftIdV242) return;
   const id = activeImportDraftIdV242;
   activeImportDraftIdV242 = "";
+  // V25.2: formal save is also a terminal removal of the draft. Without a
+  // tombstone, a stale cloud copy can merge back and trigger the 24-hour reminder.
+  markImportDraftDeletedV250(id);
   writeImportDraftsV242(getImportDraftsV242().filter(item => item.id !== id));
+  document.getElementById("importDraftReminderGuideV246")?.remove();
 }
 
 function formatDraftTimeV242(value) {
@@ -7083,7 +7098,7 @@ function formatDraftTimeV242(value) {
 }
 
 function renderImportDraftsV242() {
-  // V25.1: no large standalone draft module. The original import editor remains the
+  // V25.2: no large standalone draft module. The original import editor remains the
   // working area; only a lightweight entry is shown so drafts can be reopened after
   // clearing/reloading/leaving the page.
   const label = document.getElementById("activeDraftLabelV242");
@@ -7190,7 +7205,7 @@ function setupImportDraftV247() {
   document.getElementById("confirmFormalImportBtnV247")?.addEventListener("click", confirmFormalImportV247);
   document.getElementById("deleteCurrentImportDraftBtnV247")?.addEventListener("click", deleteCurrentImportDraftV247);
   document.getElementById("openImportDraftsBtnV248")?.addEventListener("click", openImportDraftPickerV248);
-  // V25.1: status follows every edit in the original import form.
+  // V25.2: status follows every edit in the original import form.
   const draftFormV249 = document.getElementById("batchImportForm");
   const refreshDraftStateV249 = () => window.requestAnimationFrame(() => renderImportDraftsV242());
   draftFormV249?.addEventListener("input", refreshDraftStateV249);
@@ -8588,7 +8603,7 @@ async function deleteBatchByNumber(importNumber) {
 
   if (!confirmed) return;
 
-  // V25.1: deletion can take time because cloud flush + pull-back verification
+  // V25.2: deletion can take time because cloud flush + pull-back verification
   // are intentionally strict. Give immediate, staged feedback instead of making
   // the user wait with an apparently idle screen.
   const deleteButtonV251 = Array.from(document.querySelectorAll('[data-delete-import-v251]')).find(btn =>
@@ -8676,7 +8691,7 @@ async function deleteBatchByNumber(importNumber) {
       await window.pullLatestAfterSalesCommitV83(true);
     }
 
-    // V25.1: if an older remote row resurrected a zero-stock orphan during the
+    // V25.2: if an older remote row resurrected a zero-stock orphan during the
     // verification pull, remove it once more with explicit Products tombstones.
     if (removedOrphanProductIdsV249.length) {
       const orphanIdSetV249 = new Set(removedOrphanProductIdsV249);
@@ -12182,7 +12197,7 @@ function applyBatchRate(){
 
 let batchCurrencyManuallySelectedV229 = false;
 let batchArrivalAutoFilledByMYRV230 = false;
-// V25.1: one currency-conflict acknowledgement per new import/draft.
+// V25.2: one currency-conflict acknowledgement per new import/draft.
 // It resets only when starting a genuinely new import, not on every row.
 let batchCurrencyConflictAcknowledgedV249 = false;
 
@@ -12674,7 +12689,7 @@ function maybeApplySuggestedBatchCurrencyV231(rowId, suggestedCurrency, label = 
     const message = `${label || "这个产品"} 的历史／默认进口货币为 ${wanted}，但同批其他产品对应 ${conflict}。\n\n同一个进口编号只能使用一种货币。请统一整批货币，或把不同货币产品分开建立进口编号。`;
     const status = document.getElementById("batchStatusText");
     if (status) status.textContent = message.replace(/\n+/g, " ");
-    // V25.1: user has already acknowledged this rule for the current import.
+    // V25.2: user has already acknowledged this rule for the current import.
     // Do not interrupt every subsequent product row with the same warning.
     if (!batchCurrencyConflictAcknowledgedV249) {
       batchCurrencyConflictAcknowledgedV249 = true;
@@ -12731,7 +12746,7 @@ function convertHistoricalOriginalCostForBatchV249(value, sourceCurrency, target
   const target = String(targetCurrency || "").trim().toUpperCase();
   if (!(amount > 0) || !source || !target || source === target) return amount;
 
-  // V25.1 exchange-rate direction: the stored rate is foreign-currency units per
+  // V25.2 exchange-rate direction: the stored rate is foreign-currency units per
   // MYR. So foreign -> MYR divides, MYR -> foreign multiplies, and foreign ->
   // foreign converts through MYR. Examples: 920 CNY / 1.60 = RM575.00;
   // RM35.00 * 1.60 = CNY56.00.
@@ -12845,7 +12860,7 @@ function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, c
     return;
   }
 
-  // V25.1: exact typing/paste of a Virtual Warehouse name behaves like clicking
+  // V25.2: exact typing/paste of a Virtual Warehouse name behaves like clicking
   // its suggestion. This runs only after the delayed identity check / blur.
   const exactVirtualV250 = findExactVirtualWarehouseByNameV250(name);
   if (exactVirtualV250) {
@@ -12979,7 +12994,7 @@ function positionBatchRowSuggestionBox(id) {
   const box = document.getElementById(`batchSuggestionBox-${id}`);
   if (!input || !box || box.hidden) return;
 
-  // V25.1: keep the suggestion card physically attached to its own table cell.
+  // V25.2: keep the suggestion card physically attached to its own table cell.
   // Using viewport-fixed coordinates made the card appear to "float" while the
   // table/page was scrolling. The cell is already position:relative.
   const cell = input.closest(".batch-product-cell");
@@ -13296,7 +13311,7 @@ function attachBatchRowEvents(id){
   n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();n.value=Array.from(t).slice(0,15).join("");n.dispatchEvent(new Event("input",{bubbles:true}));});
   [`batchQty-${id}`,`batchPrice-${id}`].forEach(k=>{const x=document.getElementById(k);x.addEventListener("focus",()=>x.select());x.addEventListener("input",calculateBatch);x.addEventListener("blur",()=>{if(!k.includes("Qty")&&!k.includes("Stock"))formatInputAmount(x);calculateBatch();});});
   document.getElementById(`batchPrice-${id}`).addEventListener("input", () => {
-    // V25.1: once the user manually edits an auto-seeded historical price,
+    // V25.2: once the user manually edits an auto-seeded historical price,
     // later currency/rate changes must never overwrite that manual quotation.
     const row = document.querySelector(`#batchRows tr[data-row-id="${id}"]`);
     if (row && row.dataset.settingAutoPriceV249 !== "1") {
@@ -17046,6 +17061,80 @@ function renderProductMediaStatusV236(productId, mediaMap = null) {
   return `<span class="inventory-media-status-v236" aria-label="媒体状态">${hasPhoto ? '<i class="inventory-media-dot-v236 photo" title="已有照片链接" aria-label="已有照片链接"></i>' : ''}${hasVideo ? '<i class="inventory-media-dot-v236 video" title="已有视频链接" aria-label="已有视频链接"></i>' : ''}</span>`;
 }
 
+let inventoryMediaSaveInProgressV252 = 0;
+
+function isInventoryMediaSaveInProgressV252() {
+  return inventoryMediaSaveInProgressV252 > 0;
+}
+window.isInventoryMediaSaveInProgressV252 = isInventoryMediaSaveInProgressV252;
+
+function showInventoryMediaFeedbackV252(productId, type, message, state = "") {
+  const list = document.getElementById("inventoryManagementList");
+  if (!list) return;
+  const pid = String(productId || "");
+  const mediaType = String(type || "");
+  const candidates = Array.from(list.querySelectorAll("[data-media-product-v229],[data-media-add-product-v229]"));
+  const target = candidates.find(el => {
+    const id = String(el.dataset.mediaProductV229 || el.dataset.mediaAddProductV229 || "");
+    const t = String(el.dataset.mediaTypeV229 || el.dataset.mediaAddTypeV229 || "");
+    return id === pid && t === mediaType;
+  });
+  if (!target) return;
+  const row = target.closest(".inventory-media-links-v229") || target.parentElement;
+  if (!row) return;
+  row.querySelectorAll(`.inventory-media-feedback-v252[data-media-feedback-type-v252="${mediaType}"]`).forEach(el => el.remove());
+  const note = document.createElement("span");
+  note.className = `inventory-media-feedback-v252 ${state || ""}`.trim();
+  note.dataset.mediaFeedbackTypeV252 = mediaType;
+  note.textContent = message;
+  row.appendChild(note);
+}
+
+async function saveProductMediaLinkWithStatusV252(productId, type, url, triggerButton) {
+  const label = type === "video" ? "视频" : "照片";
+  const previousLinks = getProductMediaLinksV229();
+  const nextLinks = { ...previousLinks };
+  nextLinks[productId] = { ...(nextLinks[productId] || {}), [type]: url };
+  const originalText = triggerButton?.textContent || `+ ${label}链接`;
+
+  inventoryMediaSaveInProgressV252 += 1;
+  if (triggerButton) {
+    triggerButton.disabled = true;
+    triggerButton.textContent = "上传中…";
+  }
+  showInventoryMediaFeedbackV252(productId, type, `${label}上传中…`, "pending");
+
+  try {
+    saveProductMediaLinksV229(nextLinks);
+    if (typeof window.flushCloudQueueStrictV228 !== "function") {
+      throw new Error("云端同步功能尚未准备完成");
+    }
+    await window.flushCloudQueueStrictV228();
+    renderInventoryManagementList();
+    showInventoryMediaFeedbackV252(productId, type, `${label}上传成功 ✓`, "success");
+    window.setTimeout(() => {
+      const list = document.getElementById("inventoryManagementList");
+      list?.querySelectorAll(`.inventory-media-feedback-v252[data-media-feedback-type-v252="${type}"]`).forEach(el => {
+        if (el.textContent.includes("上传成功")) el.remove();
+      });
+    }, 2200);
+    return true;
+  } catch (error) {
+    // Do not leave a local-only yellow/blue dot when cloud confirmation failed.
+    saveProductMediaLinksV229(previousLinks);
+    renderInventoryManagementList();
+    showInventoryMediaFeedbackV252(productId, type, `${label}上传失败，请重试`, "failed");
+    console.warn("Media link cloud save failed", error);
+    return false;
+  } finally {
+    inventoryMediaSaveInProgressV252 = Math.max(0, inventoryMediaSaveInProgressV252 - 1);
+    if (triggerButton?.isConnected) {
+      triggerButton.disabled = false;
+      triggerButton.textContent = originalText;
+    }
+  }
+}
+
 function renderProductMediaButtonsV229(productId, mediaMap = null) {
   const media = (mediaMap || getProductMediaLinksV229())[String(productId || "")] || {};
   const item = (type, label) => {
@@ -17057,6 +17146,12 @@ function renderProductMediaButtonsV229(productId, mediaMap = null) {
   return `<div class="inventory-media-links-v229">${item("photo", "照片")}${item("video", "视频")}</div>`;
 }
 
+window.addEventListener("beforeunload", event => {
+  if (!isInventoryMediaSaveInProgressV252()) return;
+  event.preventDefault();
+  event.returnValue = "";
+});
+
 function bindInventoryMediaLinksV229() {
   const list = document.getElementById("inventoryManagementList");
   if (!list || list.dataset.mediaBoundV229 === "1") return;
@@ -17064,6 +17159,10 @@ function bindInventoryMediaLinksV229() {
   list.addEventListener("click", async event => {
     const add = event.target.closest("[data-media-add-product-v229]");
     if (add) {
+      if (isInventoryMediaSaveInProgressV252()) {
+        window.alert("上一项照片／视频仍在上传，请等待显示成功或失败后再继续。");
+        return;
+      }
       const productId = String(add.dataset.mediaAddProductV229 || "").trim();
       const type = String(add.dataset.mediaAddTypeV229 || "").trim();
       const label = type === "video" ? "视频" : "照片";
@@ -17071,14 +17170,15 @@ function bindInventoryMediaLinksV229() {
       if (value === null) return;
       const url = String(value || "").trim();
       if (!/^https?:\/\//i.test(url)) { window.alert("请输入完整的 http:// 或 https:// 链接。"); return; }
-      const links = { ...getProductMediaLinksV229() };
-      links[productId] = { ...(links[productId] || {}), [type]: url };
-      saveProductMediaLinksV229(links);
-      renderInventoryManagementList();
+      await saveProductMediaLinkWithStatusV252(productId, type, url, add);
       return;
     }
     const del = event.target.closest("[data-media-delete-product-v229]");
     if (del) {
+      if (isInventoryMediaSaveInProgressV252()) {
+        window.alert("照片／视频仍在上传，请等待完成后再删除媒体链接。");
+        return;
+      }
       const productId = String(del.dataset.mediaDeleteProductV229 || "").trim();
       const type = String(del.dataset.mediaDeleteTypeV229 || "").trim();
       const label = type === "video" ? "视频" : "照片";
@@ -17932,7 +18032,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "25.1",
+      version: "25.2",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18299,7 +18399,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V25.1 Stable",
+      updatedBy: "System V25.2 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
