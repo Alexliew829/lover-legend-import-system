@@ -3234,7 +3234,9 @@ function applyVirtualWarehouseSelectionV240(rowId, indexValue) {
   tr.dataset.virtualWarehouseIndexV240 = String(indexValue);
   tr.dataset.virtualWarehouseCategoryV240 = categoryField.value;
   if (Number.isFinite(Number(item.cost)) && Number(item.cost) > 0) {
-    priceField.value = formatMoney(Number(item.cost));
+    // V25.0: virtual-warehouse reference costs are MYR supplier costs. Seed them
+    // through the same auto-original-cost path so foreign batches convert them.
+    setAutoOriginalCostV249(rowId, { unitPrice: Number(item.cost), currency: "MYR" }, { force: true });
   }
   // The reference workbook contains local nursery supplier costs, so a virtual
   // warehouse pick defaults this new import to MYR. The batch-wide one-currency
@@ -6715,14 +6717,41 @@ function setupImportModule(){
 }
 
 
-// ================= V24.9 Two-stage Import Save =================
+// ================= V25.0 Two-stage Import Save =================
 const IMPORT_DRAFTS_KEY_V242 = "importDraftsV242";
+const IMPORT_DRAFT_DELETED_IDS_KEY_V250 = "importDraftDeletedIdsV250";
 let activeImportDraftIdV242 = "";
 let importDraftCleanFingerprintV244 = "";
 
 function getImportDraftsV242() {
   const settings = loadJSON("importSystemSettings", {});
   return Array.isArray(settings[IMPORT_DRAFTS_KEY_V242]) ? settings[IMPORT_DRAFTS_KEY_V242] : [];
+}
+
+function getImportDraftDeletedIdsV250() {
+  const settings = loadJSON("importSystemSettings", {});
+  return Array.isArray(settings[IMPORT_DRAFT_DELETED_IDS_KEY_V250])
+    ? settings[IMPORT_DRAFT_DELETED_IDS_KEY_V250].map(String).filter(Boolean)
+    : [];
+}
+
+function markImportDraftDeletedV250(draftId) {
+  const id = String(draftId || "").trim();
+  if (!id) return;
+  const settings = loadJSON("importSystemSettings", {});
+  const current = getImportDraftDeletedIdsV250();
+  const ids = [id, ...current.filter(value => value !== id)].slice(0, 100);
+  saveJSON("importSystemSettings", { ...settings, [IMPORT_DRAFT_DELETED_IDS_KEY_V250]: ids });
+}
+
+function clearImportDraftDeletedV250(draftId) {
+  const id = String(draftId || "").trim();
+  if (!id) return;
+  const settings = loadJSON("importSystemSettings", {});
+  const current = getImportDraftDeletedIdsV250();
+  const ids = current.filter(value => value !== id);
+  if (ids.length === current.length) return;
+  saveJSON("importSystemSettings", { ...settings, [IMPORT_DRAFT_DELETED_IDS_KEY_V250]: ids });
 }
 
 function writeImportDraftsV242(drafts) {
@@ -6955,7 +6984,7 @@ function saveImportDraftV242() {
   activeImportDraftIdV242 = id;
   writeImportDraftsV242(next);
 
-  // V24.9: saving a draft must NEVER leave the original import editor.
+  // V25.0: saving a draft must NEVER leave the original import editor.
   // Keep the just-saved draft active and preserve every field in the same input area.
   // Some sync/view refresh paths may redraw the page after settings are queued; if that
   // unexpectedly leaves the import editor blank, restore this exact saved draft.
@@ -7030,8 +7059,13 @@ function deleteImportDraftV242(draftId) {
   const draft = getImportDraftsV242().find(item => String(item?.id || "") === String(draftId || ""));
   if (!draft) return;
   if (!confirm("⚠️ 确认删除这份草稿？\n\n这会永久删除尚未正式保存的进口草稿资料，删除后无法恢复。\n\n已正式保存的库存资料不会受到影响。")) return;
-  writeImportDraftsV242(getImportDraftsV242().filter(item => item.id !== draftId));
-  if (activeImportDraftIdV242 === draftId) activeImportDraftIdV242 = "";
+  // V25.0 Local-First: clear active state before the local render, then persist a
+  // deletion tombstone so a stale cloud copy cannot reappear on the next merge.
+  if (String(activeImportDraftIdV242 || "") === String(draftId || "")) activeImportDraftIdV242 = "";
+  markImportDraftDeletedV250(draftId);
+  const next = getImportDraftsV242().filter(item => String(item?.id || "") !== String(draftId || ""));
+  writeImportDraftsV242(next);
+  document.getElementById("importDraftPickerV248")?.remove();
   renderImportDraftsV242();
 }
 
@@ -7049,7 +7083,7 @@ function formatDraftTimeV242(value) {
 }
 
 function renderImportDraftsV242() {
-  // V24.9: no large standalone draft module. The original import editor remains the
+  // V25.0: no large standalone draft module. The original import editor remains the
   // working area; only a lightweight entry is shown so drafts can be reopened after
   // clearing/reloading/leaving the page.
   const label = document.getElementById("activeDraftLabelV242");
@@ -7156,7 +7190,7 @@ function setupImportDraftV247() {
   document.getElementById("confirmFormalImportBtnV247")?.addEventListener("click", confirmFormalImportV247);
   document.getElementById("deleteCurrentImportDraftBtnV247")?.addEventListener("click", deleteCurrentImportDraftV247);
   document.getElementById("openImportDraftsBtnV248")?.addEventListener("click", openImportDraftPickerV248);
-  // V24.9: status follows every edit in the original import form.
+  // V25.0: status follows every edit in the original import form.
   const draftFormV249 = document.getElementById("batchImportForm");
   const refreshDraftStateV249 = () => window.requestAnimationFrame(() => renderImportDraftsV242());
   draftFormV249?.addEventListener("input", refreshDraftStateV249);
@@ -8622,7 +8656,7 @@ async function deleteBatchByNumber(importNumber) {
       await window.pullLatestAfterSalesCommitV83(true);
     }
 
-    // V24.9: if an older remote row resurrected a zero-stock orphan during the
+    // V25.0: if an older remote row resurrected a zero-stock orphan during the
     // verification pull, remove it once more with explicit Products tombstones.
     if (removedOrphanProductIdsV249.length) {
       const orphanIdSetV249 = new Set(removedOrphanProductIdsV249);
@@ -12128,7 +12162,7 @@ function applyBatchRate(){
 
 let batchCurrencyManuallySelectedV229 = false;
 let batchArrivalAutoFilledByMYRV230 = false;
-// V24.9: one currency-conflict acknowledgement per new import/draft.
+// V25.0: one currency-conflict acknowledgement per new import/draft.
 // It resets only when starting a genuinely new import, not on every row.
 let batchCurrencyConflictAcknowledgedV249 = false;
 
@@ -12620,7 +12654,7 @@ function maybeApplySuggestedBatchCurrencyV231(rowId, suggestedCurrency, label = 
     const message = `${label || "这个产品"} 的历史／默认进口货币为 ${wanted}，但同批其他产品对应 ${conflict}。\n\n同一个进口编号只能使用一种货币。请统一整批货币，或把不同货币产品分开建立进口编号。`;
     const status = document.getElementById("batchStatusText");
     if (status) status.textContent = message.replace(/\n+/g, " ");
-    // V24.9: user has already acknowledged this rule for the current import.
+    // V25.0: user has already acknowledged this rule for the current import.
     // Do not interrupt every subsequent product row with the same warning.
     if (!batchCurrencyConflictAcknowledgedV249) {
       batchCurrencyConflictAcknowledgedV249 = true;
@@ -12677,23 +12711,15 @@ function convertHistoricalOriginalCostForBatchV249(value, sourceCurrency, target
   const target = String(targetCurrency || "").trim().toUpperCase();
   if (!(amount > 0) || !source || !target || source === target) return amount;
 
-  // User-defined Import input rule: when an item that was historically bought
-  // locally in MYR is now sourced under a foreign-currency batch, seed the new
-  // unit-price field as MYR historical cost / the selected batch exchange rate.
-  // Example required by the user: RM35 / CNY rate 1.60 = 21.88.
-  if (source === "MYR" && target !== "MYR") {
-    const targetRate = getBatchCurrencyRateV249(target);
-    return targetRate > 0 ? amount / targetRate : amount;
-  }
-
-  // Existing foreign import -> MYR uses the system's long-standing foreign/rate
-  // mapping. Other foreign-to-foreign histories stay unchanged rather than making
-  // an unsafe assumption about a new supplier quotation.
-  if (target === "MYR" && source !== "MYR") {
-    const sourceRate = getBatchCurrencyRateV249(source);
-    return sourceRate > 0 ? amount / sourceRate : amount;
-  }
-  return amount;
+  // V25.0 exchange-rate direction: the stored rate is foreign-currency units per
+  // MYR. So foreign -> MYR divides, MYR -> foreign multiplies, and foreign ->
+  // foreign converts through MYR. Examples: 920 CNY / 1.60 = RM575.00;
+  // RM35.00 * 1.60 = CNY56.00.
+  const sourceRate = getBatchCurrencyRateV249(source);
+  const targetRate = getBatchCurrencyRateV249(target);
+  const amountMYR = source === "MYR" ? amount : (sourceRate > 0 ? amount / sourceRate : amount);
+  if (target === "MYR") return amountMYR;
+  return targetRate > 0 ? amountMYR * targetRate : amount;
 }
 
 function setAutoOriginalCostV249(rowId, record, { force = false } = {}) {
@@ -12738,10 +12764,26 @@ function refreshAutoOriginalCostsForBatchV249() {
 }
 window.refreshAutoOriginalCostsForBatchV249 = refreshAutoOriginalCostsForBatchV249;
 
+function findExactVirtualWarehouseByNameV250(name) {
+  const wanted = normalizeVirtualWarehouseNameV240(name);
+  if (!wanted) return null;
+  const source = getVirtualWarehouseSourceV240();
+  const index = source.findIndex(item =>
+    normalizeVirtualWarehouseNameV240(item?.name) === wanted ||
+    normalizeVirtualWarehouseNameV240(item?.description) === wanted
+  );
+  return index >= 0 ? { ...source[index], _virtualIndexV240: index } : null;
+}
+
 function fillExistingProductOriginalCostV244(rowId, product, { force = false } = {}) {
   if (!product) return false;
   const record = getPreferredOriginalCostRecordV219(product);
-  return setAutoOriginalCostV249(rowId, record, { force });
+  if (record) return setAutoOriginalCostV249(rowId, record, { force });
+  const virtual = findExactVirtualWarehouseByNameV250(product?.name || "");
+  if (virtual && Number(virtual.cost) > 0) {
+    return setAutoOriginalCostV249(rowId, { unitPrice: Number(virtual.cost), currency: "MYR" }, { force });
+  }
+  return false;
 }
 
 function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, commitCurrency = false } = {}) {
@@ -12774,7 +12816,36 @@ function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, c
     tr.dataset.categoryManualForName = normalizedName;
     tr.dataset.lastIdentityNameV231 = normalizedName;
     fillExistingProductOriginalCostV244(rowId, product, { force: identityChanged });
-    applyExistingProductCurrencyV232(rowId, product, { commitCurrency });
+    const historicalCurrenciesV250 = getHistoricalProductCurrenciesV232(product);
+    if (historicalCurrenciesV250.length) {
+      applyExistingProductCurrencyV232(rowId, product, { commitCurrency });
+    } else if (commitCurrency && findExactVirtualWarehouseByNameV250(product.name || name)) {
+      maybeApplySuggestedBatchCurrencyV231(rowId, "MYR", product.name || name);
+    }
+    return;
+  }
+
+  // V25.0: exact typing/paste of a Virtual Warehouse name behaves like clicking
+  // its suggestion. This runs only after the delayed identity check / blur.
+  const exactVirtualV250 = findExactVirtualWarehouseByNameV250(name);
+  if (exactVirtualV250) {
+    productIdField.value = "";
+    categoryField.value = resolveVirtualWarehouseCategoryV240(exactVirtualV250);
+    tr.dataset.categoryManualForName = normalizedName;
+    tr.dataset.lastIdentityNameV231 = normalizedName;
+    tr.dataset.virtualWarehouseNameV240 = normalizedName;
+    tr.dataset.virtualWarehousePrefixV240 = normalizeCategoryPrefixV228(exactVirtualV250.productPrefix || "");
+    tr.dataset.virtualWarehouseIndexV240 = String(exactVirtualV250._virtualIndexV240);
+    tr.dataset.virtualWarehouseCategoryV240 = categoryField.value;
+    if (Number(exactVirtualV250.cost) > 0) {
+      setAutoOriginalCostV249(
+        rowId,
+        { unitPrice: Number(exactVirtualV250.cost), currency: "MYR" },
+        { force: tr.dataset.lastExactVirtualCostNameV250 !== normalizedName }
+      );
+      tr.dataset.lastExactVirtualCostNameV250 = normalizedName;
+    }
+    if (commitCurrency) maybeApplySuggestedBatchCurrencyV231(rowId, "MYR", name);
     return;
   }
 
@@ -13218,7 +13289,7 @@ function attachBatchRowEvents(id){
   n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();n.value=Array.from(t).slice(0,15).join("");n.dispatchEvent(new Event("input",{bubbles:true}));});
   [`batchQty-${id}`,`batchPrice-${id}`].forEach(k=>{const x=document.getElementById(k);x.addEventListener("focus",()=>x.select());x.addEventListener("input",calculateBatch);x.addEventListener("blur",()=>{if(!k.includes("Qty")&&!k.includes("Stock"))formatInputAmount(x);calculateBatch();});});
   document.getElementById(`batchPrice-${id}`).addEventListener("input", () => {
-    // V24.9: once the user manually edits an auto-seeded historical price,
+    // V25.0: once the user manually edits an auto-seeded historical price,
     // later currency/rate changes must never overwrite that manual quotation.
     const row = document.querySelector(`#batchRows tr[data-row-id="${id}"]`);
     if (row && row.dataset.settingAutoPriceV249 !== "1") {
@@ -17854,7 +17925,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "24.9",
+      version: "25.0",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18221,7 +18292,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V24.9 Stable",
+      updatedBy: "System V25.0 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
