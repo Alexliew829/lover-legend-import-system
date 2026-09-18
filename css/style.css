@@ -5503,3 +5503,23 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
   .inventory-media-copy-v229,.inventory-media-delete-v229{width:64px;min-width:64px;max-width:64px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;padding:8px 6px;font-size:.92rem;}
   .inventory-media-add-v229{width:100%;font-size:1.08rem;padding:9px 11px;text-align:left;}
 }
+
+
+/* V23.5 — unified visual management area; rule engines remain separate. */
+.product-rules-manager-v235{display:block}
+.product-rules-manager-v235>h3{margin-bottom:6px}
+.product-rules-manager-inner-v235{display:grid;gap:12px;margin-top:12px}
+.rules-subpanel-v235{border:1px solid var(--border,#d8e2da);border-radius:12px;background:#fbfdfb;padding:0 12px 12px}
+.rules-subpanel-v235>summary{padding:14px 0;font-weight:800;cursor:pointer}
+.rules-subpanel-v235>summary small{margin-left:auto}
+.product-category-add-v227{display:grid!important;grid-template-columns:minmax(0,1fr) 110px minmax(138px,auto)!important;gap:10px!important;align-items:end}
+.product-category-add-v227 label{display:grid;gap:6px;min-width:0}
+.product-category-add-v227 input{text-align:left!important;min-width:0}
+.product-category-add-v227 .primary-btn{width:auto!important;min-width:138px!important;white-space:nowrap}
+@media(max-width:680px){
+  .product-rules-manager-v235{padding-left:12px;padding-right:12px}
+  .rules-subpanel-v235{padding-left:10px;padding-right:10px}
+  .product-category-add-v227{grid-template-columns:minmax(0,1fr) 78px 108px!important;gap:6px!important}
+  .product-category-add-v227 .primary-btn{min-width:108px!important;width:108px!important;padding-left:8px!important;padding-right:8px!important;font-size:12px!important}
+  .product-category-add-v227 label{font-size:12px}
+}
