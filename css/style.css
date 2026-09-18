@@ -5532,5 +5532,30 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .inventory-media-dot-v236.video{background:#1787e8;}
 @media(max-width:680px){.inventory-media-status-v236{gap:4px;margin-left:2px}.inventory-media-dot-v236{width:11px;height:11px}}
 
-/* V23.9 — prefix-rule suggestions for partial new-product input. */
+/* V24.0 — prefix-rule suggestions for partial new-product input. */
 .batch-prefix-rule-suggestion-v237 small { font-weight: 700; }
+
+
+/* V24.0 — read-only virtual warehouse / product reference library. */
+.virtual-warehouse-panel-v240>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;font-weight:800}
+.virtual-warehouse-panel-v240>summary small{font-weight:700;color:#65736b}
+.virtual-warehouse-panel-v240 .search-input{margin:10px 0}
+.virtual-warehouse-head-v240,.virtual-warehouse-row-v240{display:grid;grid-template-columns:minmax(180px,1.1fr) minmax(220px,1.5fr) 82px 82px 90px;gap:10px;align-items:center}
+.virtual-warehouse-head-v240{padding:8px 10px;font-size:.82rem;font-weight:800;color:#66736b;border-bottom:1px solid #dce5de}
+.virtual-warehouse-list-v240{display:grid;gap:6px;max-height:520px;overflow:auto;padding-top:6px}
+.virtual-warehouse-row-v240{padding:9px 10px;border:1px solid #dde6df;border-radius:10px;background:#fbfdfb}
+.virtual-warehouse-name-v240{border:0;background:transparent;padding:0;text-align:left;font:inherit;font-weight:800;cursor:pointer;color:#185d3a}
+.virtual-warehouse-name-v240:hover{text-decoration:underline}
+.virtual-warehouse-description-v240{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.batch-virtual-warehouse-suggestion-v240{border-left:4px solid #7aa88a!important}
+.batch-virtual-warehouse-suggestion-v240 small{font-weight:700}
+@media(max-width:760px){
+  .virtual-warehouse-head-v240{display:none}
+  .virtual-warehouse-list-v240{max-height:60vh}
+  .virtual-warehouse-row-v240{grid-template-columns:1fr auto auto;gap:6px 10px}
+  .virtual-warehouse-name-v240{grid-column:1/-1;font-size:1rem}
+  .virtual-warehouse-description-v240{grid-column:1/-1;white-space:normal}
+  .virtual-warehouse-row-v240 strong:nth-of-type(1)::before{content:"Supplier ";font-weight:500;color:#6b756e}
+  .virtual-warehouse-row-v240 strong:nth-of-type(2)::before{content:"前缀 ";font-weight:500;color:#6b756e}
+  .virtual-warehouse-row-v240 strong:nth-of-type(3)::before{content:"成本 ";font-weight:500;color:#6b756e}
+}
