@@ -6706,7 +6706,7 @@ function setupImportModule(){
 }
 
 
-// ================= V24.7 Two-stage Import Save =================
+// ================= V24.8 Two-stage Import Save =================
 const IMPORT_DRAFTS_KEY_V242 = "importDraftsV242";
 let activeImportDraftIdV242 = "";
 let importDraftCleanFingerprintV244 = "";
@@ -6936,8 +6936,26 @@ function saveImportDraftV242() {
   const next = [entry, ...drafts.filter(item => item.id !== id)].slice(0, 30);
   activeImportDraftIdV242 = id;
   writeImportDraftsV242(next);
+
+  // V24.8: saving a draft must NEVER leave the original import editor.
+  // Keep the just-saved draft active and preserve every field in the same input area.
+  // Some sync/view refresh paths may redraw the page after settings are queued; if that
+  // unexpectedly leaves the import editor blank, restore this exact saved draft.
+  const restoreIfUnexpectedlyBlankV248 = () => {
+    if (currentEditingImportNumber) return;
+    if (String(activeImportDraftIdV242 || "") !== String(id)) return;
+    const currentState = collectImportDraftStateV242();
+    if (importDraftStateHasUserDataV246(currentState)) return;
+    const stillSaved = getImportDraftsV242().some(item => String(item?.id || "") === String(id));
+    if (stillSaved) applyImportDraftV242(id);
+  };
+  window.setTimeout(restoreIfUnexpectedlyBlankV248, 0);
+  window.setTimeout(restoreIfUnexpectedlyBlankV248, 120);
+  window.setTimeout(restoreIfUnexpectedlyBlankV248, 700);
+
   const status = document.getElementById("batchStatusText");
-  if (status) status.textContent = "草稿已保存。尚未写入库存、平均成本、最低售价或正式 Import / Batch；可继续修改并再次保存草稿。";
+  if (status) status.textContent = "草稿已保存。当前资料继续保留在原输入区，可直接修改后再次保存；尚未写入库存、平均成本、最低售价或正式 Import / Batch。";
+  renderImportDraftsV242();
 }
 
 function applyImportDraftV242(draftId) {
@@ -7007,19 +7025,70 @@ function formatDraftTimeV242(value) {
 }
 
 function renderImportDraftsV242() {
-  // V24.7: 草稿继续保存在原有同步资料中，但不再显示独立大型草稿区域。
-  // 原进口输入区只显示当前草稿状态；超过24小时的其他草稿由提醒逐份直达。
+  // V24.8: no large standalone draft module. The original import editor remains the
+  // working area; only a lightweight entry is shown so drafts can be reopened after
+  // clearing/reloading/leaving the page.
   const label = document.getElementById("activeDraftLabelV242");
   const deleteButton = document.getElementById("deleteCurrentImportDraftBtnV247");
+  const openButton = document.getElementById("openImportDraftsBtnV248");
   const active = getActiveImportDraftV243();
+  const drafts = getImportDraftsV242().filter(item => item?.status === "draft");
   if (label) {
     label.textContent = active
       ? `当前资料已保存为草稿 · ${formatDraftTimeV242(active.updatedAt)} · 可继续修改后再次保存草稿`
       : "";
   }
   if (deleteButton) deleteButton.hidden = !active;
+  if (openButton) {
+    openButton.hidden = drafts.length === 0;
+    openButton.textContent = drafts.length > 1 ? `查看未确认草稿 (${drafts.length})` : "查看未确认草稿";
+  }
 }
 window.renderImportDraftsV242 = renderImportDraftsV242;
+
+function openImportDraftPickerV248() {
+  const drafts = getImportDraftsV242().filter(item => item?.status === "draft");
+  if (!drafts.length) {
+    alert("目前没有未确认草稿。");
+    renderImportDraftsV242();
+    return;
+  }
+  if (drafts.length === 1) {
+    applyImportDraftV242(drafts[0].id);
+    return;
+  }
+
+  document.getElementById("importDraftPickerV248")?.remove();
+  const panel = document.createElement("section");
+  panel.id = "importDraftPickerV248";
+  panel.className = "import-draft-reminder-guide-v246";
+  panel.innerHTML = `
+    <div class="import-draft-reminder-card-v246">
+      <div class="import-draft-reminder-head-v246">
+        <strong>未确认进口草稿</strong>
+        <button type="button" class="ghost-btn" data-close-draft-picker-v248>关闭</button>
+      </div>
+      <p>选择要继续修改的草稿。载入后仍在原本进口输入区修改，不会进入独立草稿模块。</p>
+      <div class="import-draft-reminder-list-v246">
+        ${drafts.map(draft => {
+          const rows = Array.isArray(draft.rows) ? draft.rows : [];
+          const first = rows.find(row => row?.name)?.name || "未命名草稿";
+          const count = rows.filter(row => String(row?.name || "").trim()).length;
+          return `<button type="button" class="secondary-btn" data-open-draft-picker-v248="${escapeHTML(draft.id || "")}">${escapeHTML(first)}${count > 1 ? ` · ${count}个产品` : ""} · ${escapeHTML(formatDraftTimeV242(draft.updatedAt))}</button>`;
+        }).join("")}
+      </div>
+    </div>`;
+  document.body.appendChild(panel);
+  panel.addEventListener("click", event => {
+    if (event.target.closest("[data-close-draft-picker-v248]")) { panel.remove(); return; }
+    const open = event.target.closest("[data-open-draft-picker-v248]");
+    if (!open) return;
+    const id = String(open.dataset.openDraftPickerV248 || "");
+    panel.remove();
+    applyImportDraftV242(id);
+  });
+}
+window.openImportDraftPickerV248 = openImportDraftPickerV248;
 
 function confirmFormalImportV247() {
   if (currentEditingImportNumber) {
@@ -7047,6 +7116,7 @@ function deleteCurrentImportDraftV247() {
 function setupImportDraftV247() {
   document.getElementById("confirmFormalImportBtnV247")?.addEventListener("click", confirmFormalImportV247);
   document.getElementById("deleteCurrentImportDraftBtnV247")?.addEventListener("click", deleteCurrentImportDraftV247);
+  document.getElementById("openImportDraftsBtnV248")?.addEventListener("click", openImportDraftPickerV248);
   window.addEventListener("beforeunload", event => {
     if (!hasUnsavedImportDraftChangesV243()) return;
     event.preventDefault();
@@ -17552,7 +17622,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "24.7",
+      version: "24.8",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -17919,7 +17989,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V24.7 Stable",
+      updatedBy: "System V24.8 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
