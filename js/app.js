@@ -976,7 +976,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V23.4 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V23.5 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1345,7 +1345,7 @@ function salesItemAlreadyProcessedLocallyV104(item, product) {
     }
   }
 
-  // V23.4: batch commits store a unique commit key plus the stable Sales
+  // V23.5: batch commits store a unique commit key plus the stable Sales
   // accounting key.  Either one proves that inventory was already committed.
   // This keeps a still-pending Sales card visible as ACK-only after a timeout
   // instead of silently dropping it and risking a later duplicate deduction.
@@ -1604,7 +1604,7 @@ function showStartupSalesInventoryReminderV80() {
       const restorePrecheckFailed=/Sales Restore 状态读取超时|无法连接 Sales System 读取 Restore 状态|无法读取 Sales Restore 状态/i.test(message);
 
       if(restorePrecheckFailed){
-        // V23.4: prepareSalesInventoryOperationV117 runs before any inventory
+        // V23.5: prepareSalesInventoryOperationV117 runs before any inventory
         // commit.  If that read-only Restore precheck times out, nothing has been
         // deducted yet, so keep the frozen reminder exactly as-is.  Do not replace
         // it with a transient/empty feed result and make the card disappear.
@@ -3114,7 +3114,7 @@ function applyBatchCostEditability() {
   const repairEnabled = getCostRepairModeEnabled();
   const lockedSaved = isEditing && !repairEnabled;
 
-  // V23.4: China-side/core import facts are immutable once saved, even when
+  // V23.5: China-side/core import facts are immutable once saved, even when
   // Data Repair is ON. If they are wrong, copy the whole import as a new draft,
   // save the corrected new import number, then delete the wrong old import.
   [
@@ -4934,7 +4934,7 @@ function normalizeCategoryPrefixV228(value) {
 function isProductCategoryUsedV229(categoryName) {
   const wanted = normalizeProductCategoryNameV227(categoryName);
   if (!wanted) return false;
-  // V23.4: stock=0 alone MUST NOT unlock a category. As long as the product still
+  // V23.5: stock=0 alone MUST NOT unlock a category. As long as the product still
   // exists in active Products / Imports / Batches, the rule stays locked. Only the
   // explicit “清理零库存产品” flow removes those active references and can unlock it.
   if (getProducts().some(product => normalizeProductCategoryNameV227(product?.category) === wanted)) return true;
@@ -4991,7 +4991,7 @@ function getProductCategoryRulesV228() {
   const usedNames = new Set();
   source.forEach(raw => {
     const name = normalizeProductCategoryNameV227(raw?.name ?? raw);
-    if (!name || name === "周边产品" || name === "花盆") return;
+    if (!name || name === "周边产品") return;
     const key = name.toLocaleLowerCase();
     if (usedNames.has(key)) return;
     usedNames.add(key);
@@ -4999,7 +4999,7 @@ function getProductCategoryRulesV228() {
     const mode = name === "盆栽" ? "name" : "category";
     const prefix = mode === "name" ? "" : (normalizeCategoryPrefixV228(raw?.prefix) || preset?.prefix || "QT");
     const lockedByUsageV229 = raw?.lockedByUsageV229 === true;
-    // V23.4: usage lock is derived from current active data, not a permanent flag.
+    // V23.5: usage lock is derived from current active data, not a permanent flag.
     // After the user explicitly cleans the last zero-stock product, the rule may unlock.
     const locked = name === "盆栽" ? true : isProductCategoryUsedV229(name);
     result.push({ name, prefix, mode, locked, lockedByUsageV229 });
@@ -5020,7 +5020,7 @@ function productCategoryOptionsHTMLV227(selected = "盆栽") {
 }
 
 function migrateLegacyProductCategoriesV227() {
-  const mappings = new Map([["周边产品", "其他"], ["花盆", "花盆 / 配件 / 工具"]]);
+  const mappings = new Map([["周边产品", "其他"]]);
   const products = getProducts();
   const imports = getImports();
   const batches = getBatches();
@@ -5079,7 +5079,7 @@ function goToProductPrefixSettingsV229() {
 let editingProductCategoryNameV229 = "";
 
 function persistUsedCategoryLocksV229() {
-  // V23.4: no permanent usage flag. Lock state is derived from active
+  // V23.5: no permanent usage flag. Lock state is derived from active
   // Products / Imports / Batches so zero-stock cleanup can legitimately unlock.
 }
 
@@ -5092,7 +5092,7 @@ function renderProductCategoriesV227() {
         <span class="rule-copy-label-v232" data-category-copy-v232="${escapeHTML(rule.name)}" title="点击复制类别关键词">${escapeHTML(rule.name)}</span>
         <strong>按产品名规则</strong>
         <div class="rule-actions-v231">
-          <button type="button" class="secondary-btn category-prefix-guide-v229" onclick="goToProductPrefixSettingsV229()">前往产品编号前缀管理</button>
+          <button type="button" class="secondary-btn category-prefix-guide-v229" onclick="goToProductPrefixSettingsV229()">前往盆栽名称前缀规则</button>
         </div>
       </div>`;
     return `
@@ -5181,7 +5181,7 @@ function setupProductCategorySettingsV227() {
     const prefix = normalizeCategoryPrefixV228(prefixInput?.value);
     const editingName = normalizeProductCategoryNameV227(editingProductCategoryNameV229);
     if (!name) { if (status) status.textContent = "请输入产品类别名称"; input?.focus(); return; }
-    if (name === "盆栽") { if (status) status.textContent = "盆栽固定按产品名称规则生成前缀，请到产品编号前缀管理处理"; return; }
+    if (name === "盆栽") { if (status) status.textContent = "盆栽固定按产品名称规则生成前缀，请到「盆栽名称前缀规则」处理"; return; }
     if (!/^[A-Z]{2}$/.test(prefix)) { if (status) status.textContent = "类别编号前缀必须是2个英文字母"; prefixInput?.focus(); return; }
 
     const editingRuleV229 = editingName ? getProductCategoryRulesV228().find(rule => rule.name === editingName) : null;
@@ -5312,7 +5312,7 @@ function isProductPrefixRuleUsedV229(keyword, prefix) {
     normalizeProductPrefixKeywordV181(product?.name).includes(normalizedKeyword) &&
     String(product?.id || "").trim().toUpperCase().startsWith(wantedPrefix)
   );
-  // V23.4: product existence itself keeps the rule locked, even at stock 0.
+  // V23.5: product existence itself keeps the rule locked, even at stock 0.
   // Explicit zero-stock cleanup removes the product and can then unlock the rule.
   return matchingProducts.length > 0;
 }
@@ -5344,7 +5344,7 @@ function isProductPrefixRuleLockedV229(keyword, prefix) {
 }
 
 function persistUsedPrefixRuleLocksV229() {
-  // V23.4: lock is derived from active Products, so cleanup can unlock it.
+  // V23.5: lock is derived from active Products, so cleanup can unlock it.
 }
 
 function renderProductPrefixRulesV181() {
@@ -5757,7 +5757,7 @@ function sequentialSearchMatches(searchableValue, queryValue) {
   return source.includes(query);
 }
 
-// V23.4: shared read-only Original Cost matcher for every product-search surface.
+// V23.5: shared read-only Original Cost matcher for every product-search surface.
 // Pure numeric queries (commas/spaces/decimals allowed) match unitPrice exactly,
 // regardless of currency. This helper only reads already-loaded local collections.
 function parseOriginalCostSearchQueryV216(queryValue) {
@@ -5788,14 +5788,14 @@ function originalCostMatchesProductV216(product, queryValue, imports = null) {
   });
 }
 
-// V23.4: record/batch-level searches must match the Original Cost stored on
+// V23.5: record/batch-level searches must match the Original Cost stored on
 // that exact row. Never fall back to another import row of the same Product ID,
 // otherwise a 320 search can incorrectly pull in a 200 batch for the same product.
 function originalCostMatchesBatchItemV216(item, queryValue) {
   return originalCostNumberMatchesV216(item?.unitPrice, queryValue);
 }
 
-// V23.4: a pure numeric product-search query is reserved exclusively for
+// V23.5: a pure numeric product-search query is reserved exclusively for
 // exact Original Cost matching. It must never fall through to product names,
 // IDs, import numbers, tracking numbers, dates, quantities, or other numeric text.
 function isOriginalCostOnlySearchV218(queryValue) {
@@ -5818,13 +5818,56 @@ function batchItemSearchMatchesV218(searchableValue, item, queryValue) {
   return smartSearchMatches(searchableValue, queryValue);
 }
 
+// V23.5: shared read-only shipment/local-number search helper.
+// Uses the same stored field (overseasTrackingNumber) but the UI now labels it
+// “海外运输单号 / 本地单号”. Symbol-tolerant smart matching means XX-A430
+// can be found with A430, xx a430, etc.
+function getBatchShipmentLocalNumberV235(batch) {
+  return String(batch?.overseasTrackingNumber || batch?.trackingNumber || "").trim();
+}
+
+function shipmentLocalNumberMatchesV235(value, queryValue) {
+  if (!String(queryValue || "").trim()) return true;
+  if (isOriginalCostOnlySearchV218(queryValue)) return false;
+  return smartSearchMatches(String(value || ""), queryValue);
+}
+
+function getProductShipmentLocalNumbersV235(product, imports = null, batches = null) {
+  const rows = Array.isArray(imports) ? imports : getImports();
+  const batchRows = Array.isArray(batches) ? batches : getBatches();
+  const batchByImportNumber = new Map(batchRows.map(batch => [
+    String(batch?.importNumber || "").trim().toLowerCase(), batch
+  ]));
+  const productId = String(product?.id || product?.productId || "").trim();
+  const productName = String(product?.name || product?.productName || "").trim().toLowerCase();
+  const values = new Set();
+  rows.forEach(row => {
+    const sameId = productId && String(row?.productId || "").trim() === productId;
+    const sameName = productName && String(row?.productName || "").trim().toLowerCase() === productName;
+    if (!sameId && !sameName) return;
+    const batch = batchByImportNumber.get(String(row?.importNumber || "").trim().toLowerCase());
+    const value = String(row?.overseasTrackingNumber || batch?.overseasTrackingNumber || batch?.trackingNumber || "").trim();
+    if (value) values.add(value);
+  });
+  return [...values].join(" ");
+}
+
+function productSearchMatchesWithShipmentV235(searchableValue, product, queryValue, imports = null, batches = null) {
+  if (productSearchMatchesV218(searchableValue, product, queryValue, imports)) return true;
+  if (isOriginalCostOnlySearchV218(queryValue)) return false;
+  return shipmentLocalNumberMatchesV235(
+    getProductShipmentLocalNumbersV235(product, imports, batches),
+    queryValue
+  );
+}
+
 function renderProductList() {
   const products = getProducts();
   const keyword = document.getElementById("productSearch").value.trim().toLowerCase();
   const filtered = products.filter(product => {
     const target =
       `${product.id} ${product.name} ${product.category}`;
-    return productSearchMatchesV218(target, product, keyword);
+    return productSearchMatchesWithShipmentV235(target, product, keyword);
   });
 
   document.getElementById("productListCount").textContent = `${filtered.length} 项`;
@@ -5976,7 +6019,7 @@ function setupImportModule(){
 
     if (normalizedValue !== lastNotFoundBatchLookup) {
       lastNotFoundBatchLookup = normalizedValue;
-      alert("找不到这个进口编号或海外运输单号。");
+      alert("找不到这个进口编号或海外运输单号 / 本地单号。");
     }
 
     // V6.8: do not refocus/select the field after the alert.
@@ -7524,7 +7567,7 @@ async function deleteBatchByNumber(importNumber) {
   const effectiveItems =
     batchItems.length ? batchItems : (batch.items || []);
 
-  // V23.4: “复制”已经是独立按钮，删除按钮只负责删除。
+  // V23.5: “复制”已经是独立按钮，删除按钮只负责删除。
   // 不再使用 confirm 的“确定=复制 / 取消=继续删除”反向流程，
   // 避免用户明确点击删除却实际只复制一份。
   const confirmed = confirm(
@@ -7562,7 +7605,7 @@ async function deleteBatchByNumber(importNumber) {
 
   batches.splice(batchIndex, 1);
 
-  // V23.4: deleting the only import for a test/new product should also remove the
+  // V23.5: deleting the only import for a test/new product should also remove the
   // resulting zero-stock orphan product, so its category/prefix can unlock. A
   // product with any protected stock-adjustment/sales history is kept.
   const nextProductsV234 = removeOrphanedProductsAfterBatchDeleteV234(
@@ -7645,6 +7688,7 @@ async function deleteBatchByNumber(importNumber) {
     successStatusV234.textContent =
       `成功删除进口编号 ${batch.importNumber}，并已确认同步到 Google Sheet。对应产品如已无其他进口／库存／历史占用，产品前缀与类别已自动重新检查并解锁。`;
   }
+  window.alert(`✓ 成功删除进口编号 ${batch.importNumber}。\n\n已确认云端删除完成；其他进口编号及产品既有买卖／库存进出历史记录均保留。`);
 }
 
 
@@ -7723,7 +7767,7 @@ function loadBatchByNumber() {
   const query = input.value.trim();
 
   if (!query) {
-    alert("请输入进口编号或海外运输单号。");
+    alert("请输入进口编号或海外运输单号 / 本地单号。");
     input.focus();
     return;
   }
@@ -7748,7 +7792,7 @@ function loadBatchByNumber() {
     if (partialMatches.length === 1) {
       batch = partialMatches[0];
     } else if (partialMatches.length > 1) {
-      alert("找到多个符合的进口记录，请输入更完整的进口编号或海外运输单号。");
+      alert("找到多个符合的进口记录，请输入更完整的进口编号或海外运输单号 / 本地单号。");
       // V6.8: do not force focus/select after closing the alert.
       // The user can tap back into the field and correct the value normally.
       return;
@@ -7756,7 +7800,7 @@ function loadBatchByNumber() {
   }
 
   if (!batch) {
-    alert("找不到这个进口编号或海外运输单号。");
+    alert("找不到这个进口编号或海外运输单号 / 本地单号。");
     // V6.8: never force focus/select here. On iPhone this previously caused
     // the invalid value to immediately trigger lookup again and appear "locked".
     return;
@@ -8096,7 +8140,7 @@ function clearHistoryPageView() {
 
   if (output) {
     output.innerHTML =
-      '<div class="empty-state">输入进口编号、产品名称、地点、人员，或选择日期范围查看历史资料</div>';
+      '<div class="empty-state">输入进口编号、海外运输单号 / 本地单号、产品名称、地点、人员，或选择日期范围查看历史资料</div>';
   }
 
   showHistoryCopyToast("已清空本页");
@@ -10264,6 +10308,26 @@ function renderCompactProductHistoryByRange(
     ? range.startDate
     : `${range.startDate} 至 ${range.endDate}`;
 
+  const shipmentKeywordV235 = String(keyword || "").trim();
+  if (shipmentKeywordV235 && !isOriginalCostOnlySearchV218(shipmentKeywordV235)) {
+    const startTimeV235 = parseDDMMYYYY(range.startDate);
+    const endTimeV235 = parseDDMMYYYY(range.endDate);
+    const shipmentMatchesV235 = getBatches().filter(batch => {
+      if (!shipmentLocalNumberMatchesV235(getBatchShipmentLocalNumberV235(batch), shipmentKeywordV235)) return false;
+      const txDate = getHistoryImportTransactionDate(batch, getBatchItemsForDisplay(batch)[0] || null);
+      const txTime = parseDDMMYYYY(txDate);
+      return txTime && txTime >= startTimeV235 && txTime <= endTimeV235;
+    });
+    if (shipmentMatchesV235.length) {
+      output.innerHTML = shipmentMatchesV235
+        .slice()
+        .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
+        .map(batch => buildImportHistoryCard(batch, getBatchItemsForDisplay(batch), { showRelatedBatches: false }))
+        .join("");
+      return;
+    }
+  }
+
   const summaryBox = `
     <div class="history-related-notice">
       <div class="history-related-title">
@@ -10616,7 +10680,7 @@ function renderImportHistoryNowV134() {
 
   const keyword = input.value.trim();
   if (!keyword) {
-    output.innerHTML = '<div class="empty-state">输入进口编号、产品名称、地点、人员，或选择日期范围查看历史资料</div>';
+    output.innerHTML = '<div class="empty-state">输入进口编号、海外运输单号 / 本地单号、产品名称、地点、人员，或选择日期范围查看历史资料</div>';
     return;
   }
 
@@ -10642,6 +10706,31 @@ function renderImportHistoryNowV134() {
       buildHistorySoldCostSummary({
         importNumber: exactBatch.importNumber
       });
+    return;
+  }
+
+  const shipmentBatchMatchesV235 = numericOriginalCostOnlyV218 ? [] : batches.filter(batch =>
+    shipmentLocalNumberMatchesV235(getBatchShipmentLocalNumberV235(batch), keyword)
+  );
+
+  if (shipmentBatchMatchesV235.length === 1) {
+    const matchedBatch = shipmentBatchMatchesV235[0];
+    output.innerHTML =
+      buildImportHistoryCard(
+        matchedBatch,
+        getBatchItemsForDisplay(matchedBatch),
+        { showRelatedBatches: false }
+      ) +
+      buildHistorySoldCostSummary({ importNumber: matchedBatch.importNumber });
+    return;
+  }
+
+  if (shipmentBatchMatchesV235.length > 1) {
+    output.innerHTML = shipmentBatchMatchesV235
+      .slice()
+      .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
+      .map(batch => buildImportHistoryCard(batch, getBatchItemsForDisplay(batch), { showRelatedBatches: false }))
+      .join("");
     return;
   }
 
@@ -10676,7 +10765,7 @@ function renderImportHistoryNowV134() {
   const exactHistoryProduct = String(
     input.dataset.exactHistoryProduct || ""
   ).trim().toLowerCase();
-  // V23.4: stable Product ID linkage is only for the original text/product search.
+  // V23.5: stable Product ID linkage is only for the original text/product search.
   // A numeric Original Cost hit must remain row/batch-specific; it must not turn
   // into a Product ID hit that automatically includes every historical batch.
   const matchedProductIds = new Set(
@@ -10728,7 +10817,7 @@ function renderImportHistoryNowV134() {
 
   if (!productMatches.length) {
     output.innerHTML =
-      '<div class="empty-state">找不到这个进口编号、产品名称、地点或人员</div>' +
+      '<div class="empty-state">找不到这个进口编号、海外运输单号 / 本地单号、产品名称、地点或人员</div>' +
       buildHistorySoldCostSummary({
         keyword,
         exactProduct: String(
@@ -11424,9 +11513,8 @@ function getRowSuggestedCurrencyV231(rowId) {
     }
     return "";
   }
-  const category = normalizeProductCategoryNameV227(document.getElementById(`batchCategory-${rowId}`)?.value || "");
-  if (category === "杂花杂木") return "MYR";
-  return category === "盆栽" && findNamePrefixRuleV231(name) ? "CNY" : "";
+  const prefixRule = findNamePrefixRuleV231(name);
+  return prefixRule ? "CNY" : "MYR";
 }
 
 function getOtherPopulatedRowsV231(rowId) {
@@ -11518,9 +11606,9 @@ function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, c
   tr.dataset.lastIdentityNameV231 = normalizedName;
 
   if (!commitCurrency) return;
-  const category = normalizeProductCategoryNameV227(categoryField.value);
-  if (category === "杂花杂木") maybeApplySuggestedBatchCurrencyV231(rowId, "MYR", name);
-  else if (category === "盆栽" && findNamePrefixRuleV231(name)) maybeApplySuggestedBatchCurrencyV231(rowId, "CNY", name);
+  const prefixRule = findNamePrefixRuleV231(name);
+  if (prefixRule) maybeApplySuggestedBatchCurrencyV231(rowId, "CNY", name);
+  else maybeApplySuggestedBatchCurrencyV231(rowId, "MYR", name);
 }
 
 function addBatchRow(prefill = {}){
@@ -11654,7 +11742,7 @@ function renderBatchRowSuggestionBox(id) {
         product.category
       ].join(" ");
 
-      return productSearchMatchesV218(searchable, product, value);
+      return productSearchMatchesWithShipmentV235(searchable, product, value);
     })
     .sort((a, b) =>
       String(a.id || "").localeCompare(
@@ -11799,7 +11887,7 @@ function attachBatchRowEvents(id){
   n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();n.value=Array.from(t).slice(0,15).join("");n.dispatchEvent(new Event("input",{bubbles:true}));});
   [`batchQty-${id}`,`batchPrice-${id}`].forEach(k=>{const x=document.getElementById(k);x.addEventListener("focus",()=>x.select());x.addEventListener("input",calculateBatch);x.addEventListener("blur",()=>{if(!k.includes("Qty")&&!k.includes("Stock"))formatInputAmount(x);calculateBatch();});});
   document.getElementById(`batchPrice-${id}`).addEventListener("input", () => {
-    // V23.4: currency follows explicit batch selection / product-history defaults,
+    // V23.5: currency follows explicit batch selection / product-history defaults,
     // never a unit-price threshold heuristic.
     calculateBatch();
   });
@@ -12316,7 +12404,7 @@ function saveBatchImport() {
       transitDays: updateTransitDays()
     };
 
-    // V23.4: revision history records every allowed Data Repair field, not only costs.
+    // V23.5: revision history records every allowed Data Repair field, not only costs.
     const repairLogTimeV222 = new Date().toLocaleString("zh-MY", { hour12: false });
     const addRepairLogV222 = (fieldLabel, before, after) => {
       if (String(before ?? "") === String(after ?? "")) return;
@@ -12331,7 +12419,7 @@ function saveBatchImport() {
     };
     addRepairLogV222("木架数量", Math.max(0, Number(oldBatch.rackQuantity) || 0), updatedBatchMeta.rackQuantity);
     addRepairLogV222("运输单号", String(oldBatch.trackingNumber || "—"), updatedBatchMeta.trackingNumber || "—");
-    addRepairLogV222("海外运输单号", String(oldBatch.overseasTrackingNumber || "—"), updatedBatchMeta.overseasTrackingNumber || "—");
+    addRepairLogV222("海外运输单号 / 本地单号", String(oldBatch.overseasTrackingNumber || "—"), updatedBatchMeta.overseasTrackingNumber || "—");
     addRepairLogV222("装柜日期", String(oldBatch.containerDate || "—"), updatedBatchMeta.containerDate || "—");
     addRepairLogV222("抵达日期", String(oldBatch.arrivalDate || "—"), updatedBatchMeta.arrivalDate || "—");
     addRepairLogV222("运输天数", String(oldBatch.transitDays ?? "—"), String(updatedBatchMeta.transitDays ?? "—"));
@@ -12339,7 +12427,7 @@ function saveBatchImport() {
     let updatedCostSnapshot = {};
     let repairChangesCostV206 = false;
     if (repairEnabled) {
-      // V23.4 Data Repair may change only the Malaysia-side overseas freight
+      // V23.5 Data Repair may change only the Malaysia-side overseas freight
       // among cost-bearing fields. China-side costs, original prices, currency
       // and exchange rate are immutable here.
       const nextChina = Number(oldBatch.chinaTransportCost) || 0;
@@ -12814,13 +12902,10 @@ function renderBatchList() {
       return originalCostMatchV216;
     }
 
-    const numberOrTransportMatch = [
-      batch.importNumber,
-      batch.trackingNumber,
-      batch.overseasTrackingNumber
-    ].some(value =>
-      sequentialSearchMatches(value, keyword)
-    );
+    const numberOrTransportMatch =
+      sequentialSearchMatches(batch.importNumber, keyword) ||
+      shipmentLocalNumberMatchesV235(batch.trackingNumber, keyword) ||
+      shipmentLocalNumberMatchesV235(batch.overseasTrackingNumber, keyword);
 
     const productMatch =
       smartSearchMatches(productText, keyword);
@@ -12892,7 +12977,7 @@ function renderBatchList() {
   }).join("");
 }
 
-// ================= V23.4 Dedicated Original Cost Correction =================
+// ================= V23.5 Dedicated Original Cost Correction =================
 let originalCostEditPendingV219 = null;
 
 function getPreferredOriginalCostRecordV219(product, queryValue = "", explicitImportId = "") {
@@ -13167,7 +13252,7 @@ function renderBatchProductStockResults() {
 
   const products = getProducts()
     .filter(product =>
-      productSearchMatchesV218(
+      productSearchMatchesWithShipmentV235(
         `${product.id || ""} ${product.name || ""} ${product.category || ""}`,
         product,
         keyword
@@ -14672,7 +14757,7 @@ function clearCurrentPageUnsavedInputs() {
 
     if (output) {
       output.innerHTML =
-        '<div class="empty-state">输入进口编号、产品名称、地点、人员，或选择日期范围查看历史资料</div>';
+        '<div class="empty-state">输入进口编号、海外运输单号 / 本地单号、产品名称、地点、人员，或选择日期范围查看历史资料</div>';
     }
 
     return "已清空历史查询";
@@ -15221,7 +15306,7 @@ function renderInventoryManagementList() {
         )
       ).join(" ");
 
-      // V23.4: cache original import-cost numbers while matching imports are
+      // V23.5: cache original import-cost numbers while matching imports are
       // already in memory. This adds no save/sync/delete calls and leaves the
       // existing smart-search pipeline untouched.
       const originalCostValuesV216 = matchingImports
@@ -15303,7 +15388,7 @@ function renderInventoryManagementList() {
           keyword
         );
 
-      // V23.4: when the query is purely numeric (commas and decimals allowed),
+      // V23.5: when the query is purely numeric (commas and decimals allowed),
       // match the numeric Original Cost exactly, regardless of currency.
       // Existing product/import/tracking searches continue to run unchanged.
       const originalCostQueryTextV216 = String(keyword || "")
@@ -16382,7 +16467,7 @@ function exportSystemExcel() {
     ) +
     excelWorksheet(
       "Batches",
-      ["进口编号", "装柜日期", "抵达日期", "运输天数", "产品种类", "总数量", "木架总数", "海外运输单号", "货币", "汇率", "海外运费RM", "海外运费比例", "进口总成本RM"],
+      ["进口编号", "装柜日期", "抵达日期", "运输天数", "产品种类", "总数量", "木架总数", "海外运输单号 / 本地单号", "货币", "汇率", "海外运费RM", "海外运费比例", "进口总成本RM"],
       batchRows,
       ["text", "text", "text", "integer", "integer", "integer", "integer", "text", "text", "rate", "money", "decimal2", "money"]
     ) +
@@ -16407,7 +16492,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "23.4",
+      version: "23.5",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -16774,7 +16859,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V23.4 Stable",
+      updatedBy: "System V23.5 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
