@@ -18,6 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   setupDashboard();
   setupImportModule();
+  setupPhotoImportAndDraftV242();
   setupImportHistory();
   setupInventoryModule();
   setupGlobalMobilePullDownClear();
@@ -976,7 +977,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V24.1 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V24.3 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1345,7 +1346,7 @@ function salesItemAlreadyProcessedLocallyV104(item, product) {
     }
   }
 
-  // V24.1: batch commits store a unique commit key plus the stable Sales
+  // V24.3: batch commits store a unique commit key plus the stable Sales
   // accounting key.  Either one proves that inventory was already committed.
   // This keeps a still-pending Sales card visible as ACK-only after a timeout
   // instead of silently dropping it and risking a later duplicate deduction.
@@ -1604,7 +1605,7 @@ function showStartupSalesInventoryReminderV80() {
       const restorePrecheckFailed=/Sales Restore 状态读取超时|无法连接 Sales System 读取 Restore 状态|无法读取 Sales Restore 状态/i.test(message);
 
       if(restorePrecheckFailed){
-        // V24.1: prepareSalesInventoryOperationV117 runs before any inventory
+        // V24.3: prepareSalesInventoryOperationV117 runs before any inventory
         // commit.  If that read-only Restore precheck times out, nothing has been
         // deducted yet, so keep the frozen reminder exactly as-is.  Do not replace
         // it with a transient/empty feed result and make the card disappear.
@@ -2581,6 +2582,7 @@ function setupNavigation() {
       // success/failed, including final verification and polling intervals.
       const current=document.querySelector('.nav-btn.active')?.dataset?.page||'';
       if(target!==current&&!confirmLeaveOriginalCostEditV219())return;
+      if(target!==current&&current==="importPage"&&!confirmDiscardImportDraftChangesV243("切换页面"))return;
       if(target!==current&&promotionDeleteInProgressV184&&!window.confirm("促销删除仍在同步中。\n\n现在切换页面可能无法立即确认云端删除结果，建议等待显示删除完成。\n\n仍要切换页面吗？"))return;
       if(target!==current&&current==="settingsPage"){
         if(!confirmDiscardStaleZeroStockSelectionV227())return;
@@ -2962,7 +2964,7 @@ function setupSettings() {
 
 
 
-// ================= V24.1 Supplier Prefix Reference Manager =================
+// ================= V24.3 Supplier Prefix Reference Manager =================
 const DEFAULT_SUPPLIER_PREFIX_RULES_V241 = Object.freeze([
   { fullName: "Ocean Landscaping", prefix: "OLS" },
   { fullName: "Soong Huat Enterprise", prefix: "SHE" },
@@ -3085,7 +3087,7 @@ function setupSupplierPrefixSettingsV241() {
   });
 }
 
-// ================= V24.1 Virtual Warehouse / Product Reference Library =================
+// ================= V24.3 Virtual Warehouse / Product Reference Library =================
 function normalizeVirtualWarehouseNameV240(value) {
   return String(value || "").trim().normalize("NFKC").toLocaleLowerCase();
 }
@@ -3398,7 +3400,7 @@ function applyBatchCostEditability() {
   const repairEnabled = getCostRepairModeEnabled();
   const lockedSaved = isEditing && !repairEnabled;
 
-  // V24.1: China-side/core import facts are immutable once saved, even when
+  // V24.3: China-side/core import facts are immutable once saved, even when
   // Data Repair is ON. If they are wrong, copy the whole import as a new draft,
   // save the corrected new import number, then delete the wrong old import.
   [
@@ -5222,7 +5224,7 @@ function normalizeCategoryPrefixV228(value) {
 function isProductCategoryUsedV229(categoryName) {
   const wanted = normalizeProductCategoryNameV227(categoryName);
   if (!wanted) return false;
-  // V24.1: stock=0 alone MUST NOT unlock a category. As long as the product still
+  // V24.3: stock=0 alone MUST NOT unlock a category. As long as the product still
   // exists in active Products / Imports / Batches, the rule stays locked. Only the
   // explicit “清理零库存产品” flow removes those active references and can unlock it.
   if (getProducts().some(product => normalizeProductCategoryNameV227(product?.category) === wanted)) return true;
@@ -5287,7 +5289,7 @@ function getProductCategoryRulesV228() {
     const mode = name === "盆栽" ? "name" : "category";
     const prefix = mode === "name" ? "" : (normalizeCategoryPrefixV228(raw?.prefix) || preset?.prefix || "QT");
     const lockedByUsageV229 = raw?.lockedByUsageV229 === true;
-    // V24.1: usage lock is derived from current active data, not a permanent flag.
+    // V24.3: usage lock is derived from current active data, not a permanent flag.
     // After the user explicitly cleans the last zero-stock product, the rule may unlock.
     const locked = name === "盆栽" ? true : isProductCategoryUsedV229(name);
     result.push({ name, prefix, mode, locked, lockedByUsageV229 });
@@ -5367,7 +5369,7 @@ function goToProductPrefixSettingsV229() {
 let editingProductCategoryNameV229 = "";
 
 function persistUsedCategoryLocksV229() {
-  // V24.1: no permanent usage flag. Lock state is derived from active
+  // V24.3: no permanent usage flag. Lock state is derived from active
   // Products / Imports / Batches so zero-stock cleanup can legitimately unlock.
 }
 
@@ -5417,7 +5419,7 @@ function cleanupUnusedTestCategoryProductsV237(categoryName = "杂花杂木") {
 
 function setupProductCategorySettingsV227() {
   migrateLegacyProductCategoriesV227();
-  // V24.1 one-time safe cleanup for the old test-only 杂花杂木 / ZZ records.
+  // V24.3 one-time safe cleanup for the old test-only 杂花杂木 / ZZ records.
   // It runs only when there is no import/batch/history/stock left, so real data is never removed.
   cleanupUnusedTestCategoryProductsV237("杂花杂木");
   persistUsedCategoryLocksV229();
@@ -5621,7 +5623,7 @@ function isProductPrefixRuleUsedV229(keyword, prefix) {
     normalizeProductPrefixKeywordV181(product?.name).includes(normalizedKeyword) &&
     String(product?.id || "").trim().toUpperCase().startsWith(wantedPrefix)
   );
-  // V24.1: product existence itself keeps the rule locked, even at stock 0.
+  // V24.3: product existence itself keeps the rule locked, even at stock 0.
   // Explicit zero-stock cleanup removes the product and can then unlock the rule.
   return matchingProducts.length > 0;
 }
@@ -5653,13 +5655,13 @@ function isProductPrefixRuleLockedV229(keyword, prefix) {
 }
 
 function persistUsedPrefixRuleLocksV229() {
-  // V24.1: lock is derived from active Products, so cleanup can unlock it.
+  // V24.3: lock is derived from active Products, so cleanup can unlock it.
 }
 
 function renderProductPrefixRulesV181() {
   const list = document.getElementById("productPrefixRulesList");
   if (!list) return;
-  // V24.1: keep rules that share the same prefix adjacent for easier management.
+  // V24.3: keep rules that share the same prefix adjacent for easier management.
   // Preserve first-prefix appearance order, then preserve the original order inside each group.
   const originalRulesV237 = getProductPrefixRulesV181();
   const prefixOrderV237 = [];
@@ -6083,7 +6085,7 @@ function sequentialSearchMatches(searchableValue, queryValue) {
   return source.includes(query);
 }
 
-// V24.1: shared read-only Original Cost matcher for every product-search surface.
+// V24.3: shared read-only Original Cost matcher for every product-search surface.
 // Pure numeric queries (commas/spaces/decimals allowed) match unitPrice exactly,
 // regardless of currency. This helper only reads already-loaded local collections.
 function parseOriginalCostSearchQueryV216(queryValue) {
@@ -6114,14 +6116,14 @@ function originalCostMatchesProductV216(product, queryValue, imports = null) {
   });
 }
 
-// V24.1: record/batch-level searches must match the Original Cost stored on
+// V24.3: record/batch-level searches must match the Original Cost stored on
 // that exact row. Never fall back to another import row of the same Product ID,
 // otherwise a 320 search can incorrectly pull in a 200 batch for the same product.
 function originalCostMatchesBatchItemV216(item, queryValue) {
   return originalCostNumberMatchesV216(item?.unitPrice, queryValue);
 }
 
-// V24.1: a pure numeric product-search query is reserved exclusively for
+// V24.3: a pure numeric product-search query is reserved exclusively for
 // exact Original Cost matching. It must never fall through to product names,
 // IDs, import numbers, tracking numbers, dates, quantities, or other numeric text.
 function isOriginalCostOnlySearchV218(queryValue) {
@@ -6184,7 +6186,7 @@ function productSearchMatchesV218(searchableValue, product, queryValue, imports 
     return originalCostMatchesProductV216(product, queryValue, imports);
   }
   if (productExactOrPrefixSearchMatchesV238(product, queryValue)) return true;
-  // V24.1 regression fix: real inventory must keep accepting embedded code-like
+  // V24.3 regression fix: real inventory must keep accepting embedded code-like
   // fragments such as BX680 / bx680 / Bx680 even though they contain only two
   // Latin letters. This runs before virtual-warehouse matching and never broadens
   // single-letter queries.
@@ -6206,7 +6208,7 @@ function batchItemSearchMatchesV218(searchableValue, item, queryValue) {
   return smartSearchMatches(searchableValue, queryValue);
 }
 
-// V24.1: shared read-only shipment/local-number search helper.
+// V24.3: shared read-only shipment/local-number search helper.
 // Uses the same stored field (overseasTrackingNumber) but the UI now labels it
 // “海外运输单号 / 本地单号”. Symbol-tolerant smart matching means XX-A430
 // can be found with A430, xx a430, etc.
@@ -6645,6 +6647,429 @@ function setupImportModule(){
   renderBatchList();
   renderBatchProductStockResults();
   resetBatchForm();
+}
+
+
+// ================= V24.3 Photo Import + Cloud Draft =================
+const IMPORT_DRAFTS_KEY_V242 = "importDraftsV242";
+let activeImportDraftIdV242 = "";
+let photoImportFilesV242 = [];
+
+function getImportDraftsV242() {
+  const settings = loadJSON("importSystemSettings", {});
+  return Array.isArray(settings[IMPORT_DRAFTS_KEY_V242]) ? settings[IMPORT_DRAFTS_KEY_V242] : [];
+}
+
+function writeImportDraftsV242(drafts) {
+  const settings = loadJSON("importSystemSettings", {});
+  saveJSON("importSystemSettings", { ...settings, [IMPORT_DRAFTS_KEY_V242]: drafts.slice(0, 30) });
+  if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
+  renderImportDraftsV242();
+}
+
+
+// V24.3: every NEW import must be saved as a cloud draft first. Any later edit
+// closes the formal-save gate until the draft is saved again.
+function importDraftFingerprintV243(state) {
+  const rows = (Array.isArray(state?.rows) ? state.rows : []).map(row => ({
+    name: String(row?.name || "").trim(), productId: String(row?.productId || "").trim(),
+    category: String(row?.category || "盆栽"), quantity: Number(row?.quantity) || 0,
+    unitPrice: Number(row?.unitPrice) || 0,
+    virtualWarehouseNameV240: String(row?.virtualWarehouseNameV240 || ""),
+    virtualWarehousePrefixV240: String(row?.virtualWarehousePrefixV240 || ""),
+    virtualWarehouseIndexV240: String(row?.virtualWarehouseIndexV240 || ""),
+    virtualWarehouseCategoryV240: String(row?.virtualWarehouseCategoryV240 || "")
+  }));
+  const common = state?.common || {};
+  return JSON.stringify({ rows, common: {
+    trackingNumber: String(common.trackingNumber || "").trim(), rackQuantity: String(common.rackQuantity || "").trim(),
+    chinaTransportCost: String(common.chinaTransportCost || "").trim(), potCost: String(common.potCost || "").trim(),
+    currency: String(common.currency || "CNY"), rate: String(common.rate || "").trim(),
+    overseasTrackingNumber: String(common.overseasTrackingNumber || "").trim(), containerDate: String(common.containerDate || "").trim(),
+    arrivalDate: String(common.arrivalDate || "").trim(), shippingMY: String(common.shippingMY || "").trim()
+  }, ocrText: String(state?.ocrText || "").trim() });
+}
+function getActiveImportDraftV243() {
+  if (!activeImportDraftIdV242) return null;
+  return getImportDraftsV242().find(item => String(item?.id || "") === String(activeImportDraftIdV242)) || null;
+}
+function hasMeaningfulImportDraftInputV243() {
+  if (currentEditingImportNumber) return false;
+  const state = collectImportDraftStateV242();
+  if (state.rows.length || state.ocrText) return true;
+  return Object.entries(state.common || {}).some(([key,value]) => key !== "currency" && String(value || "").trim());
+}
+function hasUnsavedImportDraftChangesV243() {
+  if (currentEditingImportNumber || !hasMeaningfulImportDraftInputV243()) return false;
+  const active = getActiveImportDraftV243();
+  if (!active) return true;
+  return importDraftFingerprintV243(collectImportDraftStateV242()) !== importDraftFingerprintV243(active);
+}
+function confirmDiscardImportDraftChangesV243(actionLabel = "离开") {
+  if (!hasUnsavedImportDraftChangesV243()) return true;
+  return window.confirm(`⚠️ 当前进口资料有尚未保存到草稿的修改。\n\n${actionLabel}可能造成资料遗失。\n\n按「确定」继续；按「取消」返回先保存草稿。`);
+}
+window.confirmDiscardImportDraftChangesV243 = confirmDiscardImportDraftChangesV243;
+function ensureDraftReadyForFormalSaveV243(status) {
+  if (currentEditingImportNumber) return true;
+  const active = getActiveImportDraftV243();
+  if (!active) {
+    if (status) status.textContent = "请先保存草稿，再确认正式进口。";
+    alert("请先保存草稿，再确认正式进口。\n\n正式保存会增加库存，所以新进口必须先经过草稿。");
+    return false;
+  }
+  if (importDraftFingerprintV243(collectImportDraftStateV242()) !== importDraftFingerprintV243(active)) {
+    if (status) status.textContent = "草稿保存后资料又有修改，请重新保存草稿。";
+    alert("草稿保存后资料已经修改。\n\n请重新按「保存草稿」，同步最新资料后再确认正式进口。");
+    return false;
+  }
+  return true;
+}
+function localDateKeyV243(date = new Date()) {
+  return [date.getFullYear(), String(date.getMonth()+1).padStart(2,"0"), String(date.getDate()).padStart(2,"0")].join("-");
+}
+function checkImportDraftRemindersV243() {
+  const drafts = getImportDraftsV242(); if (!drafts.length) return;
+  const now = Date.now(), todayKey = localDateKeyV243();
+  const overdue = drafts.filter(draft => {
+    const created = Date.parse(draft?.createdAt || "");
+    return draft?.status === "draft" && Number.isFinite(created) && now-created >= 86400000 && draft?.lastReminderDateV243 !== todayKey;
+  });
+  if (!overdue.length) return;
+  const lines = overdue.slice(0,5).map(draft => {
+    const rows = Array.isArray(draft.rows) ? draft.rows : [];
+    return `• ${rows.find(row=>row?.name)?.name || "待检查 DO"} · ${formatDraftTimeV242(draft.createdAt)}`;
+  });
+  if (overdue.length > 5) lines.push(`• 另外 ${overdue.length-5} 份草稿`);
+  alert(`⚠️ 有 ${overdue.length} 份进口草稿保存超过24小时仍未正式确认。\n\n${lines.join("\n")}\n\n请到「产品 / 进口」检查并确认。`);
+  const ids = new Set(overdue.map(d=>String(d.id||"")));
+  writeImportDraftsV242(drafts.map(d=>ids.has(String(d.id||"")) ? {...d,lastReminderDateV243:todayKey} : d));
+}
+
+function collectImportDraftStateV242() {
+  const rows = Array.from(document.querySelectorAll("#batchRows tr")).map(tr => {
+    const id = Number(tr.dataset.rowId);
+    return {
+      name: String(document.getElementById(`batchName-${id}`)?.value || "").trim(),
+      productId: String(document.getElementById(`batchProductId-${id}`)?.value || "").trim(),
+      category: String(document.getElementById(`batchCategory-${id}`)?.value || "\u76c6\u683d"),
+      quantity: Math.max(0, Math.floor(parseAmount(document.getElementById(`batchQty-${id}`)?.value))),
+      unitPrice: Math.max(0, parseAmount(document.getElementById(`batchPrice-${id}`)?.value)),
+      virtualWarehouseNameV240: String(tr.dataset.virtualWarehouseNameV240 || ""),
+      virtualWarehousePrefixV240: String(tr.dataset.virtualWarehousePrefixV240 || ""),
+      virtualWarehouseIndexV240: String(tr.dataset.virtualWarehouseIndexV240 || ""),
+      virtualWarehouseCategoryV240: String(tr.dataset.virtualWarehouseCategoryV240 || "")
+    };
+  }).filter(row => row.name || row.quantity || row.unitPrice);
+  const val = id => String(document.getElementById(id)?.value || "").trim();
+  return {
+    rows,
+    common: {
+      trackingNumber: val("batchTrackingNumber"),
+      rackQuantity: val("batchRackQuantity"),
+      chinaTransportCost: val("batchChinaTransportCost"),
+      potCost: val("batchPotCost"),
+      currency: val("batchCurrency") || "CNY",
+      rate: val("batchRate"),
+      overseasTrackingNumber: val("batchOverseasTrackingNumber"),
+      containerDate: val("batchContainerDate"),
+      arrivalDate: val("batchArrivalDate"),
+      shippingMY: val("batchShippingMY")
+    },
+    ocrText: String(document.getElementById("photoImportTextV242")?.value || "").trim(),
+    photoNames: photoImportFilesV242.map(file => file.name).filter(Boolean)
+  };
+}
+
+function saveImportDraftV242() {
+  if (currentEditingImportNumber) {
+    alert("\u5df2\u4fdd\u5b58\u7684\u8fdb\u53e3\u7f16\u53f7\u4e0d\u4f7f\u7528\u8349\u7a3f\u6a21\u5f0f\u3002\u8349\u7a3f\u53ea\u7528\u4e8e\u65b0\u8fdb\u53e3\u3002");
+    return;
+  }
+  const state = collectImportDraftStateV242();
+  if (!state.rows.length && !state.ocrText && !state.photoNames.length) {
+    alert("\u8bf7\u5148\u8f93\u5165\u4ea7\u54c1\u6216\u62cd\u7167 / \u4e0a\u4f20 DO\u3002");
+    return;
+  }
+  const drafts = getImportDraftsV242();
+  const now = new Date().toISOString();
+  const id = activeImportDraftIdV242 || `DRF${Date.now()}`;
+  const previousDraft = drafts.find(item => item.id === id);
+  const entry = {
+    id,
+    status: "draft",
+    createdAt: previousDraft?.createdAt || now,
+    updatedAt: now,
+    lastReminderDateV243: previousDraft?.lastReminderDateV243 || "",
+    ...state
+  };
+  const next = [entry, ...drafts.filter(item => item.id !== id)].slice(0, 30);
+  activeImportDraftIdV242 = id;
+  writeImportDraftsV242(next);
+  const status = document.getElementById("batchStatusText");
+  if (status) status.textContent = "\u8349\u7a3f\u5df2\u4fdd\u5b58\u5230\u4e91\u7aef\u540c\u6b65\u961f\u5217\u3002\u53ef\u4ee5\u5728\u7535\u8111\u6253\u5f00\u540e\u7ee7\u7eed\u68c0\u67e5\u3002";
+}
+
+function applyImportDraftV242(draftId) {
+  const draft = getImportDraftsV242().find(item => String(item?.id || "") === String(draftId || ""));
+  if (!draft) return;
+  if (String(draftId || "") !== String(activeImportDraftIdV242 || "") && !confirmDiscardImportDraftChangesV243("载入另一份草稿")) return;
+  if (currentEditingImportNumber) setBatchEditMode("");
+  resetBatchForm({ clearLookup: true, clearStatus: true });
+  const tbody = document.getElementById("batchRows");
+  if (tbody) tbody.innerHTML = "";
+  batchRowSeq = 0;
+  const rows = Array.isArray(draft.rows) && draft.rows.length ? draft.rows : [{}];
+  rows.forEach(row => {
+    addBatchRow({
+      name: row.name || "",
+      productId: row.productId || "",
+      category: row.category || "\u76c6\u683d",
+      quantity: Number(row.quantity) || 0,
+      unitPrice: Number(row.unitPrice) || 0
+    });
+    const tr = document.querySelector("#batchRows tr:last-child");
+    if (!tr) return;
+    if (row.virtualWarehouseNameV240) tr.dataset.virtualWarehouseNameV240 = row.virtualWarehouseNameV240;
+    if (row.virtualWarehousePrefixV240) tr.dataset.virtualWarehousePrefixV240 = row.virtualWarehousePrefixV240;
+    if (row.virtualWarehouseIndexV240 !== undefined) tr.dataset.virtualWarehouseIndexV240 = row.virtualWarehouseIndexV240;
+    if (row.virtualWarehouseCategoryV240) tr.dataset.virtualWarehouseCategoryV240 = row.virtualWarehouseCategoryV240;
+  });
+  const common = draft.common || {};
+  const set = (id, value) => { const el = document.getElementById(id); if (el) el.value = value ?? ""; };
+  set("batchTrackingNumber", common.trackingNumber);
+  set("batchRackQuantity", common.rackQuantity);
+  set("batchChinaTransportCost", common.chinaTransportCost);
+  set("batchPotCost", common.potCost);
+  set("batchCurrency", common.currency || "CNY");
+  set("batchRate", common.rate);
+  set("batchOverseasTrackingNumber", common.overseasTrackingNumber);
+  set("batchContainerDate", common.containerDate);
+  set("batchArrivalDate", common.arrivalDate);
+  set("batchShippingMY", common.shippingMY);
+  set("photoImportTextV242", draft.ocrText || "");
+  activeImportDraftIdV242 = String(draft.id || "");
+  batchCurrencyManuallySelectedV229 = Boolean(common.currency);
+  calculateBatch();
+  renderImportDraftsV242();
+  document.getElementById("batchImportForm")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function deleteImportDraftV242(draftId) {
+  const draft = getImportDraftsV242().find(item => String(item?.id || "") === String(draftId || ""));
+  if (!draft) return;
+  if (!confirm("⚠️ 确认删除这份草稿？\n\n这会永久删除尚未正式保存的进口草稿资料，删除后不能从草稿列表恢复。\n\n已正式保存的库存资料不会受到影响。")) return;
+  writeImportDraftsV242(getImportDraftsV242().filter(item => item.id !== draftId));
+  if (activeImportDraftIdV242 === draftId) activeImportDraftIdV242 = "";
+  renderImportDraftsV242();
+}
+
+function consumeActiveImportDraftV242() {
+  if (!activeImportDraftIdV242) return;
+  const id = activeImportDraftIdV242;
+  activeImportDraftIdV242 = "";
+  writeImportDraftsV242(getImportDraftsV242().filter(item => item.id !== id));
+}
+
+function formatDraftTimeV242(value) {
+  const date = new Date(value || "");
+  if (!Number.isFinite(date.getTime())) return "";
+  return date.toLocaleString("zh-MY", { hour12: false });
+}
+
+function renderImportDraftsV242() {
+  const list = document.getElementById("importDraftListV242");
+  const label = document.getElementById("activeDraftLabelV242");
+  if (!list) return;
+  const drafts = getImportDraftsV242().slice().sort((a, b) => Date.parse(b.updatedAt || "") - Date.parse(a.updatedAt || ""));
+  if (label) label.textContent = activeImportDraftIdV242 ? `\u5f53\u524d\u8349\u7a3f\uff1a${activeImportDraftIdV242}` : "";
+  if (!drafts.length) {
+    list.innerHTML = '<div class="empty-state">\u6682\u65e0\u8349\u7a3f</div>';
+    return;
+  }
+  list.innerHTML = drafts.slice(0, 8).map(draft => {
+    const rows = Array.isArray(draft.rows) ? draft.rows : [];
+    const first = rows.find(row => row?.name)?.name || "\u5f85\u68c0\u67e5 DO";
+    const count = rows.filter(row => row?.name).length;
+    return `<article class="import-draft-card-v242 ${draft.id === activeImportDraftIdV242 ? "active" : ""}">
+      <button type="button" class="import-draft-main-v242" data-load-draft-v242="${escapeHTML(draft.id || "")}">
+        <strong>${escapeHTML(first)}</strong>
+        <span>${count} \u4e2a\u4ea7\u54c1 \u00b7 ${escapeHTML(formatDraftTimeV242(draft.updatedAt))}</span>
+      </button>
+      <button type="button" class="ghost-btn import-draft-delete-v242" data-delete-draft-v242="${escapeHTML(draft.id || "")}">\u5220\u9664</button>
+    </article>`;
+  }).join("");
+}
+window.renderImportDraftsV242 = renderImportDraftsV242;
+
+function loadTesseractV242() {
+  if (window.Tesseract?.recognize) return Promise.resolve(window.Tesseract);
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-tesseract-v242="1"]');
+    if (existing) {
+      existing.addEventListener("load", () => resolve(window.Tesseract));
+      existing.addEventListener("error", reject);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+    script.async = true;
+    script.dataset.tesseractV242 = "1";
+    script.onload = () => resolve(window.Tesseract);
+    script.onerror = () => reject(new Error("OCR \u7ec4\u4ef6\u8f7d\u5165\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u7f51\u7edc\u3002"));
+    document.head.appendChild(script);
+  });
+}
+
+function normalizeOcrTextV242(value) {
+  return String(value || "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function realInventoryOcrMatchV243(line) {
+  const rawLine = String(line || "").normalize("NFKC").toLocaleLowerCase();
+  const normalizedLine = normalizeOcrTextV242(line);
+  let best = null, bestScore = 0;
+  getProducts().forEach(product => {
+    const rawName = String(product?.name || "").normalize("NFKC").trim().toLocaleLowerCase();
+    const id = normalizeOcrTextV242(product?.id || "");
+    let score = 0;
+    if (rawName && rawName.length >= 3 && rawLine.includes(rawName)) score = 120 + rawName.length;
+    if (id && normalizedLine.includes(id)) score = Math.max(score, 110 + id.length);
+    if (score > bestScore) { bestScore = score; best = {source:"real",product,line,score}; }
+  });
+  return best;
+}
+function virtualWarehouseOcrMatchV242(line) {
+  const normalizedLine = normalizeOcrTextV242(line); if (!normalizedLine) return null;
+  let best=null,bestScore=0;
+  getVirtualWarehouseSourceV240().forEach((item,index)=>{
+    const desc=normalizeOcrTextV242(item.description||""); if(!desc)return;
+    const tokens=desc.split(" ").filter(token=>token.length>=3&&!/^\d+$/.test(token)); if(!tokens.length)return;
+    const hits=tokens.filter(token=>normalizedLine.includes(token)).length;
+    const needed=tokens.length<=1?1:Math.min(2,tokens.length); if(hits<needed)return;
+    let score=hits*10;
+    const size=normalizeOcrTextV242(item.size||""); if(size&&normalizedLine.includes(size))score+=4;
+    const supplier=normalizeOcrTextV242(item.supplierPrefix||""); if(supplier&&normalizedLine.includes(supplier))score+=2;
+    if(score<=bestScore)return;
+    const realProduct=getProducts().find(product=>normalizeVirtualWarehouseNameV240(product?.name)===normalizeVirtualWarehouseNameV240(item?.name));
+    bestScore=score;
+    best=realProduct?{source:"real",product:realProduct,referenceItem:item,sourceIndex:index,line,score:100+score}:{source:"virtual",item,sourceIndex:index,line,score};
+  });
+  return best;
+}
+function ocrProductMatchV243(line) { return realInventoryOcrMatchV243(line) || virtualWarehouseOcrMatchV242(line); }
+
+function inferQuantityFromOcrLineV242(line, item) {
+  const sizeNums = (String(item?.size || "").match(/\d+(?:\.\d+)?/g) || []).map(Number);
+  const cost = Number(item?.cost);
+  const nums = (String(line || "").match(/\d+(?:[.,]\d+)?/g) || []).map(value => Number(value.replace(",", "."))).filter(Number.isFinite);
+  const candidates = nums.filter(value => Number.isInteger(value) && value > 0 && value <= 999 && !sizeNums.some(size => Math.abs(size - value) < 0.001) && !(Number.isFinite(cost) && Math.abs(cost - value) < 0.01));
+  return candidates.length === 1 ? candidates[0] : 0;
+}
+
+function applyOcrMatchesToImportV242(text) {
+  const lines=String(text||"").split(/\r?\n/).map(line=>line.trim()).filter(Boolean),matches=[],used=new Set();
+  lines.forEach(line=>{const match=ocrProductMatchV243(line);if(!match)return;const key=match.source==="real"?`real:${String(match.product?.id||match.product?.name||"").toLowerCase()}`:`virtual:${String(match.item?.name||"").toLowerCase()}`;if(used.has(key))return;used.add(key);matches.push(match);});
+  if(!matches.length)return 0;
+  const tbody=document.getElementById("batchRows");if(tbody)tbody.innerHTML="";batchRowSeq=0;
+  matches.forEach(match=>{
+    if(match.source==="real"&&match.product){const ref=match.referenceItem||{};addBatchRow({name:match.product.name,productId:match.product.id,category:match.product.category||"盆栽",quantity:inferQuantityFromOcrLineV242(match.line,ref),unitPrice:Number(ref.cost)||0});return;}
+    if(!match.item)return;
+    addBatchRow({name:match.item.name,category:resolveVirtualWarehouseCategoryV240(match.item),quantity:inferQuantityFromOcrLineV242(match.line,match.item),unitPrice:Number(match.item.cost)||0});
+    const tr=document.querySelector("#batchRows tr:last-child");if(!tr)return;const rowId=tr.dataset.rowId,sourceIndex=Number(match.sourceIndex);
+    tr.dataset.virtualWarehouseNameV240=String(match.item.name||"").trim().toLowerCase();tr.dataset.virtualWarehousePrefixV240=normalizeCategoryPrefixV228(match.item.productPrefix||"");tr.dataset.virtualWarehouseIndexV240=Number.isInteger(sourceIndex)&&sourceIndex>=0?String(sourceIndex):"";tr.dataset.virtualWarehouseCategoryV240=resolveVirtualWarehouseCategoryV240(match.item);
+    const price=document.getElementById(`batchPrice-${rowId}`);if(price&&Number(match.item.cost)>0)price.value=formatMoney(Number(match.item.cost));
+  });
+  if(matches.length&&matches.every(match=>match.source==="virtual"&&String(match.item?.category||"")!=="盆栽")){const currency=document.getElementById("batchCurrency");if(currency){currency.value="MYR";applyBatchRate();setTodayArrivalForMYRV229();}}
+  calculateBatch();return matches.length;
+}
+
+async function runPhotoOcrV242() {
+  const progress = document.getElementById("photoImportProgressV242");
+  const textArea = document.getElementById("photoImportTextV242");
+  if (!photoImportFilesV242.length) { alert("\u8bf7\u5148\u62cd\u7167\u6216\u9009\u62e9\u7167\u7247\u3002"); return; }
+  const hasExistingRows = Array.from(document.querySelectorAll("#batchRows tr")).some(tr => {
+    const id = Number(tr.dataset.rowId);
+    return String(document.getElementById(`batchName-${id}`)?.value || "").trim() || Number(parseAmount(document.getElementById(`batchQty-${id}`)?.value)) > 0 || Number(parseAmount(document.getElementById(`batchPrice-${id}`)?.value)) > 0;
+  });
+  if ((hasExistingRows || String(textArea?.value || "").trim()) && !window.confirm("⚠️ 重新 OCR 会覆盖当前产品行 / OCR 文字。\n\n请先保存草稿；如确认继续，请按「确定」。")) return;
+  const button = document.getElementById("runPhotoOcrV242");
+  if (button) button.disabled = true;
+  try {
+    if (progress) progress.textContent = "\u6b63\u5728\u8f7d\u5165\u514d\u8d39 OCR\u2026\u7b2c\u4e00\u6b21\u53ef\u80fd\u8f83\u6162\u3002";
+    const Tesseract = await loadTesseractV242();
+    const texts = [];
+    for (let i = 0; i < photoImportFilesV242.length; i += 1) {
+      const file = photoImportFilesV242[i];
+      if (progress) progress.textContent = `OCR ${i + 1} / ${photoImportFilesV242.length}\uff1a${file.name || "photo"}`;
+      const result = await Tesseract.recognize(file, "eng", { logger: message => { if (progress && message?.status) progress.textContent = `${i + 1}/${photoImportFilesV242.length} \u00b7 ${message.status} ${message.progress ? Math.round(message.progress * 100) + "%" : ""}`; } });
+      texts.push(String(result?.data?.text || ""));
+    }
+    const allText = texts.join("\n\n--- PAGE ---\n\n").trim();
+    if (textArea) textArea.value = allText;
+    const count = applyOcrMatchesToImportV242(allText);
+    if (progress) progress.textContent = count ? `\u5df2\u5339\u914d ${count} \u4e2a\u4ea7\u54c1\u3002\u8bf7\u68c0\u67e5\u4ea7\u54c1\u3001Size\u3001\u6570\u91cf\u4e0e\u539f\u6210\u672c\uff0c\u7136\u540e\u4fdd\u5b58\u8349\u7a3f\u3002` : "\u5df2\u8bc6\u522b\u6587\u5b57\uff0c\u4f46\u672a\u80fd\u81ea\u52a8\u5339\u914d\u865a\u62df\u4ed3\u5e93\u3002\u8bf7\u624b\u52a8\u68c0\u67e5\u540e\u586b\u5165\u3002";
+  } catch (error) {
+    console.error("V24.3 OCR failed", error);
+    if (progress) progress.textContent = `OCR \u5931\u8d25\uff1a${error?.message || "\u65e0\u6cd5\u8bc6\u522b"}`;
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+function setupPhotoImportAndDraftV242() {
+  document.getElementById("saveImportDraftBtnV242")?.addEventListener("click", saveImportDraftV242);
+  const toggle = document.getElementById("togglePhotoImportV242");
+  const body = document.getElementById("photoImportBodyV242");
+  toggle?.addEventListener("click", () => {
+    if (!body) return;
+    body.hidden = !body.hidden;
+    toggle.textContent = body.hidden ? "\u6253\u5f00" : "\u6536\u8d77";
+    toggle.setAttribute("aria-expanded", String(!body.hidden));
+  });
+  const refreshPhotoListV242 = () => {
+    const list = document.getElementById("photoImportFileListV242");
+    if (list) list.innerHTML = photoImportFilesV242.length ? photoImportFilesV242.map((file, index) => `<span>${index + 1}. ${escapeHTML(file.name || "photo")}</span>`).join("") : "";
+  };
+  document.getElementById("photoImportFilesV242")?.addEventListener("change", event => {
+    const nextFiles = Array.from(event.target.files || []).filter(file => String(file.type || "").startsWith("image/"));
+    if (photoImportFilesV242.length && nextFiles.length && !window.confirm("⚠️ 选择新的相册照片会替换当前已选照片。\n\n确认替换吗？")) { event.target.value = ""; return; }
+    photoImportFilesV242 = nextFiles;
+    refreshPhotoListV242();
+  });
+  document.getElementById("photoImportCameraV242")?.addEventListener("change", event => {
+    const captured = Array.from(event.target.files || []).filter(file => String(file.type || "").startsWith("image/"));
+    if (captured.length) photoImportFilesV242 = [...photoImportFilesV242, ...captured].slice(0, 12);
+    event.target.value = "";
+    refreshPhotoListV242();
+  });
+  document.getElementById("runPhotoOcrV242")?.addEventListener("click", runPhotoOcrV242);
+  document.getElementById("clearPhotoImportV242")?.addEventListener("click", () => {
+    const hasPhotoData = photoImportFilesV242.length || String(document.getElementById("photoImportTextV242")?.value || "").trim();
+    if (hasPhotoData && !window.confirm("⚠️ 清除照片 / OCR 文字会造成尚未保存的识别资料遗失。\n\n确认清除吗？")) return;
+    photoImportFilesV242 = [];
+    const input = document.getElementById("photoImportFilesV242");
+    if (input) input.value = "";
+    const camera = document.getElementById("photoImportCameraV242");
+    if (camera) camera.value = "";
+    const list = document.getElementById("photoImportFileListV242");
+    if (list) list.innerHTML = "";
+    const text = document.getElementById("photoImportTextV242");
+    if (text) text.value = "";
+    const progress = document.getElementById("photoImportProgressV242");
+    if (progress) progress.textContent = "";
+  });
+  const list = document.getElementById("importDraftListV242");
+  list?.addEventListener("click", event => {
+    const load = event.target.closest("[data-load-draft-v242]");
+    if (load) { applyImportDraftV242(load.dataset.loadDraftV242); return; }
+    const del = event.target.closest("[data-delete-draft-v242]");
+    if (del) deleteImportDraftV242(del.dataset.deleteDraftV242);
+  });
+  window.addEventListener("beforeunload", event => { if (!hasUnsavedImportDraftChangesV243()) return; event.preventDefault(); event.returnValue = ""; });
+  window.addEventListener("focus", checkImportDraftRemindersV243);
+  renderImportDraftsV242();
+  window.setTimeout(checkImportDraftRemindersV243, 700);
 }
 
 function moveToNextBatchField(currentField) {
@@ -7955,7 +8380,7 @@ async function deleteBatchByNumber(importNumber) {
   const effectiveItems =
     batchItems.length ? batchItems : (batch.items || []);
 
-  // V24.1: “复制”已经是独立按钮，删除按钮只负责删除。
+  // V24.3: “复制”已经是独立按钮，删除按钮只负责删除。
   // 不再使用 confirm 的“确定=复制 / 取消=继续删除”反向流程，
   // 避免用户明确点击删除却实际只复制一份。
   const confirmed = confirm(
@@ -7993,7 +8418,7 @@ async function deleteBatchByNumber(importNumber) {
 
   batches.splice(batchIndex, 1);
 
-  // V24.1: deleting the only import for a test/new product should also remove the
+  // V24.3: deleting the only import for a test/new product should also remove the
   // resulting zero-stock orphan product, so its category/prefix can unlock. A
   // product with any protected stock-adjustment/sales history is kept.
   const nextProductsV234 = removeOrphanedProductsAfterBatchDeleteV234(
@@ -11153,7 +11578,7 @@ function renderImportHistoryNowV134() {
   const exactHistoryProduct = String(
     input.dataset.exactHistoryProduct || ""
   ).trim().toLowerCase();
-  // V24.1: stable Product ID linkage is only for the original text/product search.
+  // V24.3: stable Product ID linkage is only for the original text/product search.
   // A numeric Original Cost hit must remain row/batch-specific; it must not turn
   // into a Product ID hit that automatically includes every historical batch.
   const matchedProductIds = new Set(
@@ -11853,7 +12278,7 @@ function isAmbiguousBonsaiPrefixRuleV239(keyword) {
 }
 
 function canAutoApplyBonsaiPrefixRuleV239(name, keyword) {
-  // V24.1: species such as Ixora / 仙丹 may be either bonsai or ordinary nursery stock.
+  // V24.3: species such as Ixora / 仙丹 may be either bonsai or ordinary nursery stock.
   // Only auto-classify the ambiguous species as bonsai when the product name carries
   // an explicit bonsai/form cue. Manual category selection remains available.
   if (!isAmbiguousBonsaiPrefixRuleV239(keyword)) return true;
@@ -11870,7 +12295,7 @@ function findNamePrefixRuleV231(name) {
     canAutoApplyBonsaiPrefixRuleV239(name, keyword)
   );
   if (direct) return direct;
-  // V24.1: while entering a NEW product, allow a meaningful partial keyword to
+  // V24.3: while entering a NEW product, allow a meaningful partial keyword to
   // resolve a configured rule. Ambiguous bonsai/ordinary species still require
   // a form cue before they are auto-classified as bonsai.
   if (!isProductFuzzySearchReadyV238(name)) return null;
@@ -12192,7 +12617,7 @@ function renderBatchRowSuggestionBox(id) {
       )
     );
 
-  // V24.1: prefix rules are also valid suggestions for a brand-new product.
+  // V24.3: prefix rules are also valid suggestions for a brand-new product.
   // This lets a partial input such as “虎尾” surface “虎尾兰Sansevieria / SS”
   // before the row is incorrectly treated as an unmatched 杂花杂木 product.
   const compactQueryV237 = normalizeProductPrefixKeywordV181(value);
@@ -12408,7 +12833,7 @@ function attachBatchRowEvents(id){
   n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();n.value=Array.from(t).slice(0,15).join("");n.dispatchEvent(new Event("input",{bubbles:true}));});
   [`batchQty-${id}`,`batchPrice-${id}`].forEach(k=>{const x=document.getElementById(k);x.addEventListener("focus",()=>x.select());x.addEventListener("input",calculateBatch);x.addEventListener("blur",()=>{if(!k.includes("Qty")&&!k.includes("Stock"))formatInputAmount(x);calculateBatch();});});
   document.getElementById(`batchPrice-${id}`).addEventListener("input", () => {
-    // V24.1: currency follows explicit batch selection / product-history defaults,
+    // V24.3: currency follows explicit batch selection / product-history defaults,
     // never a unit-price threshold heuristic.
     calculateBatch();
   });
@@ -12449,7 +12874,15 @@ function attachBatchRowEvents(id){
     calculateBatch();
   });
 }
-function removeBatchRow(id){const r=document.querySelectorAll("#batchRows tr");if(r.length<=1){alert("至少保留一行。");return;}document.querySelector(`#batchRows tr[data-row-id="${id}"]`)?.remove();calculateBatch();}
+function removeBatchRow(id){
+  const rows=document.querySelectorAll("#batchRows tr");
+  if(rows.length<=1){alert("至少保留一行。");return;}
+  const row=document.querySelector(`#batchRows tr[data-row-id="${id}"]`);
+  if(!row)return;
+  const hasData=String(document.getElementById(`batchName-${id}`)?.value||"").trim() || Number(parseAmount(document.getElementById(`batchQty-${id}`)?.value))>0 || Number(parseAmount(document.getElementById(`batchPrice-${id}`)?.value))>0;
+  if(hasData&&!window.confirm("⚠️ 删除这一行会丢失当前尚未正式保存的产品资料。\n\n确认删除吗？"))return;
+  row.remove();calculateBatch();
+}
 function collectBatchRows(){
   const rate=parseAmount(document.getElementById("batchRate").value),currency=document.getElementById("batchCurrency").value;
   return Array.from(document.querySelectorAll("#batchRows tr")).map(tr=>{const id=Number(tr.dataset.rowId),name=document.getElementById(`batchName-${id}`).value.trim(),quantity=Math.max(0,Math.floor(parseAmount(document.getElementById(`batchQty-${id}`).value))),unitPrice=parseAmount(document.getElementById(`batchPrice-${id}`).value),stockAdded=quantity,foreignTotal=quantity*unitPrice,purchaseRM=rate>0?foreignTotal/rate:0,productId=document.getElementById(`batchProductId-${id}`).value,existing=getProducts().find(x=>x.id===productId),preferredPrefixV240=normalizeCategoryPrefixV228(tr.dataset.virtualWarehousePrefixV240||"");return{id,name,category:document.getElementById(`batchCategory-${id}`).value||"盆栽",productId,preferredPrefixV240,quantity,unitPrice,stockAdded,currency,rate,foreignTotal,purchaseRM,oldStock:Number(existing?.stock)||0,oldAverage:Number(existing?.averageCost)||0};});
@@ -12714,6 +13147,7 @@ function saveBatchImport() {
     return;
   }
   const status = document.getElementById("batchStatusText");
+  if (!currentEditingImportNumber && !ensureDraftReadyForFormalSaveV243(status)) return;
   const result = calculateBatch();
 
   if (!result.valid.length) {
@@ -12925,7 +13359,7 @@ function saveBatchImport() {
       transitDays: updateTransitDays()
     };
 
-    // V24.1: revision history records every allowed Data Repair field, not only costs.
+    // V24.3: revision history records every allowed Data Repair field, not only costs.
     const repairLogTimeV222 = new Date().toLocaleString("zh-MY", { hour12: false });
     const addRepairLogV222 = (fieldLabel, before, after) => {
       if (String(before ?? "") === String(after ?? "")) return;
@@ -12948,7 +13382,7 @@ function saveBatchImport() {
     let updatedCostSnapshot = {};
     let repairChangesCostV206 = false;
     if (repairEnabled) {
-      // V24.1 Data Repair may change only the Malaysia-side overseas freight
+      // V24.3 Data Repair may change only the Malaysia-side overseas freight
       // among cost-bearing fields. China-side costs, original prices, currency
       // and exchange rate are immutable here.
       const nextChina = Number(oldBatch.chinaTransportCost) || 0;
@@ -13275,6 +13709,7 @@ function saveBatchImport() {
   renderDashboard();
   refreshVirtualWarehouseCountV240();
   renderVirtualWarehouseV240();
+  consumeActiveImportDraftV242();
   clearBatchAfterSuccessfulAction();
   document.getElementById("batchStatusText").textContent =
     `整批已保存，进口编号：${importNumber}。输入资料已自动清空。`;
@@ -13500,7 +13935,7 @@ function renderBatchList() {
   }).join("");
 }
 
-// ================= V24.1 Dedicated Original Cost Correction =================
+// ================= V24.3 Dedicated Original Cost Correction =================
 let originalCostEditPendingV219 = null;
 
 function getPreferredOriginalCostRecordV219(product, queryValue = "", explicitImportId = "") {
@@ -15829,7 +16264,7 @@ function renderInventoryManagementList() {
         )
       ).join(" ");
 
-      // V24.1: cache original import-cost numbers while matching imports are
+      // V24.3: cache original import-cost numbers while matching imports are
       // already in memory. This adds no save/sync/delete calls and leaves the
       // existing smart-search pipeline untouched.
       const originalCostValuesV216 = matchingImports
@@ -15911,7 +16346,7 @@ function renderInventoryManagementList() {
           keyword
         );
 
-      // V24.1: when the query is purely numeric (commas and decimals allowed),
+      // V24.3: when the query is purely numeric (commas and decimals allowed),
       // match the numeric Original Cost exactly, regardless of currency.
       // Existing product/import/tracking searches continue to run unchanged.
       const originalCostQueryTextV216 = String(keyword || "")
@@ -17024,7 +17459,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "24.1",
+      version: "24.3",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -17391,7 +17826,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V24.1 Stable",
+      updatedBy: "System V24.3 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,

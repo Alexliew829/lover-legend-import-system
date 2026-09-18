@@ -366,7 +366,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V24.1 Stable",
+      updatedBy: "System V24.3 Stable",
       ...payload
     });
 
@@ -401,7 +401,7 @@ async function commitSalesInventoryBatchToCloudV125(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V24.1 Stable",
+      updatedBy: "System V24.3 Stable",
       ...payload
     });
     if (data.conflict || data.stockChanged) {
@@ -424,7 +424,7 @@ window.commitSalesInventoryBatchToCloudV125 = commitSalesInventoryBatchToCloudV1
 
 async function commitSalesCorrectionBatchToCloudV110(payload) {
   await flushCloudQueueStrictV83(); const config=getCloudConfig(); setCloudState("syncing");
-  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V24.1 Stable",...payload});
+  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V24.3 Stable",...payload});
     if(data.conflict||data.stockChanged) throw new Error(data.message||"Google Sheet 资料已改变，全部库存差异没有处理。请同步后重试。");
     config.revision=Number(data.revision)||Number(config.revision)||0; config.lastSyncAt=new Date().toISOString(); config.bootstrapToken=String(data.bootstrapToken||config.bootstrapToken||""); config.bootstrapRevision=Number(data.revision)||Number(config.bootstrapRevision)||0; saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced"); return data;
   } catch(error){setCloudState("failed");throw error;}
@@ -438,7 +438,7 @@ async function migrateProductPrefixesV164() {
     action: "migrateProductPrefixesV164", clientVersion: APP_VERSION,
     schemaVersion: CLOUD_SCHEMA_VERSION, baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""), bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V24.1 Stable"
+    updatedBy: "System V24.3 Stable"
   });
   if (data.conflict) throw new Error(data.message || "资料已改变，请同步后重试。");
   config.revision = Number(data.revision) || Number(config.revision) || 0;
@@ -618,7 +618,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V24.1 Stable",
+    updatedBy: "System V24.3 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     minimumPriceManual: Boolean(minimumPriceManual),
@@ -661,7 +661,7 @@ async function updatePromotionSettingsFastV185(promotion) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V24.1 Stable",
+    updatedBy: "System V24.3 Stable",
     promotion: promotion || null
   });
   if (data.conflict) throw new Error(data.message || "云端资料已改变，请同步后重试。");
@@ -687,7 +687,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V24.1 Stable",
+    updatedBy: "System V24.3 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
@@ -742,12 +742,28 @@ function mergeSnapshots(remote, local, queue) {
     const batchId = String(item?.id || "").trim();
     return !(deletedImportNumbers.has(importNumber) || deletedBatchIds.has(batchId));
   };
+  const remoteSettings = remote.settings || {};
+  const localSettings = local.settings || {};
+  const mergedDraftsV242 = mergeImportDraftsV242(remoteSettings.importDraftsV242, localSettings.importDraftsV242);
   return {
-    settings: { ...(remote.settings || {}), ...(local.settings || {}) },
+    settings: { ...remoteSettings, ...localSettings, ...(mergedDraftsV242.length ? { importDraftsV242: mergedDraftsV242 } : {}) },
     products: mergeCollection(remote.products, local.products, queue.deleted.products),
     imports: mergeCollection((remote.imports || []).filter(keepImport), (local.imports || []).filter(keepImport), queue.deleted.imports),
     batches: mergeCollection((remote.batches || []).filter(keepBatch), (local.batches || []).filter(keepBatch), queue.deleted.batches)
   };
+}
+
+function mergeImportDraftsV242(remoteDrafts = [], localDrafts = []) {
+  const merged = new Map();
+  [...(Array.isArray(remoteDrafts) ? remoteDrafts : []), ...(Array.isArray(localDrafts) ? localDrafts : [])].forEach(draft => {
+    const id = String(draft?.id || "").trim();
+    if (!id) return;
+    const current = merged.get(id);
+    const nextTime = Date.parse(draft?.updatedAt || draft?.createdAt || "") || 0;
+    const currentTime = Date.parse(current?.updatedAt || current?.createdAt || "") || 0;
+    if (!current || nextTime >= currentTime) merged.set(id, draft);
+  });
+  return [...merged.values()].sort((a, b) => (Date.parse(b?.updatedAt || "") || 0) - (Date.parse(a?.updatedAt || "") || 0)).slice(0, 30);
 }
 
 function mergeCollection(remoteItems = [], localItems = [], deletedIds = []) {
@@ -812,6 +828,7 @@ function refreshSystemViewsAfterSync() {
     "renderBatchSuggestions",
     "renderBatchList",
     "renderInventoryManagementList",
+    "renderImportDraftsV242",
     "refreshPromotionUiV183",
     "updatePasswordHintDisplays"
   ].forEach(name => {
