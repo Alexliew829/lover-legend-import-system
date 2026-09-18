@@ -3131,15 +3131,23 @@ body.access-locked {
 }
 
 .batch-product-suggestion-box {
-  position: absolute;
-  z-index: 22000;
+  position: static;
+  z-index: auto;
   width: 300px;
+  max-width: 100%;
   max-height: 260px;
   overflow-y: auto;
+  margin-top: 4px;
   border: 1px solid #bfd2c5;
   border-radius: 10px;
   background: #fff;
-  box-shadow: 0 8px 24px rgba(25, 65, 42, 0.18);
+  box-shadow: 0 5px 14px rgba(25, 65, 42, 0.12);
+}
+.batch-product-suggestion-box[data-empty-v253="1"] {
+  max-height: none;
+  overflow: visible;
+  box-shadow: none;
+  background: #fffdf8;
 }
 
 .batch-product-suggestion-box[hidden] {
@@ -3194,7 +3202,7 @@ body.access-locked {
 }
 
 .batch-product-suggestion-empty {
-  padding: 12px;
+  padding: 7px 10px;
   color: #6c756f;
   font-size: 13px;
   text-align: left;
@@ -5606,9 +5614,17 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .import-draft-reminder-card-v246{width:min(560px,100%);max-height:80vh;overflow:auto;background:var(--card,#fff);border-radius:14px;padding:16px;box-shadow:0 12px 40px rgba(0,0,0,.25)}
 .import-draft-reminder-head-v246{display:flex;align-items:center;justify-content:space-between;gap:12px}.import-draft-reminder-head-v246 strong{font-size:1.08rem}.import-draft-reminder-card-v246 p{margin:10px 0}.import-draft-reminder-list-v246{display:grid;gap:8px}.import-draft-reminder-list-v246 button{text-align:left}
 
-/* V25.2 media cloud-save status */
+/* V25.3 media cloud-save status */
 .inventory-media-feedback-v252{font-size:.82rem;font-weight:800;align-self:center;white-space:nowrap;}
 .inventory-media-feedback-v252.pending{opacity:.78;}
 .inventory-media-feedback-v252.success{font-weight:900;}
 .inventory-media-feedback-v252.failed{font-weight:900;}
 @media(max-width:680px){.inventory-media-feedback-v252{font-size:.8rem;grid-column:1/-1;}}
+
+
+/* V25.3 — saved media links use a clear success state; blue is reserved for add actions. */
+.inventory-media-open-v230.inventory-media-saved-v253{
+  color:#176b3a;
+  border-color:#a9d6b7;
+  background:#edf8f0;
+}
