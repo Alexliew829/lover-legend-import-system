@@ -3234,7 +3234,7 @@ function applyVirtualWarehouseSelectionV240(rowId, indexValue) {
   tr.dataset.virtualWarehouseIndexV240 = String(indexValue);
   tr.dataset.virtualWarehouseCategoryV240 = categoryField.value;
   if (Number.isFinite(Number(item.cost)) && Number(item.cost) > 0) {
-    // V25.0: virtual-warehouse reference costs are MYR supplier costs. Seed them
+    // V25.1: virtual-warehouse reference costs are MYR supplier costs. Seed them
     // through the same auto-original-cost path so foreign batches convert them.
     setAutoOriginalCostV249(rowId, { unitPrice: Number(item.cost), currency: "MYR" }, { force: true });
   }
@@ -6717,7 +6717,7 @@ function setupImportModule(){
 }
 
 
-// ================= V25.0 Two-stage Import Save =================
+// ================= V25.1 Two-stage Import Save =================
 const IMPORT_DRAFTS_KEY_V242 = "importDraftsV242";
 const IMPORT_DRAFT_DELETED_IDS_KEY_V250 = "importDraftDeletedIdsV250";
 let activeImportDraftIdV242 = "";
@@ -6984,7 +6984,7 @@ function saveImportDraftV242() {
   activeImportDraftIdV242 = id;
   writeImportDraftsV242(next);
 
-  // V25.0: saving a draft must NEVER leave the original import editor.
+  // V25.1: saving a draft must NEVER leave the original import editor.
   // Keep the just-saved draft active and preserve every field in the same input area.
   // Some sync/view refresh paths may redraw the page after settings are queued; if that
   // unexpectedly leaves the import editor blank, restore this exact saved draft.
@@ -7059,7 +7059,7 @@ function deleteImportDraftV242(draftId) {
   const draft = getImportDraftsV242().find(item => String(item?.id || "") === String(draftId || ""));
   if (!draft) return;
   if (!confirm("⚠️ 确认删除这份草稿？\n\n这会永久删除尚未正式保存的进口草稿资料，删除后无法恢复。\n\n已正式保存的库存资料不会受到影响。")) return;
-  // V25.0 Local-First: clear active state before the local render, then persist a
+  // V25.1 Local-First: clear active state before the local render, then persist a
   // deletion tombstone so a stale cloud copy cannot reappear on the next merge.
   if (String(activeImportDraftIdV242 || "") === String(draftId || "")) activeImportDraftIdV242 = "";
   markImportDraftDeletedV250(draftId);
@@ -7083,7 +7083,7 @@ function formatDraftTimeV242(value) {
 }
 
 function renderImportDraftsV242() {
-  // V25.0: no large standalone draft module. The original import editor remains the
+  // V25.1: no large standalone draft module. The original import editor remains the
   // working area; only a lightweight entry is shown so drafts can be reopened after
   // clearing/reloading/leaving the page.
   const label = document.getElementById("activeDraftLabelV242");
@@ -7190,7 +7190,7 @@ function setupImportDraftV247() {
   document.getElementById("confirmFormalImportBtnV247")?.addEventListener("click", confirmFormalImportV247);
   document.getElementById("deleteCurrentImportDraftBtnV247")?.addEventListener("click", deleteCurrentImportDraftV247);
   document.getElementById("openImportDraftsBtnV248")?.addEventListener("click", openImportDraftPickerV248);
-  // V25.0: status follows every edit in the original import form.
+  // V25.1: status follows every edit in the original import form.
   const draftFormV249 = document.getElementById("batchImportForm");
   const refreshDraftStateV249 = () => window.requestAnimationFrame(() => renderImportDraftsV242());
   draftFormV249?.addEventListener("input", refreshDraftStateV249);
@@ -8588,6 +8588,21 @@ async function deleteBatchByNumber(importNumber) {
 
   if (!confirmed) return;
 
+  // V25.1: deletion can take time because cloud flush + pull-back verification
+  // are intentionally strict. Give immediate, staged feedback instead of making
+  // the user wait with an apparently idle screen.
+  const deleteButtonV251 = Array.from(document.querySelectorAll('[data-delete-import-v251]')).find(btn =>
+    String(btn.dataset.deleteImportV251 || '').toLowerCase() === String(batch.importNumber || '').toLowerCase()
+  );
+  const deleteStatusV251 = document.getElementById("batchStatusText");
+  if (deleteButtonV251) {
+    deleteButtonV251.disabled = true;
+    deleteButtonV251.dataset.originalTextV251 = deleteButtonV251.textContent || "删除";
+    deleteButtonV251.textContent = "删除中…";
+  }
+  if (deleteStatusV251) deleteStatusV251.textContent = `正在删除本机记录 ${batch.importNumber}…`;
+  await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+
   const remainingImports = imports.filter(record => {
     const sameBatchId = String(record?.batchId || "") === String(batch.id || "");
     const sameImportNumber = normalizedImportNumber &&
@@ -8605,6 +8620,8 @@ async function deleteBatchByNumber(importNumber) {
   try {
     assertBatchDeleteStockSafetyV249(products, deleteStockSafetyV249);
   } catch (safetyError) {
+    if (deleteButtonV251) { deleteButtonV251.disabled = false; deleteButtonV251.textContent = deleteButtonV251.dataset.originalTextV251 || "删除"; }
+    if (deleteStatusV251) deleteStatusV251.textContent = `删除已停止：${safetyError?.message || safetyError}`;
     alert(`删除已停止，没有写入任何资料。\n\n${safetyError?.message || safetyError}`);
     return;
   }
@@ -8644,7 +8661,8 @@ async function deleteBatchByNumber(importNumber) {
   saveBatches(batches);
 
   const deleteStatusV228 = document.getElementById("batchStatusText");
-  if (deleteStatusV228) deleteStatusV228.textContent = `正在同步删除 ${batch.importNumber} 到 Google Sheet…`;
+  if (deleteStatusV228) deleteStatusV228.textContent = `正在同步云端删除 ${batch.importNumber}…`;
+  await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
   try {
     if (typeof window.flushCloudQueueStrictV228 === "function") {
       await window.flushCloudQueueStrictV228();
@@ -8652,11 +8670,13 @@ async function deleteBatchByNumber(importNumber) {
     if (typeof getCloudQueue === "function" && getCloudQueue()?.dirty) {
       throw new Error("云端仍有资料等待同步");
     }
+    if (deleteStatusV228) deleteStatusV228.textContent = `正在确认云端删除结果 ${batch.importNumber}…`;
+    await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
     if (typeof window.pullLatestAfterSalesCommitV83 === "function") {
       await window.pullLatestAfterSalesCommitV83(true);
     }
 
-    // V25.0: if an older remote row resurrected a zero-stock orphan during the
+    // V25.1: if an older remote row resurrected a zero-stock orphan during the
     // verification pull, remove it once more with explicit Products tombstones.
     if (removedOrphanProductIdsV249.length) {
       const orphanIdSetV249 = new Set(removedOrphanProductIdsV249);
@@ -9874,7 +9894,7 @@ function getHistoryCurrencyAndRate(batch, items = []) {
   const importPrefix = String(batch?.importNumber || "")
     .trim()
     .toUpperCase()
-    .match(/^(CNY|NTD|VND|IDR)/)?.[1] || "";
+    .match(/^(MYR|CNY|NTD|VND|IDR)/)?.[1] || "";
 
   const currencyCandidates = [
     batch?.currency,
@@ -9886,7 +9906,7 @@ function getHistoryCurrencyAndRate(batch, items = []) {
   const currency =
     currencyCandidates
       .map(value => String(value || "").trim().toUpperCase())
-      .find(value => ["CNY", "NTD", "VND", "IDR"].includes(value)) ||
+      .find(value => ["MYR", "CNY", "NTD", "VND", "IDR"].includes(value)) ||
     "CNY";
 
   const rateCandidates = [
@@ -12162,7 +12182,7 @@ function applyBatchRate(){
 
 let batchCurrencyManuallySelectedV229 = false;
 let batchArrivalAutoFilledByMYRV230 = false;
-// V25.0: one currency-conflict acknowledgement per new import/draft.
+// V25.1: one currency-conflict acknowledgement per new import/draft.
 // It resets only when starting a genuinely new import, not on every row.
 let batchCurrencyConflictAcknowledgedV249 = false;
 
@@ -12654,7 +12674,7 @@ function maybeApplySuggestedBatchCurrencyV231(rowId, suggestedCurrency, label = 
     const message = `${label || "这个产品"} 的历史／默认进口货币为 ${wanted}，但同批其他产品对应 ${conflict}。\n\n同一个进口编号只能使用一种货币。请统一整批货币，或把不同货币产品分开建立进口编号。`;
     const status = document.getElementById("batchStatusText");
     if (status) status.textContent = message.replace(/\n+/g, " ");
-    // V25.0: user has already acknowledged this rule for the current import.
+    // V25.1: user has already acknowledged this rule for the current import.
     // Do not interrupt every subsequent product row with the same warning.
     if (!batchCurrencyConflictAcknowledgedV249) {
       batchCurrencyConflictAcknowledgedV249 = true;
@@ -12711,7 +12731,7 @@ function convertHistoricalOriginalCostForBatchV249(value, sourceCurrency, target
   const target = String(targetCurrency || "").trim().toUpperCase();
   if (!(amount > 0) || !source || !target || source === target) return amount;
 
-  // V25.0 exchange-rate direction: the stored rate is foreign-currency units per
+  // V25.1 exchange-rate direction: the stored rate is foreign-currency units per
   // MYR. So foreign -> MYR divides, MYR -> foreign multiplies, and foreign ->
   // foreign converts through MYR. Examples: 920 CNY / 1.60 = RM575.00;
   // RM35.00 * 1.60 = CNY56.00.
@@ -12825,7 +12845,7 @@ function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, c
     return;
   }
 
-  // V25.0: exact typing/paste of a Virtual Warehouse name behaves like clicking
+  // V25.1: exact typing/paste of a Virtual Warehouse name behaves like clicking
   // its suggestion. This runs only after the delayed identity check / blur.
   const exactVirtualV250 = findExactVirtualWarehouseByNameV250(name);
   if (exactVirtualV250) {
@@ -12955,32 +12975,19 @@ function addBatchRow(prefill = {}){
 }
 
 function positionBatchRowSuggestionBox(id) {
-  const input =
-    document.getElementById(`batchName-${id}`);
-  const box =
-    document.getElementById(`batchSuggestionBox-${id}`);
-
+  const input = document.getElementById(`batchName-${id}`);
+  const box = document.getElementById(`batchSuggestionBox-${id}`);
   if (!input || !box || box.hidden) return;
 
-  const rect = input.getBoundingClientRect();
-  const viewportWidth =
-    document.documentElement.clientWidth ||
-    window.innerWidth ||
-    0;
-
-  const preferredWidth = Math.max(
-    rect.width,
-    Math.min(360, viewportWidth - 24)
-  );
-
-  const left = Math.min(
-    Math.max(8, rect.left),
-    Math.max(8, viewportWidth - preferredWidth - 8)
-  );
-
-  box.style.left = `${left}px`;
-  box.style.top = `${rect.bottom + 4}px`;
-  box.style.width = `${preferredWidth}px`;
+  // V25.1: keep the suggestion card physically attached to its own table cell.
+  // Using viewport-fixed coordinates made the card appear to "float" while the
+  // table/page was scrolling. The cell is already position:relative.
+  const cell = input.closest(".batch-product-cell");
+  if (!cell) return;
+  const cellWidth = Math.max(input.offsetWidth || 0, 300);
+  box.style.left = "0px";
+  box.style.top = `${(input.offsetTop || 0) + (input.offsetHeight || 0) + 4}px`;
+  box.style.width = `${cellWidth}px`;
 }
 
 let batchRowSearchBaseCacheV246 = null;
@@ -13289,7 +13296,7 @@ function attachBatchRowEvents(id){
   n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();n.value=Array.from(t).slice(0,15).join("");n.dispatchEvent(new Event("input",{bubbles:true}));});
   [`batchQty-${id}`,`batchPrice-${id}`].forEach(k=>{const x=document.getElementById(k);x.addEventListener("focus",()=>x.select());x.addEventListener("input",calculateBatch);x.addEventListener("blur",()=>{if(!k.includes("Qty")&&!k.includes("Stock"))formatInputAmount(x);calculateBatch();});});
   document.getElementById(`batchPrice-${id}`).addEventListener("input", () => {
-    // V25.0: once the user manually edits an auto-seeded historical price,
+    // V25.1: once the user manually edits an auto-seeded historical price,
     // later currency/rate changes must never overwrite that manual quotation.
     const row = document.querySelector(`#batchRows tr[data-row-id="${id}"]`);
     if (row && row.dataset.settingAutoPriceV249 !== "1") {
@@ -14378,7 +14385,7 @@ function renderBatchList() {
         </div>
         <div class="batch-card-buttons">
           ${batch.importNumber ? `<button class="small-btn" type="button" onclick="copyBatchAsNewDraftV221('${escapeHTML(batch.importNumber)}')">复制</button>` : ""}
-          ${batch.importNumber ? `<button class="small-btn delete-btn" type="button" onclick="deleteBatchByNumber('${escapeHTML(batch.importNumber)}')">删除</button>` : ""}
+          ${batch.importNumber ? `<button class="small-btn delete-btn" type="button" data-delete-import-v251="${escapeHTML(batch.importNumber)}" onclick="deleteBatchByNumber('${escapeHTML(batch.importNumber)}')">删除</button>` : ""}
         </div>
       </div>
       <div class="product-code recent-import-summary-v167">
@@ -17925,7 +17932,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "25.0",
+      version: "25.1",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18292,7 +18299,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V25.0 Stable",
+      updatedBy: "System V25.1 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,

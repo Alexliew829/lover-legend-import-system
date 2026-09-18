@@ -3131,7 +3131,7 @@ body.access-locked {
 }
 
 .batch-product-suggestion-box {
-  position: fixed;
+  position: absolute;
   z-index: 22000;
   width: 300px;
   max-height: 260px;
