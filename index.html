@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=23.4" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=23.4" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=23.4" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=23.4" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=23.4" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=23.4" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=23.4" />
+  <link rel="manifest" href="./manifest.json?v=23.5" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=23.5" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=23.5" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=23.5" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=23.5" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=23.5" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=23.5" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=23.4" />
-  <link rel="stylesheet" href="./css/style.css?v=23.4" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=23.5" />
+  <link rel="stylesheet" href="./css/style.css?v=23.5" />
 </head>
 <body>
   <div id="accessLock"
@@ -84,7 +84,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 23.4 Stable</div>
+          <div class="app-header-version">正式版 23.5 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -209,7 +209,7 @@
                 <label for="batchLookupInput">进口编号</label>
                 <input id="batchLookupInput"
                        class="batch-lookup-input"
-                       placeholder="输入进口编号和海外运输单号"
+                       placeholder="输入进口编号、海外运输单号 / 本地单号"
                        autocomplete="off"
                        autocapitalize="characters"
                        spellcheck="false"
@@ -280,7 +280,7 @@
 <label class="field-rate middle-row">汇率
   <input id="batchRate" inputmode="decimal" value="1.60">
 </label>
-<label class="field-overseas-tracking middle-row">海外运输单号
+<label class="field-overseas-tracking middle-row">海外运输单号 / 本地单号
   <input id="batchOverseasTrackingNumber"
          class="text-left-input"
          maxlength="25"
@@ -584,8 +584,12 @@
           <div id="promotionStatusV183" class="status-text"></div>
         </details>
 
-        <details class="panel collapsible-settings-v181 product-prefix-settings-v181">
-          <summary><span>产品编号前缀管理</span><small>盆栽：按产品名生成前缀</small></summary>
+        <section class="panel product-rules-manager-v235">
+          <h3>产品编号与类别规则管理</h3>
+          <p class="settings-help">盆栽与非盆栽的编号规则集中在这里管理，但两套逻辑仍然独立：盆栽按产品名称关键词判断；非盆栽按产品类别判断。未使用规则可修改／删除，实际使用后按现有保护逻辑锁定。</p>
+          <div class="product-rules-manager-inner-v235">
+        <details class="collapsible-settings-v181 product-prefix-settings-v181 rules-subpanel-v235" open>
+          <summary><span>盆栽名称前缀规则</span><small>按产品名称关键词生成编号前缀</small></summary>
           <p class="settings-help">
             系统／历史规则保持锁定。你新增的盆栽名称关键词和前缀，在尚未有真实进口产品使用前可以修改；一旦有进口记录／库存历史就会自动锁定。只影响以后新增产品，现有产品编号永远不会自动改号。
           </p>
@@ -600,8 +604,8 @@
           <p class="settings-help">这里只管理「盆栽」产品的名称关键词前缀；例如黄杨 → BX。盆栽无法识别时使用 PZ。非盆栽产品一律由「产品类别管理」的类别前缀生成编号。</p>
         </details>
 
-        <details class="panel collapsible-settings-v181 product-category-settings-v227">
-          <summary><span>产品类别管理</span><small>非盆栽：未使用可修改 · 进口后锁定</small></summary>
+        <details class="collapsible-settings-v181 product-category-settings-v227 rules-subpanel-v235" open>
+          <summary><span>非盆栽类别前缀规则</span><small>按产品类别生成编号前缀</small></summary>
           <p class="settings-help">盆栽：继续按产品名称关键词规则生成编号前缀，并由「产品编号前缀管理」处理。非盆栽：一律按产品类别默认前缀生成编号。尚未实际进口使用的类别名称和前缀可以修改；一旦有进口记录／库存历史就自动锁定。类别前缀不能与任何已有／历史前缀重复。</p>
           <div id="productCategoryRulesList" class="product-category-list-v227"></div>
           <div class="product-category-add-v227">
@@ -610,7 +614,8 @@
             <button id="addProductCategoryBtn" class="primary-btn" type="button">新增产品类别</button>
           </div>
           <div id="productCategoryStatus" class="status-text"></div>
-        </details>
+          </div>
+        </section>
 
         <section class="panel">
           <h3>更改系统密码</h3>
@@ -823,7 +828,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 23.4 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 23.5 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
@@ -855,8 +860,8 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=23.4"></script>
-  <script src="./js/sync.js?v=23.4"></script>
-  <script src="./js/app.js?v=23.4"></script>
+  <script src="./js/common.js?v=23.5"></script>
+  <script src="./js/sync.js?v=23.5"></script>
+  <script src="./js/app.js?v=23.5"></script>
 </body>
 </html>
