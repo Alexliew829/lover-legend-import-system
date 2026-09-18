@@ -18,7 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   setupDashboard();
   setupImportModule();
-  setupImportDraftV246();
+  setupImportDraftV247();
   setupImportHistory();
   setupInventoryModule();
   setupGlobalMobilePullDownClear();
@@ -3474,17 +3474,21 @@ function applyBatchCostEditability() {
     addRowButton.title = isEditing ? "已保存进口不能直接新增产品。" : "";
   }
   const saveButton = document.getElementById("saveBatchBtn");
+  const formalButtonV247 = document.getElementById("confirmFormalImportBtnV247");
+  const deleteDraftButtonV247 = document.getElementById("deleteCurrentImportDraftBtnV247");
   if (saveButton) {
     saveButton.disabled = isEditing && !repairEnabled;
     saveButton.textContent = isEditing
       ? (repairEnabled ? "保存 Data Repair 修改" : "已保存 · 只读")
-      : "保存新进口";
+      : "保存草稿";
     saveButton.title = isEditing
       ? (repairEnabled
           ? "只允许保存后续物流/马来西亚资料修改；内地核心资料仍锁定。"
           : "到设置开启 Data Repair 后，才可修改允许的后续资料。")
-      : "";
+      : "第一次及后续点击都只保存草稿，不会正式入库。";
   }
+  if (formalButtonV247) formalButtonV247.hidden = isEditing;
+  if (deleteDraftButtonV247) deleteDraftButtonV247.hidden = isEditing || !getActiveImportDraftV243();
 }
 function renderCostRepairModeStatus() {
   const enabled = getCostRepairModeEnabled();
@@ -6547,14 +6551,22 @@ function setupImportModule(){
     }
   });
   document.getElementById("resetBatchBtn").addEventListener("click",()=>{
-    if(confirm("确定清空本次尚未保存的输入？已保存的资料不会被删除。")) resetBatchForm({ clearLookup: true });
+    if(confirm("确定清空本次输入？已保存的草稿和正式资料都不会被删除。")) {
+      activeImportDraftIdV242 = "";
+      resetBatchForm({ clearLookup: true });
+      renderImportDraftsV242();
+    }
   });
 
   const batchForm = document.getElementById("batchImportForm");
 
   batchForm.addEventListener("submit", event => {
     event.preventDefault();
-    saveBatchImport();
+    if (currentEditingImportNumber) {
+      saveBatchImport();
+      return;
+    }
+    saveImportDraftV242();
   });
 
   batchForm.addEventListener("keydown", event => {
@@ -6694,7 +6706,7 @@ function setupImportModule(){
 }
 
 
-// ================= V24.6 Cloud Draft =================
+// ================= V24.7 Two-stage Import Save =================
 const IMPORT_DRAFTS_KEY_V242 = "importDraftsV242";
 let activeImportDraftIdV242 = "";
 let importDraftCleanFingerprintV244 = "";
@@ -6925,7 +6937,7 @@ function saveImportDraftV242() {
   activeImportDraftIdV242 = id;
   writeImportDraftsV242(next);
   const status = document.getElementById("batchStatusText");
-  if (status) status.textContent = "\u8349\u7a3f\u5df2\u4fdd\u5b58\u5230\u4e91\u7aef\u540c\u6b65\u961f\u5217\u3002\u53ef\u4ee5\u5728\u7535\u8111\u6253\u5f00\u540e\u7ee7\u7eed\u68c0\u67e5\u3002";
+  if (status) status.textContent = "草稿已保存。尚未写入库存、平均成本、最低售价或正式 Import / Batch；可继续修改并再次保存草稿。";
 }
 
 function applyImportDraftV242(draftId) {
@@ -6975,7 +6987,7 @@ function applyImportDraftV242(draftId) {
 function deleteImportDraftV242(draftId) {
   const draft = getImportDraftsV242().find(item => String(item?.id || "") === String(draftId || ""));
   if (!draft) return;
-  if (!confirm("⚠️ 确认删除这份草稿？\n\n这会永久删除尚未正式保存的进口草稿资料，删除后不能从草稿列表恢复。\n\n已正式保存的库存资料不会受到影响。")) return;
+  if (!confirm("⚠️ 确认删除这份草稿？\n\n这会永久删除尚未正式保存的进口草稿资料，删除后无法恢复。\n\n已正式保存的库存资料不会受到影响。")) return;
   writeImportDraftsV242(getImportDraftsV242().filter(item => item.id !== draftId));
   if (activeImportDraftIdV242 === draftId) activeImportDraftIdV242 = "";
   renderImportDraftsV242();
@@ -6995,41 +7007,46 @@ function formatDraftTimeV242(value) {
 }
 
 function renderImportDraftsV242() {
-  const panel = document.getElementById("importDraftPanelV242");
-  const list = document.getElementById("importDraftListV242");
+  // V24.7: 草稿继续保存在原有同步资料中，但不再显示独立大型草稿区域。
+  // 原进口输入区只显示当前草稿状态；超过24小时的其他草稿由提醒逐份直达。
   const label = document.getElementById("activeDraftLabelV242");
-  if (!list) return;
-  const drafts = getImportDraftsV242().slice().sort((a, b) => Date.parse(b.updatedAt || "") - Date.parse(a.updatedAt || ""));
-  if (panel) panel.hidden = drafts.length === 0;
-  if (label) label.textContent = activeImportDraftIdV242 ? `当前草稿：${activeImportDraftIdV242}` : "";
-  if (!drafts.length) {
-    list.innerHTML = "";
-    return;
+  const deleteButton = document.getElementById("deleteCurrentImportDraftBtnV247");
+  const active = getActiveImportDraftV243();
+  if (label) {
+    label.textContent = active
+      ? `当前资料已保存为草稿 · ${formatDraftTimeV242(active.updatedAt)} · 可继续修改后再次保存草稿`
+      : "";
   }
-  list.innerHTML = drafts.slice(0, 8).map(draft => {
-    const rows = Array.isArray(draft.rows) ? draft.rows : [];
-    const first = rows.find(row => row?.name)?.name || "未命名草稿";
-    const count = rows.filter(row => row?.name).length;
-    return `<article class="import-draft-card-v242 ${draft.id === activeImportDraftIdV242 ? "active" : ""}">
-      <button type="button" class="import-draft-main-v242" data-load-draft-v242="${escapeHTML(draft.id || "")}">
-        <strong>${escapeHTML(first)}</strong>
-        <span>${count} 个产品 · ${escapeHTML(formatDraftTimeV242(draft.updatedAt))}</span>
-      </button>
-      <button type="button" class="ghost-btn import-draft-delete-v242" data-delete-draft-v242="${escapeHTML(draft.id || "")}">删除</button>
-    </article>`;
-  }).join("");
+  if (deleteButton) deleteButton.hidden = !active;
 }
 window.renderImportDraftsV242 = renderImportDraftsV242;
 
-function setupImportDraftV246() {
-  document.getElementById("saveImportDraftBtnV242")?.addEventListener("click", saveImportDraftV242);
-  const list = document.getElementById("importDraftListV242");
-  list?.addEventListener("click", event => {
-    const load = event.target.closest("[data-load-draft-v242]");
-    if (load) { applyImportDraftV242(load.dataset.loadDraftV242); return; }
-    const del = event.target.closest("[data-delete-draft-v242]");
-    if (del) deleteImportDraftV242(del.dataset.deleteDraftV242);
-  });
+function confirmFormalImportV247() {
+  if (currentEditingImportNumber) {
+    saveBatchImport();
+    return;
+  }
+  const status = document.getElementById("batchStatusText");
+  if (!ensureDraftReadyForFormalSaveV243(status)) return;
+  const active = getActiveImportDraftV243();
+  const rows = Array.isArray(active?.rows) ? active.rows.filter(row => String(row?.name || "").trim()) : [];
+  const totalQty = rows.reduce((sum, row) => sum + Math.max(0, Number(row?.quantity) || 0), 0);
+  const firstNames = rows.slice(0, 4).map(row => String(row.name || "").trim()).filter(Boolean).join("、");
+  const summary = `${rows.length} 个产品 / 总数量 ${totalQty}${firstNames ? `\n${firstNames}${rows.length > 4 ? "…" : ""}` : ""}`;
+  if (!window.confirm(`⚠️ 确认正式保存这份进口？\n\n${summary}\n\n确认后才会执行 V22.6 原本正式保存逻辑：写入真实库存、成本、Import / Batch、Product ID 与最低售价相关处理。\n\n正式保存成功后，这份进口会锁定。`)) return;
+  if (!window.confirm("最后确认：现在正式入库？\n\n这是第二阶段正式保存，不再是草稿。成功后如需修改，只能依 Data Repair 规则处理。")) return;
+  saveBatchImport();
+}
+
+function deleteCurrentImportDraftV247() {
+  if (!activeImportDraftIdV242) return;
+  deleteImportDraftV242(activeImportDraftIdV242);
+  renderImportDraftsV242();
+}
+
+function setupImportDraftV247() {
+  document.getElementById("confirmFormalImportBtnV247")?.addEventListener("click", confirmFormalImportV247);
+  document.getElementById("deleteCurrentImportDraftBtnV247")?.addEventListener("click", deleteCurrentImportDraftV247);
   window.addEventListener("beforeunload", event => {
     if (!hasUnsavedImportDraftChangesV243()) return;
     event.preventDefault();
@@ -17535,7 +17552,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "24.6",
+      version: "24.7",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -17902,7 +17919,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V24.6 Stable",
+      updatedBy: "System V24.7 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
