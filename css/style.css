@@ -5532,5 +5532,5 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .inventory-media-dot-v236.video{background:#1787e8;}
 @media(max-width:680px){.inventory-media-status-v236{gap:4px;margin-left:2px}.inventory-media-dot-v236{width:11px;height:11px}}
 
-/* V23.8 — prefix-rule suggestions for partial new-product input. */
+/* V23.9 — prefix-rule suggestions for partial new-product input. */
 .batch-prefix-rule-suggestion-v237 small { font-weight: 700; }
