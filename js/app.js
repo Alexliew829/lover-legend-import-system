@@ -3238,7 +3238,7 @@ function applyVirtualWarehouseSelectionV240(rowId, indexValue) {
   tr.dataset.virtualWarehouseIndexV240 = String(indexValue);
   tr.dataset.virtualWarehouseCategoryV240 = categoryField.value;
   if (Number.isFinite(Number(item.cost)) && Number(item.cost) > 0) {
-    // V25.3: virtual-warehouse reference costs are MYR supplier costs. Seed them
+    // V25.4: virtual-warehouse reference costs are MYR supplier costs. Seed them
     // through the same auto-original-cost path so foreign batches convert them.
     setAutoOriginalCostV249(rowId, { unitPrice: Number(item.cost), currency: "MYR" }, { force: true });
   }
@@ -6721,7 +6721,7 @@ function setupImportModule(){
 }
 
 
-// ================= V25.3 Two-stage Import Save =================
+// ================= V25.4 Two-stage Import Save =================
 const IMPORT_DRAFTS_KEY_V242 = "importDraftsV242";
 const IMPORT_DRAFT_DELETED_IDS_KEY_V250 = "importDraftDeletedIdsV250";
 let activeImportDraftIdV242 = "";
@@ -6988,7 +6988,7 @@ function saveImportDraftV242() {
   activeImportDraftIdV242 = id;
   writeImportDraftsV242(next);
 
-  // V25.3: saving a draft must NEVER leave the original import editor.
+  // V25.4: saving a draft must NEVER leave the original import editor.
   // Keep the just-saved draft active and preserve every field in the same input area.
   // Some sync/view refresh paths may redraw the page after settings are queued; if that
   // unexpectedly leaves the import editor blank, restore this exact saved draft.
@@ -7064,7 +7064,7 @@ function deleteImportDraftV242(draftId) {
   if (!draft) return;
   if (!confirm("⚠️ 确认删除这份草稿？\n\n这会永久删除尚未正式保存的进口草稿资料，删除后无法恢复。\n\n已正式保存的库存资料不会受到影响。")) return;
   const wasActiveV252 = String(activeImportDraftIdV242 || "") === String(draftId || "");
-  // V25.3 Local-First: clear active state and persist the tombstone immediately,
+  // V25.4 Local-First: clear active state and persist the tombstone immediately,
   // then clear the editor only when the deleted draft is the one currently open.
   if (wasActiveV252) activeImportDraftIdV242 = "";
   markImportDraftDeletedV250(draftId);
@@ -7084,7 +7084,7 @@ function consumeActiveImportDraftV242() {
   if (!activeImportDraftIdV242) return;
   const id = activeImportDraftIdV242;
   activeImportDraftIdV242 = "";
-  // V25.3: formal save is also a terminal removal of the draft. Without a
+  // V25.4: formal save is also a terminal removal of the draft. Without a
   // tombstone, a stale cloud copy can merge back and trigger the 24-hour reminder.
   markImportDraftDeletedV250(id);
   writeImportDraftsV242(getImportDraftsV242().filter(item => item.id !== id));
@@ -7098,7 +7098,7 @@ function formatDraftTimeV242(value) {
 }
 
 function renderImportDraftsV242() {
-  // V25.3: no large standalone draft module. The original import editor remains the
+  // V25.4: no large standalone draft module. The original import editor remains the
   // working area; only a lightweight entry is shown so drafts can be reopened after
   // clearing/reloading/leaving the page.
   const label = document.getElementById("activeDraftLabelV242");
@@ -7205,7 +7205,7 @@ function setupImportDraftV247() {
   document.getElementById("confirmFormalImportBtnV247")?.addEventListener("click", confirmFormalImportV247);
   document.getElementById("deleteCurrentImportDraftBtnV247")?.addEventListener("click", deleteCurrentImportDraftV247);
   document.getElementById("openImportDraftsBtnV248")?.addEventListener("click", openImportDraftPickerV248);
-  // V25.3: status follows every edit in the original import form.
+  // V25.4: status follows every edit in the original import form.
   const draftFormV249 = document.getElementById("batchImportForm");
   const refreshDraftStateV249 = () => window.requestAnimationFrame(() => renderImportDraftsV242());
   draftFormV249?.addEventListener("input", refreshDraftStateV249);
@@ -8603,7 +8603,7 @@ async function deleteBatchByNumber(importNumber) {
 
   if (!confirmed) return;
 
-  // V25.3: deletion can take time because cloud flush + pull-back verification
+  // V25.4: deletion can take time because cloud flush + pull-back verification
   // are intentionally strict. Give immediate, staged feedback instead of making
   // the user wait with an apparently idle screen.
   const deleteButtonV251 = Array.from(document.querySelectorAll('[data-delete-import-v251]')).find(btn =>
@@ -8691,7 +8691,7 @@ async function deleteBatchByNumber(importNumber) {
       await window.pullLatestAfterSalesCommitV83(true);
     }
 
-    // V25.3: if an older remote row resurrected a zero-stock orphan during the
+    // V25.4: if an older remote row resurrected a zero-stock orphan during the
     // verification pull, remove it once more with explicit Products tombstones.
     if (removedOrphanProductIdsV249.length) {
       const orphanIdSetV249 = new Set(removedOrphanProductIdsV249);
@@ -10973,7 +10973,7 @@ function getHistorySingleDateEventCount(
       normalizedKeyword
     );
 
-  // V25.3: count actual independent movement records. Multiple Import Numbers
+  // V25.4: count actual independent movement records. Multiple Import Numbers
   // on the same date must not collapse into one generic incoming event.
   const adjustmentCount = adjustments.filter(
     adjustment => Math.trunc(Number(adjustment.delta) || 0) !== 0
@@ -12188,7 +12188,7 @@ function applyBatchRate(){
 
 let batchCurrencyManuallySelectedV229 = false;
 let batchArrivalAutoFilledByMYRV230 = false;
-// V25.3: one currency-conflict acknowledgement per new import/draft.
+// V25.4: one currency-conflict acknowledgement per new import/draft.
 // It resets only when starting a genuinely new import, not on every row.
 let batchCurrencyConflictAcknowledgedV249 = false;
 
@@ -12680,7 +12680,7 @@ function maybeApplySuggestedBatchCurrencyV231(rowId, suggestedCurrency, label = 
     const message = `${label || "这个产品"} 的历史／默认进口货币为 ${wanted}，但同批其他产品对应 ${conflict}。\n\n同一个进口编号只能使用一种货币。请统一整批货币，或把不同货币产品分开建立进口编号。`;
     const status = document.getElementById("batchStatusText");
     if (status) status.textContent = message.replace(/\n+/g, " ");
-    // V25.3: user has already acknowledged this rule for the current import.
+    // V25.4: user has already acknowledged this rule for the current import.
     // Do not interrupt every subsequent product row with the same warning.
     if (!batchCurrencyConflictAcknowledgedV249) {
       batchCurrencyConflictAcknowledgedV249 = true;
@@ -12737,7 +12737,7 @@ function convertHistoricalOriginalCostForBatchV249(value, sourceCurrency, target
   const target = String(targetCurrency || "").trim().toUpperCase();
   if (!(amount > 0) || !source || !target || source === target) return amount;
 
-  // V25.3 exchange-rate direction: the stored rate is foreign-currency units per
+  // V25.4 exchange-rate direction: the stored rate is foreign-currency units per
   // MYR. So foreign -> MYR divides, MYR -> foreign multiplies, and foreign ->
   // foreign converts through MYR. Examples: 920 CNY / 1.60 = RM575.00;
   // RM35.00 * 1.60 = CNY56.00.
@@ -12851,7 +12851,7 @@ function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, c
     return;
   }
 
-  // V25.3: exact typing/paste of a Virtual Warehouse name behaves like clicking
+  // V25.4: exact typing/paste of a Virtual Warehouse name behaves like clicking
   // its suggestion. This runs only after the delayed identity check / blur.
   const exactVirtualV250 = findExactVirtualWarehouseByNameV250(name);
   if (exactVirtualV250) {
@@ -12985,7 +12985,7 @@ function positionBatchRowSuggestionBox(id) {
   const box = document.getElementById(`batchSuggestionBox-${id}`);
   if (!input || !box || box.hidden) return;
 
-  // V25.3: keep suggestions in the table row's normal document flow. The row
+  // V25.4: keep suggestions in the table row's normal document flow. The row
   // expands while suggestions are visible, so the next product row is never covered.
   box.style.left = "";
   box.style.top = "";
@@ -13301,7 +13301,7 @@ function attachBatchRowEvents(id){
   n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();n.value=Array.from(t).slice(0,15).join("");n.dispatchEvent(new Event("input",{bubbles:true}));});
   [`batchQty-${id}`,`batchPrice-${id}`].forEach(k=>{const x=document.getElementById(k);x.addEventListener("focus",()=>x.select());x.addEventListener("input",calculateBatch);x.addEventListener("blur",()=>{if(!k.includes("Qty")&&!k.includes("Stock"))formatInputAmount(x);calculateBatch();});});
   document.getElementById(`batchPrice-${id}`).addEventListener("input", () => {
-    // V25.3: once the user manually edits an auto-seeded historical price,
+    // V25.4: once the user manually edits an auto-seeded historical price,
     // later currency/rate changes must never overwrite that manual quotation.
     const row = document.querySelector(`#batchRows tr[data-row-id="${id}"]`);
     if (row && row.dataset.settingAutoPriceV249 !== "1") {
@@ -17130,7 +17130,7 @@ function renderProductMediaButtonsV229(productId, mediaMap = null) {
   const item = (type, label) => {
     const url = String(media[type] || "").trim();
     return url
-      ? `<span class="inventory-media-item-v229"><a class="inventory-media-open-v230 inventory-media-saved-v253" href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer" aria-label="打开${label}">${label}链接 · 打开</a><button type="button" class="inventory-media-copy-v229" data-media-product-v229="${escapeHTML(productId)}" data-media-type-v229="${type}">复制</button><button type="button" class="inventory-media-delete-v229" data-media-delete-product-v229="${escapeHTML(productId)}" data-media-delete-type-v229="${type}" aria-label="删除${label}链接">删除</button></span>`
+      ? `<span class="inventory-media-item-v229"><a class="inventory-media-open-v230 inventory-media-saved-v254 inventory-media-${type}-v254" href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer" aria-label="打开${label}">${label}链接 · 打开</a><button type="button" class="inventory-media-copy-v229" data-media-product-v229="${escapeHTML(productId)}" data-media-type-v229="${type}">复制</button><button type="button" class="inventory-media-delete-v229" data-media-delete-product-v229="${escapeHTML(productId)}" data-media-delete-type-v229="${type}" aria-label="删除${label}链接">删除</button></span>`
       : `<button type="button" class="inventory-media-add-v229" data-media-add-product-v229="${escapeHTML(productId)}" data-media-add-type-v229="${type}">+ ${label}链接</button>`;
   };
   return `<div class="inventory-media-links-v229">${item("photo", "照片")}${item("video", "视频")}</div>`;
@@ -18022,7 +18022,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "25.3",
+      version: "25.4",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18389,7 +18389,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V25.3 Stable",
+      updatedBy: "System V25.4 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
