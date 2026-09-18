@@ -5585,7 +5585,10 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .import-draft-main-v242{flex:1;border:0;background:transparent;text-align:left;padding:5px;cursor:pointer;display:flex;flex-direction:column;gap:3px}
 .import-draft-main-v242 strong{font-size:.95rem}.import-draft-main-v242 span{font-size:.78rem;opacity:.72}
 .import-draft-delete-v242{flex:0 0 auto}
-#activeDraftLabelV242{font-size:.78rem;opacity:.75}
+#activeDraftLabelV242{font-size:.9rem;font-weight:700;opacity:1;min-height:1.4em;padding:.35rem .55rem;border-radius:9px;background:rgba(0,0,0,.035)}
+#activeDraftLabelV242[data-draft-state-v249="saved"]{outline:1px solid rgba(34,120,76,.22)}
+#activeDraftLabelV242[data-draft-state-v249="dirty"],#activeDraftLabelV242[data-draft-state-v249="unsaved"]{outline:1px solid rgba(180,120,0,.22)}
+#activeDraftLabelV242[data-draft-state-v249="formal"]{outline:1px solid rgba(30,100,70,.25)}
 
 /* V24.6 Supplier reference entry follows the user's left-aligned typing habit. */
 .supplier-prefix-add-v241 input{text-align:left!important;direction:ltr}

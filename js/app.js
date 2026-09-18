@@ -6636,13 +6636,22 @@ function setupImportModule(){
   });
   ["batchChinaTransportCost","batchPotCost","batchShippingMY","batchRate"].forEach(id=>{
     const x=document.getElementById(id); x.addEventListener("focus",()=>x.select());
-    x.addEventListener("input",calculateBatch); x.addEventListener("blur",()=>{formatInputAmount(x);calculateBatch();});
+    x.addEventListener("input",()=>{
+      if (id === "batchRate") refreshAutoOriginalCostsForBatchV249();
+      else calculateBatch();
+    });
+    x.addEventListener("blur",()=>{
+      formatInputAmount(x);
+      if (id === "batchRate") refreshAutoOriginalCostsForBatchV249();
+      else calculateBatch();
+    });
   });
   document.getElementById("batchCurrency").addEventListener("change",()=>{
     batchCurrencyManuallySelectedV229 = true;
     clearAutoArrivalWhenLeavingMYRV230();
     applyBatchRate();
     setTodayArrivalForMYRV229();
+    refreshAutoOriginalCostsForBatchV249();
     calculateBatch();
   });
 
@@ -6706,7 +6715,7 @@ function setupImportModule(){
 }
 
 
-// ================= V24.8 Two-stage Import Save =================
+// ================= V24.9 Two-stage Import Save =================
 const IMPORT_DRAFTS_KEY_V242 = "importDraftsV242";
 let activeImportDraftIdV242 = "";
 let importDraftCleanFingerprintV244 = "";
@@ -6734,7 +6743,11 @@ function importDraftFingerprintV243(state) {
     virtualWarehouseNameV240: String(row?.virtualWarehouseNameV240 || ""),
     virtualWarehousePrefixV240: String(row?.virtualWarehousePrefixV240 || ""),
     virtualWarehouseIndexV240: String(row?.virtualWarehouseIndexV240 || ""),
-    virtualWarehouseCategoryV240: String(row?.virtualWarehouseCategoryV240 || "")
+    virtualWarehouseCategoryV240: String(row?.virtualWarehouseCategoryV240 || ""),
+    autoOriginalCostV249: String(row?.autoOriginalCostV249 || ""),
+    autoOriginalCostSourceValueV249: String(row?.autoOriginalCostSourceValueV249 || ""),
+    autoOriginalCostSourceCurrencyV249: String(row?.autoOriginalCostSourceCurrencyV249 || ""),
+    priceManuallyEditedV249: String(row?.priceManuallyEditedV249 || "")
   }));
   const common = state?.common || {};
   return JSON.stringify({ rows, common: {
@@ -6890,12 +6903,17 @@ function collectImportDraftStateV242() {
       virtualWarehouseNameV240: String(tr.dataset.virtualWarehouseNameV240 || ""),
       virtualWarehousePrefixV240: String(tr.dataset.virtualWarehousePrefixV240 || ""),
       virtualWarehouseIndexV240: String(tr.dataset.virtualWarehouseIndexV240 || ""),
-      virtualWarehouseCategoryV240: String(tr.dataset.virtualWarehouseCategoryV240 || "")
+      virtualWarehouseCategoryV240: String(tr.dataset.virtualWarehouseCategoryV240 || ""),
+      autoOriginalCostV249: String(tr.dataset.autoOriginalCostV249 || ""),
+      autoOriginalCostSourceValueV249: String(tr.dataset.autoOriginalCostSourceValueV249 || ""),
+      autoOriginalCostSourceCurrencyV249: String(tr.dataset.autoOriginalCostSourceCurrencyV249 || ""),
+      priceManuallyEditedV249: String(tr.dataset.priceManuallyEditedV249 || "")
     };
   }).filter(row => row.name || row.quantity || row.unitPrice);
   const val = id => String(document.getElementById(id)?.value || "").trim();
   return {
     rows,
+    meta: { currencyConflictAcknowledgedV249: Boolean(batchCurrencyConflictAcknowledgedV249) },
     common: {
       trackingNumber: val("batchTrackingNumber"),
       rackQuantity: val("batchRackQuantity"),
@@ -6937,7 +6955,7 @@ function saveImportDraftV242() {
   activeImportDraftIdV242 = id;
   writeImportDraftsV242(next);
 
-  // V24.8: saving a draft must NEVER leave the original import editor.
+  // V24.9: saving a draft must NEVER leave the original import editor.
   // Keep the just-saved draft active and preserve every field in the same input area.
   // Some sync/view refresh paths may redraw the page after settings are queued; if that
   // unexpectedly leaves the import editor blank, restore this exact saved draft.
@@ -6982,7 +7000,12 @@ function applyImportDraftV242(draftId) {
     if (row.virtualWarehousePrefixV240) tr.dataset.virtualWarehousePrefixV240 = row.virtualWarehousePrefixV240;
     if (row.virtualWarehouseIndexV240 !== undefined) tr.dataset.virtualWarehouseIndexV240 = row.virtualWarehouseIndexV240;
     if (row.virtualWarehouseCategoryV240) tr.dataset.virtualWarehouseCategoryV240 = row.virtualWarehouseCategoryV240;
+    if (row.autoOriginalCostV249) tr.dataset.autoOriginalCostV249 = row.autoOriginalCostV249;
+    if (row.autoOriginalCostSourceValueV249) tr.dataset.autoOriginalCostSourceValueV249 = row.autoOriginalCostSourceValueV249;
+    if (row.autoOriginalCostSourceCurrencyV249) tr.dataset.autoOriginalCostSourceCurrencyV249 = row.autoOriginalCostSourceCurrencyV249;
+    if (row.priceManuallyEditedV249) tr.dataset.priceManuallyEditedV249 = row.priceManuallyEditedV249;
   });
+  batchCurrencyConflictAcknowledgedV249 = Boolean(draft?.meta?.currencyConflictAcknowledgedV249);
   const common = draft.common || {};
   const set = (id, value) => { const el = document.getElementById(id); if (el) el.value = value ?? ""; };
   set("batchTrackingNumber", common.trackingNumber);
@@ -6997,6 +7020,7 @@ function applyImportDraftV242(draftId) {
   set("batchShippingMY", common.shippingMY);
   activeImportDraftIdV242 = String(draft.id || "");
   batchCurrencyManuallySelectedV229 = Boolean(common.currency);
+  refreshAutoOriginalCostsForBatchV249();
   calculateBatch();
   renderImportDraftsV242();
   document.getElementById("batchImportForm")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -7025,7 +7049,7 @@ function formatDraftTimeV242(value) {
 }
 
 function renderImportDraftsV242() {
-  // V24.8: no large standalone draft module. The original import editor remains the
+  // V24.9: no large standalone draft module. The original import editor remains the
   // working area; only a lightweight entry is shown so drafts can be reopened after
   // clearing/reloading/leaving the page.
   const label = document.getElementById("activeDraftLabelV242");
@@ -7034,9 +7058,24 @@ function renderImportDraftsV242() {
   const active = getActiveImportDraftV243();
   const drafts = getImportDraftsV242().filter(item => item?.status === "draft");
   if (label) {
-    label.textContent = active
-      ? `当前资料已保存为草稿 · ${formatDraftTimeV242(active.updatedAt)} · 可继续修改后再次保存草稿`
-      : "";
+    const hasData = importDraftStateHasUserDataV246(collectImportDraftStateV242());
+    const dirty = active ? hasUnsavedImportDraftChangesV243() : hasData;
+    if (currentEditingImportNumber) {
+      label.textContent = "已正式保存 · 已锁定";
+      label.dataset.draftStateV249 = "formal";
+    } else if (active && dirty) {
+      label.textContent = `草稿已修改 · 尚未重新保存 · 原草稿 ${formatDraftTimeV242(active.updatedAt)}`;
+      label.dataset.draftStateV249 = "dirty";
+    } else if (active) {
+      label.textContent = `草稿已保存 · 尚未正式确认 · ${formatDraftTimeV242(active.updatedAt)}`;
+      label.dataset.draftStateV249 = "saved";
+    } else if (hasData) {
+      label.textContent = "未保存 · 当前资料尚未保存为草稿";
+      label.dataset.draftStateV249 = "unsaved";
+    } else {
+      label.textContent = "未保存";
+      label.dataset.draftStateV249 = "empty";
+    }
   }
   if (deleteButton) deleteButton.hidden = !active;
   if (openButton) {
@@ -7117,6 +7156,11 @@ function setupImportDraftV247() {
   document.getElementById("confirmFormalImportBtnV247")?.addEventListener("click", confirmFormalImportV247);
   document.getElementById("deleteCurrentImportDraftBtnV247")?.addEventListener("click", deleteCurrentImportDraftV247);
   document.getElementById("openImportDraftsBtnV248")?.addEventListener("click", openImportDraftPickerV248);
+  // V24.9: status follows every edit in the original import form.
+  const draftFormV249 = document.getElementById("batchImportForm");
+  const refreshDraftStateV249 = () => window.requestAnimationFrame(() => renderImportDraftsV242());
+  draftFormV249?.addEventListener("input", refreshDraftStateV249);
+  draftFormV249?.addEventListener("change", refreshDraftStateV249);
   window.addEventListener("beforeunload", event => {
     if (!hasUnsavedImportDraftChangesV243()) return;
     event.preventDefault();
@@ -8311,6 +8355,66 @@ function removeOrphanedProductsAfterBatchDeleteV234(products, deletedBatchItems,
   });
 }
 
+function purgeDeletedProductMetadataV249(productIds) {
+  const ids = new Set((productIds || []).map(value => String(value || "").trim()).filter(Boolean));
+  if (!ids.size) return false;
+  const settings = loadJSON("importSystemSettings", {});
+  let changed = false;
+
+  const overrides = { ...(settings.minimumPriceManualOverrides || {}) };
+  ids.forEach(id => { if (Object.prototype.hasOwnProperty.call(overrides, id)) { delete overrides[id]; changed = true; } });
+
+  const media = { ...(settings.productMediaLinksV229 || {}) };
+  ids.forEach(id => { if (Object.prototype.hasOwnProperty.call(media, id)) { delete media[id]; changed = true; } });
+
+  const aliases = { ...(settings.productIdAliases || {}) };
+  Object.keys(aliases).forEach(key => {
+    if (ids.has(String(key)) || ids.has(String(aliases[key]))) { delete aliases[key]; changed = true; }
+  });
+
+  if (changed) {
+    saveJSON("importSystemSettings", {
+      ...settings,
+      minimumPriceManualOverrides: overrides,
+      productMediaLinksV229: media,
+      productIdAliases: aliases
+    });
+    if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
+  }
+  return changed;
+}
+
+function getBatchDeleteExpectedStockV249(products, batchItems) {
+  const beforeById = new Map((products || []).map(product => [String(product?.id || ""), Math.max(0, Number(product?.stock) || 0)]));
+  const removeById = new Map();
+  (batchItems || []).forEach(record => {
+    const product = (products || []).find(item =>
+      (record?.productId && String(item?.id || "") === String(record.productId)) ||
+      (!record?.productId && String(item?.name || "").trim().toLowerCase() === String(record?.productName || "").trim().toLowerCase() &&
+       String(item?.category || "盆栽") === String(record?.category || "盆栽"))
+    );
+    if (!product?.id) return;
+    const original = Math.max(0, Number(record?.originalQuantity ?? record?.quantity ?? record?.stockAdded) || 0);
+    const remainingRaw = Number(record?.remainingQuantity);
+    const remaining = Number.isFinite(remainingRaw) ? Math.min(original, Math.max(0, Math.floor(remainingRaw))) : original;
+    removeById.set(String(product.id), (removeById.get(String(product.id)) || 0) + remaining);
+  });
+  const expectedById = new Map();
+  beforeById.forEach((before, id) => expectedById.set(id, Math.max(0, before - (removeById.get(id) || 0))));
+  return { beforeById, removeById, expectedById };
+}
+
+function assertBatchDeleteStockSafetyV249(products, expected) {
+  const afterById = new Map((products || []).map(product => [String(product?.id || ""), Math.max(0, Number(product?.stock) || 0)]));
+  for (const [id, expectedStock] of expected.expectedById.entries()) {
+    const actual = afterById.get(id);
+    if (actual === undefined) continue;
+    if (Math.abs(actual - expectedStock) > 0.000001) {
+      throw new Error(`删除库存安全检查失败：${id} 应为 ${formatNumber(expectedStock)}，实际 ${formatNumber(actual)}`);
+    }
+  }
+}
+
 function clearRecentImportDeleteViewV234(importNumber) {
   const batchSearch = document.getElementById("batchSearch");
   const productSearch = document.getElementById("batchProductStockSearch");
@@ -8457,12 +8561,19 @@ async function deleteBatchByNumber(importNumber) {
     return !sameBatchId && !sameImportNumber;
   });
   const products = getProducts();
+  const deleteStockSafetyV249 = getBatchDeleteExpectedStockV249(products, effectiveItems);
 
   reverseBatchInventoryImpact(
     products,
     effectiveItems,
     remainingImports
   );
+  try {
+    assertBatchDeleteStockSafetyV249(products, deleteStockSafetyV249);
+  } catch (safetyError) {
+    alert(`删除已停止，没有写入任何资料。\n\n${safetyError?.message || safetyError}`);
+    return;
+  }
 
   // 修复旧资料可能遗留的隐藏标记：有库存就不能被首页隐藏。
   products.forEach(product => {
@@ -8482,6 +8593,9 @@ async function deleteBatchByNumber(importNumber) {
     remainingImports,
     batches
   );
+  const removedOrphanProductIdsV249 = products
+    .filter(product => !nextProductsV234.some(next => String(next?.id || "") === String(product?.id || "")))
+    .map(product => String(product?.id || "")).filter(Boolean);
 
   const beforeDeleteProductsV228 = getProducts().map(item => ({ ...item }));
   const beforeDeleteImportsV228 = getImports().map(item => ({ ...item }));
@@ -8491,6 +8605,7 @@ async function deleteBatchByNumber(importNumber) {
     window.markCloudImportNumberDeletedV232(batch.importNumber, batch.id);
   }
   saveProducts(nextProductsV234);
+  purgeDeletedProductMetadataV249(removedOrphanProductIdsV249);
   saveImports(remainingImports);
   saveBatches(batches);
 
@@ -8506,6 +8621,30 @@ async function deleteBatchByNumber(importNumber) {
     if (typeof window.pullLatestAfterSalesCommitV83 === "function") {
       await window.pullLatestAfterSalesCommitV83(true);
     }
+
+    // V24.9: if an older remote row resurrected a zero-stock orphan during the
+    // verification pull, remove it once more with explicit Products tombstones.
+    if (removedOrphanProductIdsV249.length) {
+      const orphanIdSetV249 = new Set(removedOrphanProductIdsV249);
+      const currentProductsV249 = getProducts();
+      const resurrectedV249 = currentProductsV249.filter(product => orphanIdSetV249.has(String(product?.id || "")));
+      if (resurrectedV249.length) {
+        const currentImportsV249 = getImports();
+        const currentBatchesV249 = getBatches();
+        const safeToRemoveV249 = new Set(resurrectedV249.filter(product =>
+          (Number(product?.stock) || 0) === 0 &&
+          !productHasProtectedHistoryV234(product) &&
+          !currentImportsV249.some(item => isSameDeletedBatchProductV234(item, product)) &&
+          !currentBatchesV249.some(b => (Array.isArray(b?.items) ? b.items : []).some(item => isSameDeletedBatchProductV234(item, product)))
+        ).map(product => String(product.id || "")));
+        if (safeToRemoveV249.size) {
+          saveProducts(currentProductsV249.filter(product => !safeToRemoveV249.has(String(product?.id || ""))));
+          purgeDeletedProductMetadataV249([...safeToRemoveV249]);
+          if (typeof window.flushCloudQueueStrictV228 === "function") await window.flushCloudQueueStrictV228();
+          if (typeof window.pullLatestAfterSalesCommitV83 === "function") await window.pullLatestAfterSalesCommitV83(true);
+        }
+      }
+    }
     const stillHasBatchV231 = getBatches().some(item =>
       String(item?.id || "") === String(batch.id || "") ||
       String(item?.importNumber || "").trim().toLowerCase() === normalizedImportNumber
@@ -8514,8 +8653,12 @@ async function deleteBatchByNumber(importNumber) {
       String(item?.batchId || "") === String(batch.id || "") ||
       String(item?.importNumber || "").trim().toLowerCase() === normalizedImportNumber
     );
+    const orphanStillExistsV249 = removedOrphanProductIdsV249.some(id => getProducts().some(product => String(product?.id || "") === id));
     if (stillHasBatchV231 || stillHasImportV231) {
       throw new Error("Google Sheet 删除验证失败：云端仍存在这个进口编号");
+    }
+    if (orphanStillExistsV249) {
+      throw new Error("删除验证失败：零库存测试产品仍残留在 Products");
     }
   } catch (error) {
     if (typeof window.cancelCloudImportNumberDeletionV232 === "function") {
@@ -8554,7 +8697,7 @@ async function deleteBatchByNumber(importNumber) {
   const successStatusV234 = document.getElementById("batchStatusText");
   if (successStatusV234) {
     successStatusV234.textContent =
-      `成功删除进口编号 ${batch.importNumber}，并已确认同步到 Google Sheet。对应产品如已无其他进口／库存／历史占用，产品前缀与类别已自动重新检查并解锁。`;
+      `成功删除进口编号 ${batch.importNumber}，并已确认同步到 Google Sheet。${removedOrphanProductIdsV249.length ? ` 已清理 ${removedOrphanProductIdsV249.length} 个零库存孤立产品。` : ""} 对应产品如已无其他进口／库存／历史占用，产品前缀与类别已自动重新检查并解锁。`;
   }
   window.alert(`✓ 成功删除进口编号 ${batch.importNumber}。\n\n已确认云端删除完成；其他进口编号及产品既有买卖／库存进出历史记录均保留。`);
 }
@@ -11985,6 +12128,9 @@ function applyBatchRate(){
 
 let batchCurrencyManuallySelectedV229 = false;
 let batchArrivalAutoFilledByMYRV230 = false;
+// V24.9: one currency-conflict acknowledgement per new import/draft.
+// It resets only when starting a genuinely new import, not on every row.
+let batchCurrencyConflictAcknowledgedV249 = false;
 
 function setTodayArrivalForMYRV229() {
   const currency = document.getElementById("batchCurrency");
@@ -12300,6 +12446,7 @@ function resetBatchForm(options = {}) {
 
   batchCurrencyManuallySelectedV229 = false;
   batchArrivalAutoFilledByMYRV230 = false;
+  batchCurrencyConflictAcknowledgedV249 = false;
   const currency = document.getElementById("batchCurrency");
   if (currency) { currency.value = "CNY"; applyBatchRate(); }
 
@@ -12473,10 +12620,10 @@ function maybeApplySuggestedBatchCurrencyV231(rowId, suggestedCurrency, label = 
     const message = `${label || "这个产品"} 的历史／默认进口货币为 ${wanted}，但同批其他产品对应 ${conflict}。\n\n同一个进口编号只能使用一种货币。请统一整批货币，或把不同货币产品分开建立进口编号。`;
     const status = document.getElementById("batchStatusText");
     if (status) status.textContent = message.replace(/\n+/g, " ");
-    const row = document.querySelector(`#batchRows tr[data-row-id="${rowId}"]`);
-    const signature = `${wanted}|${conflict}|${String(label || "")}`;
-    if (!row || row.dataset.lastCurrencyConflictV231 !== signature) {
-      if (row) row.dataset.lastCurrencyConflictV231 = signature;
+    // V24.9: user has already acknowledged this rule for the current import.
+    // Do not interrupt every subsequent product row with the same warning.
+    if (!batchCurrencyConflictAcknowledgedV249) {
+      batchCurrencyConflictAcknowledgedV249 = true;
       window.alert(message);
     }
     return;
@@ -12489,6 +12636,7 @@ function maybeApplySuggestedBatchCurrencyV231(rowId, suggestedCurrency, label = 
     clearAutoArrivalWhenLeavingMYRV230();
     applyBatchRate();
     setTodayArrivalForMYRV229();
+    if (typeof refreshAutoOriginalCostsForBatchV249 === "function") refreshAutoOriginalCostsForBatchV249();
   }
 }
 
@@ -12509,17 +12657,91 @@ function applyExistingProductCurrencyV232(rowId, product, { commitCurrency = fal
   if (status) status.textContent = `${product.name || "这个产品"} 有多个历史进口币种：${currencies.join(" / ")}。货币属于本次进口批次，请按本次来源手动选择；同批仍只能一种货币。`;
 }
 
+function getBatchCurrencyRateV249(currency) {
+  const code = String(currency || "").trim().toUpperCase();
+  if (!code || code === "MYR") return 1;
+  const currentCurrency = String(document.getElementById("batchCurrency")?.value || "").trim().toUpperCase();
+  if (code === currentCurrency) {
+    const currentRate = parseAmount(document.getElementById("batchRate")?.value);
+    if (Number.isFinite(currentRate) && currentRate > 0) return currentRate;
+  }
+  const saved = loadJSON("importSystemSettings", {});
+  const defaults = { CNY: 1.60, NTD: 7.69, VND: 6300.00, IDR: 3571.00, MYR: 1.00 };
+  const value = Number(saved?.[code] ?? defaults[code]);
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function convertHistoricalOriginalCostForBatchV249(value, sourceCurrency, targetCurrency) {
+  const amount = Math.max(0, Number(value) || 0);
+  const source = String(sourceCurrency || "").trim().toUpperCase();
+  const target = String(targetCurrency || "").trim().toUpperCase();
+  if (!(amount > 0) || !source || !target || source === target) return amount;
+
+  // User-defined Import input rule: when an item that was historically bought
+  // locally in MYR is now sourced under a foreign-currency batch, seed the new
+  // unit-price field as MYR historical cost / the selected batch exchange rate.
+  // Example required by the user: RM35 / CNY rate 1.60 = 21.88.
+  if (source === "MYR" && target !== "MYR") {
+    const targetRate = getBatchCurrencyRateV249(target);
+    return targetRate > 0 ? amount / targetRate : amount;
+  }
+
+  // Existing foreign import -> MYR uses the system's long-standing foreign/rate
+  // mapping. Other foreign-to-foreign histories stay unchanged rather than making
+  // an unsafe assumption about a new supplier quotation.
+  if (target === "MYR" && source !== "MYR") {
+    const sourceRate = getBatchCurrencyRateV249(source);
+    return sourceRate > 0 ? amount / sourceRate : amount;
+  }
+  return amount;
+}
+
+function setAutoOriginalCostV249(rowId, record, { force = false } = {}) {
+  const field = document.getElementById(`batchPrice-${rowId}`);
+  const row = document.querySelector(`#batchRows tr[data-row-id="${rowId}"]`);
+  if (!field || !row || !record) return false;
+  const current = parseAmount(field.value);
+  if (!force && row.dataset.priceManuallyEditedV249 === "1") return false;
+  if (!force && Number.isFinite(current) && current > 0 && row.dataset.autoOriginalCostV249 !== "1") return false;
+
+  const sourceValue = Math.max(0, Number(record?.unitPrice) || 0);
+  const sourceCurrency = String(record?.currency || "").trim().toUpperCase();
+  if (!(sourceValue > 0)) return false;
+  const targetCurrency = String(document.getElementById("batchCurrency")?.value || sourceCurrency || "CNY").trim().toUpperCase();
+  const nextValue = convertHistoricalOriginalCostForBatchV249(sourceValue, sourceCurrency || targetCurrency, targetCurrency);
+  row.dataset.settingAutoPriceV249 = "1";
+  field.value = formatMoney(nextValue);
+  delete row.dataset.settingAutoPriceV249;
+  row.dataset.autoOriginalCostV249 = "1";
+  row.dataset.autoOriginalCostSourceValueV249 = String(sourceValue);
+  row.dataset.autoOriginalCostSourceCurrencyV249 = sourceCurrency || targetCurrency;
+  row.dataset.priceManuallyEditedV249 = "0";
+  return true;
+}
+
+function refreshAutoOriginalCostsForBatchV249() {
+  if (currentEditingImportNumber) return;
+  const targetCurrency = String(document.getElementById("batchCurrency")?.value || "CNY").trim().toUpperCase();
+  document.querySelectorAll("#batchRows tr").forEach(row => {
+    if (row.dataset.autoOriginalCostV249 !== "1" || row.dataset.priceManuallyEditedV249 === "1") return;
+    const rowId = Number(row.dataset.rowId);
+    const sourceValue = Math.max(0, Number(row.dataset.autoOriginalCostSourceValueV249) || 0);
+    const sourceCurrency = String(row.dataset.autoOriginalCostSourceCurrencyV249 || "").trim().toUpperCase();
+    const field = document.getElementById(`batchPrice-${rowId}`);
+    if (!field || !(sourceValue > 0) || !sourceCurrency) return;
+    row.dataset.settingAutoPriceV249 = "1";
+    field.value = formatMoney(convertHistoricalOriginalCostForBatchV249(sourceValue, sourceCurrency, targetCurrency));
+    delete row.dataset.settingAutoPriceV249;
+  });
+  calculateBatch();
+  if (typeof renderImportDraftsV242 === "function") renderImportDraftsV242();
+}
+window.refreshAutoOriginalCostsForBatchV249 = refreshAutoOriginalCostsForBatchV249;
+
 function fillExistingProductOriginalCostV244(rowId, product, { force = false } = {}) {
   if (!product) return false;
-  const field = document.getElementById(`batchPrice-${rowId}`);
-  if (!field) return false;
-  const current = parseAmount(field.value);
-  if (!force && Number.isFinite(current) && current > 0) return false;
   const record = getPreferredOriginalCostRecordV219(product);
-  const value = Math.max(0, Number(record?.unitPrice) || 0);
-  if (!(value > 0)) return false;
-  field.value = formatMoney(value);
-  return true;
+  return setAutoOriginalCostV249(rowId, record, { force });
 }
 
 function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, commitCurrency = false } = {}) {
@@ -12996,8 +13218,13 @@ function attachBatchRowEvents(id){
   n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();n.value=Array.from(t).slice(0,15).join("");n.dispatchEvent(new Event("input",{bubbles:true}));});
   [`batchQty-${id}`,`batchPrice-${id}`].forEach(k=>{const x=document.getElementById(k);x.addEventListener("focus",()=>x.select());x.addEventListener("input",calculateBatch);x.addEventListener("blur",()=>{if(!k.includes("Qty")&&!k.includes("Stock"))formatInputAmount(x);calculateBatch();});});
   document.getElementById(`batchPrice-${id}`).addEventListener("input", () => {
-    // V24.6: currency follows explicit batch selection / product-history defaults,
-    // never a unit-price threshold heuristic.
+    // V24.9: once the user manually edits an auto-seeded historical price,
+    // later currency/rate changes must never overwrite that manual quotation.
+    const row = document.querySelector(`#batchRows tr[data-row-id="${id}"]`);
+    if (row && row.dataset.settingAutoPriceV249 !== "1") {
+      row.dataset.priceManuallyEditedV249 = "1";
+      row.dataset.autoOriginalCostV249 = "0";
+    }
     calculateBatch();
   });
   document.getElementById(`batchQty-${id}`).addEventListener("input", () => {
@@ -13874,6 +14101,11 @@ function saveBatchImport() {
   renderVirtualWarehouseV240();
   consumeActiveImportDraftV242();
   clearBatchAfterSuccessfulAction();
+  const formalStateLabelV249 = document.getElementById("activeDraftLabelV242");
+  if (formalStateLabelV249) {
+    formalStateLabelV249.textContent = `已正式保存 · 已锁定 · ${importNumber}`;
+    formalStateLabelV249.dataset.draftStateV249 = "formal";
+  }
   document.getElementById("batchStatusText").textContent =
     `整批已保存，进口编号：${importNumber}。输入资料已自动清空。`;
 }
@@ -17622,7 +17854,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "24.8",
+      version: "24.9",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -17989,7 +18221,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V24.8 Stable",
+      updatedBy: "System V24.9 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
