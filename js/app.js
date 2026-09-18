@@ -976,7 +976,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V23.5 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V23.6 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1345,7 +1345,7 @@ function salesItemAlreadyProcessedLocallyV104(item, product) {
     }
   }
 
-  // V23.5: batch commits store a unique commit key plus the stable Sales
+  // V23.6: batch commits store a unique commit key plus the stable Sales
   // accounting key.  Either one proves that inventory was already committed.
   // This keeps a still-pending Sales card visible as ACK-only after a timeout
   // instead of silently dropping it and risking a later duplicate deduction.
@@ -1604,7 +1604,7 @@ function showStartupSalesInventoryReminderV80() {
       const restorePrecheckFailed=/Sales Restore 状态读取超时|无法连接 Sales System 读取 Restore 状态|无法读取 Sales Restore 状态/i.test(message);
 
       if(restorePrecheckFailed){
-        // V23.5: prepareSalesInventoryOperationV117 runs before any inventory
+        // V23.6: prepareSalesInventoryOperationV117 runs before any inventory
         // commit.  If that read-only Restore precheck times out, nothing has been
         // deducted yet, so keep the frozen reminder exactly as-is.  Do not replace
         // it with a transient/empty feed result and make the card disappear.
@@ -3114,7 +3114,7 @@ function applyBatchCostEditability() {
   const repairEnabled = getCostRepairModeEnabled();
   const lockedSaved = isEditing && !repairEnabled;
 
-  // V23.5: China-side/core import facts are immutable once saved, even when
+  // V23.6: China-side/core import facts are immutable once saved, even when
   // Data Repair is ON. If they are wrong, copy the whole import as a new draft,
   // save the corrected new import number, then delete the wrong old import.
   [
@@ -4934,7 +4934,7 @@ function normalizeCategoryPrefixV228(value) {
 function isProductCategoryUsedV229(categoryName) {
   const wanted = normalizeProductCategoryNameV227(categoryName);
   if (!wanted) return false;
-  // V23.5: stock=0 alone MUST NOT unlock a category. As long as the product still
+  // V23.6: stock=0 alone MUST NOT unlock a category. As long as the product still
   // exists in active Products / Imports / Batches, the rule stays locked. Only the
   // explicit “清理零库存产品” flow removes those active references and can unlock it.
   if (getProducts().some(product => normalizeProductCategoryNameV227(product?.category) === wanted)) return true;
@@ -4999,7 +4999,7 @@ function getProductCategoryRulesV228() {
     const mode = name === "盆栽" ? "name" : "category";
     const prefix = mode === "name" ? "" : (normalizeCategoryPrefixV228(raw?.prefix) || preset?.prefix || "QT");
     const lockedByUsageV229 = raw?.lockedByUsageV229 === true;
-    // V23.5: usage lock is derived from current active data, not a permanent flag.
+    // V23.6: usage lock is derived from current active data, not a permanent flag.
     // After the user explicitly cleans the last zero-stock product, the rule may unlock.
     const locked = name === "盆栽" ? true : isProductCategoryUsedV229(name);
     result.push({ name, prefix, mode, locked, lockedByUsageV229 });
@@ -5079,7 +5079,7 @@ function goToProductPrefixSettingsV229() {
 let editingProductCategoryNameV229 = "";
 
 function persistUsedCategoryLocksV229() {
-  // V23.5: no permanent usage flag. Lock state is derived from active
+  // V23.6: no permanent usage flag. Lock state is derived from active
   // Products / Imports / Batches so zero-stock cleanup can legitimately unlock.
 }
 
@@ -5312,7 +5312,7 @@ function isProductPrefixRuleUsedV229(keyword, prefix) {
     normalizeProductPrefixKeywordV181(product?.name).includes(normalizedKeyword) &&
     String(product?.id || "").trim().toUpperCase().startsWith(wantedPrefix)
   );
-  // V23.5: product existence itself keeps the rule locked, even at stock 0.
+  // V23.6: product existence itself keeps the rule locked, even at stock 0.
   // Explicit zero-stock cleanup removes the product and can then unlock the rule.
   return matchingProducts.length > 0;
 }
@@ -5344,7 +5344,7 @@ function isProductPrefixRuleLockedV229(keyword, prefix) {
 }
 
 function persistUsedPrefixRuleLocksV229() {
-  // V23.5: lock is derived from active Products, so cleanup can unlock it.
+  // V23.6: lock is derived from active Products, so cleanup can unlock it.
 }
 
 function renderProductPrefixRulesV181() {
@@ -5757,7 +5757,7 @@ function sequentialSearchMatches(searchableValue, queryValue) {
   return source.includes(query);
 }
 
-// V23.5: shared read-only Original Cost matcher for every product-search surface.
+// V23.6: shared read-only Original Cost matcher for every product-search surface.
 // Pure numeric queries (commas/spaces/decimals allowed) match unitPrice exactly,
 // regardless of currency. This helper only reads already-loaded local collections.
 function parseOriginalCostSearchQueryV216(queryValue) {
@@ -5788,14 +5788,14 @@ function originalCostMatchesProductV216(product, queryValue, imports = null) {
   });
 }
 
-// V23.5: record/batch-level searches must match the Original Cost stored on
+// V23.6: record/batch-level searches must match the Original Cost stored on
 // that exact row. Never fall back to another import row of the same Product ID,
 // otherwise a 320 search can incorrectly pull in a 200 batch for the same product.
 function originalCostMatchesBatchItemV216(item, queryValue) {
   return originalCostNumberMatchesV216(item?.unitPrice, queryValue);
 }
 
-// V23.5: a pure numeric product-search query is reserved exclusively for
+// V23.6: a pure numeric product-search query is reserved exclusively for
 // exact Original Cost matching. It must never fall through to product names,
 // IDs, import numbers, tracking numbers, dates, quantities, or other numeric text.
 function isOriginalCostOnlySearchV218(queryValue) {
@@ -5818,7 +5818,7 @@ function batchItemSearchMatchesV218(searchableValue, item, queryValue) {
   return smartSearchMatches(searchableValue, queryValue);
 }
 
-// V23.5: shared read-only shipment/local-number search helper.
+// V23.6: shared read-only shipment/local-number search helper.
 // Uses the same stored field (overseasTrackingNumber) but the UI now labels it
 // “海外运输单号 / 本地单号”. Symbol-tolerant smart matching means XX-A430
 // can be found with A430, xx a430, etc.
@@ -7567,7 +7567,7 @@ async function deleteBatchByNumber(importNumber) {
   const effectiveItems =
     batchItems.length ? batchItems : (batch.items || []);
 
-  // V23.5: “复制”已经是独立按钮，删除按钮只负责删除。
+  // V23.6: “复制”已经是独立按钮，删除按钮只负责删除。
   // 不再使用 confirm 的“确定=复制 / 取消=继续删除”反向流程，
   // 避免用户明确点击删除却实际只复制一份。
   const confirmed = confirm(
@@ -7605,7 +7605,7 @@ async function deleteBatchByNumber(importNumber) {
 
   batches.splice(batchIndex, 1);
 
-  // V23.5: deleting the only import for a test/new product should also remove the
+  // V23.6: deleting the only import for a test/new product should also remove the
   // resulting zero-stock orphan product, so its category/prefix can unlock. A
   // product with any protected stock-adjustment/sales history is kept.
   const nextProductsV234 = removeOrphanedProductsAfterBatchDeleteV234(
@@ -10765,7 +10765,7 @@ function renderImportHistoryNowV134() {
   const exactHistoryProduct = String(
     input.dataset.exactHistoryProduct || ""
   ).trim().toLowerCase();
-  // V23.5: stable Product ID linkage is only for the original text/product search.
+  // V23.6: stable Product ID linkage is only for the original text/product search.
   // A numeric Original Cost hit must remain row/batch-specific; it must not turn
   // into a Product ID hit that automatically includes every historical batch.
   const matchedProductIds = new Set(
@@ -11887,7 +11887,7 @@ function attachBatchRowEvents(id){
   n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();n.value=Array.from(t).slice(0,15).join("");n.dispatchEvent(new Event("input",{bubbles:true}));});
   [`batchQty-${id}`,`batchPrice-${id}`].forEach(k=>{const x=document.getElementById(k);x.addEventListener("focus",()=>x.select());x.addEventListener("input",calculateBatch);x.addEventListener("blur",()=>{if(!k.includes("Qty")&&!k.includes("Stock"))formatInputAmount(x);calculateBatch();});});
   document.getElementById(`batchPrice-${id}`).addEventListener("input", () => {
-    // V23.5: currency follows explicit batch selection / product-history defaults,
+    // V23.6: currency follows explicit batch selection / product-history defaults,
     // never a unit-price threshold heuristic.
     calculateBatch();
   });
@@ -12404,7 +12404,7 @@ function saveBatchImport() {
       transitDays: updateTransitDays()
     };
 
-    // V23.5: revision history records every allowed Data Repair field, not only costs.
+    // V23.6: revision history records every allowed Data Repair field, not only costs.
     const repairLogTimeV222 = new Date().toLocaleString("zh-MY", { hour12: false });
     const addRepairLogV222 = (fieldLabel, before, after) => {
       if (String(before ?? "") === String(after ?? "")) return;
@@ -12427,7 +12427,7 @@ function saveBatchImport() {
     let updatedCostSnapshot = {};
     let repairChangesCostV206 = false;
     if (repairEnabled) {
-      // V23.5 Data Repair may change only the Malaysia-side overseas freight
+      // V23.6 Data Repair may change only the Malaysia-side overseas freight
       // among cost-bearing fields. China-side costs, original prices, currency
       // and exchange rate are immutable here.
       const nextChina = Number(oldBatch.chinaTransportCost) || 0;
@@ -12977,7 +12977,7 @@ function renderBatchList() {
   }).join("");
 }
 
-// ================= V23.5 Dedicated Original Cost Correction =================
+// ================= V23.6 Dedicated Original Cost Correction =================
 let originalCostEditPendingV219 = null;
 
 function getPreferredOriginalCostRecordV219(product, queryValue = "", explicitImportId = "") {
@@ -15306,7 +15306,7 @@ function renderInventoryManagementList() {
         )
       ).join(" ");
 
-      // V23.5: cache original import-cost numbers while matching imports are
+      // V23.6: cache original import-cost numbers while matching imports are
       // already in memory. This adds no save/sync/delete calls and leaves the
       // existing smart-search pipeline untouched.
       const originalCostValuesV216 = matchingImports
@@ -15388,7 +15388,7 @@ function renderInventoryManagementList() {
           keyword
         );
 
-      // V23.5: when the query is purely numeric (commas and decimals allowed),
+      // V23.6: when the query is purely numeric (commas and decimals allowed),
       // match the numeric Original Cost exactly, regardless of currency.
       // Existing product/import/tracking searches continue to run unchanged.
       const originalCostQueryTextV216 = String(keyword || "")
@@ -15539,6 +15539,7 @@ function renderInventoryManagementList() {
                 ${escapeHTML(product.name)}
               </button>
               ${buildProductIdCopyButtonV166(product.id, "inventory-product-id-v166")}
+              ${renderProductMediaStatusV236(product.id, productMediaLinksV229)}
               </span>
             </div>
             ${product.batchStocks?.length ? `
@@ -15604,6 +15605,14 @@ function saveProductMediaLinksV229(links) {
   const settings = loadJSON("importSystemSettings", {});
   saveJSON("importSystemSettings", { ...settings, productMediaLinksV229: links || {} });
   if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
+}
+
+function renderProductMediaStatusV236(productId, mediaMap = null) {
+  const media = (mediaMap || getProductMediaLinksV229())[String(productId || "")] || {};
+  const hasPhoto = Boolean(String(media.photo || "").trim());
+  const hasVideo = Boolean(String(media.video || "").trim());
+  if (!hasPhoto && !hasVideo) return "";
+  return `<span class="inventory-media-status-v236" aria-label="媒体状态">${hasPhoto ? '<i class="inventory-media-dot-v236 photo" title="已有照片链接" aria-label="已有照片链接"></i>' : ''}${hasVideo ? '<i class="inventory-media-dot-v236 video" title="已有视频链接" aria-label="已有视频链接"></i>' : ''}</span>`;
 }
 
 function renderProductMediaButtonsV229(productId, mediaMap = null) {
@@ -16492,7 +16501,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "23.5",
+      version: "23.6",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -16859,7 +16868,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V23.5 Stable",
+      updatedBy: "System V23.6 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,

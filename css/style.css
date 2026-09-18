@@ -5505,7 +5505,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 
-/* V23.5 — unified visual management area; rule engines remain separate. */
+/* V23.6 — unified visual management area; rule engines remain separate. */
 .product-rules-manager-v235{display:block}
 .product-rules-manager-v235>h3{margin-bottom:6px}
 .product-rules-manager-inner-v235{display:grid;gap:12px;margin-top:12px}
@@ -5523,3 +5523,11 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
   .product-category-add-v227 .primary-btn{min-width:108px!important;width:108px!important;padding-left:8px!important;padding-right:8px!important;font-size:12px!important}
   .product-category-add-v227 label{font-size:12px}
 }
+
+
+/* V23.6 — compact media-presence dots beside product number. */
+.inventory-media-status-v236{display:inline-flex;align-items:center;gap:4px;margin-left:3px;vertical-align:middle;flex:0 0 auto;}
+.inventory-media-dot-v236{display:inline-block;width:10px;height:10px;border-radius:50%;box-sizing:border-box;box-shadow:0 0 0 1px rgba(0,0,0,.08);}
+.inventory-media-dot-v236.photo{background:#f4c542;}
+.inventory-media-dot-v236.video{background:#1787e8;}
+@media(max-width:680px){.inventory-media-status-v236{gap:4px;margin-left:2px}.inventory-media-dot-v236{width:11px;height:11px}}
