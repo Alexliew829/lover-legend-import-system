@@ -5443,6 +5443,7 @@ function goToProductPrefixSettingsV229() {
 }
 
 let editingProductCategoryNameV229 = "";
+let editingProductCategoryGroupV266 = [];
 
 function persistUsedCategoryLocksV229() {
   // V24.6: no permanent usage flag. Lock state is derived from active
@@ -5470,8 +5471,8 @@ function renderProductCategoriesV227() {
         ${rule.locked
           ? `<em>已使用 · 已锁定</em>`
           : `<div class="rule-actions-v231">
-               <button type="button" class="secondary-btn category-edit-v229" data-category-edit-v229="${escapeHTML(rule.editName)}">修改</button>
-               <button type="button" class="danger-btn rule-delete-v231" data-category-delete-v231="${escapeHTML(rule.editName)}">删除</button>
+               <button type="button" class="secondary-btn category-edit-v229" data-category-edit-v229="${escapeHTML(rule.editName)}" data-category-group-v266="${escapeHTML(rule.names.join("|||"))}">修改</button>
+               <button type="button" class="danger-btn rule-delete-v231" data-category-delete-v231="${escapeHTML(rule.editName)}" data-category-group-v266="${escapeHTML(rule.names.join("|||"))}">删除</button>
              </div>`}
       </div>`;
   }).join("");
@@ -5546,6 +5547,7 @@ function setupProductCategorySettingsV227() {
 
   const resetEditor = () => {
     editingProductCategoryNameV229 = "";
+    editingProductCategoryGroupV266 = [];
     if (input) input.value = "";
     if (prefixInput) prefixInput.value = "";
     if (addButton) addButton.textContent = "新增产品类别";
@@ -5573,8 +5575,13 @@ function setupProductCategorySettingsV227() {
       }
       if (!window.confirm(`⚠️ 删除产品类别？\n\n类别：${rule.name}\n编号前缀：${rule.prefix}\n\n删除后这个类别将不再出现在新产品类别选项。现有产品编号不会自动改变。\n\n确定删除？`)) return;
       const settings = loadJSON("importSystemSettings", {});
+      const groupV266 = String(deleteButton.dataset.categoryGroupV266 || rule.name).split("|||").map(v=>normalizeProductCategoryNameV227(v)).filter(Boolean);
+      if (groupV266.some(groupName=>isProductCategoryUsedV229(groupName))) {
+        window.alert("这个类别组仍有产品／进口资料使用，不能删除。请先清理对应资料。");
+        renderProductCategoriesV227(); return;
+      }
       const rules = getProductCategoryRulesV228()
-        .filter(item => item.name !== rule.name)
+        .filter(item => !groupV266.includes(normalizeProductCategoryNameV227(item.name)))
         .map(item => ({ name: item.name, prefix: item.prefix, mode: item.mode }));
       saveJSON("importSystemSettings", { ...settings, productCategoryRulesV228: rules });
       if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
@@ -5595,7 +5602,8 @@ function setupProductCategorySettingsV227() {
       return;
     }
     editingProductCategoryNameV229 = rule.name;
-    if (input) input.value = rule.name;
+    editingProductCategoryGroupV266 = String(button.dataset.categoryGroupV266 || rule.name).split("|||").map(v=>v.trim()).filter(Boolean);
+    if (input) input.value = editingProductCategoryGroupV266.join(" ");
     if (prefixInput) prefixInput.value = rule.prefix;
     if (addButton) addButton.textContent = "保存类别修改";
     if (status) status.textContent = "尚未有产品／进口资料使用，可以修改；一旦实际使用后会自动锁定。";
@@ -5642,9 +5650,10 @@ function setupProductCategorySettingsV227() {
 
     }));
     if (editingName) {
-      const index = rules.findIndex(rule => rule.name === editingName);
-      if (index < 0) return;
-      rules[index] = { name, prefix, mode: "category" };
+      const group = editingProductCategoryGroupV266.length ? editingProductCategoryGroupV266 : [editingName];
+      const kept = rules.filter(rule => !group.includes(rule.name));
+      kept.push({ name, prefix, mode: "category" });
+      rules.length = 0; rules.push(...kept);
     } else {
       rules.push({ name, prefix, mode: "category" });
     }
@@ -5753,6 +5762,7 @@ function isProductPrefixRuleUsedV229(keyword, prefix) {
 }
 
 let editingProductPrefixKeywordV229 = "";
+let editingProductPrefixGroupV266 = [];
 
 
 function getBuiltInPrefixBaseKeyV231(effectiveKeyword) {
@@ -5801,10 +5811,10 @@ function renderProductPrefixRulesV181() {
     {labels:["福建茶","Ho Kian Tea","Fujian Tea","Fukien Tea"],display:"福建茶 / Ho Kian Tea / Fujian Tea / Fukien Tea",prefix:"HK"}
   ];
   const norm=x=>normalizeProductPrefixKeywordV181(x), byKey=new Map(rules.map(r=>[norm(r[0]),r])), consumed=new Set(), displayRows=[];
-  groups.forEach(g=>{const present=g.labels.map(x=>byKey.get(norm(x))).filter(Boolean);if(!present.length)return;present.forEach(r=>consumed.add(norm(r[0])));displayRows.push({keyword:present[0][0],display:g.display,prefix:present[0][1],locked:present.some(r=>isProductPrefixRuleLockedV229(r[0],r[1]))})});
-  rules.forEach(r=>{if(!consumed.has(norm(r[0])))displayRows.push({keyword:r[0],display:r[0],prefix:r[1],locked:isProductPrefixRuleLockedV229(r[0],r[1])})});
+  groups.forEach(g=>{const present=g.labels.map(x=>byKey.get(norm(x))).filter(Boolean);if(!present.length)return;present.forEach(r=>consumed.add(norm(r[0])));displayRows.push({keyword:present[0][0],display:present.map(r=>r[0]).join(" / "),prefix:present[0][1],members:present.map(r=>r[0]),locked:present.some(r=>isProductPrefixRuleLockedV229(r[0],r[1]))})});
+  rules.forEach(r=>{if(!consumed.has(norm(r[0])))displayRows.push({keyword:r[0],display:r[0],prefix:r[1],members:[r[0]],locked:isProductPrefixRuleLockedV229(r[0],r[1])})});
   const fallback=`<div class="product-prefix-locked-row-v181"><span class="rule-copy-label-v232" data-prefix-copy-v232="盆栽" title="点击复制产品类别">盆栽</span><strong>PZ</strong><em>默认前缀 · 已锁定</em></div>`;
-  list.innerHTML=fallback+displayRows.map(r=>`<div class="product-prefix-locked-row-v181"><span class="rule-copy-label-v232" data-prefix-copy-v232="${escapeHTML(r.display)}" title="点击复制产品名称关键词">${escapeHTML(r.display)}</span><strong>${escapeHTML(r.prefix)}</strong>${r.locked?`<em>已使用 · 已锁定</em>`:`<div class="rule-actions-v231"><button type="button" class="secondary-btn prefix-edit-v229" data-prefix-edit-v229="${escapeHTML(r.keyword)}">修改</button><button type="button" class="danger-btn rule-delete-v231" data-prefix-delete-v231="${escapeHTML(r.keyword)}">删除</button></div>`}</div>`).join("");
+  list.innerHTML=fallback+displayRows.map(r=>`<div class="product-prefix-locked-row-v181"><span class="rule-copy-label-v232" data-prefix-copy-v232="${escapeHTML(r.display)}" title="点击复制产品名称关键词">${escapeHTML(r.display)}</span><strong>${escapeHTML(r.prefix)}</strong>${r.locked?`<em>已使用 · 已锁定</em>`:`<div class="rule-actions-v231"><button type="button" class="secondary-btn prefix-edit-v229" data-prefix-edit-v229="${escapeHTML(r.keyword)}" data-prefix-group-v266="${escapeHTML((r.members||[r.keyword]).join("|||"))}">修改</button><button type="button" class="danger-btn rule-delete-v231" data-prefix-delete-v231="${escapeHTML(r.keyword)}" data-prefix-group-v266="${escapeHTML((r.members||[r.keyword]).join("|||"))}">删除</button></div>`}</div>`).join("");
 }
 
 function removeWhiteWaxTestPrefixV182() {
@@ -5832,6 +5842,7 @@ function setupProductPrefixSettingsV181() {
 
   const resetEditor = () => {
     editingProductPrefixKeywordV229 = "";
+    editingProductPrefixGroupV266 = [];
     keywordInput.value = "";
     prefixInput.value = "";
     addButton.textContent = "新增产品前缀";
@@ -5858,15 +5869,20 @@ function setupProductPrefixSettingsV181() {
       }
       if (!window.confirm(`⚠️ 删除盆栽产品前缀规则？\n\n产品名称关键词：${rule[0]}\n编号前缀：${rule[1]}\n\n删除后，新产品不会再按这条规则生成编号。\n\n确定删除？`)) return;
       const settings = loadJSON("importSystemSettings", {});
-      const normalized = normalizeProductPrefixKeywordV181(rule[0]);
-      const builtInBaseKey = getBuiltInPrefixBaseKeyV231(rule[0]);
+      const groupV266 = String(deleteButton.dataset.prefixGroupV266 || rule[0]).split("|||").map(v=>v.trim()).filter(Boolean);
+      if (groupV266.some(groupKeyword=>{const r=getProductPrefixRulesV181().find(([k])=>normalizeProductPrefixKeywordV181(k)===normalizeProductPrefixKeywordV181(groupKeyword));return r&&isProductPrefixRuleLockedV229(r[0],r[1]);})) {
+        window.alert("这个盆栽前缀规则组仍有产品使用，不能删除。请先清理对应产品。");
+        renderProductPrefixRulesV181(); return;
+      }
+      const groupNormV266 = new Set(groupV266.map(normalizeProductPrefixKeywordV181));
       let additional = Array.isArray(settings.productPrefixAdditionalRules) ? settings.productPrefixAdditionalRules.slice() : [];
       const overrides = { ...(settings.productPrefixOverridesV231 || {}) };
-      if (builtInBaseKey) {
-        overrides[builtInBaseKey] = { keyword: rule[0], prefix: rule[1], deleted: true };
-      } else {
-        additional = additional.filter(item => normalizeProductPrefixKeywordV181(Array.isArray(item) ? item[0] : item?.keyword) !== normalized);
-      }
+      groupV266.forEach(groupKeyword=>{
+        const builtInBaseKey = getBuiltInPrefixBaseKeyV231(groupKeyword);
+        if (builtInBaseKey) overrides[builtInBaseKey] = { keyword: groupKeyword, prefix: rule[1], deleted: true };
+      });
+      additional = additional.filter(item => !groupNormV266.has(normalizeProductPrefixKeywordV181(Array.isArray(item) ? item[0] : item?.keyword)));
+      const normalized = normalizeProductPrefixKeywordV181(rule[0]);
       saveJSON("importSystemSettings", { ...settings, productPrefixAdditionalRules: additional, productPrefixOverridesV231: overrides });
       if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
       if (normalizeProductPrefixKeywordV181(editingProductPrefixKeywordV229) === normalized) resetEditor();
@@ -5884,7 +5900,8 @@ function setupProductPrefixSettingsV181() {
       renderProductPrefixRulesV181(); return;
     }
     editingProductPrefixKeywordV229 = rule[0];
-    keywordInput.value = rule[0];
+    editingProductPrefixGroupV266 = String(button.dataset.prefixGroupV266 || rule[0]).split("|||").map(v=>v.trim()).filter(Boolean);
+    keywordInput.value = editingProductPrefixGroupV266.join(" / ");
     prefixInput.value = rule[1];
     addButton.textContent = "保存前缀修改";
     if (status) status.textContent = "尚未有产品使用，可以修改；一旦实际使用后会自动锁定。";
@@ -5893,7 +5910,8 @@ function setupProductPrefixSettingsV181() {
 
   addButton.addEventListener("click", () => {
     const keyword = String(keywordInput.value || "").trim();
-    const normalizedKeyword = normalizeProductPrefixKeywordV181(keyword);
+    const aliasesV266 = keyword.split(/[\/／]+/).map(v=>v.trim()).filter(Boolean);
+    const normalizedKeyword = normalizeProductPrefixKeywordV181(aliasesV266[0] || keyword);
     const prefix = String(prefixInput.value || "").trim().toUpperCase();
     const editingKeyword = String(editingProductPrefixKeywordV229 || "").trim();
     const normalizedEditing = normalizeProductPrefixKeywordV181(editingKeyword);
@@ -5908,11 +5926,12 @@ function setupProductPrefixSettingsV181() {
       }
     }
 
+    const editingGroupNormV266 = new Set((editingProductPrefixGroupV266.length?editingProductPrefixGroupV266:[editingKeyword]).map(normalizeProductPrefixKeywordV181));
     const duplicate = getProductPrefixRulesV181().find(([savedKeyword]) => {
       const normalized = normalizeProductPrefixKeywordV181(savedKeyword);
-      return normalized === normalizedKeyword && normalized !== normalizedEditing;
+      return aliasesV266.some(a=>normalizeProductPrefixKeywordV181(a)===normalized) && !editingGroupNormV266.has(normalized);
     });
-    if (duplicate) { if (status) status.textContent = `“${keyword}”已经设置为 ${duplicate[1]}`; return; }
+    if (duplicate) { if (status) status.textContent = `“${keyword}”包含已经设置的关键词 ${duplicate[0]} → ${duplicate[1]}`; return; }
 
     const categoryOwner = getProductCategoryRulesV228().find(rule => rule.mode === "category" && normalizeCategoryPrefixV228(rule.prefix) === prefix);
     if (categoryOwner) {
@@ -5921,7 +5940,7 @@ function setupProductPrefixSettingsV181() {
     }
 
     const sharedPrefixNames = getProductPrefixRulesV181()
-      .filter(([savedKeyword, savedPrefix]) => normalizeProductPrefixKeywordV181(savedKeyword) !== normalizedEditing && savedPrefix === prefix)
+      .filter(([savedKeyword, savedPrefix]) => !editingGroupNormV266.has(normalizeProductPrefixKeywordV181(savedKeyword)) && savedPrefix === prefix)
       .map(([savedKeyword]) => savedKeyword);
     if (sharedPrefixNames.length && !window.confirm(`编号前缀 ${prefix} 已由“${sharedPrefixNames.join("、")}”使用。\n\n确认这些盆栽名称继续共用前缀 ${prefix}？`)) return;
 
@@ -5932,17 +5951,23 @@ function setupProductPrefixSettingsV181() {
     const additional = Array.isArray(settings.productPrefixAdditionalRules) ? settings.productPrefixAdditionalRules.slice() : [];
     const overrides = { ...(settings.productPrefixOverridesV231 || {}) };
     if (editingKeyword) {
-      const index = additional.findIndex(rule => normalizeProductPrefixKeywordV181(Array.isArray(rule) ? rule[0] : rule?.keyword) === normalizedEditing);
-      const builtInBaseKey = getBuiltInPrefixBaseKeyV231(editingKeyword);
-      if (index >= 0) {
-        additional[index] = { keyword, prefix };
-      } else if (builtInBaseKey) {
-        overrides[builtInBaseKey] = { keyword, prefix, deleted: false };
-      } else {
-        if (status) status.textContent = "找不到这条前缀规则"; return;
+      const group = editingProductPrefixGroupV266.length ? editingProductPrefixGroupV266 : [editingKeyword];
+      const groupNorm = new Set(group.map(normalizeProductPrefixKeywordV181));
+      for (const baseKeyword of group) {
+        const baseKey = getBuiltInPrefixBaseKeyV231(baseKeyword);
+        if (baseKey) overrides[baseKey] = { keyword: baseKeyword, prefix, deleted: true };
       }
+      for (let i=additional.length-1;i>=0;i--) {
+        const k=normalizeProductPrefixKeywordV181(Array.isArray(additional[i])?additional[i][0]:additional[i]?.keyword);
+        if(groupNorm.has(k)) additional.splice(i,1);
+      }
+      aliasesV266.forEach(alias=>{
+        const baseKey=getBuiltInPrefixBaseKeyV231(alias);
+        if(baseKey) overrides[baseKey]={keyword:alias,prefix,deleted:false};
+        else additional.push({keyword:alias,prefix});
+      });
     } else {
-      additional.push({ keyword, prefix });
+      aliasesV266.forEach(alias=>additional.push({ keyword: alias, prefix }));
     }
     saveJSON("importSystemSettings", { ...settings, productPrefixAdditionalRules: additional, productPrefixOverridesV231: overrides });
     if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
@@ -18214,7 +18239,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "26.5",
+      version: "26.6",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18581,7 +18606,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V26.5 Stable",
+      updatedBy: "System V26.6 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,

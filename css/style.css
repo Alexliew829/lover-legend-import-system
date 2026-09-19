@@ -5871,3 +5871,8 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .inventory-summary-label-mobile-v265{display:none}.inventory-summary-label-desktop-v265{display:inline}
 .product-prefix-locked-row-v181,.product-category-row-v227{font-size:16px;line-height:1.35}.product-prefix-locked-row-v181>span,.product-category-row-v227>span{font-weight:700}
 @media(max-width:520px){.inventory-summary-label-desktop-v265{display:none}.inventory-summary-label-mobile-v265{display:inline}}
+
+/* V26.6 — inventory bilingual identity: Chinese first line, English second line, stronger readability. */
+.inventory-product-identity-v167.product-identity-v167{grid-template-areas:"name id" "english english"!important}
+.inventory-product-identity-v167 .product-english-name-v262{display:block!important;grid-area:english!important;font-size:16px!important;font-weight:800!important;color:#2f493d!important;line-height:1.35!important;margin-top:2px!important}
+@media(max-width:520px){.inventory-product-identity-v167 .product-english-name-v262{font-size:16px!important;font-weight:800!important;color:#243c31!important}}
