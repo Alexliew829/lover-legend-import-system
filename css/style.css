@@ -5886,3 +5886,15 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .product-stock-english-edit-btn-v266{display:block;border:0;background:transparent;padding:2px 0 8px;color:#33483d;font-size:15px;font-weight:700;text-align:left;cursor:pointer;max-width:100%}
 .master-price-main-v266{display:block;text-align:right;white-space:nowrap}.master-price-badge-v266{display:block;text-align:right;font-size:11px;line-height:1.1;margin-top:2px}.master-price-badge-v266 .inventory-promotion-margin-v209{margin:0}
 @media(max-width:700px){.inventory-sales-summary-v146{transform:translateY(10px)}.product-stock-english-edit-btn-v266{font-size:17px;font-weight:800}}
+
+/* V26.7 UI-only refinements; no sync-path changes. */
+.product-master-query-v267{margin-bottom:14px}
+.product-master-query-v267 .batch-product-search{width:100%;max-width:none}
+.master-price-loss-v264 .master-price-main-v266,.master-price-loss-v264 .master-price-badge-v266{color:#d11b1b!important;font-weight:800}
+.master-price-profit-v264 .master-price-main-v266,.master-price-profit-v264 .master-price-badge-v266{color:#087d39!important;font-weight:800}
+.product-stock-english-edit-btn-v266{font-size:17px!important;font-weight:800!important;color:#2d4036!important}
+@media(max-width:700px){
+  .inventory-sales-summary-v146{transform:translateY(92px)!important}
+  .product-stock-english-edit-btn-v266{font-size:19px!important;line-height:1.3!important;color:#26382f!important}
+  .bottom-nav .nav-btn small{line-height:1.05}
+}

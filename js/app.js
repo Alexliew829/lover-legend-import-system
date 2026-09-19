@@ -5900,6 +5900,10 @@ function setupProductPrefixSettingsV181() {
     const editingKeyword = String(editingProductPrefixKeywordV229 || "").trim();
     const normalizedEditing = normalizeProductPrefixKeywordV181(editingKeyword);
     if (!normalizedKeyword) { if (status) status.textContent = "请输入新产品名称关键词"; keywordInput.focus(); return; }
+    if (normalizedKeyword === normalizeProductPrefixKeywordV181("盆栽")) {
+      const message = "“盆栽”是系统固定默认规则 PZ，不能再建立第二个不同前缀。一个产品名称只能对应一个前缀。";
+      if (status) status.textContent = message; window.alert(message); return;
+    }
     if (!/^[A-Z]{2}$/.test(prefix)) { if (status) status.textContent = "编号前缀必须是2个英文字母"; prefixInput.focus(); return; }
 
     if (editingKeyword) {
@@ -18227,7 +18231,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "26.6",
+      version: "26.7",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18594,7 +18598,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V26.6 Stable",
+      updatedBy: "System V26.7 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -18816,8 +18820,16 @@ function saveSupplierDirectoryV261(rows){const settings=loadJSON("importSystemSe
 function supplierReferenceInfoV265(s){
   const name=supplierCanonNameV261(s?.name||"").toLowerCase();
   const aliases=[name,...(Array.isArray(s?.aliases)?s.aliases:[]).map(x=>supplierCanonNameV261(x).toLowerCase())].filter(Boolean);
-  const virtual=getVirtualWarehouseSourceV240().some(v=>{const full=supplierCanonNameV261(v?.supplierFullName||"").toLowerCase();const productName=String(v?.name||"").trim().toLowerCase();return aliases.some(label=>full===label||productName.startsWith(label));});
-  const real=getOperationalProductsV256().some(p=>{const n=String(p?.name||"").trim().toLowerCase();return aliases.some(label=>n.startsWith(label));});
+  const labels=Array.from(new Set(aliases));
+  const virtual=getVirtualWarehouseSourceV240().some(v=>{
+    const full=supplierCanonNameV261(v?.supplierFullName||"").toLowerCase();
+    const productName=String(v?.name||"").trim().toLowerCase();
+    return labels.some(label=>full===label||productName.startsWith(label));
+  });
+  const real=getOperationalProductsV256().some(p=>{
+    const n=String(p?.name||"").trim().toLowerCase();
+    return labels.some(label=>n.startsWith(label));
+  });
   return {virtual,real,used:virtual||real};
 }
 function inferSupplierFromProductV261(product){const name=String(product?.name||"").trim();const directory=getSupplierDirectoryV261();for(const s of directory){const labels=[s.prefix,s.name,...(s.aliases||[])].filter(Boolean).sort((a,b)=>b.length-a.length);for(const label of labels){if(name.toLowerCase().startsWith(String(label).toLowerCase()))return s}}const zh=["忠盛","大厚","游小北","昊杨","松美轩"].find(x=>name.startsWith(x));if(zh)return directory.find(s=>s.prefix===zh)||{name:zh,prefix:zh,currency:"CNY"};return null}
