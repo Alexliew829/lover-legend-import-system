@@ -5614,7 +5614,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .import-draft-reminder-card-v246{width:min(560px,100%);max-height:80vh;overflow:auto;background:var(--card,#fff);border-radius:14px;padding:16px;box-shadow:0 12px 40px rgba(0,0,0,.25)}
 .import-draft-reminder-head-v246{display:flex;align-items:center;justify-content:space-between;gap:12px}.import-draft-reminder-head-v246 strong{font-size:1.08rem}.import-draft-reminder-card-v246 p{margin:10px 0}.import-draft-reminder-list-v246{display:grid;gap:8px}.import-draft-reminder-list-v246 button{text-align:left}
 
-/* V26.0 media cloud-save status */
+/* V26.1 media cloud-save status */
 .inventory-media-feedback-v252{font-size:.82rem;font-weight:800;align-self:center;white-space:nowrap;}
 .inventory-media-feedback-v252.pending{opacity:.78;}
 .inventory-media-feedback-v252.success{font-weight:900;}
@@ -5622,7 +5622,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 @media(max-width:680px){.inventory-media-feedback-v252{font-size:.8rem;grid-column:1/-1;}}
 
 
-/* V26.0 — saved media link color follows its presence dot: photo = yellow, video = blue. */
+/* V26.1 — saved media link color follows its presence dot: photo = yellow, video = blue. */
 .inventory-media-open-v230.inventory-media-saved-v254.inventory-media-photo-v254{
   color:#7a5a00;
   border-color:#e3c65c;
@@ -5635,7 +5635,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 
-/* V26.0 — Recent product result card: product name is the visual lead; IDs are supporting data. */
+/* V26.1 — Recent product result card: product name is the visual lead; IDs are supporting data. */
 .product-stock-card-v256 {
   display: block !important;
   padding: 14px;
@@ -5782,7 +5782,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 
-/* V26.0 — recent import/search product identity stays compact and adjacent; mobile long-press must not select whole cards. */
+/* V26.1 — recent import/search product identity stays compact and adjacent; mobile long-press must not select whole cards. */
 .product-stock-title-row-v256 {
   justify-content: flex-start;
 }
@@ -5820,7 +5820,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 
-/* V26.0 — mobile-only ChatGPT invoice/photo assistant. Isolated from V25.7 import/save/delete core. */
+/* V26.1 — mobile-only ChatGPT invoice/photo assistant. Isolated from V25.7 import/save/delete core. */
 .invoice-assistant-v258{margin:10px 0 14px;padding:12px 14px;border:1px solid #d8e6dc;border-radius:12px;background:#f8fcf9}
 .invoice-assistant-head-v258{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .invoice-assistant-head-v258 strong{font-size:16px}
@@ -5833,7 +5833,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 @media (min-width: 769px){.invoice-photo-btn-v258{opacity:.55;cursor:not-allowed}}
 
 
-/* V26.0 — multi-page ChatGPT recognition draft preview. Isolated from import calculation/save/delete core. */
+/* V26.1 — multi-page ChatGPT recognition draft preview. Isolated from import calculation/save/delete core. */
 .invoice-assistant-actions-v259{display:flex;gap:8px;flex-wrap:wrap}
 .invoice-modal-v259{position:fixed;inset:0;z-index:12000;background:rgba(0,0,0,.48);display:flex;align-items:center;justify-content:center;padding:14px}
 .invoice-modal-v259[hidden]{display:none!important}
@@ -5844,3 +5844,6 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 @media(max-width:768px){.invoice-preview-card-v259{max-height:96vh;padding:12px}.invoice-preview-row-v259{grid-template-columns:1fr 90px;gap:4px 8px}.invoice-preview-row-v259.header{display:none}.invoice-preview-row-v259>div:nth-child(n+3){font-size:13px}.invoice-preview-actions-v259{position:sticky;bottom:0;background:#fff;padding-bottom:4px}.invoice-assistant-actions-v259{width:100%}.invoice-assistant-actions-v259 button{flex:1}}
 
 .invoice-history-item-v259{width:100%;display:flex;justify-content:space-between;gap:12px;text-align:left;padding:12px;margin:6px 0;border:1px solid #dfe5e1;border-radius:9px;background:#fff}.invoice-history-item-v259 span{color:#667085;font-size:12px}
+
+/* V26.1 Supplier / inventory master */
+.supplier-page-head-v261{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}.supplier-page-head-v261 h3{margin:0 0 4px}.supplier-form-v261{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.supplier-form-v261 label{display:flex;flex-direction:column;gap:6px;font-weight:700}.supplier-form-v261 input,.supplier-form-v261 select{width:100%}.supplier-form-actions-v261{display:flex;gap:10px;margin-top:12px}.supplier-table-wrap-v261,.inventory-master-wrap-v261{overflow:auto;margin-top:14px;border:1px solid #d8e8df;border-radius:12px}.supplier-table-v261,.inventory-master-table-v261{width:100%;border-collapse:collapse;min-width:820px}.supplier-table-v261 th,.supplier-table-v261 td,.inventory-master-table-v261 th,.inventory-master-table-v261 td{padding:9px 10px;border-bottom:1px solid #e7efe9;text-align:left;vertical-align:middle;white-space:nowrap}.supplier-table-v261 th,.inventory-master-table-v261 th{background:#eef8f1;position:sticky;top:0;z-index:1}.supplier-actions-v261{display:flex;gap:6px}.supplier-prefix-v261{font-weight:800;color:#17834d}.inventory-master-v261 .search-input{max-width:360px}.supplier-inferred-v261{color:#8a6500;font-size:.85em}.bottom-nav{grid-template-columns:repeat(5,minmax(0,1fr))!important}@media(max-width:720px){.supplier-form-v261{grid-template-columns:1fr 1fr}.bottom-nav .nav-btn small{font-size:10px}.supplier-page-head-v261{display:block}.inventory-master-v261 .search-input{max-width:none;margin-top:8px}}@media(max-width:460px){.supplier-form-v261{grid-template-columns:1fr}}
