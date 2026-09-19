@@ -5887,7 +5887,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .master-price-main-v266{display:block;text-align:right;white-space:nowrap}.master-price-badge-v266{display:block;text-align:right;font-size:11px;line-height:1.1;margin-top:2px}.master-price-badge-v266 .inventory-promotion-margin-v209{margin:0}
 @media(max-width:700px){.inventory-sales-summary-v146{transform:translateY(10px)}.product-stock-english-edit-btn-v266{font-size:17px;font-weight:800}}
 
-/* V26.7 UI-only refinements; no sync-path changes. */
+/* V26.8 UI-only refinements; no sync-path changes. */
 .product-master-query-v267{margin-bottom:14px}
 .product-master-query-v267 .batch-product-search{width:100%;max-width:none}
 .master-price-loss-v264 .master-price-main-v266,.master-price-loss-v264 .master-price-badge-v266{color:#d11b1b!important;font-weight:800}
@@ -5898,3 +5898,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
   .product-stock-english-edit-btn-v266{font-size:19px!important;line-height:1.3!important;color:#26382f!important}
   .bottom-nav .nav-btn small{line-height:1.05}
 }
+
+/* V26.8 product-management minimum price follows homepage profit color. */
+.product-stock-minimum-price-loss-v268 strong,.product-stock-minimum-price-loss-v268 .inventory-promotion-margin-v209{color:#c62828!important}
+.product-stock-minimum-price-gain-v268 strong,.product-stock-minimum-price-gain-v268 .inventory-promotion-margin-v209{color:#177245!important}

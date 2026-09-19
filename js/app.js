@@ -4774,7 +4774,7 @@ function getPromotionMarginBadgeV209(product, profitInfo = null) {
   const info = profitInfo || getProductMinimumProfitV205(product, promotion);
   const cls = info.profit < -0.005 ? "loss" : info.profit > 0.005 ? "gain" : "neutral";
   const rate = Number(promotion.targetMarginRate);
-  const text = Number.isFinite(rate) ? `${Number.isInteger(rate) ? rate.toFixed(0) : rate.toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}%` : "";
+  const text = Number.isFinite(rate) ? `-${Number.isInteger(rate) ? rate.toFixed(0) : rate.toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}%` : "";
   return text ? `<em class="inventory-promotion-margin-v209 ${cls}">${escapeHTML(text)}</em>` : "";
 }
 
@@ -5556,6 +5556,17 @@ function setupProductCategorySettingsV227() {
     prefixInput.value = normalizeCategoryPrefixV228(prefixInput.value);
   });
 
+  const resolveExistingCategoryRuleV268 = value => {
+    const raw=String(value||"").trim();
+    const base=normalizeProductCategoryNameV227(raw.split("/")[0].trim());
+    if(!base)return null;
+    return getProductCategoryRulesV228().find(rule=>normalizeProductCategoryNameV227(rule.name).toLocaleLowerCase()===base.toLocaleLowerCase())||null;
+  };
+  input?.addEventListener("input",()=>{
+    const existing=resolveExistingCategoryRuleV268(input.value);
+    if(existing&&prefixInput)prefixInput.value=existing.prefix;
+  });
+
   document.getElementById("productCategoryRulesList")?.addEventListener("click", async event => {
     const copyLabel = event.target.closest("[data-category-copy-v232]");
     if (copyLabel) {
@@ -5609,6 +5620,15 @@ function setupProductCategorySettingsV227() {
     const editingName = normalizeProductCategoryNameV227(editingProductCategoryNameV229);
     if (!name) { if (status) status.textContent = "请输入产品类别名称"; input?.focus(); return; }
     if (name === "盆栽") { if (status) status.textContent = "盆栽固定按产品名称规则生成前缀，请到「盆栽前缀规则」处理"; return; }
+    const existingCategoryV268=resolveExistingCategoryRuleV268(input?.value);
+    if(existingCategoryV268 && !editingName && normalizeProductCategoryNameV227(existingCategoryV268.name).toLocaleLowerCase()===normalizeProductCategoryNameV227(name.split("/")[0].trim()).toLocaleLowerCase()){
+      if(prefix!==existingCategoryV268.prefix){
+        const message=`“${input?.value||name}”已经对应前缀 ${existingCategoryV268.prefix}，不能再改成 ${prefix}。一个产品类别只能对应一个产品前缀。`;
+        if(status)status.textContent=message;window.alert(message);if(prefixInput)prefixInput.value=existingCategoryV268.prefix;return;
+      }
+      const message=`“${input?.value||name}”已经存在，对应前缀 ${existingCategoryV268.prefix}，不能重复新增。`;
+      if(status)status.textContent=message;window.alert(message);return;
+    }
     if (!/^[A-Z]{2}$/.test(prefix)) { if (status) status.textContent = "类别编号前缀必须是2个英文字母"; prefixInput?.focus(); return; }
 
     const editingRuleV229 = editingName ? getProductCategoryRulesV228().find(rule => rule.name === editingName) : null;
@@ -5843,6 +5863,18 @@ function setupProductPrefixSettingsV181() {
     prefixInput.value = String(prefixInput.value || "").replace(/[^a-z]/gi, "").toUpperCase().slice(0, 2);
   });
 
+  const existingPrefixForKeywordV268 = value => {
+    const normalized=normalizeProductPrefixKeywordV181(value);
+    if(!normalized) return "";
+    if(normalized===normalizeProductPrefixKeywordV181("盆栽")) return "PZ";
+    const matched=getProductPrefixRulesV181().find(([k])=>normalizeProductPrefixKeywordV181(k)===normalized);
+    return matched?.[1]||"";
+  };
+  keywordInput.addEventListener("input",()=>{
+    const expected=existingPrefixForKeywordV268(keywordInput.value);
+    if(expected) prefixInput.value=expected;
+  });
+
   document.getElementById("productPrefixRulesList")?.addEventListener("click", async event => {
     const copyLabel = event.target.closest("[data-prefix-copy-v232]");
     if (copyLabel) {
@@ -5900,9 +5932,14 @@ function setupProductPrefixSettingsV181() {
     const editingKeyword = String(editingProductPrefixKeywordV229 || "").trim();
     const normalizedEditing = normalizeProductPrefixKeywordV181(editingKeyword);
     if (!normalizedKeyword) { if (status) status.textContent = "请输入新产品名称关键词"; keywordInput.focus(); return; }
+    const expectedPrefixV268=existingPrefixForKeywordV268(keyword);
+    if(expectedPrefixV268 && prefix!==expectedPrefixV268){
+      const message=`“${keyword}”已经对应前缀 ${expectedPrefixV268}，不能再改成 ${prefix}。一个产品名称只能对应一个产品前缀。`;
+      if(status)status.textContent=message;window.alert(message);prefixInput.value=expectedPrefixV268;return;
+    }
     if (normalizedKeyword === normalizeProductPrefixKeywordV181("盆栽")) {
-      const message = "“盆栽”是系统固定默认规则 PZ，不能再建立第二个不同前缀。一个产品名称只能对应一个前缀。";
-      if (status) status.textContent = message; window.alert(message); return;
+      const message = "“盆栽”是系统固定默认规则 PZ，不能重复新增。一个产品名称只能对应一个前缀。";
+      if (status) status.textContent = message; window.alert(message); prefixInput.value="PZ"; return;
     }
     if (!/^[A-Z]{2}$/.test(prefix)) { if (status) status.textContent = "编号前缀必须是2个英文字母"; prefixInput.focus(); return; }
 
@@ -14918,14 +14955,14 @@ function renderBatchProductStockResults() {
           <span>原成本</span><strong>${formatMoney(Number(originalRecordV219.unitPrice) || 0)}${currencyV219 ? ` ${escapeHTML(currencyV219)}` : ""}</strong>
         </button>` : `<div class="product-stock-original-cost-empty-v219 product-stock-metric-v256"><span>原成本</span><strong>-</strong></div>`}
 
-        <button
-          class="product-stock-minimum-price-btn product-stock-metric-v256"
+        ${(()=>{const info=getProductMinimumProfitV205(product);const tone=info.profit< -0.005?"loss":"gain";return `<button
+          class="product-stock-minimum-price-btn product-stock-metric-v256 product-stock-minimum-price-${tone}-v268"
           type="button"
           data-product-id="${escapeHTML(productIdV256)}"
           data-edit-type="minimumPrice"
           aria-label="长按修改最低售价" title="长按修改最低售价">
-          <span>${getPromotionSettingsV183() && !getPromotionSettingsV183().excludedProductIds.includes(String(product.id || "").toUpperCase()) ? "促销最低售价" : "最低售价"}</span><strong>${formatMoney(getEffectiveProductMinimumPriceV183(product), "RM ")}</strong>
-        </button>
+          <span>${getPromotionSettingsV183() && !getPromotionSettingsV183().excludedProductIds.includes(String(product.id || "").toUpperCase()) ? "促销最低售价" : "最低售价"}</span><strong>${formatMoney(getEffectiveProductMinimumPriceV183(product), "RM ")}${getPromotionMarginBadgeV209(product,info)}</strong>
+        </button>`})()}
 
         <button
           class="product-stock-cost-btn product-stock-metric-v256"
@@ -18231,7 +18268,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "26.7",
+      version: "26.8",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18598,7 +18635,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V26.7 Stable",
+      updatedBy: "System V26.8 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -18821,12 +18858,18 @@ function supplierReferenceInfoV265(s){
   const name=supplierCanonNameV261(s?.name||"").toLowerCase();
   const aliases=[name,...(Array.isArray(s?.aliases)?s.aliases:[]).map(x=>supplierCanonNameV261(x).toLowerCase())].filter(Boolean);
   const labels=Array.from(new Set(aliases));
+  // V26.8: reference protection belongs to this supplier record, not merely to a shared prefix.
+  // Two suppliers may share one prefix; a newly copied name must not inherit another supplier's stock lock.
+  const matchesLabel=(value)=>{const v=supplierCanonNameV261(value||"").toLowerCase();return labels.some(label=>v===label||v.startsWith(label));};
   const virtual=getVirtualWarehouseSourceV240().some(v=>{
-    const full=supplierCanonNameV261(v?.supplierFullName||"").toLowerCase();
+    const full=supplierCanonNameV261(v?.supplierFullName||v?.supplierName||"").toLowerCase();
+    if(full) return labels.includes(full);
     const productName=String(v?.name||"").trim().toLowerCase();
-    return labels.some(label=>full===label||productName.startsWith(label));
+    return labels.some(label=>productName.startsWith(label));
   });
   const real=getOperationalProductsV256().some(p=>{
+    const explicit=supplierCanonNameV261(p?.supplierName||p?.supplier||"").toLowerCase();
+    if(explicit) return labels.includes(explicit);
     const n=String(p?.name||"").trim().toLowerCase();
     return labels.some(label=>n.startsWith(label));
   });
@@ -18852,7 +18895,7 @@ function renderInventoryMasterV261(){
   else if(sort==="stock-desc")rows.sort((a,b)=>b.stock-a.stock); else if(sort==="stock-asc")rows.sort((a,b)=>a.stock-b.stock); else if(sort==="value-desc")rows.sort((a,b)=>b.inventoryValue-a.inventoryValue); else if(sort==="cost-desc")rows.sort((a,b)=>b.averageCost-a.averageCost); else rows.sort((a,b)=>String(b.lastImportDate||"").localeCompare(String(a.lastImportDate||"")));
   const totalStock=rows.reduce((n,r)=>n+(Number(r.stock)||0),0), totalValue=rows.reduce((n,r)=>n+(Number(r.inventoryValue)||0),0);
   if(count)count.textContent=`${rows.length} 项`; const st=document.getElementById("inventoryMasterStockV264"),val=document.getElementById("inventoryMasterValueV264"); if(st)st.textContent=formatNumber(totalStock); if(val)val.textContent=`RM ${formatMoney(totalValue)}`;
-  body.innerHTML=rows.map(r=>{const profit=(Number(r.minimumPrice)||0)-(Number(r.averageCost)||0);const cls=profit<0?"master-price-loss-v264":"master-price-profit-v264";const badge=getPromotionMarginBadgeV209(r.product);return `<tr><td><button type="button" class="master-copy-v263" data-master-copy-v263="${escapeHTML(r.productId)}">${escapeHTML(r.productId)}</button></td><td><button type="button" class="master-copy-v263 master-name-v262" data-master-copy-v263="${escapeHTML(r.cnName)}">${escapeHTML(r.cnName)}</button></td><td><button type="button" class="master-copy-v263 master-en-v262" data-master-copy-v263="${escapeHTML(r.enName)}">${escapeHTML(r.enName)}</button></td><td class="master-num-v264">${formatNumber(r.stock)}</td><td class="master-num-v264">${formatMoney(r.averageCost)}</td><td class="master-num-v264 ${cls}"><span class="master-price-main-v266">${formatMoney(r.minimumPrice)}</span>${badge?`<span class="master-price-badge-v266">${badge}</span>`:""}</td></tr>`}).join("")||'<tr><td colspan="6">暂无符合资料</td></tr>';
+  body.innerHTML=rows.map(r=>{const profitInfo=getProductMinimumProfitV205(r.product);const cls=profitInfo.profit< -0.005?"master-price-loss-v264":"master-price-profit-v264";const badge=getPromotionMarginBadgeV209(r.product,profitInfo);return `<tr><td><button type="button" class="master-copy-v263" data-master-copy-v263="${escapeHTML(r.productId)}">${escapeHTML(r.productId)}</button></td><td><button type="button" class="master-copy-v263 master-name-v262" data-master-copy-v263="${escapeHTML(r.cnName)}">${escapeHTML(r.cnName)}</button></td><td><button type="button" class="master-copy-v263 master-en-v262" data-master-copy-v263="${escapeHTML(r.enName)}">${escapeHTML(r.enName)}</button></td><td class="master-num-v264">${formatNumber(r.stock)}</td><td class="master-num-v264">${formatMoney(r.averageCost)}</td><td class="master-num-v264 ${cls}"><span class="master-price-main-v266">${formatMoney(r.minimumPrice)}</span>${badge?`<span class="master-price-badge-v266">${badge}</span>`:""}</td></tr>`}).join("")||'<tr><td colspan="6">暂无符合资料</td></tr>';
   body.querySelectorAll("[data-master-copy-v263]").forEach(btn=>btn.addEventListener("click",()=>copyRuleLabelV232(btn,btn.dataset.masterCopyV263||"")));
 }
 function excelWorkbookV263(worksheets){return `<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:html="http://www.w3.org/TR/REC-html40"><Styles><Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Bottom"/><Font ss:FontName="Arial" ss:Size="10"/></Style><Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="#D9EAD3" ss:Pattern="Solid"/></Style><Style ss:ID="HeaderRow"/><Style ss:ID="Number2"><NumberFormat ss:Format="#,##0.00"/></Style><Style ss:ID="Integer"><NumberFormat ss:Format="#,##0"/></Style><Style ss:ID="GeneralNumber"><NumberFormat ss:Format="#,##0.00"/></Style></Styles>${worksheets}</Workbook>`}
@@ -18866,8 +18909,26 @@ function exportSupplierExcelV263(){
   const sheet=excelWorksheet("Suppliers",["供应商","前缀","地址","联络号码","对应货币","备注"],rows,["text","text","text","text","text","text"]);
   downloadTextFile(`Import_Suppliers_${formatDateDDMMYYYY(new Date())}.xls`,excelWorkbookV263(sheet),"application/vnd.ms-excel;charset=utf-8");
 }
+function cleanupTestSupplierV268(){
+  const settings=loadJSON("importSystemSettings",{});
+  if(settings.testSupplierCleanupV268===true)return;
+  const rows=Array.isArray(settings[SUPPLIER_DIRECTORY_KEY_V261])?settings[SUPPLIER_DIRECTORY_KEY_V261].slice():[];
+  let changed=false;
+  const kept=rows.filter(row=>{
+    if(row?.deleted===true)return true;
+    const name=supplierCanonNameV261(row?.name||row?.fullName);
+    if(name!=="大厚369")return true;
+    const ref=supplierReferenceInfoV265({...row,name});
+    if(ref.used)return true;
+    changed=true;return false;
+  });
+  saveJSON("importSystemSettings",{...settings,[SUPPLIER_DIRECTORY_KEY_V261]:kept,testSupplierCleanupV268:true});
+  if(changed&&typeof markCloudSettingsSaved==="function")markCloudSettingsSaved();
+}
+
 function setupSupplierDirectoryV261(){
   const save=document.getElementById("saveSupplierV261"),clear=document.getElementById("clearSupplierV261"),list=document.getElementById("supplierListV261"),search=document.getElementById("inventoryMasterSearchV261"),exp=document.getElementById("exportInventoryMasterExcelV261"),expSupplier=document.getElementById("exportSupplierExcelV263");if(!save)return;
+  cleanupTestSupplierV268();
   renderSupplierDirectoryV261();renderInventoryMasterV261();clear?.addEventListener("click",clearSupplierFormV261);search?.addEventListener("input",renderInventoryMasterV261);document.getElementById("inventoryMasterSortV264")?.addEventListener("change",renderInventoryMasterV261);document.getElementById("inventoryMasterPanelV264")?.addEventListener("toggle",e=>{if(e.currentTarget.open)renderInventoryMasterV261()});exp?.addEventListener("click",exportInventoryMasterExcelV261);expSupplier?.addEventListener("click",exportSupplierExcelV263);
   document.getElementById("supplierPrefixV261")?.addEventListener("input",e=>{e.target.value=supplierPrefixV261(e.target.value)});
   document.getElementById("supplierNameV261")?.addEventListener("input",e=>{const name=supplierCanonNameV261(e.target.value),box=document.getElementById("supplierPrefixV261");if(!box||box.dataset.userEditedV264==="1")return;const z=(name.match(/[\u3400-\u9fff]/g)||[]).join("");box.value=z?supplierPrefixV261(z):supplierPrefixFromEnglishNameV261(name)});
