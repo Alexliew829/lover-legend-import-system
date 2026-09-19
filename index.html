@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=25.8" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=25.8" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=25.8" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=25.8" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=25.8" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=25.8" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=25.8" />
+  <link rel="manifest" href="./manifest.json?v=25.9" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=25.9" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=25.9" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=25.9" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=25.9" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=25.9" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=25.9" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=25.8" />
-  <link rel="stylesheet" href="./css/style.css?v=25.8" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=25.9" />
+  <link rel="stylesheet" href="./css/style.css?v=25.9" />
 </head>
 <body>
   <div id="accessLock"
@@ -84,7 +84,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 25.8 Stable</div>
+          <div class="app-header-version">正式版 25.9 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -223,19 +223,48 @@
 
           <form id="batchImportForm">
 
-            <section id="invoiceAssistantV258" class="invoice-assistant-v258" aria-label="ChatGPT 照片识别进口">
+            <section id="invoiceAssistantV258" class="invoice-assistant-v258" aria-label="ChatGPT 发票识别进口">
               <div class="invoice-assistant-head-v258">
                 <div>
-                  <strong>📷 ChatGPT 照片识别</strong>
-                  <div class="clear-help">手机拍照 / 上传 Invoice → ChatGPT 生成进口草稿资料。不会直接入库。</div>
+                  <strong>📷 ChatGPT 发票识别</strong>
+                  <div class="clear-help">手机可拍照或上传多页 Invoice / DO；识别后先生成独立识别草稿，不会直接带入进口资料。</div>
                 </div>
-                <button id="invoicePhotoBtnV258" class="secondary-btn invoice-photo-btn-v258" type="button">拍照 / 上传照片</button>
-                <input id="invoicePhotoInputV258" type="file" accept="image/*" capture="environment" hidden>
+                <div class="invoice-assistant-actions-v259">
+                  <button id="invoicePhotoBtnV258" class="secondary-btn invoice-photo-btn-v258" type="button">拍照 / 上传</button>
+                  <button id="invoicePreviewBtnV259" class="secondary-btn" type="button">📄 查看识别草稿（0）</button>
+                </div>
+                <input id="invoiceCameraInputV259" type="file" accept="image/*" capture="environment" hidden>
+                <input id="invoiceUploadInputV259" type="file" accept="image/*" multiple hidden>
               </div>
-              <div id="invoiceDesktopNoticeV258" class="invoice-desktop-notice-v258" hidden>照片识别功能只能在手机使用。请使用手机拍照/上传并生成资料，保存草稿后再到电脑检查。</div>
+              <div id="invoiceDesktopNoticeV258" class="invoice-desktop-notice-v258" hidden>照片识别功能只能在手机使用。请先用手机拍照/上传并保存识别草稿，再到电脑点击「查看识别草稿」检查。</div>
               <div id="invoiceRecognitionStatusV258" class="status-text"></div>
-              <div id="invoiceCheckV258" class="invoice-check-v258" hidden></div>
             </section>
+
+            <div id="invoiceSourceChoiceV259" class="invoice-modal-v259" hidden>
+              <div class="invoice-modal-card-v259 invoice-choice-card-v259">
+                <h3>选择发票来源</h3>
+                <button id="invoiceTakePhotoV259" class="primary-btn" type="button">📷 拍照</button>
+                <button id="invoiceChoosePhotosV259" class="secondary-btn" type="button">🖼️ 从相册上传（可多页）</button>
+                <button id="invoiceChoiceCancelV259" class="secondary-btn" type="button">取消</button>
+              </div>
+            </div>
+
+            <div id="invoicePreviewModalV259" class="invoice-modal-v259" hidden>
+              <div class="invoice-preview-card-v259">
+                <div class="invoice-preview-head-v259">
+                  <div><strong>识别草稿预览</strong><div id="invoicePreviewMetaV259" class="clear-help"></div></div>
+                  <button id="invoicePreviewCloseV259" class="secondary-btn" type="button">关闭</button>
+                </div>
+                <div id="invoicePreviewBodyV259" class="invoice-preview-body-v259"></div>
+                <div id="invoicePreviewSummaryV259" class="invoice-preview-summary-v259"></div>
+                <div class="invoice-preview-actions-v259">
+                  <button id="invoiceDeleteRecognitionDraftV259" class="danger-btn" type="button">删除识别草稿</button>
+                  <button id="invoiceHistoryV259" class="secondary-btn" type="button">识别历史</button>
+                  <button id="invoiceSaveRecognitionDraftV259" class="secondary-btn" type="button">保存识别草稿</button>
+                  <button id="invoiceApplyRecognitionDraftV259" class="primary-btn" type="button">带入同批进口产品</button>
+                </div>
+              </div>
+            </div>
 
             <datalist id="batchProductSuggestions"></datalist>
 
@@ -877,7 +906,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 25.8 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 25.9 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
@@ -909,9 +938,9 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=25.8"></script>
-  <script src="./js/sync.js?v=25.8"></script>
-  <script src="./js/virtual-warehouse.js?v=25.8"></script>
-  <script src="./js/app.js?v=25.8"></script>
+  <script src="./js/common.js?v=25.9"></script>
+  <script src="./js/sync.js?v=25.9"></script>
+  <script src="./js/virtual-warehouse.js?v=25.9"></script>
+  <script src="./js/app.js?v=25.9"></script>
 </body>
 </html>
