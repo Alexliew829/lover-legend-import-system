@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=25.4" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=25.4" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=25.4" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=25.4" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=25.4" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=25.4" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=25.4" />
+  <link rel="manifest" href="./manifest.json?v=25.5" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=25.5" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=25.5" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=25.5" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=25.5" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=25.5" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=25.5" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=25.4" />
-  <link rel="stylesheet" href="./css/style.css?v=25.4" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=25.5" />
+  <link rel="stylesheet" href="./css/style.css?v=25.5" />
 </head>
 <body>
   <div id="accessLock"
@@ -84,7 +84,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 25.4 Stable</div>
+          <div class="app-header-version">正式版 25.5 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -610,8 +610,8 @@
         </details>
 
         <details class="collapsible-settings-v181 product-category-settings-v227 rules-subpanel-v235">
-          <summary><span>非盆栽前缀规则</span><small>按产品类别生成编号前缀</small></summary>
-          <p class="settings-help">盆栽：继续按产品名称关键词规则生成编号前缀，并由「盆栽前缀规则」处理。非盆栽：一律按产品类别默认前缀生成编号。尚未实际进口使用的类别名称和前缀可以修改；一旦有进口记录／库存历史就自动锁定。类别前缀不能与任何已有／历史前缀重复。</p>
+          <summary><span>非盆栽前缀规则</span><small>杂花杂木细分类与其他主分类编号前缀</small></summary>
+          <p class="settings-help">主分类固定为：盆栽、杂花杂木、肥料 / 农药、泥土 / 介质、花盆、工具、其他。杂花杂木可再按产品名称识别虎尾兰、竹芋/芋头叶、发财树、榕属、龟背竹等细分类；无法识别时统一使用 ZZ。盆栽规则请在上方「盆栽前缀规则」管理，无法识别时统一使用 PZ。</p>
           <div id="productCategoryRulesList" class="product-category-list-v227"></div>
           <div class="product-category-add-v227">
             <label>新增产品类别<input id="newProductCategoryName" maxlength="24" autocomplete="off" placeholder="例如：园艺用品" /></label>
@@ -863,7 +863,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 25.4 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 25.5 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
@@ -895,9 +895,9 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=25.4"></script>
-  <script src="./js/sync.js?v=25.4"></script>
-  <script src="./js/virtual-warehouse.js?v=25.4"></script>
-  <script src="./js/app.js?v=25.4"></script>
+  <script src="./js/common.js?v=25.5"></script>
+  <script src="./js/sync.js?v=25.5"></script>
+  <script src="./js/virtual-warehouse.js?v=25.5"></script>
+  <script src="./js/app.js?v=25.5"></script>
 </body>
 </html>

@@ -3192,12 +3192,14 @@ function prepareVirtualWarehouseSettingsLeaveV241() {
 
 function resolveVirtualWarehouseCategoryV240(item) {
   const sourceCategory = normalizeProductCategoryNameV227(item?.category || "杂花杂木");
-  if (sourceCategory === "盆栽") return "盆栽";
+  if (isPrimaryProductCategoryV255(sourceCategory)) return sourceCategory;
   const prefix = normalizeCategoryPrefixV228(item?.productPrefix || "");
-  const byPrefix = getProductCategoryRulesV228().find(rule =>
-    rule?.mode === "category" && normalizeCategoryPrefixV228(rule?.prefix) === prefix
+  const primaryByPrefix = getProductCategoryRulesV228().find(rule =>
+    rule?.mode === "category" && isPrimaryProductCategoryV255(rule.name) && normalizeCategoryPrefixV228(rule?.prefix) === prefix
   );
-  return byPrefix?.name || sourceCategory || "杂花杂木";
+  if (primaryByPrefix) return primaryByPrefix.name;
+  // Fine prefixes such as MO / FI / SS / CL belong under 杂花杂木.
+  return "杂花杂木";
 }
 
 function virtualWarehouseSearchSuggestionsV240(queryValue) {
@@ -3238,7 +3240,7 @@ function applyVirtualWarehouseSelectionV240(rowId, indexValue) {
   tr.dataset.virtualWarehouseIndexV240 = String(indexValue);
   tr.dataset.virtualWarehouseCategoryV240 = categoryField.value;
   if (Number.isFinite(Number(item.cost)) && Number(item.cost) > 0) {
-    // V25.4: virtual-warehouse reference costs are MYR supplier costs. Seed them
+    // V25.5: virtual-warehouse reference costs are MYR supplier costs. Seed them
     // through the same auto-original-cost path so foreign batches convert them.
     setAutoOriginalCostV249(rowId, { unitPrice: Number(item.cost), currency: "MYR" }, { force: true });
   }
@@ -3647,7 +3649,7 @@ function renderDashboard() {
   const productCount = activeInventoryProducts.length;
   const categoryOrder = typeof getProductCategoriesV227 === "function" ? getProductCategoriesV227() : ["盆栽"];
   const categoryCounts = activeInventoryProducts.reduce((counts, item) => {
-    const category = item.category === "周边产品" ? "其他" : (item.category === "花盆" ? "花盆 / 配件 / 工具" : (item.category || "盆栽"));
+    const category = normalizePrimaryProductCategoryV255(item.category || "盆栽");
     counts[category] = (counts[category] || 0) + 1;
     return counts;
   }, {});
@@ -5215,19 +5217,63 @@ function saveProducts(products) {
 }
 
 
+const PRIMARY_PRODUCT_CATEGORIES_V255 = Object.freeze([
+  "盆栽",
+  "杂花杂木",
+  "肥料 / 农药",
+  "泥土 / 介质 Soil",
+  "花盆 Pot",
+  "工具",
+  "其他"
+]);
+
 const DEFAULT_PRODUCT_CATEGORY_RULES_V228 = Object.freeze([
-  { name: "盆栽", prefix: "", mode: "name" },
+  // V25.5: the import/product page has only seven MAIN categories.
+  // The additional rows below are non-bonsai SUBCATEGORY name rules used only
+  // to choose a more specific Product ID prefix inside 杂花杂木.
+  { name: "盆栽", prefix: "PZ", mode: "name" },
   { name: "杂花杂木", prefix: "ZZ", mode: "category" },
   { name: "肥料 / 农药", prefix: "FL", mode: "category" },
   { name: "泥土 / 介质 Soil", prefix: "NT", mode: "category" },
   { name: "花盆 Pot", prefix: "PT", mode: "category" },
+  { name: "工具", prefix: "TL", mode: "category" },
+  { name: "其他", prefix: "QT", mode: "category" },
   { name: "虎尾兰 Sansevieria", prefix: "SS", mode: "category" },
   { name: "竹芋 芋头叶 Calathea Caladium", prefix: "CL", mode: "category" },
   { name: "金钱树 发财树 ZZ Money Plant", prefix: "MP", mode: "category" },
   { name: "Ficus 榕属", prefix: "FI", mode: "category" },
-  { name: "Monstera 龟背竹", prefix: "MO", mode: "category" },
-  { name: "其他", prefix: "QT", mode: "category" }
+  { name: "Monstera 龟背竹", prefix: "MO", mode: "category" }
 ]);
+
+function isPrimaryProductCategoryV255(value) {
+  const wanted = normalizeProductCategoryNameV227(value);
+  return PRIMARY_PRODUCT_CATEGORIES_V255.includes(wanted);
+}
+
+function normalizePrimaryProductCategoryV255(value) {
+  const wanted = normalizeProductCategoryNameV227(value);
+  if (PRIMARY_PRODUCT_CATEGORIES_V255.includes(wanted)) return wanted;
+  // Legacy V25.5 and earlier stored non-bonsai fine classes (MO/SS/CL/FI...)
+  // directly in category. Keep the historical data untouched, but present and
+  // treat those rows as the main category 杂花杂木 from V25.5 onward.
+  if (getProductCategoryRulesV228().some(rule => rule?.mode === "category" && rule.name === wanted)) return "杂花杂木";
+  return wanted || "盆栽";
+}
+
+function findNonBonsaiSubcategoryRuleV255(name) {
+  const compact = normalizeProductPrefixKeywordV181(name);
+  if (!compact) return null;
+  const fuzzyReady = isProductFuzzySearchReadyV238(name);
+  const primary = new Set(PRIMARY_PRODUCT_CATEGORIES_V255);
+  return getProductCategoryRulesV228().find(rule => {
+    if (!rule || rule.mode !== "category" || primary.has(rule.name)) return false;
+    const tokens = String(rule.name || "")
+      .split(/[\/／|、,，\s]+/)
+      .map(token => normalizeProductPrefixKeywordV181(token))
+      .filter(token => token.length >= 2);
+    return tokens.some(token => compact.includes(token) || (fuzzyReady && token.includes(compact)));
+  }) || null;
+}
 
 function normalizeProductCategoryNameV227(value) {
   return String(value || "").normalize("NFKC").replace(/[\s\u3000]+/g, " ").trim();
@@ -5303,25 +5349,34 @@ function getProductCategoryRulesV228() {
     usedNames.add(key);
     const preset = DEFAULT_PRODUCT_CATEGORY_RULES_V228.find(rule => rule.name === name);
     const mode = name === "盆栽" ? "name" : "category";
-    const prefix = mode === "name" ? "" : (normalizeCategoryPrefixV228(raw?.prefix) || preset?.prefix || "QT");
+    const prefix = mode === "name" ? "PZ" : (normalizeCategoryPrefixV228(raw?.prefix) || preset?.prefix || "QT");
     const lockedByUsageV229 = raw?.lockedByUsageV229 === true;
     // V24.6: usage lock is derived from current active data, not a permanent flag.
     // After the user explicitly cleans the last zero-stock product, the rule may unlock.
     const locked = name === "盆栽" ? true : isProductCategoryUsedV229(name);
     result.push({ name, prefix, mode, locked, lockedByUsageV229 });
   });
-  if (!result.some(rule => rule.name === "盆栽")) result.unshift({ name: "盆栽", prefix: "", mode: "name", locked: true });
+  if (!result.some(rule => rule.name === "盆栽")) result.unshift({ name: "盆栽", prefix: "PZ", mode: "name", locked: true });
+  // V25.5: the seven main categories must always be available. This does not
+  // change any existing Product ID or historical record.
+  PRIMARY_PRODUCT_CATEGORIES_V255.forEach(name => {
+    if (result.some(rule => rule.name === name)) return;
+    const preset = DEFAULT_PRODUCT_CATEGORY_RULES_V228.find(rule => rule.name === name);
+    if (!preset) return;
+    result.push({ name, prefix: preset.prefix, mode: preset.mode, locked: name === "盆栽" ? true : isProductCategoryUsedV229(name) });
+  });
   return result;
 }
 
 function getProductCategoriesV227() {
-  return getProductCategoryRulesV228().map(rule => rule.name);
+  // V25.5: UI categories are MAIN categories only. Fine-class rules such as
+  // Monstera / Ficus / 虎尾兰 only decide the Product ID prefix.
+  return PRIMARY_PRODUCT_CATEGORIES_V255.slice();
 }
 
 function productCategoryOptionsHTMLV227(selected = "盆栽") {
-  const wanted = normalizeProductCategoryNameV227(selected) || "盆栽";
+  const wanted = normalizePrimaryProductCategoryV255(selected);
   const categories = getProductCategoriesV227();
-  if (!categories.some(name => name === wanted)) categories.push(wanted);
   return categories.map(name => `<option value="${escapeHTML(name)}"${name === wanted ? " selected" : ""}>${escapeHTML(name)}</option>`).join("");
 }
 
@@ -5392,15 +5447,10 @@ function persistUsedCategoryLocksV229() {
 function renderProductCategoriesV227() {
   const list = document.getElementById("productCategoryRulesList");
   if (!list) return;
-  list.innerHTML = getProductCategoryRulesV228().map(rule => {
-    if (rule.name === "盆栽") return `
-      <div class="product-category-row-v227">
-        <span class="rule-copy-label-v232" data-category-copy-v232="${escapeHTML(rule.name)}" title="点击复制类别关键词">${escapeHTML(rule.name)}</span>
-        <strong>按产品名规则</strong>
-        <div class="rule-actions-v231">
-          <button type="button" class="secondary-btn category-prefix-guide-v229" onclick="goToProductPrefixSettingsV229()">前往盆栽前缀规则</button>
-        </div>
-      </div>`;
+  const visibleRulesV255 = getProductCategoryRulesV228()
+    .filter(rule => rule.name !== "盆栽")
+    .sort((a, b) => (a.name === "杂花杂木" ? -1 : 0) - (b.name === "杂花杂木" ? -1 : 0));
+  list.innerHTML = visibleRulesV255.map(rule => {
     return `
       <div class="product-category-row-v227">
         <span class="rule-copy-label-v232" data-category-copy-v232="${escapeHTML(rule.name)}" title="点击复制类别关键词">${escapeHTML(rule.name)}</span>
@@ -5728,7 +5778,12 @@ function renderProductPrefixRulesV181() {
     const bi = prefixOrderV237.indexOf(String(b[1] || "").trim().toUpperCase());
     return ai - bi;
   });
-  list.innerHTML = groupedRulesV237.map(([keyword, prefix]) => {
+  const fallbackRowV255 = `
+    <div class="product-prefix-locked-row-v181">
+      <span class="rule-copy-label-v232" data-prefix-copy-v232="盆栽" title="点击复制产品类别">盆栽</span>
+      <strong>PZ</strong><em>默认前缀 · 已锁定</em>
+    </div>`;
+  list.innerHTML = fallbackRowV255 + groupedRulesV237.map(([keyword, prefix]) => {
     const used = isProductPrefixRuleLockedV229(keyword, prefix);
     return `
       <div class="product-prefix-locked-row-v181">
@@ -5888,14 +5943,18 @@ function setupProductPrefixSettingsV181() {
 }
 
 function getProductPrefix(category, name = "") {
-  const normalizedCategory = normalizeProductCategoryNameV227(category) || "盆栽";
-  if (normalizedCategory !== "盆栽") {
-    const rule = getProductCategoryRulesV228().find(item => item.name === normalizedCategory);
-    return rule?.prefix || "QT";
+  const normalizedCategory = normalizePrimaryProductCategoryV255(category);
+  if (normalizedCategory === "盆栽") {
+    const compact = normalizeProductPrefixKeywordV181(name);
+    const matched = getProductPrefixRulesV181().find(([keyword]) => compact.includes(normalizeProductPrefixKeywordV181(keyword)));
+    return matched ? matched[1] : "PZ";
   }
-  const compact = normalizeProductPrefixKeywordV181(name);
-  const matched = getProductPrefixRulesV181().find(([keyword]) => compact.includes(normalizeProductPrefixKeywordV181(keyword)));
-  return matched ? matched[1] : "PZ";
+  if (normalizedCategory === "杂花杂木") {
+    const subRule = findNonBonsaiSubcategoryRuleV255(name);
+    return subRule?.prefix || "ZZ";
+  }
+  const rule = getProductCategoryRulesV228().find(item => item.name === normalizedCategory);
+  return rule?.prefix || "QT";
 }
 
 function generateNextProductIdFromPrefixV240(products, preferredPrefix) {
@@ -6332,7 +6391,7 @@ function renderProductList() {
             <div class="product-code">${escapeHTML(product.id)}</div>
           </div>
           <div class="product-badges">
-            <span class="badge">${escapeHTML(product.category)}</span>
+            <span class="badge">${escapeHTML(normalizePrimaryProductCategoryV255(product.category))}</span>
           </div>
         </div>
         ${product.remark ? `<p class="product-remark">${escapeHTML(product.remark)}</p>` : ""}
@@ -6352,7 +6411,7 @@ function editProduct(id) {
   document.getElementById("productId").value = product.id;
   document.getElementById("productName").value = product.name;
   document.getElementById("nameCounter").textContent = `${Array.from(product.name).length} / 15`;
-  document.getElementById("productCategory").value = product.category;
+  document.getElementById("productCategory").value = normalizePrimaryProductCategoryV255(product.category);
   document.getElementById("productRemark").value = product.remark || "";
   document.getElementById("productStatusText").textContent = `正在编辑 ${product.id}`;
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -6721,7 +6780,7 @@ function setupImportModule(){
 }
 
 
-// ================= V25.4 Two-stage Import Save =================
+// ================= V25.5 Two-stage Import Save =================
 const IMPORT_DRAFTS_KEY_V242 = "importDraftsV242";
 const IMPORT_DRAFT_DELETED_IDS_KEY_V250 = "importDraftDeletedIdsV250";
 let activeImportDraftIdV242 = "";
@@ -6777,6 +6836,7 @@ function importDraftFingerprintV243(state) {
     virtualWarehousePrefixV240: String(row?.virtualWarehousePrefixV240 || ""),
     virtualWarehouseIndexV240: String(row?.virtualWarehouseIndexV240 || ""),
     virtualWarehouseCategoryV240: String(row?.virtualWarehouseCategoryV240 || ""),
+    preferredSubcategoryPrefixV255: String(row?.preferredSubcategoryPrefixV255 || ""),
     autoOriginalCostV249: String(row?.autoOriginalCostV249 || ""),
     autoOriginalCostSourceValueV249: String(row?.autoOriginalCostSourceValueV249 || ""),
     autoOriginalCostSourceCurrencyV249: String(row?.autoOriginalCostSourceCurrencyV249 || ""),
@@ -6937,6 +6997,7 @@ function collectImportDraftStateV242() {
       virtualWarehousePrefixV240: String(tr.dataset.virtualWarehousePrefixV240 || ""),
       virtualWarehouseIndexV240: String(tr.dataset.virtualWarehouseIndexV240 || ""),
       virtualWarehouseCategoryV240: String(tr.dataset.virtualWarehouseCategoryV240 || ""),
+      preferredSubcategoryPrefixV255: String(tr.dataset.preferredSubcategoryPrefixV255 || ""),
       autoOriginalCostV249: String(tr.dataset.autoOriginalCostV249 || ""),
       autoOriginalCostSourceValueV249: String(tr.dataset.autoOriginalCostSourceValueV249 || ""),
       autoOriginalCostSourceCurrencyV249: String(tr.dataset.autoOriginalCostSourceCurrencyV249 || ""),
@@ -6988,7 +7049,7 @@ function saveImportDraftV242() {
   activeImportDraftIdV242 = id;
   writeImportDraftsV242(next);
 
-  // V25.4: saving a draft must NEVER leave the original import editor.
+  // V25.5: saving a draft must NEVER leave the original import editor.
   // Keep the just-saved draft active and preserve every field in the same input area.
   // Some sync/view refresh paths may redraw the page after settings are queued; if that
   // unexpectedly leaves the import editor blank, restore this exact saved draft.
@@ -7033,6 +7094,7 @@ function applyImportDraftV242(draftId) {
     if (row.virtualWarehousePrefixV240) tr.dataset.virtualWarehousePrefixV240 = row.virtualWarehousePrefixV240;
     if (row.virtualWarehouseIndexV240 !== undefined) tr.dataset.virtualWarehouseIndexV240 = row.virtualWarehouseIndexV240;
     if (row.virtualWarehouseCategoryV240) tr.dataset.virtualWarehouseCategoryV240 = row.virtualWarehouseCategoryV240;
+    if (row.preferredSubcategoryPrefixV255) tr.dataset.preferredSubcategoryPrefixV255 = row.preferredSubcategoryPrefixV255;
     if (row.autoOriginalCostV249) tr.dataset.autoOriginalCostV249 = row.autoOriginalCostV249;
     if (row.autoOriginalCostSourceValueV249) tr.dataset.autoOriginalCostSourceValueV249 = row.autoOriginalCostSourceValueV249;
     if (row.autoOriginalCostSourceCurrencyV249) tr.dataset.autoOriginalCostSourceCurrencyV249 = row.autoOriginalCostSourceCurrencyV249;
@@ -7064,7 +7126,7 @@ function deleteImportDraftV242(draftId) {
   if (!draft) return;
   if (!confirm("⚠️ 确认删除这份草稿？\n\n这会永久删除尚未正式保存的进口草稿资料，删除后无法恢复。\n\n已正式保存的库存资料不会受到影响。")) return;
   const wasActiveV252 = String(activeImportDraftIdV242 || "") === String(draftId || "");
-  // V25.4 Local-First: clear active state and persist the tombstone immediately,
+  // V25.5 Local-First: clear active state and persist the tombstone immediately,
   // then clear the editor only when the deleted draft is the one currently open.
   if (wasActiveV252) activeImportDraftIdV242 = "";
   markImportDraftDeletedV250(draftId);
@@ -7084,7 +7146,7 @@ function consumeActiveImportDraftV242() {
   if (!activeImportDraftIdV242) return;
   const id = activeImportDraftIdV242;
   activeImportDraftIdV242 = "";
-  // V25.4: formal save is also a terminal removal of the draft. Without a
+  // V25.5: formal save is also a terminal removal of the draft. Without a
   // tombstone, a stale cloud copy can merge back and trigger the 24-hour reminder.
   markImportDraftDeletedV250(id);
   writeImportDraftsV242(getImportDraftsV242().filter(item => item.id !== id));
@@ -7098,7 +7160,7 @@ function formatDraftTimeV242(value) {
 }
 
 function renderImportDraftsV242() {
-  // V25.4: no large standalone draft module. The original import editor remains the
+  // V25.5: no large standalone draft module. The original import editor remains the
   // working area; only a lightweight entry is shown so drafts can be reopened after
   // clearing/reloading/leaving the page.
   const label = document.getElementById("activeDraftLabelV242");
@@ -7205,7 +7267,7 @@ function setupImportDraftV247() {
   document.getElementById("confirmFormalImportBtnV247")?.addEventListener("click", confirmFormalImportV247);
   document.getElementById("deleteCurrentImportDraftBtnV247")?.addEventListener("click", deleteCurrentImportDraftV247);
   document.getElementById("openImportDraftsBtnV248")?.addEventListener("click", openImportDraftPickerV248);
-  // V25.4: status follows every edit in the original import form.
+  // V25.5: status follows every edit in the original import form.
   const draftFormV249 = document.getElementById("batchImportForm");
   const refreshDraftStateV249 = () => window.requestAnimationFrame(() => renderImportDraftsV242());
   draftFormV249?.addEventListener("input", refreshDraftStateV249);
@@ -8603,7 +8665,7 @@ async function deleteBatchByNumber(importNumber) {
 
   if (!confirmed) return;
 
-  // V25.4: deletion can take time because cloud flush + pull-back verification
+  // V25.5: deletion can take time because cloud flush + pull-back verification
   // are intentionally strict. Give immediate, staged feedback instead of making
   // the user wait with an apparently idle screen.
   const deleteButtonV251 = Array.from(document.querySelectorAll('[data-delete-import-v251]')).find(btn =>
@@ -8691,7 +8753,7 @@ async function deleteBatchByNumber(importNumber) {
       await window.pullLatestAfterSalesCommitV83(true);
     }
 
-    // V25.4: if an older remote row resurrected a zero-stock orphan during the
+    // V25.5: if an older remote row resurrected a zero-stock orphan during the
     // verification pull, remove it once more with explicit Products tombstones.
     if (removedOrphanProductIdsV249.length) {
       const orphanIdSetV249 = new Set(removedOrphanProductIdsV249);
@@ -10973,7 +11035,7 @@ function getHistorySingleDateEventCount(
       normalizedKeyword
     );
 
-  // V25.4: count actual independent movement records. Multiple Import Numbers
+  // V25.5: count actual independent movement records. Multiple Import Numbers
   // on the same date must not collapse into one generic incoming event.
   const adjustmentCount = adjustments.filter(
     adjustment => Math.trunc(Number(adjustment.delta) || 0) !== 0
@@ -12147,7 +12209,7 @@ function renderBatchSuggestions(keyword = ""){
       .map(product => `
         <option value="${escapeHTML(product.name)}">
           ${escapeHTML(product.id)} ·
-          ${escapeHTML(product.category)}
+          ${escapeHTML(normalizePrimaryProductCategoryV255(product.category))}
         </option>
       `)
       .join("");
@@ -12188,7 +12250,7 @@ function applyBatchRate(){
 
 let batchCurrencyManuallySelectedV229 = false;
 let batchArrivalAutoFilledByMYRV230 = false;
-// V25.4: one currency-conflict acknowledgement per new import/draft.
+// V25.5: one currency-conflict acknowledgement per new import/draft.
 // It resets only when starting a genuinely new import, not on every row.
 let batchCurrencyConflictAcknowledgedV249 = false;
 
@@ -12626,21 +12688,7 @@ function getHistoricalProductCurrencyV231(product) {
 }
 
 function findManagedCategoryRuleByProductNameV232(name) {
-  const compact = normalizeProductPrefixKeywordV181(name);
-  if (!compact) return null;
-  const fuzzyReady = isProductFuzzySearchReadyV238(name);
-  const ignored = new Set(["盆栽", "杂花杂木", "其他"]);
-  return getProductCategoryRulesV228().find(rule => {
-    if (!rule || rule.mode !== "category" || ignored.has(rule.name)) return false;
-    const tokens = String(rule.name || "")
-      .split(/[\/／|、,，\s]+/)
-      .map(token => normalizeProductPrefixKeywordV181(token))
-      .filter(token => token.length >= 2);
-    return tokens.some(token =>
-      compact.includes(token) ||
-      (fuzzyReady && token.includes(compact))
-    );
-  }) || null;
+  return findNonBonsaiSubcategoryRuleV255(name);
 }
 
 function getRowSuggestedCurrencyV231(rowId) {
@@ -12680,7 +12728,7 @@ function maybeApplySuggestedBatchCurrencyV231(rowId, suggestedCurrency, label = 
     const message = `${label || "这个产品"} 的历史／默认进口货币为 ${wanted}，但同批其他产品对应 ${conflict}。\n\n同一个进口编号只能使用一种货币。请统一整批货币，或把不同货币产品分开建立进口编号。`;
     const status = document.getElementById("batchStatusText");
     if (status) status.textContent = message.replace(/\n+/g, " ");
-    // V25.4: user has already acknowledged this rule for the current import.
+    // V25.5: user has already acknowledged this rule for the current import.
     // Do not interrupt every subsequent product row with the same warning.
     if (!batchCurrencyConflictAcknowledgedV249) {
       batchCurrencyConflictAcknowledgedV249 = true;
@@ -12737,7 +12785,7 @@ function convertHistoricalOriginalCostForBatchV249(value, sourceCurrency, target
   const target = String(targetCurrency || "").trim().toUpperCase();
   if (!(amount > 0) || !source || !target || source === target) return amount;
 
-  // V25.4 exchange-rate direction: the stored rate is foreign-currency units per
+  // V25.5 exchange-rate direction: the stored rate is foreign-currency units per
   // MYR. So foreign -> MYR divides, MYR -> foreign multiplies, and foreign ->
   // foreign converts through MYR. Examples: 920 CNY / 1.60 = RM575.00;
   // RM35.00 * 1.60 = CNY56.00.
@@ -12838,7 +12886,7 @@ function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, c
     }
     const identityChanged = tr.dataset.lastIdentityNameV231 !== normalizedName;
     productIdField.value = product.id || "";
-    categoryField.value = normalizeProductCategoryNameV227(product.category) || "盆栽";
+    categoryField.value = normalizePrimaryProductCategoryV255(product.category);
     tr.dataset.categoryManualForName = normalizedName;
     tr.dataset.lastIdentityNameV231 = normalizedName;
     fillExistingProductOriginalCostV244(rowId, product, { force: identityChanged });
@@ -12851,7 +12899,7 @@ function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, c
     return;
   }
 
-  // V25.4: exact typing/paste of a Virtual Warehouse name behaves like clicking
+  // V25.5: exact typing/paste of a Virtual Warehouse name behaves like clicking
   // its suggestion. This runs only after the delayed identity check / blur.
   const exactVirtualV250 = findExactVirtualWarehouseByNameV250(name);
   if (exactVirtualV250) {
@@ -12889,7 +12937,9 @@ function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, c
   if (!fromCategoryChange && !manualForSameName) {
     const prefixRule = findNamePrefixRuleV231(name);
     const categoryRule = prefixRule ? null : findManagedCategoryRuleByProductNameV232(name);
-    categoryField.value = prefixRule ? "盆栽" : (categoryRule?.name || "杂花杂木");
+    categoryField.value = prefixRule ? "盆栽" : "杂花杂木";
+    if (categoryRule?.prefix) tr.dataset.preferredSubcategoryPrefixV255 = normalizeCategoryPrefixV228(categoryRule.prefix);
+    else delete tr.dataset.preferredSubcategoryPrefixV255;
   }
   tr.dataset.lastIdentityNameV231 = normalizedName;
 
@@ -12985,7 +13035,7 @@ function positionBatchRowSuggestionBox(id) {
   const box = document.getElementById(`batchSuggestionBox-${id}`);
   if (!input || !box || box.hidden) return;
 
-  // V25.4: keep suggestions in the table row's normal document flow. The row
+  // V25.5: keep suggestions in the table row's normal document flow. The row
   // expands while suggestions are visible, so the next product row is never covered.
   box.style.left = "";
   box.style.top = "";
@@ -13131,7 +13181,7 @@ function renderBatchRowSuggestionBox(id) {
       const costLabel = cost > 0 ? ` · 原成本 ${formatMoney(cost)}${currency ? ` ${escapeHTML(currency)}` : ""}` : "";
       return `<button type="button" class="batch-product-suggestion-item" data-batch-suggestion="${escapeHTML(product.name)}">
         <strong>${escapeHTML(product.name)}</strong>
-        <small>${escapeHTML(product.id || "-")} · ${escapeHTML(product.category || "盆栽")}${costLabel}</small>
+        <small>${escapeHTML(product.id || "-")} · ${escapeHTML(normalizePrimaryProductCategoryV255(product.category || "盆栽"))}${costLabel}</small>
       </button>`;
     }).join("") + virtualWarehouseSuggestionsV240.map(item => `
       <button type="button" class="batch-product-suggestion-item batch-virtual-warehouse-suggestion-v240" data-batch-virtual-warehouse="${item._virtualIndexV240}">
@@ -13211,7 +13261,10 @@ function attachBatchRowEvents(id){
     if (productIdField) productIdField.value = "";
     const tr = document.querySelector(`#batchRows tr[data-row-id="${id}"]`);
     const currentName = n.value.trim().toLowerCase();
-    if (tr && tr.dataset.categoryManualForName && tr.dataset.categoryManualForName !== currentName) tr.dataset.categoryManualForName = "";
+    if (tr && tr.dataset.categoryManualForName && tr.dataset.categoryManualForName !== currentName) {
+      tr.dataset.categoryManualForName = "";
+      delete tr.dataset.preferredSubcategoryPrefixV255;
+    }
     if (tr && tr.dataset.virtualWarehouseNameV240 && tr.dataset.virtualWarehouseNameV240 !== currentName) {
       delete tr.dataset.virtualWarehouseNameV240;
       delete tr.dataset.virtualWarehousePrefixV240;
@@ -13271,9 +13324,14 @@ function attachBatchRowEvents(id){
       const categoryField = document.getElementById(`batchCategory-${id}`);
       const productIdField = document.getElementById(`batchProductId-${id}`);
       const tr = document.querySelector(`#batchRows tr[data-row-id="${id}"]`);
-      if (categoryField) categoryField.value = categoryRuleName;
+      const selectedSubRuleV255 = getProductCategoryRulesV228().find(rule => rule.name === categoryRuleName);
+      if (categoryField) categoryField.value = isPrimaryProductCategoryV255(categoryRuleName) ? categoryRuleName : "杂花杂木";
       if (productIdField) productIdField.value = "";
-      if (tr) tr.dataset.categoryManualForName = n.value.trim().toLowerCase();
+      if (tr) {
+        tr.dataset.categoryManualForName = n.value.trim().toLowerCase();
+        if (!isPrimaryProductCategoryV255(categoryRuleName) && selectedSubRuleV255?.prefix) tr.dataset.preferredSubcategoryPrefixV255 = normalizeCategoryPrefixV228(selectedSubRuleV255.prefix);
+        else delete tr.dataset.preferredSubcategoryPrefixV255;
+      }
       maybeApplySuggestedBatchCurrencyV231(id, "MYR", n.value.trim() || categoryRuleName);
       hideBatchRowSuggestionBox(id);
       calculateBatch();
@@ -13301,7 +13359,7 @@ function attachBatchRowEvents(id){
   n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();n.value=Array.from(t).slice(0,15).join("");n.dispatchEvent(new Event("input",{bubbles:true}));});
   [`batchQty-${id}`,`batchPrice-${id}`].forEach(k=>{const x=document.getElementById(k);x.addEventListener("focus",()=>x.select());x.addEventListener("input",calculateBatch);x.addEventListener("blur",()=>{if(!k.includes("Qty")&&!k.includes("Stock"))formatInputAmount(x);calculateBatch();});});
   document.getElementById(`batchPrice-${id}`).addEventListener("input", () => {
-    // V25.4: once the user manually edits an auto-seeded historical price,
+    // V25.5: once the user manually edits an auto-seeded historical price,
     // later currency/rate changes must never overwrite that manual quotation.
     const row = document.querySelector(`#batchRows tr[data-row-id="${id}"]`);
     if (row && row.dataset.settingAutoPriceV249 !== "1") {
@@ -13342,7 +13400,10 @@ function attachBatchRowEvents(id){
 
     productIdField.value = product?.id || "";
     const tr = document.querySelector(`#batchRows tr[data-row-id="${id}"]`);
-    if (tr) tr.dataset.categoryManualForName = name;
+    if (tr) {
+      tr.dataset.categoryManualForName = name;
+      delete tr.dataset.preferredSubcategoryPrefixV255;
+    }
     applyProductIdentityDefaultsV231(id, { fromCategoryChange: true, commitCurrency: true });
     calculateBatch();
   });
@@ -13358,7 +13419,7 @@ function removeBatchRow(id){
 }
 function collectBatchRows(){
   const rate=parseAmount(document.getElementById("batchRate").value),currency=document.getElementById("batchCurrency").value;
-  return Array.from(document.querySelectorAll("#batchRows tr")).map(tr=>{const id=Number(tr.dataset.rowId),name=document.getElementById(`batchName-${id}`).value.trim(),quantity=Math.max(0,Math.floor(parseAmount(document.getElementById(`batchQty-${id}`).value))),unitPrice=parseAmount(document.getElementById(`batchPrice-${id}`).value),stockAdded=quantity,foreignTotal=quantity*unitPrice,purchaseRM=rate>0?foreignTotal/rate:0,productId=document.getElementById(`batchProductId-${id}`).value,existing=getProducts().find(x=>x.id===productId),category=document.getElementById(`batchCategory-${id}`).value||"盆栽",rawPreferredPrefixV240=normalizeCategoryPrefixV228(tr.dataset.virtualWarehousePrefixV240||""),preferredPrefixV240=category==="盆栽"?getProductPrefix("盆栽",name):(getProductCategoryRulesV228().find(rule=>rule?.mode==="category"&&rule.name===category)?.prefix||rawPreferredPrefixV240||"QT");return{id,name,category,productId,preferredPrefixV240,quantity,unitPrice,stockAdded,currency,rate,foreignTotal,purchaseRM,oldStock:Number(existing?.stock)||0,oldAverage:Number(existing?.averageCost)||0};});
+  return Array.from(document.querySelectorAll("#batchRows tr")).map(tr=>{const id=Number(tr.dataset.rowId),name=document.getElementById(`batchName-${id}`).value.trim(),quantity=Math.max(0,Math.floor(parseAmount(document.getElementById(`batchQty-${id}`).value))),unitPrice=parseAmount(document.getElementById(`batchPrice-${id}`).value),stockAdded=quantity,foreignTotal=quantity*unitPrice,purchaseRM=rate>0?foreignTotal/rate:0,productId=document.getElementById(`batchProductId-${id}`).value,existing=getProducts().find(x=>x.id===productId),category=normalizePrimaryProductCategoryV255(document.getElementById(`batchCategory-${id}`).value||"盆栽"),rawPreferredPrefixV240=normalizeCategoryPrefixV228(tr.dataset.virtualWarehousePrefixV240||""),subPreferredPrefixV255=normalizeCategoryPrefixV228(tr.dataset.preferredSubcategoryPrefixV255||""),preferredPrefixV240=category==="盆栽"?getProductPrefix("盆栽",name):(category==="杂花杂木"?(subPreferredPrefixV255||rawPreferredPrefixV240||getProductPrefix("杂花杂木",name)||"ZZ"):(getProductCategoryRulesV228().find(rule=>rule?.mode==="category"&&rule.name===category)?.prefix||"QT"));return{id,name,category,productId,preferredPrefixV240,quantity,unitPrice,stockAdded,currency,rate,foreignTotal,purchaseRM,oldStock:Number(existing?.stock)||0,oldAverage:Number(existing?.averageCost)||0};});
 }
 function calculateBatch() {
   updateTransitDays();
@@ -14124,9 +14185,16 @@ function saveBatchImport() {
   };
 
   result.valid.forEach(item => {
-    let productIndex = products.findIndex(product =>
-      product.name.toLowerCase() === item.name.toLowerCase() && product.category === item.category
-    );
+    // V25.5: prefer the already resolved Product ID. This prevents a legacy
+    // fine-category product (e.g. Monstera 龟背竹) from being duplicated when
+    // the UI now correctly stores/shows the main category 杂花杂木.
+    let productIndex = products.findIndex(product => item.productId && String(product.id || "") === String(item.productId || ""));
+    if (productIndex === -1) {
+      productIndex = products.findIndex(product =>
+        product.name.toLowerCase() === item.name.toLowerCase() &&
+        normalizePrimaryProductCategoryV255(product.category) === item.category
+      );
+    }
     if (productIndex === -1) {
       products.push({
         id: item.preferredPrefixV240 ? generateNextProductIdFromPrefixV240(products, item.preferredPrefixV240) : generateNextProductId(products, item.category, item.name), name: item.name,
@@ -14138,15 +14206,19 @@ function saveBatchImport() {
     }
 
     const product = products[productIndex];
-    const oldStock = Number(product.stock) || 0;
-    const oldAverage = Number(product.averageCost) || 0;
+    if (normalizeProductCategoryNameV227(product.category) !== item.category) {
+      products[productIndex] = { ...product, category: item.category, updatedAt: new Date().toISOString() };
+    }
+    const activeProductV255 = products[productIndex];
+    const oldStock = Number(activeProductV255.stock) || 0;
+    const oldAverage = Number(activeProductV255.averageCost) || 0;
     const newStock = oldStock + item.stockAdded;
     const newAverage = newStock > 0
       ? ((oldStock * oldAverage) + (item.stockAdded * item.unitCost)) / newStock
       : item.unitCost;
 
     products[productIndex] = {
-      ...product, stock: newStock, averageCost: newAverage,
+      ...activeProductV255, stock: newStock, averageCost: newAverage,
       inventoryArchived: false, lastImport: batch.arrivalDate || "",
       updatedAt: new Date().toISOString()
     };
@@ -16988,7 +17060,7 @@ function renderInventoryManagementList() {
                 `).join("")}
               </div>
             ` : ""}
-            <div class="product-code inventory-product-code-v166">${escapeHTML(product.category)}</div>
+            <div class="product-code inventory-product-code-v166">${escapeHTML(normalizePrimaryProductCategoryV255(product.category))}</div>
             ${renderProductMediaButtonsV229(product.id, productMediaLinksV229)}
           </div>
           <div class="inventory-sold-quantity" title="按 Import History 的实际净售出数量计算">
@@ -18022,7 +18094,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "25.4",
+      version: "25.5",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18389,7 +18461,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V25.4 Stable",
+      updatedBy: "System V25.5 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
