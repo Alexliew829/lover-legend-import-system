@@ -5614,7 +5614,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .import-draft-reminder-card-v246{width:min(560px,100%);max-height:80vh;overflow:auto;background:var(--card,#fff);border-radius:14px;padding:16px;box-shadow:0 12px 40px rgba(0,0,0,.25)}
 .import-draft-reminder-head-v246{display:flex;align-items:center;justify-content:space-between;gap:12px}.import-draft-reminder-head-v246 strong{font-size:1.08rem}.import-draft-reminder-card-v246 p{margin:10px 0}.import-draft-reminder-list-v246{display:grid;gap:8px}.import-draft-reminder-list-v246 button{text-align:left}
 
-/* V25.9 media cloud-save status */
+/* V26.0 media cloud-save status */
 .inventory-media-feedback-v252{font-size:.82rem;font-weight:800;align-self:center;white-space:nowrap;}
 .inventory-media-feedback-v252.pending{opacity:.78;}
 .inventory-media-feedback-v252.success{font-weight:900;}
@@ -5622,7 +5622,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 @media(max-width:680px){.inventory-media-feedback-v252{font-size:.8rem;grid-column:1/-1;}}
 
 
-/* V25.9 — saved media link color follows its presence dot: photo = yellow, video = blue. */
+/* V26.0 — saved media link color follows its presence dot: photo = yellow, video = blue. */
 .inventory-media-open-v230.inventory-media-saved-v254.inventory-media-photo-v254{
   color:#7a5a00;
   border-color:#e3c65c;
@@ -5635,7 +5635,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 
-/* V25.9 — Recent product result card: product name is the visual lead; IDs are supporting data. */
+/* V26.0 — Recent product result card: product name is the visual lead; IDs are supporting data. */
 .product-stock-card-v256 {
   display: block !important;
   padding: 14px;
@@ -5782,7 +5782,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 
-/* V25.9 — recent import/search product identity stays compact and adjacent; mobile long-press must not select whole cards. */
+/* V26.0 — recent import/search product identity stays compact and adjacent; mobile long-press must not select whole cards. */
 .product-stock-title-row-v256 {
   justify-content: flex-start;
 }
@@ -5820,7 +5820,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 
-/* V25.9 — mobile-only ChatGPT invoice/photo assistant. Isolated from V25.7 import/save/delete core. */
+/* V26.0 — mobile-only ChatGPT invoice/photo assistant. Isolated from V25.7 import/save/delete core. */
 .invoice-assistant-v258{margin:10px 0 14px;padding:12px 14px;border:1px solid #d8e6dc;border-radius:12px;background:#f8fcf9}
 .invoice-assistant-head-v258{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .invoice-assistant-head-v258 strong{font-size:16px}
@@ -5833,7 +5833,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 @media (min-width: 769px){.invoice-photo-btn-v258{opacity:.55;cursor:not-allowed}}
 
 
-/* V25.9 — multi-page ChatGPT recognition draft preview. Isolated from import calculation/save/delete core. */
+/* V26.0 — multi-page ChatGPT recognition draft preview. Isolated from import calculation/save/delete core. */
 .invoice-assistant-actions-v259{display:flex;gap:8px;flex-wrap:wrap}
 .invoice-modal-v259{position:fixed;inset:0;z-index:12000;background:rgba(0,0,0,.48);display:flex;align-items:center;justify-content:center;padding:14px}
 .invoice-modal-v259[hidden]{display:none!important}
