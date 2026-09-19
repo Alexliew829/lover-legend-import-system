@@ -5880,3 +5880,9 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .virtual-warehouse-row-v240{grid-template-columns:minmax(220px,1.5fr) minmax(220px,1.5fr) 90px!important}.virtual-cost-v264{text-align:right!important;font-variant-numeric:tabular-nums}
 .master-num-v264{text-align:right!important;font-variant-numeric:tabular-nums}
 @media(max-width:720px){.desktop-label-v265{display:none}.mobile-label-v265{display:inline}.inventory-title-row{align-items:flex-start!important}.inventory-title-row h3{white-space:nowrap!important}.inventory-title-summary{font-size:.82rem!important;gap:6px!important}.inventory-title-summary span{white-space:nowrap}.inventory-product-name-copy{font-size:.98rem!important}.inventory-english-secondline-v265{font-size:1rem!important}.virtual-warehouse-row-v240{grid-template-columns:minmax(0,1fr) 72px!important}.virtual-warehouse-description-v240{grid-column:1/2!important;white-space:normal!important}.virtual-cost-v264{grid-column:2/3!important;grid-row:1/3!important;align-self:center!important}}
+
+/* V26.6 UI-only: supplier/product management labels, English edit row, price badge stacking. */
+.supplier-product-management-title-v266{margin:22px 0 10px;font-size:22px;font-weight:800}
+.product-stock-english-edit-btn-v266{display:block;border:0;background:transparent;padding:2px 0 8px;color:#33483d;font-size:15px;font-weight:700;text-align:left;cursor:pointer;max-width:100%}
+.master-price-main-v266{display:block;text-align:right;white-space:nowrap}.master-price-badge-v266{display:block;text-align:right;font-size:11px;line-height:1.1;margin-top:2px}.master-price-badge-v266 .inventory-promotion-margin-v209{margin:0}
+@media(max-width:700px){.inventory-sales-summary-v146{transform:translateY(10px)}.product-stock-english-edit-btn-v266{font-size:17px;font-weight:800}}

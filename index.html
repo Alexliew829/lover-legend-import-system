@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=26.5" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=26.5" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=26.5" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=26.5" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=26.5" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=26.5" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=26.5" />
+  <link rel="manifest" href="./manifest.json?v=26.6" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=26.6" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=26.6" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=26.6" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=26.6" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=26.6" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=26.6" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=26.5" />
-  <link rel="stylesheet" href="./css/style.css?v=26.5" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=26.6" />
+  <link rel="stylesheet" href="./css/style.css?v=26.6" />
 </head>
 <body>
   <div id="accessLock"
@@ -84,7 +84,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 26.5 Stable</div>
+          <div class="app-header-version">正式版 26.6 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -203,7 +203,7 @@
       <section id="importPage" class="page">
         <section class="panel">
           <div class="section-title-row batch-products-topbar">
-            <h2>同批进口产品</h2>
+            <h2>进口和产品管理</h2>
             <div class="batch-lookup-group">
               <div class="batch-inline-lookup">
                 <label for="batchLookupInput">进口编号</label>
@@ -512,12 +512,12 @@
 
 
       <section id="supplierPage" class="page">
-        <h2>供应商资料</h2>
+        <h2>供应商管理</h2>
         <details class="panel supplier-directory-v261" id="supplierDirectoryPanelV265">
           <summary class="supplier-directory-summary-v265"><span>供应商前缀管理</span><small>点击打开／收起</small></summary>
           <div class="supplier-page-head-v261">
             <div>
-              <h3>供应商资料</h3>
+              <h3>供应商管理</h3>
               <p class="settings-help">供应商前缀管理已从设置移到这里。地址、联络号码、默认货币、备注都可以留空；不会参与 Product ID 生成，也不会改动现有库存编号。</p>
             </div>
             <button id="exportSupplierExcelV263" class="secondary-btn" type="button">导出供应商 Excel</button>
@@ -542,6 +542,41 @@
             </table>
           </div>
         </details>
+
+        <h2 class="supplier-product-management-title-v266">产品管理</h2>
+        <section class="panel product-rules-manager-v235">
+          <h3>产品编号与类别规则管理</h3>
+          <p class="settings-help">盆栽与非盆栽的编号规则集中在这里管理，但两套逻辑仍然独立：盆栽按产品名称关键词判断；非盆栽按产品类别判断。未使用规则可修改／删除，实际使用后按现有保护逻辑锁定。</p>
+          <div class="product-rules-manager-inner-v235">
+        <details class="collapsible-settings-v181 product-prefix-settings-v181 rules-subpanel-v235">
+          <summary><span>盆栽前缀规则</span><small>按产品名称关键词生成编号前缀</small></summary>
+          <p class="settings-help">
+            系统／历史规则保持锁定。你新增的盆栽名称关键词和前缀，在尚未有真实进口产品使用前可以修改；一旦有进口记录／库存历史就会自动锁定。只影响以后新增产品，现有产品编号永远不会自动改号。
+          </p>
+          <div class="product-prefix-locked-head-v181"><span>产品名称关键词</span><span>编号前缀</span></div>
+          <div id="productPrefixRulesList" class="product-prefix-locked-list-v181"></div>
+          <div class="product-prefix-add-v181">
+            <label>新产品名称关键词<input id="newProductPrefixKeyword" maxlength="20" autocomplete="off" placeholder="例如：榕树" /></label>
+            <label>新编号前缀<input id="newProductPrefixCode" maxlength="2" autocomplete="off" autocapitalize="characters" placeholder="例如：RS" /></label>
+          </div>
+          <button id="addProductPrefixRuleBtn" class="primary-btn" type="button">新增产品前缀</button>
+          <div id="productPrefixRulesStatus" class="status-text"></div>
+          <p class="settings-help">这里只管理「盆栽」产品的名称关键词前缀；例如黄杨 → BX。盆栽无法识别时使用 PZ。非盆栽产品一律由「产品类别管理」的类别前缀生成编号。</p>
+        </details>
+
+        <details class="collapsible-settings-v181 product-category-settings-v227 rules-subpanel-v235">
+          <summary><span>非盆栽前缀规则</span><small>杂花杂木细分类与其他主分类编号前缀</small></summary>
+          <p class="settings-help">主分类固定为：盆栽、杂花杂木、肥料 / 农药、泥土 / 介质、花盆、工具、其他。杂花杂木可再按产品名称识别虎尾兰、竹芋/芋头叶、发财树、榕属、龟背竹等细分类；无法识别时统一使用 ZZ。盆栽规则请在上方「盆栽前缀规则」管理，无法识别时统一使用 PZ。</p>
+          <div id="productCategoryRulesList" class="product-category-list-v227"></div>
+          <div class="product-category-add-v227">
+            <label>新增产品类别<input id="newProductCategoryName" maxlength="24" autocomplete="off" placeholder="例如：园艺用品" /></label>
+            <label>编号前缀<input id="newProductCategoryPrefix" maxlength="2" autocomplete="off" placeholder="例如：YY" /></label>
+            <button id="addProductCategoryBtn" class="primary-btn" type="button">新增产品类别</button>
+          </div>
+          <div id="productCategoryStatus" class="status-text"></div>
+          </div>
+        </section>
+
 
         <details class="panel inventory-master-v261" id="inventoryMasterPanelV264">
           <summary class="inventory-master-summary-v264"><span>库存资料总表</span><small>点击打开／收起</small></summary>
@@ -709,38 +744,6 @@
           <div id="promotionStatusV183" class="status-text"></div>
         </details>
 
-        <section class="panel product-rules-manager-v235">
-          <h3>产品编号与类别规则管理</h3>
-          <p class="settings-help">盆栽与非盆栽的编号规则集中在这里管理，但两套逻辑仍然独立：盆栽按产品名称关键词判断；非盆栽按产品类别判断。未使用规则可修改／删除，实际使用后按现有保护逻辑锁定。</p>
-          <div class="product-rules-manager-inner-v235">
-        <details class="collapsible-settings-v181 product-prefix-settings-v181 rules-subpanel-v235">
-          <summary><span>盆栽前缀规则</span><small>按产品名称关键词生成编号前缀</small></summary>
-          <p class="settings-help">
-            系统／历史规则保持锁定。你新增的盆栽名称关键词和前缀，在尚未有真实进口产品使用前可以修改；一旦有进口记录／库存历史就会自动锁定。只影响以后新增产品，现有产品编号永远不会自动改号。
-          </p>
-          <div class="product-prefix-locked-head-v181"><span>产品名称关键词</span><span>编号前缀</span></div>
-          <div id="productPrefixRulesList" class="product-prefix-locked-list-v181"></div>
-          <div class="product-prefix-add-v181">
-            <label>新产品名称关键词<input id="newProductPrefixKeyword" maxlength="20" autocomplete="off" placeholder="例如：榕树" /></label>
-            <label>新编号前缀<input id="newProductPrefixCode" maxlength="2" autocomplete="off" autocapitalize="characters" placeholder="例如：RS" /></label>
-          </div>
-          <button id="addProductPrefixRuleBtn" class="primary-btn" type="button">新增产品前缀</button>
-          <div id="productPrefixRulesStatus" class="status-text"></div>
-          <p class="settings-help">这里只管理「盆栽」产品的名称关键词前缀；例如黄杨 → BX。盆栽无法识别时使用 PZ。非盆栽产品一律由「产品类别管理」的类别前缀生成编号。</p>
-        </details>
-
-        <details class="collapsible-settings-v181 product-category-settings-v227 rules-subpanel-v235">
-          <summary><span>非盆栽前缀规则</span><small>杂花杂木细分类与其他主分类编号前缀</small></summary>
-          <p class="settings-help">主分类固定为：盆栽、杂花杂木、肥料 / 农药、泥土 / 介质、花盆、工具、其他。杂花杂木可再按产品名称识别虎尾兰、竹芋/芋头叶、发财树、榕属、龟背竹等细分类；无法识别时统一使用 ZZ。盆栽规则请在上方「盆栽前缀规则」管理，无法识别时统一使用 PZ。</p>
-          <div id="productCategoryRulesList" class="product-category-list-v227"></div>
-          <div class="product-category-add-v227">
-            <label>新增产品类别<input id="newProductCategoryName" maxlength="24" autocomplete="off" placeholder="例如：园艺用品" /></label>
-            <label>编号前缀<input id="newProductCategoryPrefix" maxlength="2" autocomplete="off" placeholder="例如：YY" /></label>
-            <button id="addProductCategoryBtn" class="primary-btn" type="button">新增产品类别</button>
-          </div>
-          <div id="productCategoryStatus" class="status-text"></div>
-          </div>
-        </section>
 
 
 
@@ -955,7 +958,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 26.5 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 26.6 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
@@ -990,9 +993,9 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=26.5"></script>
-  <script src="./js/sync.js?v=26.5"></script>
-  <script src="./js/virtual-warehouse.js?v=26.5"></script>
-  <script src="./js/app.js?v=26.5"></script>
+  <script src="./js/common.js?v=26.6"></script>
+  <script src="./js/sync.js?v=26.6"></script>
+  <script src="./js/virtual-warehouse.js?v=26.6"></script>
+  <script src="./js/app.js?v=26.6"></script>
 </body>
 </html>
