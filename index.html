@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=26.4" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=26.4" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=26.4" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=26.4" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=26.4" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=26.4" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=26.4" />
+  <link rel="manifest" href="./manifest.json?v=26.5" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=26.5" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=26.5" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=26.5" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=26.5" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=26.5" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=26.5" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=26.4" />
-  <link rel="stylesheet" href="./css/style.css?v=26.4" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=26.5" />
+  <link rel="stylesheet" href="./css/style.css?v=26.5" />
 </head>
 <body>
   <div id="accessLock"
@@ -84,7 +84,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 26.4 Stable</div>
+          <div class="app-header-version">正式版 26.5 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -149,8 +149,8 @@
           <div class="section-title-row inventory-title-row">
             <h3>库存管理</h3>
             <div class="inventory-title-summary">
-              <span class="inventory-filter-stock">当前库存：<strong id="inventoryFilteredStock">0</strong></span>
-              <span class="inventory-filter-value">库存成本：<strong id="inventoryFilteredValue">RM 0.00</strong></span>
+              <span class="inventory-filter-stock"><i class="desktop-label-v265">当前库存：</i><i class="mobile-label-v265">库存：</i><strong id="inventoryFilteredStock">0</strong></span>
+              <span class="inventory-filter-value"><i class="desktop-label-v265">库存成本：</i><i class="mobile-label-v265">成本：</i><strong id="inventoryFilteredValue">RM 0.00</strong></span>
               <span class="muted" id="inventoryPageCount">0 项</span>
             </div>
           </div>
@@ -513,7 +513,8 @@
 
       <section id="supplierPage" class="page">
         <h2>供应商资料</h2>
-        <section class="panel supplier-directory-v261">
+        <details class="panel supplier-directory-v261" id="supplierDirectoryPanelV265">
+          <summary class="supplier-directory-summary-v265"><span>供应商前缀管理</span><small>点击打开／收起</small></summary>
           <div class="supplier-page-head-v261">
             <div>
               <h3>供应商资料</h3>
@@ -540,7 +541,7 @@
               <tbody id="supplierListV261"></tbody>
             </table>
           </div>
-        </section>
+        </details>
 
         <details class="panel inventory-master-v261" id="inventoryMasterPanelV264">
           <summary class="inventory-master-summary-v264"><span>库存资料总表</span><small>点击打开／收起</small></summary>
@@ -551,7 +552,7 @@
           <div class="inventory-master-toolbar-v264">
             <input id="inventoryMasterSearchV261" class="search-input text-left-input" type="search" placeholder="搜索产品名称、编号、英文名、进口编号或原成本" autocomplete="off" />
             <select id="inventoryMasterSortV264">
-              <option value="latest">最近进口</option><option value="name">产品名称</option><option value="stock-desc">库存最多</option><option value="stock-asc">库存最少</option><option value="value-desc">库存成本最高</option><option value="cost-desc">平均成本最高</option>
+              <option value="latest">最近进口</option><option value="latest-sold">最近售出</option><option value="name">产品名称</option><option value="bestseller-desc">畅销商品</option><option value="profit-desc">利润最高</option><option value="stock-desc">库存最多</option><option value="stock-asc">库存最少</option><option value="value-desc">库存成本最高</option><option value="cost-desc">平均成本最高</option>
             </select>
           </div>
           <div class="inventory-master-summaryline-v264"><span>当前库存：<strong id="inventoryMasterStockV264">0</strong></span><span>库存成本：<strong id="inventoryMasterValueV264">RM 0.00</strong></span><span id="inventoryMasterCountV261">0 项</span></div>
@@ -954,7 +955,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 26.4 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 26.5 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
@@ -977,11 +978,11 @@
       <a class="nav-btn" data-page="importPage" href="./?page=import">
         <span>📦</span><small>产品/进口<br>查询/新增</small>
       </a>
-      <a class="nav-btn" data-page="historyPage" href="./?page=history">
-        <span>📜</span><small>历史查询</small>
-      </a>
       <a class="nav-btn" data-page="supplierPage" href="./?page=supplier">
         <span>🏷️</span><small>供应商</small>
+      </a>
+      <a class="nav-btn" data-page="historyPage" href="./?page=history">
+        <span>📜</span><small>历史查询</small>
       </a>
       <a class="nav-btn" data-page="settingsPage" href="./?page=settings">
         <span>⚙️</span><small>设置</small>
@@ -989,9 +990,9 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=26.4"></script>
-  <script src="./js/sync.js?v=26.4"></script>
-  <script src="./js/virtual-warehouse.js?v=26.4"></script>
-  <script src="./js/app.js?v=26.4"></script>
+  <script src="./js/common.js?v=26.5"></script>
+  <script src="./js/sync.js?v=26.5"></script>
+  <script src="./js/virtual-warehouse.js?v=26.5"></script>
+  <script src="./js/app.js?v=26.5"></script>
 </body>
 </html>
