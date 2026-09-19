@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=26.2" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=26.2" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=26.2" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=26.2" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=26.2" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=26.2" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=26.2" />
+  <link rel="manifest" href="./manifest.json?v=26.3" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=26.3" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=26.3" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=26.3" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=26.3" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=26.3" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=26.3" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=26.2" />
-  <link rel="stylesheet" href="./css/style.css?v=26.2" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=26.3" />
+  <link rel="stylesheet" href="./css/style.css?v=26.3" />
 </head>
 <body>
   <div id="accessLock"
@@ -84,7 +84,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 26.2 Stable</div>
+          <div class="app-header-version">正式版 26.3 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -223,10 +223,10 @@
 
           <form id="batchImportForm">
 
-            <section id="invoiceAssistantV258" class="invoice-assistant-v258" aria-label="ChatGPT 发票识别进口">
+            <section id="invoiceAssistantV258" class="invoice-assistant-v258" aria-label="识别发票进口">
               <div class="invoice-assistant-head-v258">
                 <div>
-                  <strong>📷 ChatGPT 发票识别</strong>
+                  <strong>📷 识别发票</strong>
                   <div class="clear-help">手机可拍照或上传多页 Invoice / DO；识别后先生成独立识别草稿，不会直接带入进口资料。</div>
                 </div>
                 <div class="invoice-assistant-actions-v259">
@@ -519,14 +519,14 @@
               <h3>供应商资料</h3>
               <p class="settings-help">供应商前缀管理已从设置移到这里。地址、联络号码、默认货币、备注都可以留空；不会参与 Product ID 生成，也不会改动现有库存编号。</p>
             </div>
-            <button id="exportInventoryMasterExcelV261" class="secondary-btn" type="button">导出库存资料 Excel</button>
+            <button id="exportSupplierExcelV263" class="secondary-btn" type="button">导出供应商 Excel</button>
           </div>
           <div class="supplier-form-v261">
             <label>供应商名字<input id="supplierNameV261" autocomplete="off" placeholder="例如 Ocean Landscaping Nursery" /></label>
             <label>供应商前缀<input id="supplierPrefixV261" autocomplete="off" placeholder="例如 OLN / 忠盛" /></label>
             <label>地址<input id="supplierAddressV261" autocomplete="off" placeholder="可留空" /></label>
             <label>联络号码<input id="supplierPhoneV261" autocomplete="off" placeholder="可留空" /></label>
-            <label>对应货币<select id="supplierCurrencyV261"><option value="">留空</option><option>MYR</option><option>CNY</option><option>VND</option><option>NTD</option><option>IDR</option></select></label>
+            <label>对应货币<select id="supplierCurrencyV261"><option value="" selected hidden></option><option>MYR</option><option>CNY</option><option>VND</option><option>NTD</option><option>IDR</option></select></label>
             <label>备注<input id="supplierNoteV261" autocomplete="off" placeholder="可留空" /></label>
           </div>
           <div class="supplier-form-actions-v261">
@@ -536,7 +536,7 @@
           <div id="supplierStatusV261" class="status-text"></div>
           <div class="supplier-table-wrap-v261">
             <table class="supplier-table-v261">
-              <thead><tr><th>供应商</th><th>前缀</th><th>地址</th><th>联络</th><th>货币</th><th>操作</th></tr></thead>
+              <thead><tr><th>供应商</th><th>前缀</th><th>操作</th></tr></thead>
               <tbody id="supplierListV261"></tbody>
             </table>
           </div>
@@ -544,13 +544,14 @@
 
         <section class="panel inventory-master-v261">
           <div class="supplier-page-head-v261">
-            <div><h3>库存资料总表</h3><p class="settings-help">只读资料。中文名就是系统现有完整产品名；英文名只保留简短树种名称。页面只显示重要资料，完整库存资料请导出 Excel。</p></div>
-            <input id="inventoryMasterSearchV261" class="search-input text-left-input" type="search" placeholder="搜索产品编号、中文名、英文名、供应商前缀" autocomplete="off" />
+            <div><h3>库存资料总表</h3><p class="settings-help">只读资料。中文名就是系统现有完整产品名；英文名只保留简短树种名称。产品编号、中文名、英文名可点击复制。</p></div>
+            <button id="exportInventoryMasterExcelV261" class="secondary-btn" type="button">导出库存 Excel</button>
+            <input id="inventoryMasterSearchV261" class="search-input text-left-input" type="search" placeholder="搜索产品编号、中文名、英文名、供应商" autocomplete="off" />
           </div>
           <div id="inventoryMasterCountV261" class="status-text"></div>
           <div class="inventory-master-wrap-v261">
             <table class="inventory-master-table-v261">
-              <thead><tr><th>产品编号</th><th>中文名</th><th>英文名</th><th>供应商前缀</th><th>当前库存</th><th>平均成本</th><th>最低售价</th></tr></thead>
+              <thead><tr><th>产品编号</th><th>中文名</th><th>英文名</th><th>当前库存</th><th>平均成本</th><th>最低售价</th></tr></thead>
               <tbody id="inventoryMasterBodyV261"></tbody>
             </table>
           </div>
@@ -947,7 +948,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 26.2 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 26.3 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
@@ -982,9 +983,9 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=26.2"></script>
-  <script src="./js/sync.js?v=26.2"></script>
-  <script src="./js/virtual-warehouse.js?v=26.2"></script>
-  <script src="./js/app.js?v=26.2"></script>
+  <script src="./js/common.js?v=26.3"></script>
+  <script src="./js/sync.js?v=26.3"></script>
+  <script src="./js/virtual-warehouse.js?v=26.3"></script>
+  <script src="./js/app.js?v=26.3"></script>
 </body>
 </html>
