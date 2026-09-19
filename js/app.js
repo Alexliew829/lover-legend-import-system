@@ -3240,7 +3240,7 @@ function applyVirtualWarehouseSelectionV240(rowId, indexValue) {
   tr.dataset.virtualWarehouseIndexV240 = String(indexValue);
   tr.dataset.virtualWarehouseCategoryV240 = categoryField.value;
   if (Number.isFinite(Number(item.cost)) && Number(item.cost) > 0) {
-    // V25.7: virtual-warehouse reference costs are MYR supplier costs. Seed them
+    // V25.8: virtual-warehouse reference costs are MYR supplier costs. Seed them
     // through the same auto-original-cost path so foreign batches convert them.
     setAutoOriginalCostV249(rowId, { unitPrice: Number(item.cost), currency: "MYR" }, { force: true });
   }
@@ -5189,7 +5189,7 @@ function normalizeProductMinimumPriceV160(product, configuredRules = null, confi
   };
 }
 
-// V25.7: legacy Product IDs are historical-reference only. They must never
+// V25.8: legacy Product IDs are historical-reference only. They must never
 // participate in live product search, import selection, inventory operations,
 // virtual-product conversion, or new business workflows. Historical Import /
 // inventory records remain untouched and can still display the original ID.
@@ -5242,7 +5242,7 @@ const PRIMARY_PRODUCT_CATEGORIES_V255 = Object.freeze([
 ]);
 
 const DEFAULT_PRODUCT_CATEGORY_RULES_V228 = Object.freeze([
-  // V25.7: the import/product page has only seven MAIN categories.
+  // V25.8: the import/product page has only seven MAIN categories.
   // The additional rows below are non-bonsai SUBCATEGORY name rules used only
   // to choose a more specific Product ID prefix inside 杂花杂木.
   { name: "盆栽", prefix: "PZ", mode: "name" },
@@ -5267,9 +5267,9 @@ function isPrimaryProductCategoryV255(value) {
 function normalizePrimaryProductCategoryV255(value) {
   const wanted = normalizeProductCategoryNameV227(value);
   if (PRIMARY_PRODUCT_CATEGORIES_V255.includes(wanted)) return wanted;
-  // Legacy V25.7 and earlier stored non-bonsai fine classes (MO/SS/CL/FI...)
+  // Legacy V25.8 and earlier stored non-bonsai fine classes (MO/SS/CL/FI...)
   // directly in category. Keep the historical data untouched, but present and
-  // treat those rows as the main category 杂花杂木 from V25.7 onward.
+  // treat those rows as the main category 杂花杂木 from V25.8 onward.
   if (getProductCategoryRulesV228().some(rule => rule?.mode === "category" && rule.name === wanted)) return "杂花杂木";
   return wanted || "盆栽";
 }
@@ -5371,7 +5371,7 @@ function getProductCategoryRulesV228() {
     result.push({ name, prefix, mode, locked, lockedByUsageV229 });
   });
   if (!result.some(rule => rule.name === "盆栽")) result.unshift({ name: "盆栽", prefix: "PZ", mode: "name", locked: true });
-  // V25.7: the seven main categories must always be available. This does not
+  // V25.8: the seven main categories must always be available. This does not
   // change any existing Product ID or historical record.
   PRIMARY_PRODUCT_CATEGORIES_V255.forEach(name => {
     if (result.some(rule => rule.name === name)) return;
@@ -5383,7 +5383,7 @@ function getProductCategoryRulesV228() {
 }
 
 function getProductCategoriesV227() {
-  // V25.7: UI categories are MAIN categories only. Fine-class rules such as
+  // V25.8: UI categories are MAIN categories only. Fine-class rules such as
   // Monstera / Ficus / 虎尾兰 only decide the Product ID prefix.
   return PRIMARY_PRODUCT_CATEGORIES_V255.slice();
 }
@@ -6629,7 +6629,7 @@ function setupImportModule(){
       lastNotFoundBatchLookup = "";
     }
 
-    // V25.7 iPhone: the keyboard accessory-bar ✓ can commit/hide the
+    // V25.8 iPhone: the keyboard accessory-bar ✓ can commit/hide the
     // keyboard without emitting Enter and, on some iOS/browser combinations,
     // without a useful blur/change event. As soon as the typed value becomes an
     // exact saved import/tracking number, perform the same lookup after a short
@@ -6804,7 +6804,7 @@ function setupImportModule(){
 }
 
 
-// ================= V25.7 Two-stage Import Save =================
+// ================= V25.8 Two-stage Import Save =================
 const IMPORT_DRAFTS_KEY_V242 = "importDraftsV242";
 const IMPORT_DRAFT_DELETED_IDS_KEY_V250 = "importDraftDeletedIdsV250";
 let activeImportDraftIdV242 = "";
@@ -7031,7 +7031,7 @@ function collectImportDraftStateV242() {
   const val = id => String(document.getElementById(id)?.value || "").trim();
   return {
     rows,
-    meta: { currencyConflictAcknowledgedV249: Boolean(batchCurrencyConflictAcknowledgedV249) },
+    meta: { currencyConflictAcknowledgedV249: Boolean(batchCurrencyConflictAcknowledgedV249), invoiceCheckV258: (typeof window.getInvoiceSourceV258 === "function" ? window.getInvoiceSourceV258() : null) },
     common: {
       trackingNumber: val("batchTrackingNumber"),
       rackQuantity: val("batchRackQuantity"),
@@ -7073,7 +7073,7 @@ function saveImportDraftV242() {
   activeImportDraftIdV242 = id;
   writeImportDraftsV242(next);
 
-  // V25.7: saving a draft must NEVER leave the original import editor.
+  // V25.8: saving a draft must NEVER leave the original import editor.
   // Keep the just-saved draft active and preserve every field in the same input area.
   // Some sync/view refresh paths may redraw the page after settings are queued; if that
   // unexpectedly leaves the import editor blank, restore this exact saved draft.
@@ -7125,6 +7125,7 @@ function applyImportDraftV242(draftId) {
     if (row.priceManuallyEditedV249) tr.dataset.priceManuallyEditedV249 = row.priceManuallyEditedV249;
   });
   batchCurrencyConflictAcknowledgedV249 = Boolean(draft?.meta?.currencyConflictAcknowledgedV249);
+  if (typeof window.setInvoiceSourceV258 === "function") window.setInvoiceSourceV258(draft?.meta?.invoiceCheckV258 || null);
   const common = draft.common || {};
   const set = (id, value) => { const el = document.getElementById(id); if (el) el.value = value ?? ""; };
   set("batchTrackingNumber", common.trackingNumber);
@@ -7150,7 +7151,7 @@ function deleteImportDraftV242(draftId) {
   if (!draft) return;
   if (!confirm("⚠️ 确认删除这份草稿？\n\n这会永久删除尚未正式保存的进口草稿资料，删除后无法恢复。\n\n已正式保存的库存资料不会受到影响。")) return;
   const wasActiveV252 = String(activeImportDraftIdV242 || "") === String(draftId || "");
-  // V25.7 Local-First: clear active state and persist the tombstone immediately,
+  // V25.8 Local-First: clear active state and persist the tombstone immediately,
   // then clear the editor only when the deleted draft is the one currently open.
   if (wasActiveV252) activeImportDraftIdV242 = "";
   markImportDraftDeletedV250(draftId);
@@ -7170,7 +7171,7 @@ function consumeActiveImportDraftV242() {
   if (!activeImportDraftIdV242) return;
   const id = activeImportDraftIdV242;
   activeImportDraftIdV242 = "";
-  // V25.7: formal save is also a terminal removal of the draft. Without a
+  // V25.8: formal save is also a terminal removal of the draft. Without a
   // tombstone, a stale cloud copy can merge back and trigger the 24-hour reminder.
   markImportDraftDeletedV250(id);
   writeImportDraftsV242(getImportDraftsV242().filter(item => item.id !== id));
@@ -7184,7 +7185,7 @@ function formatDraftTimeV242(value) {
 }
 
 function renderImportDraftsV242() {
-  // V25.7: no large standalone draft module. The original import editor remains the
+  // V25.8: no large standalone draft module. The original import editor remains the
   // working area; only a lightweight entry is shown so drafts can be reopened after
   // clearing/reloading/leaving the page.
   const label = document.getElementById("activeDraftLabelV242");
@@ -7291,7 +7292,7 @@ function setupImportDraftV247() {
   document.getElementById("confirmFormalImportBtnV247")?.addEventListener("click", confirmFormalImportV247);
   document.getElementById("deleteCurrentImportDraftBtnV247")?.addEventListener("click", deleteCurrentImportDraftV247);
   document.getElementById("openImportDraftsBtnV248")?.addEventListener("click", openImportDraftPickerV248);
-  // V25.7: status follows every edit in the original import form.
+  // V25.8: status follows every edit in the original import form.
   const draftFormV249 = document.getElementById("batchImportForm");
   const refreshDraftStateV249 = () => window.requestAnimationFrame(() => renderImportDraftsV242());
   draftFormV249?.addEventListener("input", refreshDraftStateV249);
@@ -8689,7 +8690,7 @@ async function deleteBatchByNumber(importNumber) {
 
   if (!confirmed) return;
 
-  // V25.7: deletion can take time because cloud flush + pull-back verification
+  // V25.8: deletion can take time because cloud flush + pull-back verification
   // are intentionally strict. Give immediate, staged feedback instead of making
   // the user wait with an apparently idle screen.
   const deleteButtonV251 = Array.from(document.querySelectorAll('[data-delete-import-v251]')).find(btn =>
@@ -8777,7 +8778,7 @@ async function deleteBatchByNumber(importNumber) {
       await window.pullLatestAfterSalesCommitV83(true);
     }
 
-    // V25.7: if an older remote row resurrected a zero-stock orphan during the
+    // V25.8: if an older remote row resurrected a zero-stock orphan during the
     // verification pull, remove it once more with explicit Products tombstones.
     if (removedOrphanProductIdsV249.length) {
       const orphanIdSetV249 = new Set(removedOrphanProductIdsV249);
@@ -11059,7 +11060,7 @@ function getHistorySingleDateEventCount(
       normalizedKeyword
     );
 
-  // V25.7: count actual independent movement records. Multiple Import Numbers
+  // V25.8: count actual independent movement records. Multiple Import Numbers
   // on the same date must not collapse into one generic incoming event.
   const adjustmentCount = adjustments.filter(
     adjustment => Math.trunc(Number(adjustment.delta) || 0) !== 0
@@ -12274,7 +12275,7 @@ function applyBatchRate(){
 
 let batchCurrencyManuallySelectedV229 = false;
 let batchArrivalAutoFilledByMYRV230 = false;
-// V25.7: one currency-conflict acknowledgement per new import/draft.
+// V25.8: one currency-conflict acknowledgement per new import/draft.
 // It resets only when starting a genuinely new import, not on every row.
 let batchCurrencyConflictAcknowledgedV249 = false;
 
@@ -12752,7 +12753,7 @@ function maybeApplySuggestedBatchCurrencyV231(rowId, suggestedCurrency, label = 
     const message = `${label || "这个产品"} 的历史／默认进口货币为 ${wanted}，但同批其他产品对应 ${conflict}。\n\n同一个进口编号只能使用一种货币。请统一整批货币，或把不同货币产品分开建立进口编号。`;
     const status = document.getElementById("batchStatusText");
     if (status) status.textContent = message.replace(/\n+/g, " ");
-    // V25.7: user has already acknowledged this rule for the current import.
+    // V25.8: user has already acknowledged this rule for the current import.
     // Do not interrupt every subsequent product row with the same warning.
     if (!batchCurrencyConflictAcknowledgedV249) {
       batchCurrencyConflictAcknowledgedV249 = true;
@@ -12809,7 +12810,7 @@ function convertHistoricalOriginalCostForBatchV249(value, sourceCurrency, target
   const target = String(targetCurrency || "").trim().toUpperCase();
   if (!(amount > 0) || !source || !target || source === target) return amount;
 
-  // V25.7 exchange-rate direction: the stored rate is foreign-currency units per
+  // V25.8 exchange-rate direction: the stored rate is foreign-currency units per
   // MYR. So foreign -> MYR divides, MYR -> foreign multiplies, and foreign ->
   // foreign converts through MYR. Examples: 920 CNY / 1.60 = RM575.00;
   // RM35.00 * 1.60 = CNY56.00.
@@ -12923,7 +12924,7 @@ function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, c
     return;
   }
 
-  // V25.7: exact typing/paste of a Virtual Warehouse name behaves like clicking
+  // V25.8: exact typing/paste of a Virtual Warehouse name behaves like clicking
   // its suggestion. This runs only after the delayed identity check / blur.
   const exactVirtualV250 = findExactVirtualWarehouseByNameV250(name);
   if (exactVirtualV250) {
@@ -13059,7 +13060,7 @@ function positionBatchRowSuggestionBox(id) {
   const box = document.getElementById(`batchSuggestionBox-${id}`);
   if (!input || !box || box.hidden) return;
 
-  // V25.7: keep suggestions in the table row's normal document flow. The row
+  // V25.8: keep suggestions in the table row's normal document flow. The row
   // expands while suggestions are visible, so the next product row is never covered.
   box.style.left = "";
   box.style.top = "";
@@ -13384,7 +13385,7 @@ function attachBatchRowEvents(id){
   n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();n.value=Array.from(t).slice(0,15).join("");n.dispatchEvent(new Event("input",{bubbles:true}));});
   [`batchQty-${id}`,`batchPrice-${id}`].forEach(k=>{const x=document.getElementById(k);x.addEventListener("focus",()=>x.select());x.addEventListener("input",calculateBatch);x.addEventListener("blur",()=>{if(!k.includes("Qty")&&!k.includes("Stock"))formatInputAmount(x);calculateBatch();});});
   document.getElementById(`batchPrice-${id}`).addEventListener("input", () => {
-    // V25.7: once the user manually edits an auto-seeded historical price,
+    // V25.8: once the user manually edits an auto-seeded historical price,
     // later currency/rate changes must never overwrite that manual quotation.
     const row = document.querySelector(`#batchRows tr[data-row-id="${id}"]`);
     if (row && row.dataset.settingAutoPriceV249 !== "1") {
@@ -14210,7 +14211,7 @@ function saveBatchImport() {
   };
 
   result.valid.forEach(item => {
-    // V25.7: prefer the already resolved Product ID. This prevents a legacy
+    // V25.8: prefer the already resolved Product ID. This prevents a legacy
     // fine-category product (e.g. Monstera 龟背竹) from being duplicated when
     // the UI now correctly stores/shows the main category 杂花杂木.
     let productIndex = products.findIndex(product => item.productId && String(product.id || "") === String(item.productId || ""));
@@ -18208,7 +18209,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "25.7",
+      version: "25.8",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18575,7 +18576,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V25.7 Stable",
+      updatedBy: "System V25.8 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -18687,4 +18688,156 @@ function registerServiceWorker() {
   if(document.readyState==="loading"){
     document.addEventListener("DOMContentLoaded",setupHistoryScrollButton);
   }else setupHistoryScrollButton();
+})();
+
+
+// ================= V25.8 Mobile ChatGPT Invoice Assistant =================
+// This module only fills the existing import editor. It does NOT write stock,
+// calculate formal inventory, save drafts, delete records, or replace saveBatchImport().
+(function initInvoiceAssistantV258Module(){
+  const MAIN_CATEGORIES_V258 = new Set(["盆栽","杂花杂木","肥料 / 农药","泥土 / 介质","花盆","工具","其他"]);
+  let lastInvoiceSourceV258 = null;
+
+  function isPhoneV258(){
+    const coarse = window.matchMedia?.("(pointer: coarse)")?.matches;
+    const narrow = Math.min(window.screen?.width || innerWidth, innerWidth || 9999) <= 768;
+    return Boolean(coarse && narrow);
+  }
+  function setInvoiceStatusV258(text, kind=""){
+    const el=document.getElementById("invoiceRecognitionStatusV258"); if(!el) return;
+    el.textContent=text||""; el.dataset.kind=kind;
+  }
+  function normalizeAiCategoryV258(value){
+    const raw=String(value||"").trim();
+    if(MAIN_CATEGORIES_V258.has(raw)) return raw;
+    if(/肥料|农药/.test(raw)) return "肥料 / 农药";
+    if(/泥土|介质|soil/i.test(raw)) return "泥土 / 介质";
+    if(/花盆/.test(raw)) return "花盆";
+    if(/工具/.test(raw)) return "工具";
+    if(/杂花|杂木/.test(raw)) return "杂花杂木";
+    if(/盆栽/.test(raw)) return "盆栽";
+    return "其他";
+  }
+  function compactInventoryForChatGPTV258(){
+    return getOperationalProductsV256().map(p=>({
+      id:String(p?.id||""), name:String(p?.name||""), category:normalizeAiCategoryV258(p?.category), stock:Number(p?.stock)||0
+    })).filter(p=>p.id&&p.name);
+  }
+  function readImageAsCompressedDataUrlV258(file){
+    return new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onerror=()=>reject(new Error("无法读取照片"));
+      reader.onload=()=>{
+        const img=new Image();
+        img.onerror=()=>reject(new Error("照片格式无法读取"));
+        img.onload=()=>{
+          const maxSide=1800, scale=Math.min(1,maxSide/Math.max(img.width,img.height));
+          const canvas=document.createElement("canvas");
+          canvas.width=Math.max(1,Math.round(img.width*scale)); canvas.height=Math.max(1,Math.round(img.height*scale));
+          canvas.getContext("2d",{alpha:false}).drawImage(img,0,0,canvas.width,canvas.height);
+          resolve(canvas.toDataURL("image/jpeg",0.82));
+        };
+        img.src=String(reader.result||"");
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  function resolveExistingProductV258(item, productsById, productsByName){
+    const requestedId=String(item?.existingProductId||"").trim().toUpperCase();
+    if(requestedId && productsById.has(requestedId)) return productsById.get(requestedId);
+    const requestedName=String(item?.name||"").trim().toLowerCase();
+    if(requestedName && productsByName.has(requestedName)) return productsByName.get(requestedName);
+    return null;
+  }
+  function fillImportRowsFromInvoiceV258(result){
+    const items=Array.isArray(result?.items)?result.items:[];
+    if(!items.length) throw new Error("ChatGPT 没有识别到产品明细");
+    if(currentEditingImportNumber) throw new Error("当前正在查看已正式保存的进口编号，不能覆盖。请先回到新进口输入。 ");
+    if(importDraftStateHasUserDataV246(collectImportDraftStateV242()) && !window.confirm("当前进口输入区已有资料。\n\n继续照片识别会以 ChatGPT 识别结果取代当前产品行。是否继续？")) return false;
+    const products=getOperationalProductsV256();
+    const byId=new Map(products.map(p=>[String(p?.id||"").trim().toUpperCase(),p]));
+    const byName=new Map(products.map(p=>[String(p?.name||"").trim().toLowerCase(),p]));
+    const tbody=document.getElementById("batchRows"); if(!tbody) throw new Error("找不到进口产品输入区");
+    tbody.innerHTML=""; batchRowSeq=0;
+    items.forEach(item=>{
+      const old=resolveExistingProductV258(item,byId,byName);
+      let name=old?String(old.name||""):String(item?.name||"").trim();
+      // User rule: new generated product name must be at most 15 Unicode characters.
+      if(!old && Array.from(name).length>15) name=Array.from(name).slice(0,15).join("");
+      const category=old?normalizeAiCategoryV258(old.category):normalizeAiCategoryV258(item?.category);
+      addBatchRow({name,productId:old?String(old.id||""):"",category,quantity:Math.max(0,Math.floor(Number(item?.quantity)||0)),unitPrice:Math.max(0,Number(item?.unitPrice)||0)});
+      const tr=document.querySelector("#batchRows tr:last-child");
+      if(tr && !old && item?.preferredProductPrefix) tr.dataset.preferredSubcategoryPrefixV255=String(item.preferredProductPrefix||"").trim().toUpperCase();
+    });
+    if(!document.querySelector("#batchRows tr")) addBatchRow();
+    batchCurrencyConflictAcknowledgedV249=false;
+    const recognizedCurrency=String(result?.currency||"").trim().toUpperCase();
+    const currencyEl=document.getElementById("batchCurrency");
+    if(currencyEl && ["CNY","NTD","VND","IDR","MYR"].includes(recognizedCurrency)) { currencyEl.value=recognizedCurrency; batchCurrencyManuallySelectedV229=true; }
+    calculateBatch(); renderImportDraftsV242();
+    lastInvoiceSourceV258={
+      itemCount:Number(result?.invoiceItemCount)||items.length,
+      totalQuantity:Number(result?.invoiceTotalQuantity)||items.reduce((a,x)=>a+(Number(x?.quantity)||0),0),
+      totalAmount:Number(result?.invoiceTotalAmount)||items.reduce((a,x)=>a+(Number(x?.quantity)||0)*(Number(x?.unitPrice)||0),0),
+      supplier:String(result?.supplier||""), currency:String(result?.currency||"")
+    };
+    renderInvoiceCheckV258();
+    return true;
+  }
+  function currentDraftTotalsV258(){
+    const rows=collectImportDraftStateV242().rows;
+    return {itemCount:rows.length,totalQuantity:rows.reduce((a,r)=>a+(Number(r.quantity)||0),0),totalAmount:rows.reduce((a,r)=>a+(Number(r.quantity)||0)*(Number(r.unitPrice)||0),0)};
+  }
+  function renderInvoiceCheckV258(){
+    const box=document.getElementById("invoiceCheckV258"); if(!box||!lastInvoiceSourceV258) return;
+    const draft=currentDraftTotalsV258(), src=lastInvoiceSourceV258;
+    const qtyOk=Math.abs(draft.totalQuantity-src.totalQuantity)<0.0001;
+    const amtOk=Math.abs(draft.totalAmount-src.totalAmount)<0.01;
+    const countOk=draft.itemCount===src.itemCount;
+    const ok=qtyOk&&amtOk&&countOk;
+    box.hidden=false; box.className=`invoice-check-v258 ${ok?"ok":"warn"}`;
+    const money=n=>(Number(n)||0).toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});
+    const differences=[];
+    if(!countOk) differences.push(`产品种类差 ${draft.itemCount-src.itemCount>0?"+":""}${draft.itemCount-src.itemCount}`);
+    if(!qtyOk) differences.push(`数量差 ${draft.totalQuantity-src.totalQuantity>0?"+":""}${draft.totalQuantity-src.totalQuantity}`);
+    if(!amtOk) differences.push(`货款差 ${draft.totalAmount-src.totalAmount>0?"+":""}${money(draft.totalAmount-src.totalAmount)}`);
+    box.innerHTML=`<div class="invoice-check-title-v258">${ok?"✅ 照片识别资料与当前草稿输入一致":"⚠️ 照片与当前输入尚未完全一致"}</div>`+
+      `<div>照片：${src.itemCount} 项 · 数量 ${src.totalQuantity} · 总额 ${money(src.totalAmount)} ${escapeHTML(src.currency||"")}</div>`+
+      `<div>当前输入：${draft.itemCount} 项 · 数量 ${draft.totalQuantity} · 总额 ${money(draft.totalAmount)} ${escapeHTML(src.currency||"")}</div>`+
+      (differences.length?`<div><strong>${escapeHTML(differences.join("；"))}</strong></div>`:"")+
+      `<div class="clear-help">请先在手机检查并保存草稿，再到电脑打开同一草稿做第二次检查；确认无误后才正式保存。</div>`;
+  }
+  async function recognizeInvoicePhotoV258(file){
+    if(!isPhoneV258()) { alert("照片识别功能只能在手机使用。请使用手机拍照/上传并生成资料，保存草稿后再到电脑检查。"); return; }
+    if(!file) return;
+    try{
+      setInvoiceStatusV258("正在准备照片…");
+      const imageDataUrl=await readImageAsCompressedDataUrlV258(file);
+      setInvoiceStatusV258("正在交给 ChatGPT 识别产品、数量、原成本和类别…");
+      const data=await callGoogleApi({action:"recognizeImportInvoiceV258",clientVersion:APP_VERSION,imageDataUrl,inventory:compactInventoryForChatGPTV258()});
+      if(!data?.result) throw new Error("ChatGPT 没有返回识别结果");
+      const applied=fillImportRowsFromInvoiceV258(data.result);
+      if(applied) setInvoiceStatusV258("识别完成。资料已填入原本进口输入区，请逐项检查后保存草稿。","ok");
+    }catch(error){
+      console.error("V25.8 invoice recognition failed",error);
+      const msg=String(error?.message||error||"识别失败");
+      setInvoiceStatusV258(`识别失败：${msg}`,"error"); alert(`照片识别失败。\n\n${msg}\n\n原本进口、保存、删除资料没有受到影响。`);
+    }finally{
+      const input=document.getElementById("invoicePhotoInputV258"); if(input) input.value="";
+    }
+  }
+  function initInvoiceAssistantV258(){
+    const btn=document.getElementById("invoicePhotoBtnV258"), input=document.getElementById("invoicePhotoInputV258"), notice=document.getElementById("invoiceDesktopNoticeV258");
+    if(!btn||!input) return;
+    const phone=isPhoneV258(); notice && (notice.hidden=phone); btn.setAttribute("aria-disabled",phone?"false":"true");
+    btn.addEventListener("click",()=>{ if(!isPhoneV258()){alert("照片识别功能只能在手机使用。请使用手机拍照/上传并生成资料，保存草稿后再到电脑检查。");return;} input.click(); });
+    input.addEventListener("change",()=>recognizeInvoicePhotoV258(input.files?.[0]));
+    document.getElementById("batchRows")?.addEventListener("input",()=>{if(lastInvoiceSourceV258) window.setTimeout(renderInvoiceCheckV258,0);});
+    document.getElementById("batchRows")?.addEventListener("change",()=>{if(lastInvoiceSourceV258) window.setTimeout(renderInvoiceCheckV258,0);});
+    document.getElementById("batchRows")?.addEventListener("click",()=>{if(lastInvoiceSourceV258) window.setTimeout(renderInvoiceCheckV258,0);});
+  }
+  window.getInvoiceSourceV258=()=>lastInvoiceSourceV258 ? {...lastInvoiceSourceV258} : null;
+  window.setInvoiceSourceV258=(value)=>{ lastInvoiceSourceV258=value&&typeof value==="object"?{...value}:null; window.setTimeout(renderInvoiceCheckV258,0); };
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",initInvoiceAssistantV258,{once:true}); else initInvoiceAssistantV258();
+  window.renderInvoiceCheckV258=renderInvoiceCheckV258;
 })();

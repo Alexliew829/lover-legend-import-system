@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=25.7" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=25.7" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=25.7" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=25.7" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=25.7" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=25.7" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=25.7" />
+  <link rel="manifest" href="./manifest.json?v=25.8" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=25.8" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=25.8" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=25.8" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=25.8" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=25.8" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=25.8" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=25.7" />
-  <link rel="stylesheet" href="./css/style.css?v=25.7" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=25.8" />
+  <link rel="stylesheet" href="./css/style.css?v=25.8" />
 </head>
 <body>
   <div id="accessLock"
@@ -84,7 +84,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 25.7 Stable</div>
+          <div class="app-header-version">正式版 25.8 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -222,6 +222,20 @@
           </div>
 
           <form id="batchImportForm">
+
+            <section id="invoiceAssistantV258" class="invoice-assistant-v258" aria-label="ChatGPT 照片识别进口">
+              <div class="invoice-assistant-head-v258">
+                <div>
+                  <strong>📷 ChatGPT 照片识别</strong>
+                  <div class="clear-help">手机拍照 / 上传 Invoice → ChatGPT 生成进口草稿资料。不会直接入库。</div>
+                </div>
+                <button id="invoicePhotoBtnV258" class="secondary-btn invoice-photo-btn-v258" type="button">拍照 / 上传照片</button>
+                <input id="invoicePhotoInputV258" type="file" accept="image/*" capture="environment" hidden>
+              </div>
+              <div id="invoiceDesktopNoticeV258" class="invoice-desktop-notice-v258" hidden>照片识别功能只能在手机使用。请使用手机拍照/上传并生成资料，保存草稿后再到电脑检查。</div>
+              <div id="invoiceRecognitionStatusV258" class="status-text"></div>
+              <div id="invoiceCheckV258" class="invoice-check-v258" hidden></div>
+            </section>
 
             <datalist id="batchProductSuggestions"></datalist>
 
@@ -863,7 +877,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 25.7 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 25.8 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
@@ -895,9 +909,9 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=25.7"></script>
-  <script src="./js/sync.js?v=25.7"></script>
-  <script src="./js/virtual-warehouse.js?v=25.7"></script>
-  <script src="./js/app.js?v=25.7"></script>
+  <script src="./js/common.js?v=25.8"></script>
+  <script src="./js/sync.js?v=25.8"></script>
+  <script src="./js/virtual-warehouse.js?v=25.8"></script>
+  <script src="./js/app.js?v=25.8"></script>
 </body>
 </html>
