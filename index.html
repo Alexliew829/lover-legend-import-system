@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=26.3" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=26.3" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=26.3" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=26.3" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=26.3" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=26.3" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=26.3" />
+  <link rel="manifest" href="./manifest.json?v=26.4" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=26.4" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=26.4" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=26.4" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=26.4" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=26.4" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=26.4" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=26.3" />
-  <link rel="stylesheet" href="./css/style.css?v=26.3" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=26.4" />
+  <link rel="stylesheet" href="./css/style.css?v=26.4" />
 </head>
 <body>
   <div id="accessLock"
@@ -84,7 +84,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 26.3 Stable</div>
+          <div class="app-header-version">正式版 26.4 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -522,11 +522,11 @@
             <button id="exportSupplierExcelV263" class="secondary-btn" type="button">导出供应商 Excel</button>
           </div>
           <div class="supplier-form-v261">
-            <label>供应商名字<input id="supplierNameV261" autocomplete="off" placeholder="例如 Ocean Landscaping Nursery" /></label>
-            <label>供应商前缀<input id="supplierPrefixV261" autocomplete="off" placeholder="例如 OLN / 忠盛" /></label>
+            <label>供应商名字<input id="supplierNameV261" autocomplete="off" placeholder="例如 Lover Legend Gardening" /></label>
+            <label>供应商前缀<input id="supplierPrefixV261" autocomplete="off" placeholder="例如 LLG / 情人传奇" /></label>
             <label>地址<input id="supplierAddressV261" autocomplete="off" placeholder="可留空" /></label>
             <label>联络号码<input id="supplierPhoneV261" autocomplete="off" placeholder="可留空" /></label>
-            <label>对应货币<select id="supplierCurrencyV261"><option value="" selected hidden></option><option>MYR</option><option>CNY</option><option>VND</option><option>NTD</option><option>IDR</option></select></label>
+            <label>对应货币<select id="supplierCurrencyV261"><option>MYR</option><option selected>CNY</option><option>VND</option><option>NTD</option><option>IDR</option></select></label>
             <label>备注<input id="supplierNoteV261" autocomplete="off" placeholder="可留空" /></label>
           </div>
           <div class="supplier-form-actions-v261">
@@ -542,20 +542,26 @@
           </div>
         </section>
 
-        <section class="panel inventory-master-v261">
-          <div class="supplier-page-head-v261">
-            <div><h3>库存资料总表</h3><p class="settings-help">只读资料。中文名就是系统现有完整产品名；英文名只保留简短树种名称。产品编号、中文名、英文名可点击复制。</p></div>
+        <details class="panel inventory-master-v261" id="inventoryMasterPanelV264">
+          <summary class="inventory-master-summary-v264"><span>库存资料总表</span><small>点击打开／收起</small></summary>
+          <div class="supplier-page-head-v261 inventory-master-head-v264">
+            <div><p class="settings-help">只读资料。中文名就是系统现有完整产品名；英文名只保留简短树种名称。产品编号、中文名、英文名可点击复制。</p></div>
             <button id="exportInventoryMasterExcelV261" class="secondary-btn" type="button">导出库存 Excel</button>
-            <input id="inventoryMasterSearchV261" class="search-input text-left-input" type="search" placeholder="搜索产品编号、中文名、英文名、供应商" autocomplete="off" />
           </div>
-          <div id="inventoryMasterCountV261" class="status-text"></div>
+          <div class="inventory-master-toolbar-v264">
+            <input id="inventoryMasterSearchV261" class="search-input text-left-input" type="search" placeholder="搜索产品名称、编号、英文名、进口编号或原成本" autocomplete="off" />
+            <select id="inventoryMasterSortV264">
+              <option value="latest">最近进口</option><option value="name">产品名称</option><option value="stock-desc">库存最多</option><option value="stock-asc">库存最少</option><option value="value-desc">库存成本最高</option><option value="cost-desc">平均成本最高</option>
+            </select>
+          </div>
+          <div class="inventory-master-summaryline-v264"><span>当前库存：<strong id="inventoryMasterStockV264">0</strong></span><span>库存成本：<strong id="inventoryMasterValueV264">RM 0.00</strong></span><span id="inventoryMasterCountV261">0 项</span></div>
           <div class="inventory-master-wrap-v261">
             <table class="inventory-master-table-v261">
               <thead><tr><th>产品编号</th><th>中文名</th><th>英文名</th><th>当前库存</th><th>平均成本</th><th>最低售价</th></tr></thead>
               <tbody id="inventoryMasterBodyV261"></tbody>
             </table>
           </div>
-        </section>
+        </details>
 
         <details class="panel virtual-warehouse-panel-v240" id="virtualWarehousePanelV240">
           <summary>
@@ -563,9 +569,9 @@
             <small id="virtualWarehouseCountV240">载入中…</small>
           </summary>
           <p class="settings-help">只保存过去买过的产品作参考，不计库存、不参与平均成本、不写入 Imports / Batches。产品再次进口并成功保存后，会自动进入真实仓库，并从这里的可用列表隐藏。</p>
-          <input id="virtualWarehouseSearchV240" class="search-input text-left-input" type="search" autocomplete="off" placeholder="搜索产品名、Description、Size、供应商前缀、产品编号前缀或成本" />
+          <input id="virtualWarehouseSearchV240" class="search-input text-left-input" type="search" autocomplete="off" placeholder="搜索产品名、Description 或成本" />
           <div class="virtual-warehouse-head-v240" aria-hidden="true">
-            <span>Description</span><span>产品名</span><span>Size</span><span>供应商前缀</span><span>编号前缀</span><span>成本</span>
+            <span>产品名</span><span>Description</span><span>成本</span>
           </div>
           <div id="virtualWarehouseListV240" class="virtual-warehouse-list-v240"></div>
           <div id="virtualWarehouseStatusV240" class="status-text"></div>
@@ -948,7 +954,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 26.3 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 26.4 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
@@ -983,9 +989,9 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=26.3"></script>
-  <script src="./js/sync.js?v=26.3"></script>
-  <script src="./js/virtual-warehouse.js?v=26.3"></script>
-  <script src="./js/app.js?v=26.3"></script>
+  <script src="./js/common.js?v=26.4"></script>
+  <script src="./js/sync.js?v=26.4"></script>
+  <script src="./js/virtual-warehouse.js?v=26.4"></script>
+  <script src="./js/app.js?v=26.4"></script>
 </body>
 </html>
