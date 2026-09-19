@@ -3240,7 +3240,7 @@ function applyVirtualWarehouseSelectionV240(rowId, indexValue) {
   tr.dataset.virtualWarehouseIndexV240 = String(indexValue);
   tr.dataset.virtualWarehouseCategoryV240 = categoryField.value;
   if (Number.isFinite(Number(item.cost)) && Number(item.cost) > 0) {
-    // V25.6: virtual-warehouse reference costs are MYR supplier costs. Seed them
+    // V25.7: virtual-warehouse reference costs are MYR supplier costs. Seed them
     // through the same auto-original-cost path so foreign batches convert them.
     setAutoOriginalCostV249(rowId, { unitPrice: Number(item.cost), currency: "MYR" }, { force: true });
   }
@@ -5189,7 +5189,7 @@ function normalizeProductMinimumPriceV160(product, configuredRules = null, confi
   };
 }
 
-// V25.6: legacy Product IDs are historical-reference only. They must never
+// V25.7: legacy Product IDs are historical-reference only. They must never
 // participate in live product search, import selection, inventory operations,
 // virtual-product conversion, or new business workflows. Historical Import /
 // inventory records remain untouched and can still display the original ID.
@@ -5242,7 +5242,7 @@ const PRIMARY_PRODUCT_CATEGORIES_V255 = Object.freeze([
 ]);
 
 const DEFAULT_PRODUCT_CATEGORY_RULES_V228 = Object.freeze([
-  // V25.6: the import/product page has only seven MAIN categories.
+  // V25.7: the import/product page has only seven MAIN categories.
   // The additional rows below are non-bonsai SUBCATEGORY name rules used only
   // to choose a more specific Product ID prefix inside 杂花杂木.
   { name: "盆栽", prefix: "PZ", mode: "name" },
@@ -5267,9 +5267,9 @@ function isPrimaryProductCategoryV255(value) {
 function normalizePrimaryProductCategoryV255(value) {
   const wanted = normalizeProductCategoryNameV227(value);
   if (PRIMARY_PRODUCT_CATEGORIES_V255.includes(wanted)) return wanted;
-  // Legacy V25.6 and earlier stored non-bonsai fine classes (MO/SS/CL/FI...)
+  // Legacy V25.7 and earlier stored non-bonsai fine classes (MO/SS/CL/FI...)
   // directly in category. Keep the historical data untouched, but present and
-  // treat those rows as the main category 杂花杂木 from V25.6 onward.
+  // treat those rows as the main category 杂花杂木 from V25.7 onward.
   if (getProductCategoryRulesV228().some(rule => rule?.mode === "category" && rule.name === wanted)) return "杂花杂木";
   return wanted || "盆栽";
 }
@@ -5371,7 +5371,7 @@ function getProductCategoryRulesV228() {
     result.push({ name, prefix, mode, locked, lockedByUsageV229 });
   });
   if (!result.some(rule => rule.name === "盆栽")) result.unshift({ name: "盆栽", prefix: "PZ", mode: "name", locked: true });
-  // V25.6: the seven main categories must always be available. This does not
+  // V25.7: the seven main categories must always be available. This does not
   // change any existing Product ID or historical record.
   PRIMARY_PRODUCT_CATEGORIES_V255.forEach(name => {
     if (result.some(rule => rule.name === name)) return;
@@ -5383,7 +5383,7 @@ function getProductCategoryRulesV228() {
 }
 
 function getProductCategoriesV227() {
-  // V25.6: UI categories are MAIN categories only. Fine-class rules such as
+  // V25.7: UI categories are MAIN categories only. Fine-class rules such as
   // Monstera / Ficus / 虎尾兰 only decide the Product ID prefix.
   return PRIMARY_PRODUCT_CATEGORIES_V255.slice();
 }
@@ -6629,7 +6629,7 @@ function setupImportModule(){
       lastNotFoundBatchLookup = "";
     }
 
-    // V25.6 iPhone: the keyboard accessory-bar ✓ can commit/hide the
+    // V25.7 iPhone: the keyboard accessory-bar ✓ can commit/hide the
     // keyboard without emitting Enter and, on some iOS/browser combinations,
     // without a useful blur/change event. As soon as the typed value becomes an
     // exact saved import/tracking number, perform the same lookup after a short
@@ -6804,7 +6804,7 @@ function setupImportModule(){
 }
 
 
-// ================= V25.6 Two-stage Import Save =================
+// ================= V25.7 Two-stage Import Save =================
 const IMPORT_DRAFTS_KEY_V242 = "importDraftsV242";
 const IMPORT_DRAFT_DELETED_IDS_KEY_V250 = "importDraftDeletedIdsV250";
 let activeImportDraftIdV242 = "";
@@ -7073,7 +7073,7 @@ function saveImportDraftV242() {
   activeImportDraftIdV242 = id;
   writeImportDraftsV242(next);
 
-  // V25.6: saving a draft must NEVER leave the original import editor.
+  // V25.7: saving a draft must NEVER leave the original import editor.
   // Keep the just-saved draft active and preserve every field in the same input area.
   // Some sync/view refresh paths may redraw the page after settings are queued; if that
   // unexpectedly leaves the import editor blank, restore this exact saved draft.
@@ -7150,7 +7150,7 @@ function deleteImportDraftV242(draftId) {
   if (!draft) return;
   if (!confirm("⚠️ 确认删除这份草稿？\n\n这会永久删除尚未正式保存的进口草稿资料，删除后无法恢复。\n\n已正式保存的库存资料不会受到影响。")) return;
   const wasActiveV252 = String(activeImportDraftIdV242 || "") === String(draftId || "");
-  // V25.6 Local-First: clear active state and persist the tombstone immediately,
+  // V25.7 Local-First: clear active state and persist the tombstone immediately,
   // then clear the editor only when the deleted draft is the one currently open.
   if (wasActiveV252) activeImportDraftIdV242 = "";
   markImportDraftDeletedV250(draftId);
@@ -7170,7 +7170,7 @@ function consumeActiveImportDraftV242() {
   if (!activeImportDraftIdV242) return;
   const id = activeImportDraftIdV242;
   activeImportDraftIdV242 = "";
-  // V25.6: formal save is also a terminal removal of the draft. Without a
+  // V25.7: formal save is also a terminal removal of the draft. Without a
   // tombstone, a stale cloud copy can merge back and trigger the 24-hour reminder.
   markImportDraftDeletedV250(id);
   writeImportDraftsV242(getImportDraftsV242().filter(item => item.id !== id));
@@ -7184,7 +7184,7 @@ function formatDraftTimeV242(value) {
 }
 
 function renderImportDraftsV242() {
-  // V25.6: no large standalone draft module. The original import editor remains the
+  // V25.7: no large standalone draft module. The original import editor remains the
   // working area; only a lightweight entry is shown so drafts can be reopened after
   // clearing/reloading/leaving the page.
   const label = document.getElementById("activeDraftLabelV242");
@@ -7291,7 +7291,7 @@ function setupImportDraftV247() {
   document.getElementById("confirmFormalImportBtnV247")?.addEventListener("click", confirmFormalImportV247);
   document.getElementById("deleteCurrentImportDraftBtnV247")?.addEventListener("click", deleteCurrentImportDraftV247);
   document.getElementById("openImportDraftsBtnV248")?.addEventListener("click", openImportDraftPickerV248);
-  // V25.6: status follows every edit in the original import form.
+  // V25.7: status follows every edit in the original import form.
   const draftFormV249 = document.getElementById("batchImportForm");
   const refreshDraftStateV249 = () => window.requestAnimationFrame(() => renderImportDraftsV242());
   draftFormV249?.addEventListener("input", refreshDraftStateV249);
@@ -8689,7 +8689,7 @@ async function deleteBatchByNumber(importNumber) {
 
   if (!confirmed) return;
 
-  // V25.6: deletion can take time because cloud flush + pull-back verification
+  // V25.7: deletion can take time because cloud flush + pull-back verification
   // are intentionally strict. Give immediate, staged feedback instead of making
   // the user wait with an apparently idle screen.
   const deleteButtonV251 = Array.from(document.querySelectorAll('[data-delete-import-v251]')).find(btn =>
@@ -8777,7 +8777,7 @@ async function deleteBatchByNumber(importNumber) {
       await window.pullLatestAfterSalesCommitV83(true);
     }
 
-    // V25.6: if an older remote row resurrected a zero-stock orphan during the
+    // V25.7: if an older remote row resurrected a zero-stock orphan during the
     // verification pull, remove it once more with explicit Products tombstones.
     if (removedOrphanProductIdsV249.length) {
       const orphanIdSetV249 = new Set(removedOrphanProductIdsV249);
@@ -11059,7 +11059,7 @@ function getHistorySingleDateEventCount(
       normalizedKeyword
     );
 
-  // V25.6: count actual independent movement records. Multiple Import Numbers
+  // V25.7: count actual independent movement records. Multiple Import Numbers
   // on the same date must not collapse into one generic incoming event.
   const adjustmentCount = adjustments.filter(
     adjustment => Math.trunc(Number(adjustment.delta) || 0) !== 0
@@ -12274,7 +12274,7 @@ function applyBatchRate(){
 
 let batchCurrencyManuallySelectedV229 = false;
 let batchArrivalAutoFilledByMYRV230 = false;
-// V25.6: one currency-conflict acknowledgement per new import/draft.
+// V25.7: one currency-conflict acknowledgement per new import/draft.
 // It resets only when starting a genuinely new import, not on every row.
 let batchCurrencyConflictAcknowledgedV249 = false;
 
@@ -12752,7 +12752,7 @@ function maybeApplySuggestedBatchCurrencyV231(rowId, suggestedCurrency, label = 
     const message = `${label || "这个产品"} 的历史／默认进口货币为 ${wanted}，但同批其他产品对应 ${conflict}。\n\n同一个进口编号只能使用一种货币。请统一整批货币，或把不同货币产品分开建立进口编号。`;
     const status = document.getElementById("batchStatusText");
     if (status) status.textContent = message.replace(/\n+/g, " ");
-    // V25.6: user has already acknowledged this rule for the current import.
+    // V25.7: user has already acknowledged this rule for the current import.
     // Do not interrupt every subsequent product row with the same warning.
     if (!batchCurrencyConflictAcknowledgedV249) {
       batchCurrencyConflictAcknowledgedV249 = true;
@@ -12809,7 +12809,7 @@ function convertHistoricalOriginalCostForBatchV249(value, sourceCurrency, target
   const target = String(targetCurrency || "").trim().toUpperCase();
   if (!(amount > 0) || !source || !target || source === target) return amount;
 
-  // V25.6 exchange-rate direction: the stored rate is foreign-currency units per
+  // V25.7 exchange-rate direction: the stored rate is foreign-currency units per
   // MYR. So foreign -> MYR divides, MYR -> foreign multiplies, and foreign ->
   // foreign converts through MYR. Examples: 920 CNY / 1.60 = RM575.00;
   // RM35.00 * 1.60 = CNY56.00.
@@ -12923,7 +12923,7 @@ function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, c
     return;
   }
 
-  // V25.6: exact typing/paste of a Virtual Warehouse name behaves like clicking
+  // V25.7: exact typing/paste of a Virtual Warehouse name behaves like clicking
   // its suggestion. This runs only after the delayed identity check / blur.
   const exactVirtualV250 = findExactVirtualWarehouseByNameV250(name);
   if (exactVirtualV250) {
@@ -13059,7 +13059,7 @@ function positionBatchRowSuggestionBox(id) {
   const box = document.getElementById(`batchSuggestionBox-${id}`);
   if (!input || !box || box.hidden) return;
 
-  // V25.6: keep suggestions in the table row's normal document flow. The row
+  // V25.7: keep suggestions in the table row's normal document flow. The row
   // expands while suggestions are visible, so the next product row is never covered.
   box.style.left = "";
   box.style.top = "";
@@ -13384,7 +13384,7 @@ function attachBatchRowEvents(id){
   n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();n.value=Array.from(t).slice(0,15).join("");n.dispatchEvent(new Event("input",{bubbles:true}));});
   [`batchQty-${id}`,`batchPrice-${id}`].forEach(k=>{const x=document.getElementById(k);x.addEventListener("focus",()=>x.select());x.addEventListener("input",calculateBatch);x.addEventListener("blur",()=>{if(!k.includes("Qty")&&!k.includes("Stock"))formatInputAmount(x);calculateBatch();});});
   document.getElementById(`batchPrice-${id}`).addEventListener("input", () => {
-    // V25.6: once the user manually edits an auto-seeded historical price,
+    // V25.7: once the user manually edits an auto-seeded historical price,
     // later currency/rate changes must never overwrite that manual quotation.
     const row = document.querySelector(`#batchRows tr[data-row-id="${id}"]`);
     if (row && row.dataset.settingAutoPriceV249 !== "1") {
@@ -14210,7 +14210,7 @@ function saveBatchImport() {
   };
 
   result.valid.forEach(item => {
-    // V25.6: prefer the already resolved Product ID. This prevents a legacy
+    // V25.7: prefer the already resolved Product ID. This prevents a legacy
     // fine-category product (e.g. Monstera 龟背竹) from being duplicated when
     // the UI now correctly stores/shows the main category 杂花杂木.
     let productIndex = products.findIndex(product => item.productId && String(product.id || "") === String(item.productId || ""));
@@ -14749,6 +14749,62 @@ window.addEventListener("beforeunload", event => {
   event.preventDefault();
   event.returnValue = "";
 });
+
+
+async function promptProductOriginalCostEditorV257(productId, importRecordId = "") {
+  const id = String(productId || "").trim();
+  const product = getProducts().find(item => String(item?.id || "").trim() === id);
+  if (!product) { alert("找不到这个产品。"); return; }
+  const keyword = String(document.getElementById("batchProductStockSearch")?.value || "").trim();
+  const record = getPreferredOriginalCostRecordV219(product, keyword, importRecordId);
+  if (!record) { alert("找不到这个产品对应的进口原成本记录。"); return; }
+  const batch = getBatches().find(item =>
+    (record?.batchId && String(item?.id || "") === String(record.batchId)) ||
+    String(item?.importNumber || "").trim().toLowerCase() === String(record?.importNumber || "").trim().toLowerCase()
+  ) || {};
+  const current = Math.max(0, Number(record?.unitPrice) || 0);
+  const currency = String(record?.currency || batch?.currency || "").trim().toUpperCase();
+  const importNumber = String(record?.importNumber || batch?.importNumber || "-").trim();
+
+  const entered = window.prompt(
+    `修改原成本：${product.name}\n\n产品编号：${product.id || "-"}\n进口编号：${importNumber}\n目前原成本：${formatMoney(current)}${currency ? ` ${currency}` : ""}\n请输入新的原成本`,
+    current.toFixed(2)
+  );
+  if (entered === null) return;
+  const normalized = String(entered).replace(/[,，\s]/g, "").trim();
+  if (!/^\d+(?:\.\d{1,6})?$/.test(normalized)) {
+    alert("原成本必须是0或正数，可输入小数。");
+    return;
+  }
+  const nextOriginalCost = Number(normalized);
+  if (!Number.isFinite(nextOriginalCost) || nextOriginalCost < 0) {
+    alert("原成本不正确。");
+    return;
+  }
+  if (Math.abs(nextOriginalCost - current) < 0.000001) {
+    const status = document.getElementById("batchProductStockStatus");
+    if (status) status.textContent = "原成本没有改变";
+    return;
+  }
+
+  originalCostEditPendingV219 = {
+    productId: id,
+    importRecordId: String(record?.id || ""),
+    originalValue: current,
+    dirty: true
+  };
+  const tempInput = document.createElement("input");
+  tempInput.type = "hidden";
+  tempInput.id = "originalCostEditInputV219";
+  tempInput.value = normalized;
+  document.body.appendChild(tempInput);
+  try {
+    await saveOriginalCostEditV219();
+  } finally {
+    tempInput.remove();
+    if (originalCostEditPendingV219) originalCostEditPendingV219 = null;
+  }
+}
 
 function renderBatchProductStockResults() {
   const input = document.getElementById("batchProductStockSearch");
@@ -15300,7 +15356,7 @@ function bindProductStockLongPress() {
       } else if (editType === "averageCost") {
         editProductAverageCostFromImportPage(productId);
       } else if (editType === "originalCost") {
-        openProductOriginalCostEditorV219(productId, String(button.dataset.importRecordId || ""));
+        promptProductOriginalCostEditorV257(productId, String(button.dataset.importRecordId || ""));
       }
     }, 650);
   };
@@ -18152,7 +18208,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "25.6",
+      version: "25.7",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18519,7 +18575,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V25.6 Stable",
+      updatedBy: "System V25.7 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
