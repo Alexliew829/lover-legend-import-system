@@ -5614,7 +5614,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .import-draft-reminder-card-v246{width:min(560px,100%);max-height:80vh;overflow:auto;background:var(--card,#fff);border-radius:14px;padding:16px;box-shadow:0 12px 40px rgba(0,0,0,.25)}
 .import-draft-reminder-head-v246{display:flex;align-items:center;justify-content:space-between;gap:12px}.import-draft-reminder-head-v246 strong{font-size:1.08rem}.import-draft-reminder-card-v246 p{margin:10px 0}.import-draft-reminder-list-v246{display:grid;gap:8px}.import-draft-reminder-list-v246 button{text-align:left}
 
-/* V26.4 media cloud-save status */
+/* V26.5 media cloud-save status */
 .inventory-media-feedback-v252{font-size:.82rem;font-weight:800;align-self:center;white-space:nowrap;}
 .inventory-media-feedback-v252.pending{opacity:.78;}
 .inventory-media-feedback-v252.success{font-weight:900;}
@@ -5622,7 +5622,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 @media(max-width:680px){.inventory-media-feedback-v252{font-size:.8rem;grid-column:1/-1;}}
 
 
-/* V26.4 — saved media link color follows its presence dot: photo = yellow, video = blue. */
+/* V26.5 — saved media link color follows its presence dot: photo = yellow, video = blue. */
 .inventory-media-open-v230.inventory-media-saved-v254.inventory-media-photo-v254{
   color:#7a5a00;
   border-color:#e3c65c;
@@ -5635,7 +5635,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 
-/* V26.4 — Recent product result card: product name is the visual lead; IDs are supporting data. */
+/* V26.5 — Recent product result card: product name is the visual lead; IDs are supporting data. */
 .product-stock-card-v256 {
   display: block !important;
   padding: 14px;
@@ -5782,7 +5782,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 
-/* V26.4 — recent import/search product identity stays compact and adjacent; mobile long-press must not select whole cards. */
+/* V26.5 — recent import/search product identity stays compact and adjacent; mobile long-press must not select whole cards. */
 .product-stock-title-row-v256 {
   justify-content: flex-start;
 }
@@ -5820,7 +5820,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 
-/* V26.4 — mobile-only ChatGPT invoice/photo assistant. Isolated from V25.7 import/save/delete core. */
+/* V26.5 — mobile-only ChatGPT invoice/photo assistant. Isolated from V25.7 import/save/delete core. */
 .invoice-assistant-v258{margin:10px 0 14px;padding:12px 14px;border:1px solid #d8e6dc;border-radius:12px;background:#f8fcf9}
 .invoice-assistant-head-v258{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .invoice-assistant-head-v258 strong{font-size:16px}
@@ -5833,7 +5833,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 @media (min-width: 769px){.invoice-photo-btn-v258{opacity:.55;cursor:not-allowed}}
 
 
-/* V26.4 — multi-page ChatGPT recognition draft preview. Isolated from import calculation/save/delete core. */
+/* V26.5 — multi-page ChatGPT recognition draft preview. Isolated from import calculation/save/delete core. */
 .invoice-assistant-actions-v259{display:flex;gap:8px;flex-wrap:wrap}
 .invoice-modal-v259{position:fixed;inset:0;z-index:12000;background:rgba(0,0,0,.48);display:flex;align-items:center;justify-content:center;padding:14px}
 .invoice-modal-v259[hidden]{display:none!important}
@@ -5845,25 +5845,29 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 
 .invoice-history-item-v259{width:100%;display:flex;justify-content:space-between;gap:12px;text-align:left;padding:12px;margin:6px 0;border:1px solid #dfe5e1;border-radius:9px;background:#fff}.invoice-history-item-v259 span{color:#667085;font-size:12px}
 
-/* V26.4 Supplier / inventory master */
+/* V26.5 Supplier / inventory master */
 .supplier-page-head-v261{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}.supplier-page-head-v261 h3{margin:0 0 4px}.supplier-form-v261{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.supplier-form-v261 label{display:flex;flex-direction:column;gap:6px;font-weight:700}.supplier-form-v261 input,.supplier-form-v261 select{width:100%}.supplier-form-actions-v261{display:flex;gap:10px;margin-top:12px}.supplier-table-wrap-v261,.inventory-master-wrap-v261{overflow:auto;margin-top:14px;border:1px solid #d8e8df;border-radius:12px}.supplier-table-v261,.inventory-master-table-v261{width:100%;border-collapse:collapse;min-width:820px}.supplier-table-v261 th,.supplier-table-v261 td,.inventory-master-table-v261 th,.inventory-master-table-v261 td{padding:9px 10px;border-bottom:1px solid #e7efe9;text-align:left;vertical-align:middle;white-space:nowrap}.supplier-table-v261 th,.inventory-master-table-v261 th{background:#eef8f1;position:sticky;top:0;z-index:1}.supplier-actions-v261{display:flex;gap:6px}.supplier-prefix-v261{font-weight:800;color:#17834d}.inventory-master-v261 .search-input{max-width:360px}.supplier-inferred-v261{color:#8a6500;font-size:.85em}.bottom-nav{grid-template-columns:repeat(5,minmax(0,1fr))!important}@media(max-width:720px){.supplier-form-v261{grid-template-columns:1fr 1fr}.bottom-nav .nav-btn small{font-size:10px}.supplier-page-head-v261{display:block}.inventory-master-v261 .search-input{max-width:none;margin-top:8px}}@media(max-width:460px){.supplier-form-v261{grid-template-columns:1fr}}
 
-/* V26.4 bilingual product master */
+/* V26.5 bilingual product master */
 .product-english-name-v262{display:block;font-size:.82em;font-weight:500;color:#6b7c72;margin-top:2px;line-height:1.25}.master-name-v262{font-weight:700}.master-en-v262{color:#60746a}.inventory-master-table-v261{min-width:760px;table-layout:auto}.inventory-master-table-v261 th,.inventory-master-table-v261 td{white-space:nowrap}.inventory-master-table-v261 th:nth-child(2),.inventory-master-table-v261 td:nth-child(2){min-width:220px;white-space:normal}.inventory-master-table-v261 th:nth-child(3),.inventory-master-table-v261 td:nth-child(3){min-width:160px;white-space:normal}.inventory-master-table-v261 th:last-child,.inventory-master-table-v261 td:last-child{min-width:118px;text-align:right;padding-right:14px}.master-minimum-v262{font-variant-numeric:tabular-nums}.virtual-warehouse-panel-v240{margin-top:14px}@media(max-width:720px){.inventory-master-wrap-v261{overflow-x:auto;-webkit-overflow-scrolling:touch}.inventory-master-table-v261{min-width:720px}.inventory-master-table-v261 th,.inventory-master-table-v261 td{padding:8px 7px}.master-minimum-v262{min-width:112px}}
 
 .invoice-camera-session-v262{margin-top:10px;padding:10px;border:1px solid #d8e8df;border-radius:10px;background:#f7fbf8}.invoice-camera-actions-v262{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.invoice-camera-actions-v262 button{flex:1 1 130px}
 
-/* V26.4 supplier/inventory master finishing */
+/* V26.5 supplier/inventory master finishing */
 .master-copy-v263{appearance:none;border:0;background:transparent;padding:0;margin:0;font:inherit;color:inherit;text-align:left;cursor:pointer;max-width:100%;white-space:normal}
 .master-copy-v263:hover{text-decoration:underline;text-underline-offset:2px}
 .inventory-master-table-v261{min-width:760px;table-layout:auto}
 .inventory-master-table-v261 th:last-child,.inventory-master-table-v261 td:last-child{white-space:nowrap;min-width:112px}
 .supplier-table-v261 th:nth-child(3),.supplier-table-v261 td:nth-child(3){white-space:nowrap;width:180px}
 @media(max-width:700px){.inventory-master-table-v261{min-width:690px}.master-en-v262{font-size:.92em}}
-/* V26.4 supplier + inventory master refinements */
+/* V26.5 supplier + inventory master refinements */
 .supplier-form-v261 input,.supplier-form-v261 select{text-align:left!important}
 .supplier-copy-v264{border:0;background:transparent;padding:0;font:inherit;text-align:left;cursor:pointer;color:inherit}.supplier-prefix-copy-v264{font-weight:800;color:#17834d}.supplier-copy-v264:hover{text-decoration:underline}
 .inventory-master-summary-v264{display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-weight:800}.inventory-master-head-v264{margin-top:10px}.inventory-master-toolbar-v264{display:grid;grid-template-columns:minmax(280px,1fr) 180px;gap:10px;align-items:center;margin-top:8px}.inventory-master-summaryline-v264{display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin-top:10px;font-size:.95rem}.inventory-master-summaryline-v264 strong{color:#11693d}.master-num-v264{text-align:right!important;font-variant-numeric:tabular-nums}.master-price-loss-v264{color:#c62828;font-weight:800}.master-price-profit-v264{color:#168044;font-weight:800}
 .inventory-master-table-v261 th:nth-child(4),.inventory-master-table-v261 th:nth-child(5),.inventory-master-table-v261 th:nth-child(6){text-align:right}.inventory-master-table-v261 td:nth-child(4),.inventory-master-table-v261 td:nth-child(5),.inventory-master-table-v261 td:nth-child(6){text-align:right}
 .virtual-warehouse-head-v240,.virtual-warehouse-row-v240{display:grid!important;grid-template-columns:minmax(220px,1.2fr) minmax(260px,1.5fr) 90px!important;gap:12px;align-items:center}.virtual-cost-v264{text-align:right;font-variant-numeric:tabular-nums}.virtual-warehouse-description-v240,.virtual-warehouse-name-v240{text-align:left!important}
 @media(max-width:720px){.inventory-master-toolbar-v264{grid-template-columns:1fr}.virtual-warehouse-head-v240{display:none!important}.virtual-warehouse-row-v240{grid-template-columns:1fr auto!important}.virtual-warehouse-name-v240,.virtual-warehouse-description-v240{grid-column:1/2!important;white-space:normal}.virtual-cost-v264{grid-column:2;grid-row:1/3;align-self:center}}
+\n/* V26.5 — requested inventory/supplier/reference polish. */\n.inventory-filter-stock,.inventory-filter-value{font-size:14px!important;font-weight:800!important}.inventory-filter-stock strong,.inventory-filter-value strong{font-size:16px!important;font-weight:900!important}\n.supplier-prefix-directory-panel-v265{margin-top:14px}.supplier-prefix-directory-panel-v265>summary{display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;font-weight:800}.supplier-prefix-directory-panel-v265>summary small{color:#66736b;font-weight:700}\n.invoice-new-product-row-v265 td{background:#fff4f4!important;color:#c62828!important}.invoice-new-product-row-v265 input,.invoice-new-product-row-v265 select{color:#c62828!important;font-weight:800!important;border-color:#e59a9a!important;background:#fff8f8!important}\n.inventory-product-identity-v167.product-identity-v167{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;grid-template-areas:"name id" "english english"!important;column-gap:8px!important;row-gap:3px!important;width:100%!important}.inventory-product-identity-v167 .inventory-product-name-copy{grid-area:name!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;overflow-wrap:normal!important;word-break:normal!important;font-size:17px!important;font-weight:900!important}.inventory-product-identity-v167 .product-id-copy-v166{grid-area:id!important;align-self:start!important}.inventory-product-identity-v167 .product-english-name-v262{grid-area:english!important;display:block!important;margin:0!important;font-size:15px!important;font-weight:700!important;color:#465a50!important;line-height:1.3!important}.inventory-product-code-v166{display:none!important}\n@media(max-width:520px){.inventory-title-row{display:block!important}.inventory-title-row>h3{white-space:nowrap!important;margin-bottom:7px!important}.inventory-title-summary{justify-content:flex-start!important;gap:4px 9px!important}.inventory-filter-stock::before{content:""}.inventory-filter-stock,.inventory-filter-value{font-size:13px!important}.inventory-filter-stock strong,.inventory-filter-value strong{font-size:14px!important}.inventory-product-identity-v167 .inventory-product-name-copy{font-size:16px!important}.inventory-product-identity-v167 .product-english-name-v262{font-size:15px!important;color:#354b40!important}}\n
+.inventory-summary-label-mobile-v265{display:none}.inventory-summary-label-desktop-v265{display:inline}
+.product-prefix-locked-row-v181,.product-category-row-v227{font-size:16px;line-height:1.35}.product-prefix-locked-row-v181>span,.product-category-row-v227>span{font-weight:700}
+@media(max-width:520px){.inventory-summary-label-desktop-v265{display:none}.inventory-summary-label-mobile-v265{display:inline}}
