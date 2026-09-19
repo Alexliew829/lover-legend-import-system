@@ -3104,7 +3104,7 @@ function getVirtualWarehouseSourceV240() {
 }
 
 function getVirtualWarehouseAvailableV240() {
-  const realNames = new Set(getProducts().map(product => normalizeVirtualWarehouseNameV240(product?.name)));
+  const realNames = new Set(getOperationalProductsV256().map(product => normalizeVirtualWarehouseNameV240(product?.name)));
   return getVirtualWarehouseSourceV240()
     .map((item, index) => ({ ...item, _virtualIndexV240: index }))
     .filter(item => item?.name && !realNames.has(normalizeVirtualWarehouseNameV240(item.name)));
@@ -3240,7 +3240,7 @@ function applyVirtualWarehouseSelectionV240(rowId, indexValue) {
   tr.dataset.virtualWarehouseIndexV240 = String(indexValue);
   tr.dataset.virtualWarehouseCategoryV240 = categoryField.value;
   if (Number.isFinite(Number(item.cost)) && Number(item.cost) > 0) {
-    // V25.5: virtual-warehouse reference costs are MYR supplier costs. Seed them
+    // V25.6: virtual-warehouse reference costs are MYR supplier costs. Seed them
     // through the same auto-original-cost path so foreign batches convert them.
     setAutoOriginalCostV249(rowId, { unitPrice: Number(item.cost), currency: "MYR" }, { force: true });
   }
@@ -5189,6 +5189,20 @@ function normalizeProductMinimumPriceV160(product, configuredRules = null, confi
   };
 }
 
+// V25.6: legacy Product IDs are historical-reference only. They must never
+// participate in live product search, import selection, inventory operations,
+// virtual-product conversion, or new business workflows. Historical Import /
+// inventory records remain untouched and can still display the original ID.
+const HIDDEN_LEGACY_PRODUCT_IDS_V256 = new Set(["PS0001", "PS0002", "PX0006", "PZ0006"]);
+function isHiddenLegacyProductIdV256(value) {
+  return HIDDEN_LEGACY_PRODUCT_IDS_V256.has(String(value || "").trim().toUpperCase());
+}
+function getOperationalProductsV256(products = getProducts()) {
+  return (Array.isArray(products) ? products : []).filter(product =>
+    !isHiddenLegacyProductIdV256(product?.id)
+  );
+}
+
 function getProducts() {
   const rules = getMinimumPriceRulesV160();
   const overrides = getMinimumPriceManualOverridesV160();
@@ -5228,7 +5242,7 @@ const PRIMARY_PRODUCT_CATEGORIES_V255 = Object.freeze([
 ]);
 
 const DEFAULT_PRODUCT_CATEGORY_RULES_V228 = Object.freeze([
-  // V25.5: the import/product page has only seven MAIN categories.
+  // V25.6: the import/product page has only seven MAIN categories.
   // The additional rows below are non-bonsai SUBCATEGORY name rules used only
   // to choose a more specific Product ID prefix inside 杂花杂木.
   { name: "盆栽", prefix: "PZ", mode: "name" },
@@ -5253,9 +5267,9 @@ function isPrimaryProductCategoryV255(value) {
 function normalizePrimaryProductCategoryV255(value) {
   const wanted = normalizeProductCategoryNameV227(value);
   if (PRIMARY_PRODUCT_CATEGORIES_V255.includes(wanted)) return wanted;
-  // Legacy V25.5 and earlier stored non-bonsai fine classes (MO/SS/CL/FI...)
+  // Legacy V25.6 and earlier stored non-bonsai fine classes (MO/SS/CL/FI...)
   // directly in category. Keep the historical data untouched, but present and
-  // treat those rows as the main category 杂花杂木 from V25.5 onward.
+  // treat those rows as the main category 杂花杂木 from V25.6 onward.
   if (getProductCategoryRulesV228().some(rule => rule?.mode === "category" && rule.name === wanted)) return "杂花杂木";
   return wanted || "盆栽";
 }
@@ -5357,7 +5371,7 @@ function getProductCategoryRulesV228() {
     result.push({ name, prefix, mode, locked, lockedByUsageV229 });
   });
   if (!result.some(rule => rule.name === "盆栽")) result.unshift({ name: "盆栽", prefix: "PZ", mode: "name", locked: true });
-  // V25.5: the seven main categories must always be available. This does not
+  // V25.6: the seven main categories must always be available. This does not
   // change any existing Product ID or historical record.
   PRIMARY_PRODUCT_CATEGORIES_V255.forEach(name => {
     if (result.some(rule => rule.name === name)) return;
@@ -5369,7 +5383,7 @@ function getProductCategoryRulesV228() {
 }
 
 function getProductCategoriesV227() {
-  // V25.5: UI categories are MAIN categories only. Fine-class rules such as
+  // V25.6: UI categories are MAIN categories only. Fine-class rules such as
   // Monstera / Ficus / 虎尾兰 only decide the Product ID prefix.
   return PRIMARY_PRODUCT_CATEGORIES_V255.slice();
 }
@@ -6614,6 +6628,16 @@ function setupImportModule(){
     if (normalizedValue !== lastNotFoundBatchLookup) {
       lastNotFoundBatchLookup = "";
     }
+
+    // V25.6 iPhone: the keyboard accessory-bar ✓ can commit/hide the
+    // keyboard without emitting Enter and, on some iOS/browser combinations,
+    // without a useful blur/change event. As soon as the typed value becomes an
+    // exact saved import/tracking number, perform the same lookup after a short
+    // debounce. Wrong or incomplete values are never auto-alerted or trapped.
+    window.clearTimeout(batchLookupTimer);
+    batchLookupTimer = window.setTimeout(() => {
+      runBatchLookupFromKeyboard({ exactOnly: true });
+    }, 260);
   });
   document.getElementById("resetBatchBtn").addEventListener("click",()=>{
     if(confirm("确定清空本次输入？已保存的草稿和正式资料都不会被删除。")) {
@@ -6780,7 +6804,7 @@ function setupImportModule(){
 }
 
 
-// ================= V25.5 Two-stage Import Save =================
+// ================= V25.6 Two-stage Import Save =================
 const IMPORT_DRAFTS_KEY_V242 = "importDraftsV242";
 const IMPORT_DRAFT_DELETED_IDS_KEY_V250 = "importDraftDeletedIdsV250";
 let activeImportDraftIdV242 = "";
@@ -7049,7 +7073,7 @@ function saveImportDraftV242() {
   activeImportDraftIdV242 = id;
   writeImportDraftsV242(next);
 
-  // V25.5: saving a draft must NEVER leave the original import editor.
+  // V25.6: saving a draft must NEVER leave the original import editor.
   // Keep the just-saved draft active and preserve every field in the same input area.
   // Some sync/view refresh paths may redraw the page after settings are queued; if that
   // unexpectedly leaves the import editor blank, restore this exact saved draft.
@@ -7126,7 +7150,7 @@ function deleteImportDraftV242(draftId) {
   if (!draft) return;
   if (!confirm("⚠️ 确认删除这份草稿？\n\n这会永久删除尚未正式保存的进口草稿资料，删除后无法恢复。\n\n已正式保存的库存资料不会受到影响。")) return;
   const wasActiveV252 = String(activeImportDraftIdV242 || "") === String(draftId || "");
-  // V25.5 Local-First: clear active state and persist the tombstone immediately,
+  // V25.6 Local-First: clear active state and persist the tombstone immediately,
   // then clear the editor only when the deleted draft is the one currently open.
   if (wasActiveV252) activeImportDraftIdV242 = "";
   markImportDraftDeletedV250(draftId);
@@ -7146,7 +7170,7 @@ function consumeActiveImportDraftV242() {
   if (!activeImportDraftIdV242) return;
   const id = activeImportDraftIdV242;
   activeImportDraftIdV242 = "";
-  // V25.5: formal save is also a terminal removal of the draft. Without a
+  // V25.6: formal save is also a terminal removal of the draft. Without a
   // tombstone, a stale cloud copy can merge back and trigger the 24-hour reminder.
   markImportDraftDeletedV250(id);
   writeImportDraftsV242(getImportDraftsV242().filter(item => item.id !== id));
@@ -7160,7 +7184,7 @@ function formatDraftTimeV242(value) {
 }
 
 function renderImportDraftsV242() {
-  // V25.5: no large standalone draft module. The original import editor remains the
+  // V25.6: no large standalone draft module. The original import editor remains the
   // working area; only a lightweight entry is shown so drafts can be reopened after
   // clearing/reloading/leaving the page.
   const label = document.getElementById("activeDraftLabelV242");
@@ -7267,7 +7291,7 @@ function setupImportDraftV247() {
   document.getElementById("confirmFormalImportBtnV247")?.addEventListener("click", confirmFormalImportV247);
   document.getElementById("deleteCurrentImportDraftBtnV247")?.addEventListener("click", deleteCurrentImportDraftV247);
   document.getElementById("openImportDraftsBtnV248")?.addEventListener("click", openImportDraftPickerV248);
-  // V25.5: status follows every edit in the original import form.
+  // V25.6: status follows every edit in the original import form.
   const draftFormV249 = document.getElementById("batchImportForm");
   const refreshDraftStateV249 = () => window.requestAnimationFrame(() => renderImportDraftsV242());
   draftFormV249?.addEventListener("input", refreshDraftStateV249);
@@ -8665,7 +8689,7 @@ async function deleteBatchByNumber(importNumber) {
 
   if (!confirmed) return;
 
-  // V25.5: deletion can take time because cloud flush + pull-back verification
+  // V25.6: deletion can take time because cloud flush + pull-back verification
   // are intentionally strict. Give immediate, staged feedback instead of making
   // the user wait with an apparently idle screen.
   const deleteButtonV251 = Array.from(document.querySelectorAll('[data-delete-import-v251]')).find(btn =>
@@ -8753,7 +8777,7 @@ async function deleteBatchByNumber(importNumber) {
       await window.pullLatestAfterSalesCommitV83(true);
     }
 
-    // V25.5: if an older remote row resurrected a zero-stock orphan during the
+    // V25.6: if an older remote row resurrected a zero-stock orphan during the
     // verification pull, remove it once more with explicit Products tombstones.
     if (removedOrphanProductIdsV249.length) {
       const orphanIdSetV249 = new Set(removedOrphanProductIdsV249);
@@ -11035,7 +11059,7 @@ function getHistorySingleDateEventCount(
       normalizedKeyword
     );
 
-  // V25.5: count actual independent movement records. Multiple Import Numbers
+  // V25.6: count actual independent movement records. Multiple Import Numbers
   // on the same date must not collapse into one generic incoming event.
   const adjustmentCount = adjustments.filter(
     adjustment => Math.trunc(Number(adjustment.delta) || 0) !== 0
@@ -12199,7 +12223,7 @@ function renderBatchSuggestions(keyword = ""){
 
   // 没有输入名称时，显示全部已建立产品。
   if (!value) {
-    list.innerHTML = getProducts()
+    list.innerHTML = getOperationalProductsV256()
       .slice()
       .sort((a, b) =>
         String(a.id || "").localeCompare(
@@ -12250,7 +12274,7 @@ function applyBatchRate(){
 
 let batchCurrencyManuallySelectedV229 = false;
 let batchArrivalAutoFilledByMYRV230 = false;
-// V25.5: one currency-conflict acknowledgement per new import/draft.
+// V25.6: one currency-conflict acknowledgement per new import/draft.
 // It resets only when starting a genuinely new import, not on every row.
 let batchCurrencyConflictAcknowledgedV249 = false;
 
@@ -12728,7 +12752,7 @@ function maybeApplySuggestedBatchCurrencyV231(rowId, suggestedCurrency, label = 
     const message = `${label || "这个产品"} 的历史／默认进口货币为 ${wanted}，但同批其他产品对应 ${conflict}。\n\n同一个进口编号只能使用一种货币。请统一整批货币，或把不同货币产品分开建立进口编号。`;
     const status = document.getElementById("batchStatusText");
     if (status) status.textContent = message.replace(/\n+/g, " ");
-    // V25.5: user has already acknowledged this rule for the current import.
+    // V25.6: user has already acknowledged this rule for the current import.
     // Do not interrupt every subsequent product row with the same warning.
     if (!batchCurrencyConflictAcknowledgedV249) {
       batchCurrencyConflictAcknowledgedV249 = true;
@@ -12785,7 +12809,7 @@ function convertHistoricalOriginalCostForBatchV249(value, sourceCurrency, target
   const target = String(targetCurrency || "").trim().toUpperCase();
   if (!(amount > 0) || !source || !target || source === target) return amount;
 
-  // V25.5 exchange-rate direction: the stored rate is foreign-currency units per
+  // V25.6 exchange-rate direction: the stored rate is foreign-currency units per
   // MYR. So foreign -> MYR divides, MYR -> foreign multiplies, and foreign ->
   // foreign converts through MYR. Examples: 920 CNY / 1.60 = RM575.00;
   // RM35.00 * 1.60 = CNY56.00.
@@ -12899,7 +12923,7 @@ function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, c
     return;
   }
 
-  // V25.5: exact typing/paste of a Virtual Warehouse name behaves like clicking
+  // V25.6: exact typing/paste of a Virtual Warehouse name behaves like clicking
   // its suggestion. This runs only after the delayed identity check / blur.
   const exactVirtualV250 = findExactVirtualWarehouseByNameV250(name);
   if (exactVirtualV250) {
@@ -13035,7 +13059,7 @@ function positionBatchRowSuggestionBox(id) {
   const box = document.getElementById(`batchSuggestionBox-${id}`);
   if (!input || !box || box.hidden) return;
 
-  // V25.5: keep suggestions in the table row's normal document flow. The row
+  // V25.6: keep suggestions in the table row's normal document flow. The row
   // expands while suggestions are visible, so the next product row is never covered.
   box.style.left = "";
   box.style.top = "";
@@ -13059,6 +13083,7 @@ function getBatchRowSearchBaseV246() {
   if (!Array.isArray(products)) products = [];
   if (!Array.isArray(imports)) imports = [];
   if (!Array.isArray(batches)) batches = [];
+  products = products.filter(product => !isHiddenLegacyProductIdV256(product?.id));
 
   const batchByNumber = new Map(batches.map(batch => [String(batch?.importNumber || "").trim().toLowerCase(), batch]));
   const shipmentByKey = new Map();
@@ -13359,7 +13384,7 @@ function attachBatchRowEvents(id){
   n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();n.value=Array.from(t).slice(0,15).join("");n.dispatchEvent(new Event("input",{bubbles:true}));});
   [`batchQty-${id}`,`batchPrice-${id}`].forEach(k=>{const x=document.getElementById(k);x.addEventListener("focus",()=>x.select());x.addEventListener("input",calculateBatch);x.addEventListener("blur",()=>{if(!k.includes("Qty")&&!k.includes("Stock"))formatInputAmount(x);calculateBatch();});});
   document.getElementById(`batchPrice-${id}`).addEventListener("input", () => {
-    // V25.5: once the user manually edits an auto-seeded historical price,
+    // V25.6: once the user manually edits an auto-seeded historical price,
     // later currency/rate changes must never overwrite that manual quotation.
     const row = document.querySelector(`#batchRows tr[data-row-id="${id}"]`);
     if (row && row.dataset.settingAutoPriceV249 !== "1") {
@@ -14185,7 +14210,7 @@ function saveBatchImport() {
   };
 
   result.valid.forEach(item => {
-    // V25.5: prefer the already resolved Product ID. This prevents a legacy
+    // V25.6: prefer the already resolved Product ID. This prevents a legacy
     // fine-category product (e.g. Monstera 龟背竹) from being duplicated when
     // the UI now correctly stores/shows the main category 杂花杂木.
     let productIndex = products.findIndex(product => item.productId && String(product.id || "") === String(item.productId || ""));
@@ -14758,7 +14783,7 @@ function renderBatchProductStockResults() {
   if (toggleButton) toggleButton.hidden = true;
   if (countElement) countElement.hidden = true;
 
-  const products = getProducts()
+  const products = getOperationalProductsV256()
     .filter(product =>
       productSearchMatchesWithShipmentV235(
         `${product.id || ""} ${product.name || ""} ${product.category || ""}`,
@@ -14778,67 +14803,100 @@ function renderBatchProductStockResults() {
     return;
   }
 
-  output.innerHTML = products.map(product => `
-    <div class="product-stock-result-row">
-      <button
-        class="product-stock-name-display product-stock-name-edit-btn"
-        type="button"
-        data-product-id="${escapeHTML(product.id || "")}"
-        aria-label="点击复制产品名称；长按修改产品名称" title="点击复制产品名称；长按修改产品名称">
-        ${escapeHTML(product.name || "未命名产品")}
-      </button>
+  output.innerHTML = products.map(product => {
+    const originalRecordV219 = getPreferredOriginalCostRecordV219(product, keyword);
+    const batchV219 = originalRecordV219
+      ? (getBatches().find(batch => String(batch?.importNumber || "").trim().toLowerCase() === String(originalRecordV219?.importNumber || "").trim().toLowerCase()) || {})
+      : {};
+    const currencyV219 = originalRecordV219
+      ? String(originalRecordV219?.currency || batchV219?.currency || "").trim().toUpperCase()
+      : "";
+    const importNumberV256 = String(originalRecordV219?.importNumber || "").trim();
+    const productIdV256 = String(product?.id || "").trim();
 
-      <button
-        class="product-stock-qty-btn"
-        type="button"
-        data-product-id="${escapeHTML(product.id || "")}"
-        data-edit-type="stock"
-        aria-label="长按修改当前库存" title="长按修改当前库存">
-        当前库存：<strong>${formatNumber(Number(product.stock) || 0)}</strong>
-      </button>
+    return `
+    <div class="product-stock-result-row product-stock-card-v256">
+      <div class="product-stock-title-row-v256">
+        <button
+          class="product-stock-name-display product-stock-name-edit-btn product-stock-name-v256"
+          type="button"
+          data-product-id="${escapeHTML(productIdV256)}"
+          aria-label="点击复制产品名称；长按修改产品名称" title="点击复制产品名称；长按修改产品名称">
+          ${escapeHTML(product.name || "未命名产品")}
+        </button>
+        ${productIdV256 ? `<button type="button" class="product-stock-id-copy-v256"
+          data-product-id-copy-v256="${escapeHTML(productIdV256)}"
+          onclick="copyProductStockIdV256(this)"
+          aria-label="点击复制产品编号" title="点击复制产品编号">${escapeHTML(productIdV256)}</button>` : ""}
+      </div>
 
-      ${(() => {
-        const originalRecordV219 = getPreferredOriginalCostRecordV219(product, keyword);
-        if (!originalRecordV219) return `<div class="product-stock-original-cost-empty-v219">原成本：-</div>`;
-        const batchV219 = getBatches().find(batch => String(batch?.importNumber || "").trim().toLowerCase() === String(originalRecordV219?.importNumber || "").trim().toLowerCase()) || {};
-        const currencyV219 = String(originalRecordV219?.currency || batchV219?.currency || "").trim().toUpperCase();
-        return `<button class="product-stock-original-cost-btn-v219" type="button"
-          data-product-id="${escapeHTML(product.id || "")}"
+      <div class="product-stock-metrics-v256">
+        <button
+          class="product-stock-qty-btn product-stock-metric-v256"
+          type="button"
+          data-product-id="${escapeHTML(productIdV256)}"
+          data-edit-type="stock"
+          aria-label="长按修改当前库存" title="长按修改当前库存">
+          <span>当前库存</span><strong>${formatNumber(Number(product.stock) || 0)}</strong>
+        </button>
+
+        ${originalRecordV219 ? `<button class="product-stock-original-cost-btn-v219 product-stock-metric-v256" type="button"
+          data-product-id="${escapeHTML(productIdV256)}"
           data-import-record-id="${escapeHTML(originalRecordV219.id || "")}"
           data-edit-type="originalCost"
           aria-label="长按修改原成本" title="长按修改原成本；只重算该产品，不改变原进口数量或同批其他产品">
-          原成本：<strong>${formatMoney(Number(originalRecordV219.unitPrice) || 0)}${currencyV219 ? ` ${escapeHTML(currencyV219)}` : ""}</strong>
-          <small>${escapeHTML(originalRecordV219.importNumber || "")}</small>
-        </button>`;
-      })()}
+          <span>原成本</span><strong>${formatMoney(Number(originalRecordV219.unitPrice) || 0)}${currencyV219 ? ` ${escapeHTML(currencyV219)}` : ""}</strong>
+        </button>` : `<div class="product-stock-original-cost-empty-v219 product-stock-metric-v256"><span>原成本</span><strong>-</strong></div>`}
 
-      <button
-        class="product-stock-minimum-price-btn"
-        type="button"
-        data-product-id="${escapeHTML(product.id || "")}"
-        data-edit-type="minimumPrice"
-        aria-label="长按修改最低售价" title="长按修改最低售价">
-        ${getPromotionSettingsV183() && !getPromotionSettingsV183().excludedProductIds.includes(String(product.id || "").toUpperCase()) ? "促销最低售价" : "最低售价"}：<strong>${formatMoney(getEffectiveProductMinimumPriceV183(product), "RM ")}</strong>
-      </button>
+        <button
+          class="product-stock-minimum-price-btn product-stock-metric-v256"
+          type="button"
+          data-product-id="${escapeHTML(productIdV256)}"
+          data-edit-type="minimumPrice"
+          aria-label="长按修改最低售价" title="长按修改最低售价">
+          <span>${getPromotionSettingsV183() && !getPromotionSettingsV183().excludedProductIds.includes(String(product.id || "").toUpperCase()) ? "促销最低售价" : "最低售价"}</span><strong>${formatMoney(getEffectiveProductMinimumPriceV183(product), "RM ")}</strong>
+        </button>
 
-      <button
-        class="product-stock-cost-btn"
-        type="button"
-        data-product-id="${escapeHTML(product.id || "")}"
-        data-edit-type="averageCost"
-        aria-label="长按修改平均成本" title="长按修改平均成本；VND 为不含盆成本">
-        ${getAverageCostLabelV205(product)}：<strong>${formatMoney(Number(product.averageCost) || 0, "RM ")}</strong>
-      </button>
+        <button
+          class="product-stock-cost-btn product-stock-metric-v256"
+          type="button"
+          data-product-id="${escapeHTML(productIdV256)}"
+          data-edit-type="averageCost"
+          aria-label="长按修改平均成本" title="长按修改平均成本；VND 为不含盆成本">
+          <span>${getAverageCostLabelV205(product)}</span><strong>${formatMoney(Number(product.averageCost) || 0, "RM ")}</strong>
+        </button>
+      </div>
+
+      ${importNumberV256 ? `<div class="product-stock-import-row-v256"><span>进口编号</span><button type="button"
+        class="product-stock-import-copy-v256" data-copy-value="${escapeHTML(importNumberV256)}"
+        onclick="copyRecentBatchValue(this, '进口编号')" title="点击复制进口编号">${escapeHTML(importNumberV256)}</button></div>` : ""}
 
       ${buildProductPendingSalesHtmlV77(product)}
       ${buildProductAdjustmentNotesPanel(product)}
-    </div>
-  `).join("");
+    </div>`;
+  }).join("");
 
   bindProductStockNameEdit();
   bindProductStockLongPress();
   bindProductAdjustmentNoteEdit();
 }
+
+
+async function copyProductStockIdV256(button) {
+  const value = String(button?.dataset?.productIdCopyV256 || button?.textContent || "").trim();
+  if (!value) return;
+  try { await navigator.clipboard.writeText(value); }
+  catch (_) {
+    const area = document.createElement("textarea");
+    area.value = value; area.style.position = "fixed"; area.style.opacity = "0";
+    document.body.appendChild(area); area.select(); document.execCommand("copy"); area.remove();
+  }
+  const original = button.textContent;
+  button.textContent = "已复制";
+  button.classList.add("copied");
+  window.setTimeout(() => { if (button.isConnected) { button.textContent = original; button.classList.remove("copied"); } }, 900);
+}
+window.copyProductStockIdV256 = copyProductStockIdV256;
 
 
 function buildProductAdjustmentNotesPanel(product) {
@@ -16725,7 +16783,7 @@ function renderInventoryManagementList() {
       ])
   );
 
-  const products = getProducts()
+  const products = getOperationalProductsV256()
     // 首页以实际库存为准；避免旧的 inventoryArchived 标记
     // 把删除新批次后仍剩旧库存的产品错误隐藏。
     .filter(product => (Number(product.stock) || 0) > 0)
@@ -18094,7 +18152,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "25.5",
+      version: "25.6",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18461,7 +18519,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V25.5 Stable",
+      updatedBy: "System V25.6 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
