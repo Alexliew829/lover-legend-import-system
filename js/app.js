@@ -2589,6 +2589,7 @@ function setupNavigation() {
         window.alert("照片／视频正在上传并确认云端状态，请等待显示上传成功或失败后再切换页面。");
         return;
       }
+      if(target!==current&&typeof window.confirmLeaveUnsavedRecognitionV278==="function"&&!window.confirmLeaveUnsavedRecognitionV278("切换页面"))return;
       if(target!==current&&!confirmLeaveOriginalCostEditV219())return;
       if(target!==current&&current==="importPage"&&!confirmDiscardImportDraftChangesV243("切换页面"))return;
       if(target!==current&&promotionDeleteInProgressV184&&!window.confirm("促销删除仍在同步中。\n\n现在切换页面可能无法立即确认云端删除结果，建议等待显示删除完成。\n\n仍要切换页面吗？"))return;
@@ -4369,6 +4370,8 @@ function getPromotionSettingsV183() {
       .map(id => String(id || "").trim().toUpperCase()).filter(Boolean))),
     priceOverrides: Object.fromEntries(Object.entries(raw.priceOverrides && typeof raw.priceOverrides === "object" ? raw.priceOverrides : {})
       .map(([id, price]) => [String(id || "").trim().toUpperCase(), Math.max(0, Number(price) || 0)]).filter(([id, price]) => id && price > 0)),
+    customMarginRates: Object.fromEntries(Object.entries(raw.customMarginRates && typeof raw.customMarginRates === "object" ? raw.customMarginRates : {})
+      .map(([id, rate]) => [String(id || "").trim().toUpperCase(), Number(rate)]).filter(([id, rate]) => id && Number.isFinite(rate) && rate > -100 && rate < 100)),
     createdAt: String(raw.createdAt || ""),
     updatedAt: String(raw.updatedAt || "")
   };
@@ -4387,17 +4390,37 @@ function getPromotionDeliveryV183(product, rules) {
   return getMinimumFreightTierV188(originalPrice, rules);
 }
 
+function getPromotionDefaultProductMarginV278(product, rules = null) {
+  const configuredRules = rules || getMinimumPriceRulesV160();
+  const averageCostValue = Math.max(0, Number(product?.averageCost) || 0);
+  return averageCostValue <= 300 ? Number(configuredRules.margin0To300) || 0
+    : averageCostValue <= 500 ? Number(configuredRules.margin300To500) || 0
+      : averageCostValue < 800 ? Number(configuredRules.margin500To800) || 0
+        : averageCostValue < 5000 ? Number(configuredRules.margin800To5000) || 0
+          : averageCostValue < 8000 ? Number(configuredRules.margin5000To8000) || 0
+            : Number(configuredRules.margin8000Plus) || 0;
+}
+
+function getPromotionProductMarginV278(product, promotion = null, rules = null) {
+  const active = promotion || getPromotionSettingsV183();
+  if (!active) return 0;
+  const id = String(product?.id || "").trim().toUpperCase();
+  const custom = Number(active.customMarginRates?.[id]);
+  return Number.isFinite(custom) ? custom : Number(active.targetMarginRate) || 0;
+}
+
 function getPromotionPriceBreakdownV183(product, promotion = null, rules = null, originIndex = null) {
   const active = promotion || getPromotionSettingsV183();
   const configuredRules = rules || getMinimumPriceRulesV160();
   const cost = getPromotionCostV183(product, configuredRules, originIndex);
-  if (!active || cost <= 0) return { price:0, cost, delivery:0, tier:"A", profit:0, profitRate:0 };
-  const denominator = 1 - active.commissionRate / 100 - active.targetMarginRate / 100;
+  if (!active || cost <= 0) return { price:0, cost, delivery:0, tier:"A", profit:0, profitRate:0, targetMarginRate:0 };
+  const targetMarginRate = getPromotionProductMarginV278(product, active, configuredRules);
+  const denominator = 1 - active.commissionRate / 100 - targetMarginRate / 100;
   if (denominator <= 0) return { price:0, cost, delivery:0, tier:"A", profit:0, profitRate:0 };
   const freightTier = getPromotionDeliveryV183(product, configuredRules);
   const price = Math.ceil((((cost + freightTier.amount) / denominator) - 1e-9) / 10) * 10;
   const profit = price * (1 - active.commissionRate / 100) - cost - freightTier.amount;
-  return { price, cost, delivery:freightTier.amount, tier:freightTier.code, profit, profitRate:price > 0 ? profit / price * 100 : 0 };
+  return { price, cost, delivery:freightTier.amount, tier:freightTier.code, profit, profitRate:price > 0 ? profit / price * 100 : 0, targetMarginRate };
 }
 
 function getEffectiveProductMinimumPriceV183(product, promotion = null, rules = null, originIndex = null) {
@@ -4411,6 +4434,7 @@ function getEffectiveProductMinimumPriceV183(product, promotion = null, rules = 
 
 let promotionExcludedDraftV183 = new Set();
 let promotionPriceOverridesDraftV193 = {};
+let promotionMarginOverridesDraftV278 = {};
 let promotionSearchSelectionV184 = new Set();
 let promotionExcludedSelectionV184 = new Set();
 let promotionDeleteInProgressV184 = false;
@@ -4437,7 +4461,8 @@ function getPromotionDraftV183() {
     commissionRate: parsePromotionPercentV211(document.getElementById("promotionCommissionV183")?.value),
     targetMarginRate: parsePromotionPercentV211(document.getElementById("promotionMarginV183")?.value),
     excludedProductIds: Array.from(promotionExcludedDraftV183),
-    priceOverrides: { ...promotionPriceOverridesDraftV193 }
+    priceOverrides: { ...promotionPriceOverridesDraftV193 },
+    customMarginRates: { ...promotionMarginOverridesDraftV278 }
   };
 }
 
@@ -4451,7 +4476,8 @@ function hasPromotionDraftChangesV183() {
     Math.abs(draft.commissionRate - expected.commissionRate) >= 0.005 ||
     Math.abs(draft.targetMarginRate - expected.targetMarginRate) >= 0.005 ||
     JSON.stringify([...draft.excludedProductIds].sort()) !== JSON.stringify([...(expected.excludedProductIds || [])].sort()) ||
-    JSON.stringify(draft.priceOverrides || {}) !== JSON.stringify(expected.priceOverrides || {});
+    JSON.stringify(draft.priceOverrides || {}) !== JSON.stringify(expected.priceOverrides || {}) ||
+    JSON.stringify(draft.customMarginRates || {}) !== JSON.stringify(expected.customMarginRates || {});
 }
 
 function resetPromotionDraftV183() {
@@ -4465,6 +4491,7 @@ function resetPromotionDraftV183() {
   if (marginInput) marginInput.value = String(active?.targetMarginRate ?? 10);
   promotionExcludedDraftV183 = new Set(active?.excludedProductIds || []);
   promotionPriceOverridesDraftV193 = { ...(active?.priceOverrides || {}) };
+  promotionMarginOverridesDraftV278 = { ...(active?.customMarginRates || {}) };
   promotionSearchSelectionV184 = new Set();
   promotionExcludedSelectionV184 = new Set();
   renderPromotionExcludedListV183();
@@ -4651,11 +4678,16 @@ function renderPromotionExcludeSearchV183() {
   const matches = allMatches;
   results.innerHTML = matches.length ? matches.map(product => {
     const id = String(product.id || "").toUpperCase();
-    const promoPrice = getPromotionPriceBreakdownV183(product, promotion, rules, originIndex).price;
-    return `<div class="promotion-search-result-v183">
+    const promoBreakdown = getPromotionPriceBreakdownV183(product, promotion, rules, originIndex);
+    const promoPrice = promoBreakdown.price;
+    const defaultMarginV278 = getPromotionDefaultProductMarginV278(product, rules);
+    const hasCustomMarginV278 = Object.prototype.hasOwnProperty.call(promotionMarginOverridesDraftV278, id);
+    const shownMarginV278 = hasCustomMarginV278 ? Number(promotionMarginOverridesDraftV278[id]) : defaultMarginV278;
+    return `<div class="promotion-search-result-v183 promotion-search-result-v278">
       <input class="promotion-row-check-v184" type="checkbox" data-select-search-v184="${escapeHTML(id)}" ${promotionSearchSelectionV184.has(id) ? "checked" : ""} aria-label="选择 ${escapeHTML(product.name)}" />
       <div><button type="button" class="inventory-product-name-copy promotion-search-name-v186" data-product-name="${escapeHTML(product.name)}" onclick="copyInventoryProductName(this)" title="点击复制产品名称">${escapeHTML(product.name)}</button>${buildProductIdCopyButtonV166(id, "promotion-product-id-v183")}
       <span>库存 ${formatNumber(product.stock)} · ${getAverageCostLabelV205(product, originIndex)} ${formatMoney(product.averageCost, "RM ")} · 原最低售价 ${formatMoney(product.minimumPrice, "RM ")} · 促销最低售价 ${formatMoney(promoPrice, "RM ")}</span></div>
+      <div class="promotion-margin-control-v278"><label>独立净利率 <input type="text" inputmode="decimal" data-promotion-margin-input-v278="${escapeHTML(id)}" value="${escapeHTML(String(shownMarginV278))}" aria-label="${escapeHTML(product.name)} 独立净利率" /></label><small>${hasCustomMarginV278 ? `已设定 ${escapeHTML(String(shownMarginV278))}%` : `默认目标净利率 ${escapeHTML(String(defaultMarginV278))}%`}</small><div><button type="button" data-set-promotion-margin-v278="${escapeHTML(id)}">设定利润率</button>${hasCustomMarginV278 ? `<button type="button" class="secondary-btn" data-reset-promotion-margin-v278="${escapeHTML(id)}">恢复默认</button>` : ""}</div></div>
       <button type="button" data-add-promotion-exclusion="${escapeHTML(id)}">加入排除</button>
     </div>`;
   }).join("") : `<div class="promotion-empty-v183">${query ? "当前搜索没有更多可加入产品" : "当前筛选下没有更多可加入产品"}</div>`;
@@ -4782,7 +4814,7 @@ function getPromotionMarginBadgeV209(product, profitInfo = null) {
   const formattedRate = Number.isFinite(rate)
     ? (Number.isInteger(rate) ? Math.abs(rate).toFixed(0) : Math.abs(rate).toFixed(2).replace(/0+$/, "").replace(/\.$/, ""))
     : "";
-  // V27.7: the badge describes profit direction, not a discount. Profit is +green; loss is -red.
+  // V27.8: the badge describes profit direction, not a discount. Profit is +green; loss is -red.
   const text = formattedRate ? `${cls === "loss" ? "-" : cls === "gain" ? "+" : ""}${formattedRate}%` : "";
   return text ? `<em class="inventory-promotion-margin-v209 ${cls}">${escapeHTML(text)}</em>` : "";
 }
@@ -4899,6 +4931,33 @@ function setupPromotionSettingsV183() {
     renderPromotionExcludeSearchV183();
   });
   searchResults?.addEventListener("click", event => {
+    const marginSetButtonV278 = event.target.closest("[data-set-promotion-margin-v278]");
+    if (marginSetButtonV278) {
+      const id = String(marginSetButtonV278.dataset.setPromotionMarginV278 || "").toUpperCase();
+      const input = searchResults.querySelector(`[data-promotion-margin-input-v278="${CSS.escape(id)}"]`);
+      const rate = parsePromotionPercentV211(input?.value);
+      const draft = getPromotionDraftV183();
+      if (!Number.isFinite(rate) || rate <= -100 || rate >= 100 || 1 - draft.commissionRate / 100 - rate / 100 <= 0) {
+        window.alert("独立净利率无效。请检查利润率与主播佣金，合计必须低于 100%。");
+        return;
+      }
+      promotionMarginOverridesDraftV278[id] = Math.round(rate * 100) / 100;
+      promotionDraftTouchedV209 = true;
+      renderPromotionExcludeSearchV183();
+      if (pricePanel && !pricePanel.hidden) renderPromotionPriceListV183();
+      updatePromotionDraftStatusV186();
+      return;
+    }
+    const marginResetButtonV278 = event.target.closest("[data-reset-promotion-margin-v278]");
+    if (marginResetButtonV278) {
+      const id = String(marginResetButtonV278.dataset.resetPromotionMarginV278 || "").toUpperCase();
+      delete promotionMarginOverridesDraftV278[id];
+      promotionDraftTouchedV209 = true;
+      renderPromotionExcludeSearchV183();
+      if (pricePanel && !pricePanel.hidden) renderPromotionPriceListV183();
+      updatePromotionDraftStatusV186();
+      return;
+    }
     const button = event.target.closest("[data-add-promotion-exclusion]");
     if (!button) return;
     const id = String(button.dataset.addPromotionExclusion || "").toUpperCase();
@@ -5060,7 +5119,7 @@ function setupPromotionSettingsV183() {
     const activeNotice = currentActive
       ? `⚠️ 促销“${currentActive.name}”已经开启。\n本次确认会更新正在进行的促销设置，不会新增第二个促销。\n\n`
       : "";
-    if (!window.confirm(`${activeNotice}确认${currentActive ? "更新并继续开启" : "保存并开启"}促销？\n\n促销：${promotion.name}\n主播佣金：${promotion.commissionRate}%\n目标净利率：${promotion.targetMarginRate}%\n应用产品：${affected.length} 项\n排除产品：${promotion.excludedProductIds.length} 项${warning}\n\n原最低售价不会被修改；删除促销后会立即恢复。`)) return;
+    if (!window.confirm(`${activeNotice}确认${currentActive ? "更新并继续开启" : "保存并开启"}促销？\n\n促销：${promotion.name}\n主播佣金：${promotion.commissionRate}%\n目标净利率：${promotion.targetMarginRate}%\n应用产品：${affected.length} 项\n独立利润率：${Object.keys(promotion.customMarginRates || {}).length} 项\n排除产品：${promotion.excludedProductIds.length} 项${warning}\n\n原最低售价不会被修改；删除促销后会立即恢复。`)) return;
     const now = new Date().toISOString();
     const payload = { ...promotion, active:true, createdAt:currentActive?.createdAt||now, updatedAt:now };
     saveButton.disabled = true; if (deleteButton) deleteButton.disabled = true;
@@ -5203,7 +5262,7 @@ function getOperationalProductsV256(products = getProducts()) {
   );
 }
 
-// ================= V27.7 Two Real Warehouses =================
+// ================= V27.8 Two Real Warehouses =================
 const WAREHOUSE_BONSAI_V270 = "bonsai";
 const WAREHOUSE_WOOD_V270 = "wood";
 function getWarehouseForCategoryV270(category) {
@@ -5214,7 +5273,7 @@ function getProductWarehouseV270(product) {
   if (stored === WAREHOUSE_BONSAI_V270 || stored === WAREHOUSE_WOOD_V270) return stored;
   return getWarehouseForCategoryV270(product?.category || "盆栽");
 }
-// V27.7: 盆栽仓库中文为主、英文为次；杂木仓库英文为主、中文为次。
+// V27.8: 盆栽仓库中文为主、英文为次；杂木仓库英文为主、中文为次。
 // 仅改变显示顺序，不改变 product.name / Product ID / 同步 / 保存结构。
 function getProductDisplayNamesV271(product, warehouse = getProductWarehouseV270(product)) {
   const chinese = String(product?.name || "").trim();
@@ -5705,7 +5764,7 @@ function setupProductCategorySettingsV227() {
     );
     if (duplicateName) { if (status) status.textContent = "这个产品类别名称已经存在"; return; }
 
-    // V27.7: one prefix may be shared by multiple DIFFERENT product/category names.
+    // V27.8: one prefix may be shared by multiple DIFFERENT product/category names.
     // Only the same product/category name is forbidden from mapping to a second prefix.
 
     const verb = editingName ? "修改" : "新增";
@@ -7158,7 +7217,7 @@ function saveImportDraftV242() {
     return;
   }
   const state = collectImportDraftStateV242();
-  // V27.7: recognition red text is only a pre-save visual cue. Do not persist it in the import draft.
+  // V27.8: recognition red text is only a pre-save visual cue. Do not persist it in the import draft.
   state.rows = (state.rows || []).map(row => { const copy = { ...row }; delete copy.recognitionNewV265; return copy; });
   if (!state.rows.length) {
     alert("请先输入至少一个产品，再保存草稿。");
@@ -18370,7 +18429,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "27.7",
+      version: "27.8",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18737,7 +18796,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V27.7 Stable",
+      updatedBy: "System V27.8 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -18852,14 +18911,20 @@ function registerServiceWorker() {
 })();
 
 
-// ================= V27.7 Mobile ChatGPT Invoice Assistant =================
+// ================= V27.8 Mobile ChatGPT Invoice Assistant =================
 // Recognition remains isolated from stock, average cost, minimum-price and formal Import/Batch logic.
-// V27.7 adds only safer naming/category normalization, preview progress/table UI and independent handoff state.
+// V27.8 adds only safer naming/category normalization, preview progress/table UI and independent handoff state.
 (function initInvoiceAssistantV259Module(){
   const MAIN_CATEGORIES = new Set(["盆栽","杂花杂木","肥料 / 农药","泥土 / 介质","花盆","工具","其他"]);
   const DRAFT_KEY="invoiceRecognitionDraftsV259", HISTORY_KEY="invoiceRecognitionHistoryV259";
   const SHARED_STATUS_KEY_V277="invoiceRecognitionSharedStatusV277";
   let working=null, appliedRecognitionId="", appliedRecognitionSnapshot=null, progressTimer=null, desktopPollBusyV277=false;
+  function hasUnsavedRecognitionV278(){return Boolean(working?.id && !drafts().some(x=>String(x?.id||"")===String(working.id)))}
+  window.confirmLeaveUnsavedRecognitionV278=function(action="离开"){
+    if(!hasUnsavedRecognitionV278())return true;
+    return window.confirm(`识别结果尚未保存。${action}可能遗失这份识别资料。\n\n确定仍要离开吗？`);
+  };
+  window.addEventListener("beforeunload",event=>{if(!hasUnsavedRecognitionV278())return;event.preventDefault();event.returnValue="";});
   const el=id=>document.getElementById(id);
   const esc=v=>escapeHTML(String(v??""));
   const money=n=>(Number(n)||0).toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -18955,7 +19020,7 @@ function registerServiceWorker() {
   function render(d){
     working=d||working||drafts()[0]||null;const modal=el("invoicePreviewModalV259"),body=el("invoicePreviewBodyV259"),sum=el("invoicePreviewSummaryV259"),meta=el("invoicePreviewMetaV259");if(!modal||!body||!sum)return;if(!working){alert("目前没有识别草稿。请先用手机拍照或上传发票。 ");return}
     meta.textContent=`${working.supplier||"未识别供应商"} · ${working.pageCount||1} 页 · ${working.currency||""}`;
-    body.innerHTML=`<div class="invoice-preview-table-wrap-v270"><table class="invoice-preview-table-v270"><thead><tr><th>产品名1</th><th>产品名2</th><th>Product ID</th><th>数量</th><th>原成本</th><th>小计</th><th>类别</th></tr></thead><tbody>${working.items.map(x=>`<tr class="${x.isNew?'new-product':''} ${x.issue?'warning':''}"><td>${esc(x.name)}</td><td>${esc(x.englishName||"")}</td><td>${esc(x.productId||"")}</td><td class="num">${x.quantity}</td><td class="num">${money(x.unitPrice)}</td><td class="num">${money(x.quantity*x.unitPrice)}</td><td>${esc(x.category)}</td></tr>`).join("")}</tbody></table></div>`;
+    body.innerHTML=`<div class="invoice-preview-table-wrap-v270"><table class="invoice-preview-table-v270 invoice-preview-table-v278"><thead><tr><th>产品名称</th><th>Product ID</th><th>数量</th><th>原成本</th><th>小计</th><th>类别</th></tr></thead><tbody>${working.items.map(x=>`<tr class="${x.isNew?'new-product':''} ${x.issue?'warning':''}"><td class="invoice-product-name-cell-v278"><strong>${esc(x.name)}</strong>${x.englishName?`<small>${esc(x.englishName)}</small>`:""}</td><td>${esc(x.productId||"")}</td><td class="num">${x.quantity}</td><td class="num">${money(x.unitPrice)}</td><td class="num">${money(x.quantity*x.unitPrice)}</td><td>${esc(x.category)}</td></tr>`).join("")}</tbody></table></div>`;
     const q=working.items.reduce((a,x)=>a+x.quantity,0),a=working.items.reduce((z,x)=>z+x.quantity*x.unitPrice,0),c=working.items.length,ok=working.matchOk&&working.complete&&c===working.source.itemCount&&Math.abs(q-working.source.totalQuantity)<.0001&&Math.abs(a-working.source.totalAmount)<.01;
     sum.className=`invoice-preview-summary-v259 ${ok?'ok':'warn'}`;sum.innerHTML=`<strong>${ok?'✅ 识别草稿与发票核对一致':'⚠️ 识别结果存在差异'}</strong><br>发票：${working.source.itemCount} 项 · 数量 ${working.source.totalQuantity} · 总额 ${money(working.source.totalAmount)} ${esc(working.currency)}<br>草稿：${c} 项 · 数量 ${q} · 总额 ${money(a)} ${esc(working.currency)}`+(working.issues.length?`<br><strong>原因：</strong>${working.issues.map(esc).join('；')}`:'')+`<div class="invoice-history-note-v259">红色字体 = 两个仓库都没有的真正新品；正常颜色 = 盆栽仓库／杂木仓库已有产品。</div>`;
     el("invoiceApplyRecognitionDraftV259").disabled=!ok;modal.hidden=false;updateButton()
@@ -19073,7 +19138,7 @@ function supplierReferenceInfoV265(s){
   const name=supplierCanonNameV261(s?.name||"").toLowerCase();
   const aliases=[name,...(Array.isArray(s?.aliases)?s.aliases:[]).map(x=>supplierCanonNameV261(x).toLowerCase())].filter(Boolean);
   const labels=Array.from(new Set(aliases));
-  // V27.7: reference protection belongs to this supplier record, not merely to a shared prefix.
+  // V27.8: reference protection belongs to this supplier record, not merely to a shared prefix.
   // Two suppliers may share one prefix; a newly copied name must not inherit another supplier's stock lock.
   const matchesLabel=(value)=>{const v=supplierCanonNameV261(value||"").toLowerCase();return labels.some(label=>v===label||v.startsWith(label));};
   const virtual=getVirtualWarehouseSourceV240().some(v=>{
@@ -19150,13 +19215,13 @@ function cleanupTestSupplierV268(){
 }
 
 
-// ================= V27.7 Virtual Reference -> Two Real Warehouses =================
+// ================= V27.8 Virtual Reference -> Two Real Warehouses =================
 function ensureWoodWarehouseMigrationV270(){
   const settings=loadJSON("importSystemSettings",{});
   const refs=getVirtualWarehouseSourceV240();
   if(!refs.length)return false;
 
-  // V27.7 repair: V27.0/V27.1 may already carry the old migration flag even when
+  // V27.8 repair: V27.0/V27.1 may already carry the old migration flag even when
   // the reference rows never reached the real Products collection. The flag alone
   // is therefore not proof that Warehouse 2 exists. Reconcile the actual Products
   // collection once, without changing stock/cost/history of any existing product.
@@ -19229,7 +19294,7 @@ function ensureWoodWarehouseMigrationV270(){
 function scheduleWoodWarehouseMigrationV270(){
   let tries=0;const wait=()=>{tries+=1;const synced=typeof cloudInitialSyncComplete!=="undefined"&&cloudInitialSyncComplete&&typeof cloudLastErrorMessage!=="undefined"&&!cloudLastErrorMessage&&navigator.onLine;if(synced){ensureWoodWarehouseMigrationV270();return}if(tries<120)window.setTimeout(wait,500)};window.setTimeout(wait,300);
 }
-// V27.7: warehouse switching is display-only. Never start a cloud read or rebuild
+// V27.8: warehouse switching is display-only. Never start a cloud read or rebuild
 // unrelated dashboard/system modules just because the user changed warehouse.
 function renderDashboardWarehouseSummaryV275(){
   const products=loadJSON("importSystemProducts",[]);
