@@ -5904,7 +5904,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .product-stock-minimum-price-gain-v268 strong,.product-stock-minimum-price-gain-v268 .inventory-promotion-margin-v209{color:#177245!important}
 
 
-/* V27.5 invoice recognition preview/progress only; no sync-path changes. */
+/* V27.6 invoice recognition preview/progress only; no sync-path changes. */
 .invoice-progress-wrap-v269{display:flex;align-items:center;gap:10px;margin-top:8px}
 .invoice-progress-track-v269{flex:1;height:8px;border-radius:999px;background:#e6ece8;overflow:hidden}
 .invoice-progress-track-v269 span{display:block;height:100%;width:0;background:#2f7d4a;transition:width .25s ease}
@@ -5925,10 +5925,10 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .invoice-progress-wrap-v269[hidden]{display:none!important}
 
 
-/* ================= V27.5 Two Real Warehouses ================= */
+/* ================= V27.6 Two Real Warehouses ================= */
 .warehouse-switch-row-v270{display:flex;align-items:center;gap:10px;margin:0 0 12px;flex-wrap:wrap}.warehouse-select-v270{min-width:150px;height:42px;border:1px solid #cfdad3;border-radius:9px;background:#fff;padding:0 10px;font-weight:800;color:#24553c}.inventory-toolbar{grid-template-columns:160px minmax(260px,1fr) 180px!important}.inventory-master-toolbar-v264{grid-template-columns:160px minmax(280px,1fr) 180px!important}.history-english-name-v270{display:block;margin-top:3px;font-size:.9em;font-weight:600;color:#68776f;line-height:1.25}.history-copy-product .history-english-name-v270{pointer-events:none}.invoice-preview-body-v259{overflow-x:auto;-webkit-overflow-scrolling:touch}.invoice-preview-table-wrap-v270{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%}.invoice-preview-table-v270{border-collapse:collapse;min-width:1140px;width:100%;table-layout:fixed}.invoice-preview-table-v270 th,.invoice-preview-table-v270 td{padding:9px 10px;border-bottom:1px solid #e5e7eb;vertical-align:middle;text-align:left;white-space:normal}.invoice-preview-table-v270 th{font-weight:800;background:#f7f8f8;position:static!important}.invoice-preview-table-v270 th:nth-child(1),.invoice-preview-table-v270 td:nth-child(1){width:220px}.invoice-preview-table-v270 th:nth-child(2),.invoice-preview-table-v270 td:nth-child(2){width:190px}.invoice-preview-table-v270 th:nth-child(3),.invoice-preview-table-v270 td:nth-child(3){width:105px}.invoice-preview-table-v270 th:nth-child(4),.invoice-preview-table-v270 td:nth-child(4){width:75px}.invoice-preview-table-v270 th:nth-child(5),.invoice-preview-table-v270 td:nth-child(5){width:110px}.invoice-preview-table-v270 th:nth-child(6),.invoice-preview-table-v270 td:nth-child(6){width:120px}.invoice-preview-table-v270 th:nth-child(7),.invoice-preview-table-v270 td:nth-child(7){width:120px}.invoice-preview-table-v270 th:nth-child(8),.invoice-preview-table-v270 td:nth-child(8){width:110px}.invoice-preview-table-v270 td.num{text-align:right;font-variant-numeric:tabular-nums}.invoice-preview-table-v270 tr.new-product td{color:#c62828;font-weight:800}.invoice-preview-table-v270 tr.warning td{box-shadow:inset 0 1px #e6a23c,inset 0 -1px #e6a23c}@media(max-width:720px){.inventory-toolbar,.inventory-master-toolbar-v264{grid-template-columns:1fr!important}.warehouse-select-v270{width:100%}}
 
-/* ================= V27.5 Warehouse language priority ================= */
+/* ================= V27.6 Warehouse language priority ================= */
 .product-secondary-name-v271 {
   display: block;
   margin-top: 3px;
