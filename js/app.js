@@ -5558,9 +5558,15 @@ function setupProductCategorySettingsV227() {
 
   const resolveExistingCategoryRuleV268 = value => {
     const raw=String(value||"").trim();
-    const base=normalizeProductCategoryNameV227(raw.split("/")[0].trim());
-    if(!base)return null;
-    return getProductCategoryRulesV228().find(rule=>normalizeProductCategoryNameV227(rule.name).toLocaleLowerCase()===base.toLocaleLowerCase())||null;
+    if(!raw)return null;
+    const tokens=raw.split(/[\/／|、,，]+/).map(v=>normalizeProductPrefixKeywordV181(v)).filter(Boolean);
+    const rules=getProductCategoryRulesV228();
+    const matches=rules.filter(rule=>{
+      const ruleTokens=String(rule.name||"").split(/[\/／|、,，\s]+/).map(v=>normalizeProductPrefixKeywordV181(v)).filter(Boolean);
+      return tokens.some(t=>ruleTokens.includes(t));
+    });
+    const prefixes=[...new Set(matches.map(r=>String(r.prefix||"").toUpperCase()))];
+    return prefixes.length===1?matches[0]:null;
   };
   input?.addEventListener("input",()=>{
     const existing=resolveExistingCategoryRuleV268(input.value);
@@ -5621,9 +5627,9 @@ function setupProductCategorySettingsV227() {
     if (!name) { if (status) status.textContent = "请输入产品类别名称"; input?.focus(); return; }
     if (name === "盆栽") { if (status) status.textContent = "盆栽固定按产品名称规则生成前缀，请到「盆栽前缀规则」处理"; return; }
     const existingCategoryV268=resolveExistingCategoryRuleV268(input?.value);
-    if(existingCategoryV268 && !editingName && normalizeProductCategoryNameV227(existingCategoryV268.name).toLocaleLowerCase()===normalizeProductCategoryNameV227(name.split("/")[0].trim()).toLocaleLowerCase()){
+    if(existingCategoryV268 && !editingName){
       if(prefix!==existingCategoryV268.prefix){
-        const message=`“${input?.value||name}”已经对应前缀 ${existingCategoryV268.prefix}，不能再改成 ${prefix}。一个产品类别只能对应一个产品前缀。`;
+        const message=`“${input?.value||name}”已经对应前缀 ${existingCategoryV268.prefix}，不能再改成 ${prefix}。同一个产品/类别不能对应两个前缀。`;
         if(status)status.textContent=message;window.alert(message);if(prefixInput)prefixInput.value=existingCategoryV268.prefix;return;
       }
       const message=`“${input?.value||name}”已经存在，对应前缀 ${existingCategoryV268.prefix}，不能重复新增。`;
@@ -5645,14 +5651,8 @@ function setupProductCategorySettingsV227() {
     );
     if (duplicateName) { if (status) status.textContent = "这个产品类别名称已经存在"; return; }
 
-    const conflict = getCategoryPrefixConflictV229(prefix, editingName);
-    if (conflict) {
-      const message = `编号前缀 ${prefix} 已被${conflict}使用，不能重复使用。请换另一个前缀。`;
-      if (status) status.textContent = message;
-      window.alert(message);
-      prefixInput?.focus();
-      return;
-    }
+    // V26.9: one prefix may be shared by multiple DIFFERENT product/category names.
+    // Only the same product/category name is forbidden from mapping to a second prefix.
 
     const verb = editingName ? "修改" : "新增";
     if (!window.confirm(`${verb}产品类别？\n\n类别：${name}\n编号前缀：${prefix}\n\n只要仍有产品／进口资料使用就会锁定；库存变成0也不会自动解锁，必须先清理零库存产品。\n现有产品编号永远不会自动改号。`)) return;
@@ -5864,11 +5864,16 @@ function setupProductPrefixSettingsV181() {
   });
 
   const existingPrefixForKeywordV268 = value => {
-    const normalized=normalizeProductPrefixKeywordV181(value);
-    if(!normalized) return "";
-    if(normalized===normalizeProductPrefixKeywordV181("盆栽")) return "PZ";
-    const matched=getProductPrefixRulesV181().find(([k])=>normalizeProductPrefixKeywordV181(k)===normalized);
-    return matched?.[1]||"";
+    const raw=String(value||"").trim();
+    if(!raw)return "";
+    const tokens=raw.split(/[\/／|、,，]+/).map(v=>normalizeProductPrefixKeywordV181(v)).filter(Boolean);
+    const rules=getProductPrefixRulesV181();
+    const prefixes=new Set();
+    tokens.forEach(token=>{
+      if(token===normalizeProductPrefixKeywordV181("盆栽")) prefixes.add("PZ");
+      rules.forEach(([k,p])=>{if(normalizeProductPrefixKeywordV181(k)===token)prefixes.add(String(p||"").toUpperCase())});
+    });
+    return prefixes.size===1?[...prefixes][0]:"";
   };
   keywordInput.addEventListener("input",()=>{
     const expected=existingPrefixForKeywordV268(keywordInput.value);
@@ -5936,6 +5941,12 @@ function setupProductPrefixSettingsV181() {
     if(expectedPrefixV268 && prefix!==expectedPrefixV268){
       const message=`“${keyword}”已经对应前缀 ${expectedPrefixV268}，不能再改成 ${prefix}。一个产品名称只能对应一个产品前缀。`;
       if(status)status.textContent=message;window.alert(message);prefixInput.value=expectedPrefixV268;return;
+    }
+    if(expectedPrefixV268 && !editingKeyword){
+      const tokens=String(keyword||"").split(/[\/／|、,，]+/).map(v=>normalizeProductPrefixKeywordV181(v)).filter(Boolean);
+      const rules=getProductPrefixRulesV181();
+      const allExisting=tokens.length>0&&tokens.every(token=>token===normalizeProductPrefixKeywordV181("盆栽")||rules.some(([k,p])=>normalizeProductPrefixKeywordV181(k)===token&&String(p||"").toUpperCase()===expectedPrefixV268));
+      if(allExisting){const message=`“${keyword}”已经对应前缀 ${expectedPrefixV268}，不能重复新增。`;if(status)status.textContent=message;window.alert(message);return;}
     }
     if (normalizedKeyword === normalizeProductPrefixKeywordV181("盆栽")) {
       const message = "“盆栽”是系统固定默认规则 PZ，不能重复新增。一个产品名称只能对应一个前缀。";
@@ -7093,6 +7104,8 @@ function saveImportDraftV242() {
     return;
   }
   const state = collectImportDraftStateV242();
+  // V26.9: recognition red text is only a pre-save visual cue. Do not persist it in the import draft.
+  state.rows = (state.rows || []).map(row => { const copy = { ...row }; delete copy.recognitionNewV265; return copy; });
   if (!state.rows.length) {
     alert("请先输入至少一个产品，再保存草稿。");
     return;
@@ -18268,7 +18281,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "26.8",
+      version: "26.9",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18635,7 +18648,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V26.8 Stable",
+      updatedBy: "System V26.9 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -18750,40 +18763,108 @@ function registerServiceWorker() {
 })();
 
 
-// ================= V26.6 Mobile ChatGPT Invoice Assistant =================
-// Recognition is a separate preview/draft layer. It never changes stock, average cost,
-// minimum price, formal Import/Batch logic, saveBatchImport(), or deletion core.
+// ================= V26.9 Mobile ChatGPT Invoice Assistant =================
+// Recognition remains isolated from stock, average cost, minimum-price and formal Import/Batch logic.
+// V26.9 adds only safer naming/category normalization, preview progress/table UI and independent handoff state.
 (function initInvoiceAssistantV259Module(){
   const MAIN_CATEGORIES = new Set(["盆栽","杂花杂木","肥料 / 农药","泥土 / 介质","花盆","工具","其他"]);
   const DRAFT_KEY="invoiceRecognitionDraftsV259", HISTORY_KEY="invoiceRecognitionHistoryV259";
-  let working=null, appliedRecognitionId="";
+  let working=null, appliedRecognitionId="", appliedRecognitionSnapshot=null, progressTimer=null;
   const el=id=>document.getElementById(id);
   const esc=v=>escapeHTML(String(v??""));
   const money=n=>(Number(n)||0).toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const deepClone=v=>{try{return JSON.parse(JSON.stringify(v))}catch(_){return v}};
   function isPhone(){const coarse=window.matchMedia?.("(pointer: coarse)")?.matches;const narrow=Math.min(window.screen?.width||innerWidth,innerWidth||9999)<=768;return Boolean(coarse&&narrow)}
   function normalizeCategory(v){const x=String(v||"").trim();if(MAIN_CATEGORIES.has(x))return x;if(/肥料|农药/.test(x))return"肥料 / 农药";if(/泥土|介质|soil/i.test(x))return"泥土 / 介质";if(/花盆/.test(x))return"花盆";if(/工具/.test(x))return"工具";if(/杂花|杂木/.test(x))return"杂花杂木";if(/盆栽/.test(x))return"盆栽";return"其他"}
   function settings(){return loadJSON("importSystemSettings",{})}
   function drafts(){const a=settings()[DRAFT_KEY];return Array.isArray(a)?a:[]}
   function history(){const a=settings()[HISTORY_KEY];return Array.isArray(a)?a:[]}
+  function workingCountsAsDraft(){return Boolean(working?.id && !drafts().some(x=>String(x?.id||"")===String(working.id)))}
   function writeCollections(d,h){const st=settings();saveJSON("importSystemSettings",{...st,[DRAFT_KEY]:(d||drafts()).slice(0,20),[HISTORY_KEY]:(h||history()).slice(0,80)});if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved();updateButton()}
-  function updateButton(){const b=el("invoicePreviewBtnV259");if(b)b.textContent=`📄 查看识别草稿（${drafts().length}）`}
-  function setStatus(t,k=""){const e=el("invoiceRecognitionStatusV258");if(e){e.textContent=t||"";e.dataset.kind=k}}
+  function updateButton(){const b=el("invoicePreviewBtnV259");if(!b)return;const saved=drafts();const count=saved.length+(workingCountsAsDraft()?1:0);b.textContent=`📄 查看识别草稿（${count}）`}
+  function setProgress(percent,text,kind=""){
+    const p=Math.max(0,Math.min(100,Math.round(Number(percent)||0)));
+    const e=el("invoiceRecognitionStatusV258");if(e){e.textContent=text?`${text} ${p}%`:`${p}%`;e.dataset.kind=kind}
+    const wrap=el("invoiceRecognitionProgressWrapV269"),bar=el("invoiceRecognitionProgressBarV269"),label=el("invoiceRecognitionProgressLabelV269");
+    if(wrap)wrap.hidden=p<=0||p>=100&&kind==="error";if(bar)bar.style.width=`${p}%`;if(label)label.textContent=`${p}%`;
+  }
+  function stopProgressTimer(){if(progressTimer){window.clearInterval(progressTimer);progressTimer=null}}
   function inventory(){return getOperationalProductsV256().map(p=>({id:String(p?.id||""),name:String(p?.name||""),category:normalizeCategory(p?.category),stock:Number(p?.stock)||0})).filter(p=>p.id&&p.name)}
   function compress(file){return new Promise((res,rej)=>{const r=new FileReader();r.onerror=()=>rej(new Error("无法读取照片"));r.onload=()=>{const im=new Image();im.onerror=()=>rej(new Error("照片格式无法读取"));im.onload=()=>{const m=1800,sc=Math.min(1,m/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=Math.max(1,Math.round(im.width*sc));c.height=Math.max(1,Math.round(im.height*sc));c.getContext("2d",{alpha:false}).drawImage(im,0,0,c.width,c.height);res(c.toDataURL("image/jpeg",.80))};im.src=String(r.result||"")};r.readAsDataURL(file)})}
-  function resolveProducts(result){const ps=getOperationalProductsV256(),reserved=[...ps];return (result.items||[]).map((it,idx)=>{const source=[it.name,it.chineseName,it.englishName,it.sourceText].filter(Boolean).join(" ");const q=normalizeSearchTextV262(source);let old=null,id=String(it.existingProductId||"").toUpperCase();if(id)old=ps.find(p=>String(p.id||"").toUpperCase()===id)||null;if(!old)old=ps.find(p=>{const t=normalizeSearchTextV262(productSearchTextV262(p));return q&&([it.name,it.chineseName,it.englishName].filter(Boolean).some(v=>{const z=normalizeSearchTextV262(v);return z&&(t.includes(z)||z.includes(normalizeSearchTextV262(p.name))) }))})||null;let bilingual=inferSimpleBilingualV262(source);let ref=null;if(!old){ref=getVirtualWarehouseSourceV240().find(v=>{const t=normalizeSearchTextV262([v.name,v.description,v.supplierPrefix,v.supplierFullName].join(" "));return [it.name,it.chineseName,it.englishName].filter(Boolean).some(vv=>{const z=normalizeSearchTextV262(vv);return z&&t.includes(z)})})||null;if(ref){bilingual={chineseName:String(ref.name||""),englishName:String(ref.description||""),prefix:String(ref.productPrefix||"")}}}let name=old?String(old.name||""):String(it.chineseName||bilingual.chineseName||it.name||"").trim();if(!name)name=String(it.name||"").trim();if(!old&&Array.from(name).length>15)name=Array.from(name).slice(0,15).join("");const en=old?productEnglishNameV262(old):String(it.englishName||bilingual.englishName||ref?.description||"").trim();const cat=old?normalizeCategory(old.category):normalizeCategory(it.category);let pid=old?String(old.id||""):"";const pref=String(it.preferredProductPrefix||bilingual.prefix||ref?.productPrefix||"").trim().toUpperCase()||(cat==="杂花杂木"?getProductPrefix(cat,name):getProductPrefix(cat,name));if(!old){pid=generateNextProductIdFromPrefixV240(reserved,pref);reserved.push({id:pid,name,category:cat})}return{index:idx+1,sourceText:String(it.sourceText||""),name,englishName:en,productId:pid,isNew:!old,quantity:Math.max(0,Math.floor(Number(it.quantity)||0)),unitPrice:Math.max(0,Number(it.unitPrice)||0),category:cat,preferredProductPrefix:pref,confidence:String(it.confidence||""),issue:String(it.issue||"")}})}
+  function extractSizeTokenV269(source){const s=String(source||"");const m=s.match(/\b(?:P\s?\d{2,4}|\d{2,4}\s?P|\d{1,4}(?:\.\d+)?\s?C|\d{1,3}\s?(?:CM|MM))\b/i);return m?m[0].replace(/\s+/g,"").toUpperCase():""}
+  function supplierPrefixForRecognitionV269(result){const supplier=String(result?.supplier||"").trim();if(!supplier)return"";const known=typeof supplierAliasForNameV261==="function"?supplierAliasForNameV261(supplier):null;if(known?.prefix)return String(known.prefix);return typeof supplierPrefixFromEnglishNameV261==="function"?String(supplierPrefixFromEnglishNameV261(supplier)||""):""}
+  function categoryFromPrefixV269(prefix,fallback,name){const p=String(prefix||"").toUpperCase();if(!p)return normalizeCategory(fallback);const bonsai=getProductPrefixRulesV181().some(([,rp])=>String(rp||"").toUpperCase()===p);if(bonsai)return"盆栽";const rule=getProductCategoryRulesV228().find(r=>String(r?.prefix||"").toUpperCase()===p&&r?.mode==="category");if(rule){return isPrimaryProductCategoryV255(rule.name)?normalizePrimaryProductCategoryV255(rule.name):"杂花杂木"}if(p==="ZZ")return"杂花杂木";const n=String(name||"");if(/盆景|矮霸|造型|提根|悬崖|双干|老桩|小品/.test(n))return"盆栽";return normalizeCategory(fallback)}
+  function resolveProducts(result){
+    const ps=getOperationalProductsV256(),reserved=[...ps],supplierPrefix=supplierPrefixForRecognitionV269(result);
+    return (result.items||[]).map((it,idx)=>{
+      const source=[it.sourceText,it.name,it.chineseName,it.englishName].filter(Boolean).join(" ");const q=normalizeSearchTextV262(source);
+      let old=null,id=String(it.existingProductId||"").toUpperCase();if(id)old=ps.find(p=>String(p.id||"").toUpperCase()===id)||null;
+      if(!old)old=ps.find(p=>{const t=normalizeSearchTextV262(productSearchTextV262(p));return q&&([it.name,it.chineseName,it.englishName].filter(Boolean).some(v=>{const z=normalizeSearchTextV262(v);return z&&(t.includes(z)||z.includes(normalizeSearchTextV262(p.name))) }))})||null;
+      let bilingual=inferSimpleBilingualV262(source),ref=null;
+      if(!old){ref=getVirtualWarehouseSourceV240().find(v=>{const t=normalizeSearchTextV262([v.name,v.description,v.supplierPrefix,v.supplierFullName].join(" "));return [it.name,it.chineseName,it.englishName].filter(Boolean).some(vv=>{const z=normalizeSearchTextV262(vv);return z&&t.includes(z)})})||null;if(ref)bilingual={chineseName:String(ref.name||""),englishName:String(ref.description||""),prefix:String(ref.productPrefix||"")}}
+      let name="";
+      if(old)name=String(old.name||"");
+      else if(ref?.name)name=String(ref.name||"").trim();
+      else {
+        const cn=String(it.chineseName||bilingual.chineseName||it.name||"").trim();
+        const size=extractSizeTokenV269(it.sourceText||it.name||"");
+        const alreadyHasSize=size&&normalizeSearchTextV262(cn).includes(normalizeSearchTextV262(size));
+        const alreadyHasSupplier=supplierPrefix&&normalizeSearchTextV262(cn).startsWith(normalizeSearchTextV262(supplierPrefix));
+        name=`${alreadyHasSupplier?"":supplierPrefix}${cn}${size&&!alreadyHasSize?size:""}`.trim();
+      }
+      if(!name)name=String(it.name||"").trim();if(!old&&Array.from(name).length>15)name=Array.from(name).slice(0,15).join("");
+      const en=old?productEnglishNameV262(old):String(it.englishName||bilingual.englishName||ref?.description||"").trim();
+      let pref=old?String(old.id||"").slice(0,2).toUpperCase():String(it.preferredProductPrefix||bilingual.prefix||ref?.productPrefix||"").trim().toUpperCase();
+      let requestedCategory=normalizeCategory(it.category);
+      if(!old&&!ref&&requestedCategory==="盆栽"&&/[A-Za-z]/.test(source)&&extractSizeTokenV269(source)&&!/盆景|矮霸|造型|提根|悬崖|双干|老桩|小品/.test(source)) requestedCategory="杂花杂木";
+      let cat=old?normalizeCategory(old.category):categoryFromPrefixV269(pref,requestedCategory,name);
+      if(!pref)pref=getProductPrefix(cat,name);
+      cat=old?cat:categoryFromPrefixV269(pref,cat,name);
+      let pid=old?String(old.id||""):"";if(!old){pid=generateNextProductIdFromPrefixV240(reserved,pref);reserved.push({id:pid,name,category:cat})}
+      return{index:idx+1,sourceText:String(it.sourceText||""),name,englishName:en,productId:pid,isNew:!old,quantity:Math.max(0,Math.floor(Number(it.quantity)||0)),unitPrice:Math.max(0,Number(it.unitPrice)||0),category:cat,preferredProductPrefix:pref,confidence:String(it.confidence||""),issue:String(it.issue||"")}
+    })
+  }
   function buildDraft(result,pageCount){const items=resolveProducts(result),calcQty=items.reduce((a,x)=>a+x.quantity,0),calcAmt=items.reduce((a,x)=>a+x.quantity*x.unitPrice,0);return{id:`AIR${Date.now()}`,status:"recognition",createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),supplier:String(result.supplier||""),currency:String(result.currency||""),pageCount,items,source:{itemCount:Number(result.invoiceItemCount)||items.length,totalQuantity:Number(result.invoiceTotalQuantity)||calcQty,totalAmount:Number(result.invoiceTotalAmount)||calcAmt,printedItemCount:Number(result.printedItemCount)||0,printedTotalQuantity:Number(result.printedTotalQuantity)||0,printedTotalAmount:Number(result.printedTotalAmount)||0},issues:Array.isArray(result.issues)?result.issues.map(String):[],matchOk:result.matchOk!==false,complete:result.complete!==false}}
-  function render(d){working=d||drafts()[0]||null;const modal=el("invoicePreviewModalV259"),body=el("invoicePreviewBodyV259"),sum=el("invoicePreviewSummaryV259"),meta=el("invoicePreviewMetaV259");if(!modal||!body||!sum)return;if(!working){alert("目前没有识别草稿。请先用手机拍照或上传发票。 ");return}meta.textContent=`${working.supplier||"未识别供应商"} · ${working.pageCount||1} 页 · ${working.currency||""}`;body.innerHTML='<div class="invoice-preview-row-v259 header"><div>产品名 / 状态</div><div>产品编号</div><div>数量</div><div>类别</div><div>原成本</div><div>小计</div></div>'+working.items.map(x=>`<div class="invoice-preview-row-v259 ${x.isNew?'new-product':''} ${x.issue?'warning':''}"><div class="invoice-preview-product-v259">${esc(x.name)}${x.englishName?`<span class="product-english-name-v262">${esc(x.englishName)}</span>`:""}<small>${x.isNew?'新产品':'沿用旧产品'}${x.issue?' · '+esc(x.issue):''}</small></div><div>${esc(x.productId)}</div><div>${x.quantity}</div><div>${esc(x.category)}</div><div>${money(x.unitPrice)}</div><div>${money(x.quantity*x.unitPrice)}</div></div>`).join("");const q=working.items.reduce((a,x)=>a+x.quantity,0),a=working.items.reduce((z,x)=>z+x.quantity*x.unitPrice,0),c=working.items.length,ok=working.matchOk&&working.complete&&c===working.source.itemCount&&Math.abs(q-working.source.totalQuantity)<.0001&&Math.abs(a-working.source.totalAmount)<.01;sum.className=`invoice-preview-summary-v259 ${ok?'ok':'warn'}`;sum.innerHTML=`<strong>${ok?'✅ 识别草稿与发票核对一致':'⚠️ 识别结果存在差异'}</strong><br>发票：${working.source.itemCount} 项 · 数量 ${working.source.totalQuantity} · 总额 ${money(working.source.totalAmount)} ${esc(working.currency)}<br>草稿：${c} 项 · 数量 ${q} · 总额 ${money(a)} ${esc(working.currency)}`+(working.issues.length?`<br><strong>原因：</strong>${working.issues.map(esc).join('；')}`:'')+`<div class="invoice-history-note-v259">红色整项 = 新产品；正常颜色 = 沿用库存旧产品。</div>`;el("invoiceApplyRecognitionDraftV259").disabled=!ok;modal.hidden=false}
-  async function recognize(files){if(!isPhone()){alert("照片识别功能只能在手机使用。请先用手机处理并保存识别草稿，再到电脑检查。");return}const fs=Array.from(files||[]);if(!fs.length)return;try{setStatus(`正在准备 ${fs.length} 页照片…`);const urls=[];for(let i=0;i<fs.length;i++){setStatus(`正在准备第 ${i+1}/${fs.length} 页…`);urls.push(await compress(fs[i]))}setStatus("正在交给 ChatGPT 合并识别并核对多页发票…");const data=await callGoogleApi({action:"recognizeImportInvoiceV259",clientVersion:APP_VERSION,imageDataUrls:urls,inventory:inventory().map(p=>({...p,englishName:productEnglishNameV262(p)})),virtualWarehouse:getVirtualWarehouseSourceV240()});if(!data?.result)throw new Error("ChatGPT 没有返回识别结果");const r=data.result;if(r.rejected)throw new Error(String(r.rejectionReason||"发票资料不符合安全识别条件，请重拍或重新上传。"));working=buildDraft(r,fs.length);setStatus("识别完成。请打开「查看识别草稿」检查。","ok");render(working)}catch(e){const m=String(e?.message||e||"识别失败");setStatus(`识别失败：${m}`,"error");alert(`${m}\n\n没有资料带入 Import，也没有影响库存、保存或删除。`)}finally{["invoiceCameraInputV259","invoiceUploadInputV259"].forEach(id=>{const i=el(id);if(i)i.value=""})}}
-  function saveRecognition(){if(!working)return;const d={...working,updatedAt:new Date().toISOString()};writeCollections([d,...drafts().filter(x=>x.id!==d.id)],history());working=d;setStatus("识别草稿已保存，可到电脑打开检查。","ok");el("invoicePreviewModalV259").hidden=true;alert("识别草稿已保存。电脑同步后可点击「查看识别草稿」检查。")}
-  function deleteRecognition(){if(!working||!confirm("确认删除这份识别草稿？不会影响 Import、库存或历史正式资料。"))return;writeCollections(drafts().filter(x=>x.id!==working.id),history());working=null;el("invoicePreviewModalV259").hidden=true}
-  function showRecognitionHistory(){const h=history();if(!h.length){alert("目前没有识别历史记录。");return}const body=el("invoicePreviewBodyV259"),sum=el("invoicePreviewSummaryV259"),meta=el("invoicePreviewMetaV259");meta.textContent=`识别历史 · ${h.length} 份`;body.innerHTML=h.map((x,i)=>`<button type="button" class="invoice-history-item-v259" data-rec-history="${i}"><strong>${esc(x.supplier||"未命名供应商")}</strong><span>${esc((x.archivedAt||x.updatedAt||x.createdAt||"").replace("T"," ").slice(0,16))} · ${x.items?.length||0} 项 · ${x.pageCount||1} 页</span></button>`).join("");sum.className="invoice-preview-summary-v259";sum.innerHTML="选择一份历史记录即可重新查看当时的识别草稿；历史记录只供追溯，不会自动改动 Import 或库存。";body.querySelectorAll("[data-rec-history]").forEach(b=>b.onclick=()=>{const x=h[Number(b.dataset.recHistory)];if(x)render(x)});el("invoiceDeleteRecognitionDraftV259").disabled=true;el("invoiceSaveRecognitionDraftV259").disabled=true;el("invoiceApplyRecognitionDraftV259").disabled=true}
-  function applyRecognition(){if(!working)return;const ps=getOperationalProductsV256(),byId=new Map(ps.map(p=>[String(p.id||""),p]));if(currentEditingImportNumber){alert("当前正在查看已正式保存进口编号，不能带入。请先回到新进口输入。");return}if(importDraftStateHasUserDataV246(collectImportDraftStateV242())&&!confirm("当前同批进口产品已有资料。继续会用识别草稿取代产品行，是否继续？"))return;const tbody=el("batchRows");tbody.innerHTML="";batchRowSeq=0;working.items.forEach(x=>{const old=byId.get(x.productId);addBatchRow({name:old?old.name:x.name,productId:old?old.id:"",category:old?normalizeCategory(old.category):x.category,quantity:x.quantity,unitPrice:x.unitPrice});const tr=document.querySelector("#batchRows tr:last-child");if(tr){if(!old&&x.preferredProductPrefix)tr.dataset.preferredSubcategoryPrefixV255=String(x.preferredProductPrefix).toUpperCase();if(x.englishName)tr.dataset.englishNameV262=String(x.englishName);if(!old){tr.dataset.recognitionNewV265="1";tr.classList.add("recognition-new-product-v265")}}});if(!document.querySelector("#batchRows tr"))addBatchRow();const ce=el("batchCurrency");if(ce&&["CNY","NTD","VND","IDR","MYR"].includes(String(working.currency).toUpperCase())){ce.value=String(working.currency).toUpperCase();batchCurrencyManuallySelectedV229=true}calculateBatch();appliedRecognitionId=working.id;el("invoicePreviewModalV259").hidden=true;setStatus("识别草稿已带入同批进口产品。请检查后按原本「保存草稿」。","ok")}
-  function archiveAppliedAfterImportDraftSave(){if(!appliedRecognitionId)return;const d=drafts().find(x=>x.id===appliedRecognitionId)||working;if(!d)return;const archived={...d,status:"history",archivedAt:new Date().toISOString(),linkedImportDraftId:String(activeImportDraftIdV242||"")};writeCollections(drafts().filter(x=>x.id!==appliedRecognitionId),[archived,...history().filter(x=>x.id!==archived.id)]);appliedRecognitionId="";working=null;setStatus("Import 草稿已保存；原识别草稿已自动收入识别历史。","ok")}
+  function render(d){
+    working=d||working||drafts()[0]||null;const modal=el("invoicePreviewModalV259"),body=el("invoicePreviewBodyV259"),sum=el("invoicePreviewSummaryV259"),meta=el("invoicePreviewMetaV259");if(!modal||!body||!sum)return;if(!working){alert("目前没有识别草稿。请先用手机拍照或上传发票。 ");return}
+    meta.textContent=`${working.supplier||"未识别供应商"} · ${working.pageCount||1} 页 · ${working.currency||""}`;
+    body.innerHTML='<div class="invoice-preview-table-v269"><div class="invoice-preview-row-v259 header"><div>产品名1</div><div>英文名2</div><div>产品编号</div><div>数量</div><div>原成本</div><div>小计</div><div>类别</div><div>状态</div></div>'+working.items.map(x=>`<div class="invoice-preview-row-v259 ${x.isNew?'new-product':''} ${x.issue?'warning':''}"><div>${esc(x.name)}</div><div>${esc(x.englishName||"")}</div><div>${esc(x.productId)}</div><div class="num">${x.quantity}</div><div class="num">${money(x.unitPrice)}</div><div class="num">${money(x.quantity*x.unitPrice)}</div><div>${esc(x.category)}</div><div>${x.isNew?'新产品':'沿用旧产品'}${x.issue?` · ${esc(x.issue)}`:''}</div></div>`).join("")+"</div>";
+    const q=working.items.reduce((a,x)=>a+x.quantity,0),a=working.items.reduce((z,x)=>z+x.quantity*x.unitPrice,0),c=working.items.length,ok=working.matchOk&&working.complete&&c===working.source.itemCount&&Math.abs(q-working.source.totalQuantity)<.0001&&Math.abs(a-working.source.totalAmount)<.01;
+    sum.className=`invoice-preview-summary-v259 ${ok?'ok':'warn'}`;sum.innerHTML=`<strong>${ok?'✅ 识别草稿与发票核对一致':'⚠️ 识别结果存在差异'}</strong><br>发票：${working.source.itemCount} 项 · 数量 ${working.source.totalQuantity} · 总额 ${money(working.source.totalAmount)} ${esc(working.currency)}<br>草稿：${c} 项 · 数量 ${q} · 总额 ${money(a)} ${esc(working.currency)}`+(working.issues.length?`<br><strong>原因：</strong>${working.issues.map(esc).join('；')}`:'')+`<div class="invoice-history-note-v259">红色字体 = 新产品；正常颜色 = 沿用库存旧产品。</div>`;
+    el("invoiceApplyRecognitionDraftV259").disabled=!ok;modal.hidden=false;updateButton()
+  }
+  async function recognize(files){
+    if(!isPhone()){alert("照片识别功能只能在手机使用。请先用手机处理并保存识别草稿，再到电脑检查。");return}const fs=Array.from(files||[]);if(!fs.length)return;
+    stopProgressTimer();let progress=5;
+    try{
+      setProgress(progress,`正在准备 ${fs.length} 页照片…`);const urls=[];
+      for(let i=0;i<fs.length;i++){progress=10+Math.round(((i+1)/fs.length)*25);setProgress(progress,`正在准备第 ${i+1}/${fs.length} 页…`);urls.push(await compress(fs[i]))}
+      progress=45;setProgress(progress,"正在上传并交给 ChatGPT 识别…");progressTimer=window.setInterval(()=>{if(progress<88){progress+=1;setProgress(progress,"ChatGPT 正在识别并核对多页发票…")}},700);
+      const data=await callGoogleApi({action:"recognizeImportInvoiceV259",clientVersion:APP_VERSION,imageDataUrls:urls,inventory:inventory().map(p=>({...p,englishName:productEnglishNameV262(p)})),virtualWarehouse:getVirtualWarehouseSourceV240()});stopProgressTimer();setProgress(90,"正在整理识别结果…");
+      if(!data?.result)throw new Error("ChatGPT 没有返回识别结果");const r=data.result;if(r.rejected)throw new Error(String(r.rejectionReason||"发票资料不符合安全识别条件，请重拍或重新上传。"));
+      working=buildDraft(r,fs.length);updateButton();setProgress(100,"识别完成","ok");render(working)
+    }catch(e){stopProgressTimer();const m=String(e?.message||e||"识别失败");setProgress(100,`识别失败：${m}`,"error");alert(`${m}\n\n没有资料带入 Import，也没有影响库存、保存或删除。`)}finally{["invoiceCameraInputV259","invoiceUploadInputV259"].forEach(id=>{const i=el(id);if(i)i.value=""})}
+  }
+  function saveRecognition(){if(!working)return;const d=deepClone({...working,updatedAt:new Date().toISOString()});writeCollections([d,...drafts().filter(x=>x.id!==d.id)],history());working=d;setProgress(100,"识别草稿已保存","ok");el("invoicePreviewModalV259").hidden=true;alert("识别草稿已保存。电脑同步后可点击「查看识别草稿」检查。");updateButton()}
+  function deleteRecognition(){if(!working||!confirm("确认删除这份识别草稿？不会影响已经带入的进口草稿、库存或历史正式资料。"))return;const id=String(working.id||"");writeCollections(drafts().filter(x=>String(x?.id||"")!==id),history());working=null;el("invoicePreviewModalV259").hidden=true;updateButton()}
+  function showRecognitionHistory(){const h=history();if(!h.length){alert("目前没有识别历史记录。");return}const body=el("invoicePreviewBodyV259"),sum=el("invoicePreviewSummaryV259"),meta=el("invoicePreviewMetaV259");meta.textContent=`识别历史 · ${h.length} 份`;body.innerHTML=h.map((x,i)=>`<button type="button" class="invoice-history-item-v259" data-rec-history="${i}"><strong>${esc(x.supplier||"未命名供应商")}</strong><span>${esc((x.archivedAt||x.updatedAt||x.createdAt||"").replace("T"," ").slice(0,16))} · ${x.items?.length||0} 项 · ${x.pageCount||1} 页</span></button>`).join("");sum.className="invoice-preview-summary-v259";sum.innerHTML="选择一份历史记录即可重新查看当时的识别草稿；历史记录只供追溯，不会自动改动 Import 或库存。";body.querySelectorAll("[data-rec-history]").forEach(b=>b.onclick=()=>{const x=h[Number(b.dataset.recHistory)];if(x)render(deepClone(x))});el("invoiceDeleteRecognitionDraftV259").disabled=true;el("invoiceSaveRecognitionDraftV259").disabled=true;el("invoiceApplyRecognitionDraftV259").disabled=true}
+  function applyRecognition(){
+    if(!working)return;const snapshot=deepClone(working),ps=getOperationalProductsV256(),byId=new Map(ps.map(p=>[String(p.id||""),p]));if(currentEditingImportNumber){alert("当前正在查看已正式保存进口编号，不能带入。请先回到新进口输入。");return}if(importDraftStateHasUserDataV246(collectImportDraftStateV242())&&!confirm("当前进口管理已有资料。继续会用识别草稿取代产品行，是否继续？"))return;
+    const tbody=el("batchRows");tbody.innerHTML="";batchRowSeq=0;
+    snapshot.items.forEach(x=>{const old=byId.get(x.productId);addBatchRow({name:old?old.name:x.name,productId:old?old.id:"",category:old?normalizeCategory(old.category):x.category,quantity:x.quantity,unitPrice:x.unitPrice});const tr=document.querySelector("#batchRows tr:last-child");if(tr){if(!old&&x.preferredProductPrefix)tr.dataset.preferredSubcategoryPrefixV255=String(x.preferredProductPrefix).toUpperCase();if(x.englishName)tr.dataset.englishNameV262=String(x.englishName);if(!old){tr.dataset.recognitionNewV265="1";tr.classList.add("recognition-new-product-v265")}}});if(!document.querySelector("#batchRows tr"))addBatchRow();
+    const ce=el("batchCurrency"),currency=String(snapshot.currency||"").toUpperCase();if(ce&&["CNY","NTD","VND","IDR","MYR"].includes(currency)){ce.value=currency;batchCurrencyManuallySelectedV229=true;clearAutoArrivalWhenLeavingMYRV230();applyBatchRate();setTodayArrivalForMYRV229();refreshAutoOriginalCostsForBatchV249()}
+    calculateBatch();appliedRecognitionId=String(snapshot.id||"");appliedRecognitionSnapshot=snapshot;el("invoicePreviewModalV259").hidden=true;setProgress(100,"识别草稿已带入进口管理，请检查后保存草稿","ok")
+  }
+  function archiveAppliedAfterImportDraftSave(){
+    if(!appliedRecognitionId&&!appliedRecognitionSnapshot)return;const d=deepClone(appliedRecognitionSnapshot||drafts().find(x=>x.id===appliedRecognitionId)||working);if(!d)return;
+    const archived={...d,status:"history",archivedAt:new Date().toISOString(),linkedImportDraftId:String(activeImportDraftIdV242||"")};writeCollections(drafts().filter(x=>x.id!==appliedRecognitionId),[archived,...history().filter(x=>x.id!==archived.id)]);
+    document.querySelectorAll("#batchRows tr.recognition-new-product-v265").forEach(tr=>{delete tr.dataset.recognitionNewV265;tr.classList.remove("recognition-new-product-v265")});
+    appliedRecognitionId="";appliedRecognitionSnapshot=null;working=null;updateButton();setProgress(100,"Import 草稿已保存；新产品提示已恢复正常颜色","ok")
+  }
   window.archiveAppliedRecognitionDraftV259=archiveAppliedAfterImportDraftSave;
-  function init(){const btn=el("invoicePhotoBtnV258"),notice=el("invoiceDesktopNoticeV258");if(!btn)return;notice.hidden=isPhone();btn.setAttribute("aria-disabled",isPhone()?"false":"true");btn.onclick=()=>{if(!isPhone()){alert("照片识别功能只能在手机使用。请先用手机拍照/上传并保存识别草稿，再到电脑检查。");return}el("invoiceSourceChoiceV259").hidden=false};let cameraPagesV262=[];const cameraSession=el("invoiceCameraSessionV262"),cameraCount=el("invoiceCameraCountV262");const updateCameraSession=()=>{if(cameraCount)cameraCount.textContent=`已拍 ${cameraPagesV262.length} 页`;if(cameraSession)cameraSession.hidden=cameraPagesV262.length===0};el("invoiceTakePhotoV259").onclick=()=>{cameraPagesV262=[];updateCameraSession();el("invoiceCameraInputV259").click()};el("invoiceChoosePhotosV259").onclick=()=>{el("invoiceSourceChoiceV259").hidden=true;el("invoiceUploadInputV259").click()};el("invoiceChoiceCancelV259").onclick=()=>{cameraPagesV262=[];updateCameraSession();el("invoiceSourceChoiceV259").hidden=true};el("invoiceCameraInputV259").onchange=e=>{const f=e.target.files?.[0];if(f)cameraPagesV262.push(f);e.target.value="";updateCameraSession();el("invoiceSourceChoiceV259").hidden=false};el("invoiceCameraMoreV262").onclick=()=>el("invoiceCameraInputV259").click();el("invoiceCameraDeleteLastV262").onclick=()=>{cameraPagesV262.pop();updateCameraSession()};el("invoiceCameraFinishV262").onclick=()=>{if(!cameraPagesV262.length)return;const pages=cameraPagesV262.slice();cameraPagesV262=[];updateCameraSession();el("invoiceSourceChoiceV259").hidden=true;recognize(pages)};el("invoiceUploadInputV259").onchange=e=>recognize(e.target.files);el("invoicePreviewBtnV259").onclick=()=>render(drafts()[0]||working);el("invoicePreviewCloseV259").onclick=()=>el("invoicePreviewModalV259").hidden=true;el("invoiceHistoryV259").onclick=showRecognitionHistory;el("invoiceSaveRecognitionDraftV259").onclick=saveRecognition;el("invoiceDeleteRecognitionDraftV259").onclick=deleteRecognition;el("invoiceApplyRecognitionDraftV259").onclick=applyRecognition;updateButton();window.addEventListener("storage",updateButton)}
+  function init(){const btn=el("invoicePhotoBtnV258"),notice=el("invoiceDesktopNoticeV258");if(!btn)return;notice.hidden=isPhone();btn.setAttribute("aria-disabled",isPhone()?"false":"true");btn.onclick=()=>{if(!isPhone()){alert("照片识别功能只能在手机使用。请先用手机拍照/上传并保存识别草稿，再到电脑检查。");return}el("invoiceSourceChoiceV259").hidden=false};let cameraPagesV262=[];const cameraSession=el("invoiceCameraSessionV262"),cameraCount=el("invoiceCameraCountV262");const updateCameraSession=()=>{if(cameraCount)cameraCount.textContent=`已拍 ${cameraPagesV262.length} 页`;if(cameraSession)cameraSession.hidden=cameraPagesV262.length===0};el("invoiceTakePhotoV259").onclick=()=>{cameraPagesV262=[];updateCameraSession();el("invoiceCameraInputV259").click()};el("invoiceChoosePhotosV259").onclick=()=>{el("invoiceSourceChoiceV259").hidden=true;el("invoiceUploadInputV259").click()};el("invoiceChoiceCancelV259").onclick=()=>{cameraPagesV262=[];updateCameraSession();el("invoiceSourceChoiceV259").hidden=true};el("invoiceCameraInputV259").onchange=e=>{const f=e.target.files?.[0];if(f)cameraPagesV262.push(f);e.target.value="";updateCameraSession();el("invoiceSourceChoiceV259").hidden=false};el("invoiceCameraMoreV262").onclick=()=>el("invoiceCameraInputV259").click();el("invoiceCameraDeleteLastV262").onclick=()=>{cameraPagesV262.pop();updateCameraSession()};el("invoiceCameraFinishV262").onclick=()=>{if(!cameraPagesV262.length)return;const pages=cameraPagesV262.slice();cameraPagesV262=[];updateCameraSession();el("invoiceSourceChoiceV259").hidden=true;recognize(pages)};el("invoiceUploadInputV259").onchange=e=>recognize(e.target.files);el("invoicePreviewBtnV259").onclick=()=>render(working||drafts()[0]);el("invoicePreviewCloseV259").onclick=()=>el("invoicePreviewModalV259").hidden=true;el("invoiceHistoryV259").onclick=showRecognitionHistory;el("invoiceSaveRecognitionDraftV259").onclick=saveRecognition;el("invoiceDeleteRecognitionDraftV259").onclick=deleteRecognition;el("invoiceApplyRecognitionDraftV259").onclick=applyRecognition;updateButton();window.addEventListener("storage",updateButton)}
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
 })();;
-
 
 
 // ================= V26.6 bilingual product master =================
@@ -18858,7 +18939,7 @@ function supplierReferenceInfoV265(s){
   const name=supplierCanonNameV261(s?.name||"").toLowerCase();
   const aliases=[name,...(Array.isArray(s?.aliases)?s.aliases:[]).map(x=>supplierCanonNameV261(x).toLowerCase())].filter(Boolean);
   const labels=Array.from(new Set(aliases));
-  // V26.8: reference protection belongs to this supplier record, not merely to a shared prefix.
+  // V26.9: reference protection belongs to this supplier record, not merely to a shared prefix.
   // Two suppliers may share one prefix; a newly copied name must not inherit another supplier's stock lock.
   const matchesLabel=(value)=>{const v=supplierCanonNameV261(value||"").toLowerCase();return labels.some(label=>v===label||v.startsWith(label));};
   const virtual=getVirtualWarehouseSourceV240().some(v=>{

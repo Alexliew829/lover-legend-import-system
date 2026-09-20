@@ -5902,3 +5902,24 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 /* V26.8 product-management minimum price follows homepage profit color. */
 .product-stock-minimum-price-loss-v268 strong,.product-stock-minimum-price-loss-v268 .inventory-promotion-margin-v209{color:#c62828!important}
 .product-stock-minimum-price-gain-v268 strong,.product-stock-minimum-price-gain-v268 .inventory-promotion-margin-v209{color:#177245!important}
+
+
+/* V26.9 invoice recognition preview/progress only; no sync-path changes. */
+.invoice-progress-wrap-v269{display:flex;align-items:center;gap:10px;margin-top:8px}
+.invoice-progress-track-v269{flex:1;height:8px;border-radius:999px;background:#e6ece8;overflow:hidden}
+.invoice-progress-track-v269 span{display:block;height:100%;width:0;background:#2f7d4a;transition:width .25s ease}
+.invoice-progress-wrap-v269 strong{min-width:42px;text-align:right;font-size:13px}
+.invoice-preview-body-v259{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.invoice-preview-table-v269{min-width:1040px}
+.invoice-preview-row-v259{grid-template-columns:minmax(220px,2fr) minmax(190px,1.5fr) 105px 75px 110px 120px 120px 130px;gap:8px}
+.invoice-preview-row-v259.new-product{color:#c62828;font-weight:800;background:transparent}
+.invoice-preview-row-v259 .num{text-align:right;font-variant-numeric:tabular-nums}
+.recognition-new-product-v265{outline:none!important;background:transparent!important}
+.recognition-new-product-v265 input,.recognition-new-product-v265 select,.recognition-new-product-v265 .product-id-display{color:#c62828!important;font-weight:800!important}
+@media(max-width:768px){
+  .invoice-preview-card-v259{max-height:96vh;padding:12px}
+  .invoice-preview-row-v259{display:grid;grid-template-columns:minmax(220px,2fr) minmax(180px,1.5fr) 95px 70px 105px 115px 110px 125px;font-size:14px}
+  .invoice-preview-row-v259.header{display:grid}
+  .invoice-preview-actions-v259{position:sticky;bottom:0;background:#fff;padding-bottom:4px}
+}
+.invoice-progress-wrap-v269[hidden]{display:none!important}
