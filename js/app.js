@@ -4512,10 +4512,18 @@ function promotionProductMatchesV183(product, query) {
 function getPromotionSearchProductsV185(query, sortMode = "latest") {
   const keyword = String(query || "").trim().toLowerCase();
   const imports = getImports();
+  const importsByProductV279 = new Map(), importsByNameV279 = new Map();
+  imports.forEach(row => {
+    const pid = String(row?.productId || "").trim();
+    const pname = String(row?.productName || "").trim().toLowerCase();
+    if (pid) { if (!importsByProductV279.has(pid)) importsByProductV279.set(pid, []); importsByProductV279.get(pid).push(row); }
+    if (pname) { if (!importsByNameV279.has(pname)) importsByNameV279.set(pname, []); importsByNameV279.get(pname).push(row); }
+  });
   const sales = getInventorySalesAnalyticsV146();
   const products = getProducts().filter(product => Number(product?.stock) > 0).map(product => {
-    const rows = imports.filter(row => String(row?.productId || "") === String(product?.id || "") ||
-      String(row?.productName || "").trim().toLowerCase() === String(product?.name || "").trim().toLowerCase());
+    const pidKeyV279 = String(product?.id || "").trim();
+    const pnameKeyV279 = String(product?.name || "").trim().toLowerCase();
+    const rows = importsByProductV279.get(pidKeyV279) || importsByNameV279.get(pnameKeyV279) || [];
     const importNumbers = rows.map(row => String(row?.importNumber || "")).join(" ");
     const trackingNumbers = rows.map(row => `${row?.trackingNumber || ""} ${row?.overseasTrackingNumber || ""}`).join(" ");
     const id = String(product?.id || "").trim();
@@ -4649,6 +4657,11 @@ function updatePromotionBatchControlsV184() {
     addSelected.textContent = `确认加入排除（${promotionSearchSelectionV184.size}）`;
     addSelected.classList.add("promotion-confirm-action-v197", "promotion-confirm-add-v197");
   }
+  const batchSetV279 = document.getElementById("promotionSetBatchMarginV279");
+  if (batchSetV279) {
+    batchSetV279.disabled = promotionSearchSelectionV184.size === 0;
+    batchSetV279.textContent = `设置所选产品（${promotionSearchSelectionV184.size}）`;
+  }
   renderPromotionPendingSelectionV193();
   if (removeSelected) {
     removeSelected.disabled = promotionExcludedSelectionV184.size === 0;
@@ -4680,7 +4693,7 @@ function renderPromotionExcludeSearchV183() {
     const id = String(product.id || "").toUpperCase();
     const promoBreakdown = getPromotionPriceBreakdownV183(product, promotion, rules, originIndex);
     const promoPrice = promoBreakdown.price;
-    const defaultMarginV278 = getPromotionDefaultProductMarginV278(product, rules);
+    const defaultMarginV278 = Number.isFinite(Number(promotion.targetMarginRate)) ? Number(promotion.targetMarginRate) : 0;
     const hasCustomMarginV278 = Object.prototype.hasOwnProperty.call(promotionMarginOverridesDraftV278, id);
     const shownMarginV278 = hasCustomMarginV278 ? Number(promotionMarginOverridesDraftV278[id]) : defaultMarginV278;
     return `<div class="promotion-search-result-v183 promotion-search-result-v278">
@@ -4785,7 +4798,7 @@ async function refreshPromotionCloudStateV209(force = false) {
   if (!navigator.onLine || promotionDeleteInProgressV184 || promotionDraftTouchedV209) return false;
   if (typeof pullLatestAfterSalesCommitV83 !== "function") return false;
   const now = Date.now();
-  if (!force && (promotionCloudRefreshBusyV209 || now - promotionCloudRefreshLastAtV209 < 1500)) return false;
+  if (!force && (promotionCloudRefreshBusyV209 || now - promotionCloudRefreshLastAtV209 < 15000)) return false;
   promotionCloudRefreshBusyV209 = true;
   promotionCloudRefreshLastAtV209 = now;
   try {
@@ -4810,11 +4823,11 @@ function getPromotionMarginBadgeV209(product, profitInfo = null) {
   if (!promotion || promotion.excludedProductIds.includes(id)) return "";
   const info = profitInfo || getProductMinimumProfitV205(product, promotion);
   const cls = info.profit < -0.005 ? "loss" : info.profit > 0.005 ? "gain" : "neutral";
-  const rate = Number(promotion.targetMarginRate);
+  const rate = Number(getPromotionProductMarginV278(product, promotion));
   const formattedRate = Number.isFinite(rate)
     ? (Number.isInteger(rate) ? Math.abs(rate).toFixed(0) : Math.abs(rate).toFixed(2).replace(/0+$/, "").replace(/\.$/, ""))
     : "";
-  // V27.8: the badge describes profit direction, not a discount. Profit is +green; loss is -red.
+  // V27.9: the badge describes profit direction, not a discount. Profit is +green; loss is -red.
   const text = formattedRate ? `${cls === "loss" ? "-" : cls === "gain" ? "+" : ""}${formattedRate}%` : "";
   return text ? `<em class="inventory-promotion-margin-v209 ${cls}">${escapeHTML(text)}</em>` : "";
 }
@@ -4870,6 +4883,8 @@ function setupPromotionSettingsV183() {
   const searchResults = document.getElementById("promotionExcludeSearchResultsV183");
   const selectAllSearch = document.getElementById("promotionSelectAllSearchV184");
   const excludeSelected = document.getElementById("promotionExcludeSelectedV184");
+  const batchMarginInputV279 = document.getElementById("promotionBatchMarginV279");
+  const setBatchMarginV279 = document.getElementById("promotionSetBatchMarginV279");
   const excludedList = document.getElementById("promotionExcludedListV183");
   const selectAllExcluded = document.getElementById("promotionSelectAllExcludedV184");
   const removeSelected = document.getElementById("promotionRemoveSelectedV184");
@@ -4907,19 +4922,24 @@ function setupPromotionSettingsV183() {
     promotionExcludedDraftV183 = new Set(active.excludedProductIds);
     // V19.8: manual promotion prices belong only to the active promotion draft.
     promotionPriceOverridesDraftV193 = { ...(active.priceOverrides || {}) };
+    promotionMarginOverridesDraftV278 = { ...(active.customMarginRates || {}) };
   } else {
     promotionExcludedDraftV183 = new Set();
     promotionPriceOverridesDraftV193 = {};
+    promotionMarginOverridesDraftV278 = {};
   }
   renderPromotionExcludedListV183();
   refreshPromotionUiV183();
+  if (batchMarginInputV279 && !String(batchMarginInputV279.value || "").trim()) batchMarginInputV279.value = String(parsePromotionPercentV211(marginInput?.value) || 0);
   [nameInput, commissionInput, marginInput].forEach(input => input?.addEventListener("input", () => {
     promotionDraftTouchedV209 = true;
+    if (input === marginInput && batchMarginInputV279 && promotionSearchSelectionV184.size === 0) batchMarginInputV279.value = String(parsePromotionPercentV211(marginInput.value) || 0);
     renderPromotionExcludeSearchV183();
     if (pricePanel && !pricePanel.hidden) renderPromotionPriceListV183();
     updatePromotionDraftStatusV186();
   }));
-  searchInput?.addEventListener("input", () => { renderPromotionExcludeSearchV183(); });
+  let promotionSearchTimerV279 = null;
+  searchInput?.addEventListener("input", () => { window.clearTimeout(promotionSearchTimerV279); promotionSearchTimerV279 = window.setTimeout(renderPromotionExcludeSearchV183, 180); });
   filterInput?.addEventListener("change", () => { renderPromotionExcludeSearchV183(); });
   selectAllSearch?.addEventListener("change", () => {
     const ids = getPromotionExcludeMatchesV183(searchInput?.value || "")
@@ -4929,6 +4949,22 @@ function setupPromotionSettingsV183() {
     if (selectAllSearch.checked) ids.forEach(id => promotionSearchSelectionV184.add(id));
     else ids.forEach(id => promotionSearchSelectionV184.delete(id));
     renderPromotionExcludeSearchV183();
+  });
+  setBatchMarginV279?.addEventListener("click", () => {
+    const ids = [...promotionSearchSelectionV184].filter(id => !promotionExcludedDraftV183.has(id));
+    if (!ids.length) return;
+    const rate = parsePromotionPercentV211(batchMarginInputV279?.value);
+    const draft = getPromotionDraftV183();
+    if (!Number.isFinite(rate) || rate <= -100 || rate >= 100 || 1 - draft.commissionRate / 100 - rate / 100 <= 0) {
+      alert("批量独立净利率无效，请检查佣金与净利率组合。");
+      batchMarginInputV279?.focus();
+      return;
+    }
+    ids.forEach(id => { promotionMarginOverridesDraftV278[id] = Math.round(rate * 100) / 100; });
+    promotionDraftTouchedV209 = true;
+    renderPromotionExcludeSearchV183();
+    if (pricePanel && !pricePanel.hidden) renderPromotionPriceListV183();
+    updatePromotionDraftStatusV186();
   });
   searchResults?.addEventListener("click", event => {
     const marginSetButtonV278 = event.target.closest("[data-set-promotion-margin-v278]");
@@ -5194,7 +5230,8 @@ function setupPromotionSettingsV183() {
     toggleButton.textContent = pricePanel.hidden ? "查看全部促销价格" : "收起全部促销价格";
     if (!pricePanel.hidden) renderPromotionPriceListV183();
   });
-  priceSearch?.addEventListener("input", renderPromotionPriceListV183);
+  let promotionPriceSearchTimerV279 = null;
+  priceSearch?.addEventListener("input", () => { window.clearTimeout(promotionPriceSearchTimerV279); promotionPriceSearchTimerV279 = window.setTimeout(renderPromotionPriceListV183, 180); });
   const priceSortV195 = document.getElementById("promotionPriceListSortV185");
   const rerenderPromotionSortV195 = () => renderPromotionPriceListV183();
   priceSortV195?.addEventListener("input", rerenderPromotionSortV195);
@@ -5262,7 +5299,7 @@ function getOperationalProductsV256(products = getProducts()) {
   );
 }
 
-// ================= V27.8 Two Real Warehouses =================
+// ================= V27.9 Two Real Warehouses =================
 const WAREHOUSE_BONSAI_V270 = "bonsai";
 const WAREHOUSE_WOOD_V270 = "wood";
 function getWarehouseForCategoryV270(category) {
@@ -5273,7 +5310,7 @@ function getProductWarehouseV270(product) {
   if (stored === WAREHOUSE_BONSAI_V270 || stored === WAREHOUSE_WOOD_V270) return stored;
   return getWarehouseForCategoryV270(product?.category || "盆栽");
 }
-// V27.8: 盆栽仓库中文为主、英文为次；杂木仓库英文为主、中文为次。
+// V27.9: 盆栽仓库中文为主、英文为次；杂木仓库英文为主、中文为次。
 // 仅改变显示顺序，不改变 product.name / Product ID / 同步 / 保存结构。
 function getProductDisplayNamesV271(product, warehouse = getProductWarehouseV270(product)) {
   const chinese = String(product?.name || "").trim();
@@ -5764,7 +5801,7 @@ function setupProductCategorySettingsV227() {
     );
     if (duplicateName) { if (status) status.textContent = "这个产品类别名称已经存在"; return; }
 
-    // V27.8: one prefix may be shared by multiple DIFFERENT product/category names.
+    // V27.9: one prefix may be shared by multiple DIFFERENT product/category names.
     // Only the same product/category name is forbidden from mapping to a second prefix.
 
     const verb = editingName ? "修改" : "新增";
@@ -5834,7 +5871,8 @@ const PRODUCT_PREFIX_RULES_V163 = Object.freeze([
   ["七里香", "MR"], ["九里香", "MR"], ["Murraya", "MR"],
   ["仙丹", "IX"], ["Ixora", "IX"],
   ["真柏", "JU"], ["Juniperus", "JU"], ["系鱼川", "JU"], ["Itoigawa", "JU"], ["Itoigawa Shimpaku", "JU"],
-  ["福建茶", "HK"], ["Ho Kian Tea", "HK"], ["Fujian Tea", "HK"], ["Fukien Tea", "HK"]
+  ["福建茶", "HK"], ["Ho Kian Tea", "HK"], ["Fujian Tea", "HK"], ["Fukien Tea", "HK"],
+  ["橡皮树", "FI"], ["Ficus Elastica", "FI"], ["Ficus", "FI"]
 ]);
 
 function normalizeProductPrefixKeywordV181(value) {
@@ -7217,7 +7255,7 @@ function saveImportDraftV242() {
     return;
   }
   const state = collectImportDraftStateV242();
-  // V27.8: recognition red text is only a pre-save visual cue. Do not persist it in the import draft.
+  // V27.9: recognition red text is only a pre-save visual cue. Do not persist it in the import draft.
   state.rows = (state.rows || []).map(row => { const copy = { ...row }; delete copy.recognitionNewV265; return copy; });
   if (!state.rows.length) {
     alert("请先输入至少一个产品，再保存草稿。");
@@ -18429,7 +18467,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "27.8",
+      version: "27.9",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18796,7 +18834,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V27.8 Stable",
+      updatedBy: "System V27.9 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -18911,9 +18949,9 @@ function registerServiceWorker() {
 })();
 
 
-// ================= V27.8 Mobile ChatGPT Invoice Assistant =================
+// ================= V27.9 Mobile ChatGPT Invoice Assistant =================
 // Recognition remains isolated from stock, average cost, minimum-price and formal Import/Batch logic.
-// V27.8 adds only safer naming/category normalization, preview progress/table UI and independent handoff state.
+// V27.9 adds only safer naming/category normalization, preview progress/table UI and independent handoff state.
 (function initInvoiceAssistantV259Module(){
   const MAIN_CATEGORIES = new Set(["盆栽","杂花杂木","肥料 / 农药","泥土 / 介质","花盆","工具","其他"]);
   const DRAFT_KEY="invoiceRecognitionDraftsV259", HISTORY_KEY="invoiceRecognitionHistoryV259";
@@ -18937,17 +18975,22 @@ function registerServiceWorker() {
   function workingCountsAsDraft(){return Boolean(working?.id && !drafts().some(x=>String(x?.id||"")===String(working.id)))}
   function writeCollections(d,h){const st=settings();saveJSON("importSystemSettings",{...st,[DRAFT_KEY]:(d||drafts()).slice(0,20),[HISTORY_KEY]:(h||history()).slice(0,80)});if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved();updateButton()}
   function updateButton(){const b=el("invoicePreviewBtnV259");if(!b)return;const saved=drafts();const count=saved.length+(workingCountsAsDraft()?1:0);b.textContent=`📄 查看识别草稿（${count}）`}
-  function sharedStatusV277(){const v=settings()[SHARED_STATUS_KEY_V277];return v&&typeof v==="object"?v:null}
+  let transientSharedStatusV279=null, lastPublishedPercentV279=-1;
+  function sharedStatusV277(){const v=transientSharedStatusV279||settings()[SHARED_STATUS_KEY_V277];return v&&typeof v==="object"?v:null}
   function publishSharedStatusV277(state,text,percent=0,extra={}){
-    const st=settings();const next={state:String(state||""),text:String(text||""),percent:Math.max(0,Math.min(100,Math.round(Number(percent)||0))),updatedAt:new Date().toISOString(),...extra};
-    saveJSON("importSystemSettings",{...st,[SHARED_STATUS_KEY_V277]:next});if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved();
+    const next={state:String(state||""),text:String(text||""),percent:Math.max(0,Math.min(100,Math.round(Number(percent)||0))),updatedAt:new Date().toISOString(),...extra};
+    transientSharedStatusV279=next;
+    const p=next.percent;
+    if (p===lastPublishedPercentV279 && !["recognized","saved","error"].includes(next.state)) return;
+    lastPublishedPercentV279=p;
+    if (navigator.onLine) callGoogleApi({action:"setRecognitionStatusV279",clientVersion:APP_VERSION,status:next}).catch(()=>{});
   }
   function renderSharedStatusV277(){
     updateButton();if(isPhone())return;const shared=sharedStatusV277(),status=el("invoiceRecognitionStatusV258"),wrap=el("invoiceRecognitionProgressWrapV269"),bar=el("invoiceRecognitionProgressBarV269"),label=el("invoiceRecognitionProgressLabelV269");if(!shared||!shared.updatedAt)return;
     const age=Date.now()-(Date.parse(shared.updatedAt)||0);if(age>10*60*1000)return;const p=Math.max(0,Math.min(100,Math.round(Number(shared.percent)||0)));
     if(status){status.textContent=shared.text||"";status.dataset.kind=shared.state==="error"?"error":shared.state==="saved"||shared.state==="recognized"?"ok":""}if(wrap)wrap.hidden=!(shared.state==="uploading"||shared.state==="recognizing");if(bar)bar.style.width=`${p}%`;if(label)label.textContent=`${p}%`;
   }
-  async function pollRecognitionCloudV277(){const importPage=el("importPage");if(isPhone()||document.hidden||!importPage?.classList.contains("active")||desktopPollBusyV277||!navigator.onLine||typeof window.refreshLatestCloudData!=="function")return;desktopPollBusyV277=true;try{await window.refreshLatestCloudData();renderSharedStatusV277()}catch(_){}finally{desktopPollBusyV277=false}}
+  async function pollRecognitionCloudV277(){const importPage=el("importPage");if(isPhone()||document.hidden||!importPage?.classList.contains("active")||desktopPollBusyV277||!navigator.onLine)return;desktopPollBusyV277=true;try{const data=await callGoogleApi({action:"getRecognitionStatusV279",clientVersion:APP_VERSION});if(data?.status){transientSharedStatusV279=data.status;renderSharedStatusV277();updateButton()}}catch(_){}finally{desktopPollBusyV277=false}}
   function setProgress(percent,text,kind=""){
     const p=Math.max(0,Math.min(100,Math.round(Number(percent)||0)));
     const e=el("invoiceRecognitionStatusV258");if(e){e.textContent=text?`${text} ${p}%`:`${p}%`;e.dataset.kind=kind}
@@ -19010,17 +19053,18 @@ function registerServiceWorker() {
         name=`${alreadyHasSupplier?"":supplierPrefix}${cn}${size&&!alreadyHasSize?size:""}`.trim();
         en=String(it.englishName||bilingual.englishName||"").trim();
         let requestedCategory=normalizeCategory(it.category);if(requestedCategory==="盆栽"&&/[A-Za-z]/.test(source)&&size&&!/盆景|矮霸|造型|提根|悬崖|双干|老桩|小品/.test(source))requestedCategory="杂花杂木";
-        cat=requestedCategory;pref=getProductPrefix(cat,name);cat=categoryFromPrefixV269(pref,cat,name);pid=generateNextProductIdFromPrefixV240(reserved,pref);reserved.push({id:pid,name,category:cat});
+        cat=requestedCategory;pref=String(it.preferredProductPrefix||bilingual.prefix||"").toUpperCase()||getProductPrefix(cat,name);cat=categoryFromPrefixV269(pref,cat,name);pid=generateNextProductIdFromPrefixV240(reserved,pref);reserved.push({id:pid,name,category:cat});
       }
       if(!name)name=String(it.name||"").trim();
-      return{index:idx+1,sourceText:String(it.sourceText||""),name,englishName:en,productId:pid,isNew:!old&&!catalogExisting,warehouseV270:getWarehouseForCategoryV270(cat),quantity:Math.max(0,Math.floor(Number(it.quantity)||0)),unitPrice:Math.max(0,Number(it.unitPrice)||0),category:cat,preferredProductPrefix:pref,confidence:String(it.confidence||""),issue:String(it.issue||"")};
+      return{index:idx+1,sourceText:String(it.sourceText||""),name,englishName:en,invoiceEnglishOriginal:String(it.invoiceEnglishOriginal||it.englishOriginal||it.englishName||"").trim(),productId:pid,isNew:!old&&!catalogExisting,warehouseV270:getWarehouseForCategoryV270(cat),quantity:Math.max(0,Math.floor(Number(it.quantity)||0)),unitPrice:Math.max(0,Number(it.unitPrice)||0),category:cat,preferredProductPrefix:pref,confidence:String(it.confidence||""),issue:String(it.issue||"")};
     })
   }
   function buildDraft(result,pageCount){const items=resolveProducts(result),calcQty=items.reduce((a,x)=>a+x.quantity,0),calcAmt=items.reduce((a,x)=>a+x.quantity*x.unitPrice,0);return{id:`AIR${Date.now()}`,status:"recognition",createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),supplier:String(result.supplier||""),currency:String(result.currency||""),pageCount,items,source:{itemCount:Number(result.invoiceItemCount)||items.length,totalQuantity:Number(result.invoiceTotalQuantity)||calcQty,totalAmount:Number(result.invoiceTotalAmount)||calcAmt,printedItemCount:Number(result.printedItemCount)||0,printedTotalQuantity:Number(result.printedTotalQuantity)||0,printedTotalAmount:Number(result.printedTotalAmount)||0},issues:Array.isArray(result.issues)?result.issues.map(String):[],matchOk:result.matchOk!==false,complete:result.complete!==false}}
   function render(d){
     working=d||working||drafts()[0]||null;const modal=el("invoicePreviewModalV259"),body=el("invoicePreviewBodyV259"),sum=el("invoicePreviewSummaryV259"),meta=el("invoicePreviewMetaV259");if(!modal||!body||!sum)return;if(!working){alert("目前没有识别草稿。请先用手机拍照或上传发票。 ");return}
     meta.textContent=`${working.supplier||"未识别供应商"} · ${working.pageCount||1} 页 · ${working.currency||""}`;
-    body.innerHTML=`<div class="invoice-preview-table-wrap-v270"><table class="invoice-preview-table-v270 invoice-preview-table-v278"><thead><tr><th>产品名称</th><th>Product ID</th><th>数量</th><th>原成本</th><th>小计</th><th>类别</th></tr></thead><tbody>${working.items.map(x=>`<tr class="${x.isNew?'new-product':''} ${x.issue?'warning':''}"><td class="invoice-product-name-cell-v278"><strong>${esc(x.name)}</strong>${x.englishName?`<small>${esc(x.englishName)}</small>`:""}</td><td>${esc(x.productId||"")}</td><td class="num">${x.quantity}</td><td class="num">${money(x.unitPrice)}</td><td class="num">${money(x.quantity*x.unitPrice)}</td><td>${esc(x.category)}</td></tr>`).join("")}</tbody></table></div>`;
+    body.innerHTML=`<div class="invoice-preview-table-wrap-v270"><table class="invoice-preview-table-v270 invoice-preview-table-v278"><thead><tr><th>产品名称</th><th>Product ID</th><th>数量</th><th>原成本</th><th>小计</th><th>类别</th></tr></thead><tbody>${working.items.map(x=>{const invoiceEnglish=x.invoiceEnglishOriginal||x.englishName||"";return `<tr class="${x.isNew?'new-product':''} ${x.issue?'warning':''}"><td class="invoice-product-name-cell-v278"><button type="button" class="invoice-copy-name-v279" data-copy-recognition-v279="${esc(x.name)}" title="点击复制产品名1">${esc(x.name)}</button>${invoiceEnglish?`<button type="button" class="invoice-copy-english-v279" data-copy-recognition-v279="${esc(invoiceEnglish)}" title="点击复制发票完整英文原文">${esc(invoiceEnglish)}</button>`:""}</td><td>${esc(x.productId||"")}</td><td class="num">${x.quantity}</td><td class="num">${money(x.unitPrice)}</td><td class="num">${money(x.quantity*x.unitPrice)}</td><td>${esc(x.category)}</td></tr>`}).join("")}</tbody></table></div>`;
+    body.querySelectorAll("[data-copy-recognition-v279]").forEach(btn=>btn.addEventListener("click",async()=>{const text=String(btn.dataset.copyRecognitionV279||"");try{await navigator.clipboard.writeText(text);const oldText=btn.textContent;btn.textContent=`${oldText} ✓`;window.setTimeout(()=>btn.textContent=oldText,700)}catch(_){}}));
     const q=working.items.reduce((a,x)=>a+x.quantity,0),a=working.items.reduce((z,x)=>z+x.quantity*x.unitPrice,0),c=working.items.length,ok=working.matchOk&&working.complete&&c===working.source.itemCount&&Math.abs(q-working.source.totalQuantity)<.0001&&Math.abs(a-working.source.totalAmount)<.01;
     sum.className=`invoice-preview-summary-v259 ${ok?'ok':'warn'}`;sum.innerHTML=`<strong>${ok?'✅ 识别草稿与发票核对一致':'⚠️ 识别结果存在差异'}</strong><br>发票：${working.source.itemCount} 项 · 数量 ${working.source.totalQuantity} · 总额 ${money(working.source.totalAmount)} ${esc(working.currency)}<br>草稿：${c} 项 · 数量 ${q} · 总额 ${money(a)} ${esc(working.currency)}`+(working.issues.length?`<br><strong>原因：</strong>${working.issues.map(esc).join('；')}`:'')+`<div class="invoice-history-note-v259">红色字体 = 两个仓库都没有的真正新品；正常颜色 = 盆栽仓库／杂木仓库已有产品。</div>`;
     el("invoiceApplyRecognitionDraftV259").disabled=!ok;modal.hidden=false;updateButton()
@@ -19031,7 +19075,7 @@ function registerServiceWorker() {
     try{
       setProgress(progress,`正在准备 ${fs.length} 页照片…`);publishSharedStatusV277("uploading",`手机正在准备 ${fs.length} 页发票…`,progress,{pageCount:fs.length});const urls=[];
       for(let i=0;i<fs.length;i++){progress=10+Math.round(((i+1)/fs.length)*25);setProgress(progress,`正在准备第 ${i+1}/${fs.length} 页…`);urls.push(await compress(fs[i]))}
-      progress=45;setProgress(progress,"正在上传并交给 AI 识别…");publishSharedStatusV277("recognizing","手机正在上传发票并识别中…",progress,{pageCount:fs.length});progressTimer=window.setInterval(()=>{if(progress<88){progress+=1;setProgress(progress,"AI 正在识别并核对多页发票…")}},700);
+      progress=45;setProgress(progress,"正在上传并交给 AI 识别…");publishSharedStatusV277("recognizing","手机正在上传发票并识别中…",progress,{pageCount:fs.length});progressTimer=window.setInterval(()=>{if(progress<88){progress+=1;setProgress(progress,"AI 正在识别并核对多页发票…");if(progress===55||progress===65||progress===75||progress===85)publishSharedStatusV277("recognizing","手机正在上传发票并识别中…",progress,{pageCount:fs.length})}},700);
       const data=await callGoogleApi({action:"recognizeImportInvoiceV259",clientVersion:APP_VERSION,imageDataUrls:urls,inventory:inventory().map(p=>({...p,englishName:productEnglishNameV262(p)})),virtualWarehouse:getVirtualWarehouseSourceV240()});stopProgressTimer();setProgress(90,"正在整理识别结果…");
       if(!data?.result)throw new Error("AI 没有返回识别结果");const r=data.result;if(r.rejected)throw new Error(String(r.rejectionReason||"发票资料不符合安全识别条件，请重拍或重新上传。"));
       working=buildDraft(r,fs.length);updateButton();setProgress(100,"识别完成","ok");publishSharedStatusV277("recognized","手机发票识别成功，等待保存识别草稿",100,{draftId:working.id,pageCount:fs.length});render(working)
@@ -19061,7 +19105,7 @@ function registerServiceWorker() {
     appliedRecognitionId="";appliedRecognitionSnapshot=null;working=null;updateButton();setProgress(100,"Import 草稿已保存；新产品提示已恢复正常颜色","ok")
   }
   window.archiveAppliedRecognitionDraftV259=archiveAppliedAfterImportDraftSave;
-  function init(){const btn=el("invoicePhotoBtnV258"),notice=el("invoiceDesktopNoticeV258");if(!btn)return;notice.hidden=isPhone();btn.setAttribute("aria-disabled",isPhone()?"false":"true");btn.onclick=()=>{if(!isPhone()){alert("照片识别功能只能在手机使用。请先用手机拍照/上传并保存识别草稿，再到电脑检查。");return}el("invoiceSourceChoiceV259").hidden=false};let cameraPagesV262=[];const cameraSession=el("invoiceCameraSessionV262"),cameraCount=el("invoiceCameraCountV262");const updateCameraSession=()=>{if(cameraCount)cameraCount.textContent=`已拍 ${cameraPagesV262.length} 页`;if(cameraSession)cameraSession.hidden=cameraPagesV262.length===0};el("invoiceTakePhotoV259").onclick=()=>{cameraPagesV262=[];updateCameraSession();el("invoiceCameraInputV259").click()};el("invoiceChoosePhotosV259").onclick=()=>{el("invoiceSourceChoiceV259").hidden=true;el("invoiceUploadInputV259").click()};el("invoiceChoiceCancelV259").onclick=()=>{cameraPagesV262=[];updateCameraSession();el("invoiceSourceChoiceV259").hidden=true};el("invoiceCameraInputV259").onchange=e=>{const f=e.target.files?.[0];if(f)cameraPagesV262.push(f);e.target.value="";updateCameraSession();el("invoiceSourceChoiceV259").hidden=false};el("invoiceCameraMoreV262").onclick=()=>el("invoiceCameraInputV259").click();el("invoiceCameraDeleteLastV262").onclick=()=>{cameraPagesV262.pop();updateCameraSession()};el("invoiceCameraFinishV262").onclick=()=>{if(!cameraPagesV262.length)return;const pages=cameraPagesV262.slice();cameraPagesV262=[];updateCameraSession();el("invoiceSourceChoiceV259").hidden=true;recognize(pages)};el("invoiceUploadInputV259").onchange=e=>recognize(e.target.files);el("invoicePreviewBtnV259").onclick=()=>render(working||drafts()[0]);el("invoicePreviewCloseV259").onclick=()=>el("invoicePreviewModalV259").hidden=true;el("invoiceHistoryV259").onclick=showRecognitionHistory;el("invoiceSaveRecognitionDraftV259").onclick=saveRecognition;el("invoiceDeleteRecognitionDraftV259").onclick=deleteRecognition;el("invoiceApplyRecognitionDraftV259").onclick=applyRecognition;updateButton();renderSharedStatusV277();window.addEventListener("storage",()=>{updateButton();renderSharedStatusV277()});window.addEventListener("loverLegendCloudDataAppliedV277",renderSharedStatusV277);if(!isPhone()){window.setInterval(pollRecognitionCloudV277,8000);window.setTimeout(pollRecognitionCloudV277,1200)}}
+  function init(){const btn=el("invoicePhotoBtnV258"),notice=el("invoiceDesktopNoticeV258");if(!btn)return;notice.hidden=isPhone();btn.setAttribute("aria-disabled",isPhone()?"false":"true");btn.onclick=()=>{if(!isPhone()){alert("照片识别功能只能在手机使用。请先用手机拍照/上传并保存识别草稿，再到电脑检查。");return}el("invoiceSourceChoiceV259").hidden=false};let cameraPagesV262=[];const cameraSession=el("invoiceCameraSessionV262"),cameraCount=el("invoiceCameraCountV262");const updateCameraSession=()=>{if(cameraCount)cameraCount.textContent=`已拍 ${cameraPagesV262.length} 页`;if(cameraSession)cameraSession.hidden=cameraPagesV262.length===0};el("invoiceTakePhotoV259").onclick=()=>{cameraPagesV262=[];updateCameraSession();el("invoiceCameraInputV259").click()};el("invoiceChoosePhotosV259").onclick=()=>{el("invoiceSourceChoiceV259").hidden=true;el("invoiceUploadInputV259").click()};el("invoiceChoiceCancelV259").onclick=()=>{cameraPagesV262=[];updateCameraSession();el("invoiceSourceChoiceV259").hidden=true};el("invoiceCameraInputV259").onchange=e=>{const f=e.target.files?.[0];if(f)cameraPagesV262.push(f);e.target.value="";updateCameraSession();el("invoiceSourceChoiceV259").hidden=false};el("invoiceCameraMoreV262").onclick=()=>el("invoiceCameraInputV259").click();el("invoiceCameraDeleteLastV262").onclick=()=>{cameraPagesV262.pop();updateCameraSession()};el("invoiceCameraFinishV262").onclick=()=>{if(!cameraPagesV262.length)return;const pages=cameraPagesV262.slice();cameraPagesV262=[];updateCameraSession();el("invoiceSourceChoiceV259").hidden=true;recognize(pages)};el("invoiceUploadInputV259").onchange=e=>recognize(e.target.files);el("invoicePreviewBtnV259").onclick=()=>render(working||drafts()[0]);el("invoicePreviewCloseV259").onclick=()=>el("invoicePreviewModalV259").hidden=true;el("invoiceHistoryV259").onclick=showRecognitionHistory;el("invoiceSaveRecognitionDraftV259").onclick=saveRecognition;el("invoiceDeleteRecognitionDraftV259").onclick=deleteRecognition;el("invoiceApplyRecognitionDraftV259").onclick=applyRecognition;updateButton();renderSharedStatusV277();window.addEventListener("storage",()=>{updateButton();renderSharedStatusV277()});window.addEventListener("loverLegendCloudDataAppliedV277",renderSharedStatusV277);if(!isPhone()){window.setInterval(pollRecognitionCloudV277,5000);window.setTimeout(pollRecognitionCloudV277,700)}}
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
 })();;
 
@@ -19084,6 +19128,7 @@ const PRODUCT_SPECIES_ALIASES_V262 = Object.freeze([
   {cn:"福建茶", en:"Ho Kian Tea / Fujian Tea", keys:["福建茶","ho kian tea","fujian tea","fukien tea"], prefix:"HK"},
   {cn:"绿萝", en:"Epipremnum Aureum", keys:["绿萝","epipremnum aureum","epipremnum"], prefix:"ZZ"},
   {cn:"龟背竹", en:"Monstera", keys:["龟背竹","monstera","monstera deliciosa"], prefix:"MO"},
+  {cn:"橡皮树", en:"Ficus Elastica", keys:["橡皮树","ficus elastica","rubber plant"], prefix:"FI"},
   {cn:"榕属", en:"Ficus", keys:["榕属","ficus"], prefix:"FI"}
 ]);
 const PRODUCT_LANGUAGE_META_KEY_V262="productLanguageMetaV262";
@@ -19138,7 +19183,7 @@ function supplierReferenceInfoV265(s){
   const name=supplierCanonNameV261(s?.name||"").toLowerCase();
   const aliases=[name,...(Array.isArray(s?.aliases)?s.aliases:[]).map(x=>supplierCanonNameV261(x).toLowerCase())].filter(Boolean);
   const labels=Array.from(new Set(aliases));
-  // V27.8: reference protection belongs to this supplier record, not merely to a shared prefix.
+  // V27.9: reference protection belongs to this supplier record, not merely to a shared prefix.
   // Two suppliers may share one prefix; a newly copied name must not inherit another supplier's stock lock.
   const matchesLabel=(value)=>{const v=supplierCanonNameV261(value||"").toLowerCase();return labels.some(label=>v===label||v.startsWith(label));};
   const virtual=getVirtualWarehouseSourceV240().some(v=>{
@@ -19215,13 +19260,13 @@ function cleanupTestSupplierV268(){
 }
 
 
-// ================= V27.8 Virtual Reference -> Two Real Warehouses =================
+// ================= V27.9 Virtual Reference -> Two Real Warehouses =================
 function ensureWoodWarehouseMigrationV270(){
   const settings=loadJSON("importSystemSettings",{});
   const refs=getVirtualWarehouseSourceV240();
   if(!refs.length)return false;
 
-  // V27.8 repair: V27.0/V27.1 may already carry the old migration flag even when
+  // V27.9 repair: V27.0/V27.1 may already carry the old migration flag even when
   // the reference rows never reached the real Products collection. The flag alone
   // is therefore not proof that Warehouse 2 exists. Reconcile the actual Products
   // collection once, without changing stock/cost/history of any existing product.
@@ -19294,7 +19339,7 @@ function ensureWoodWarehouseMigrationV270(){
 function scheduleWoodWarehouseMigrationV270(){
   let tries=0;const wait=()=>{tries+=1;const synced=typeof cloudInitialSyncComplete!=="undefined"&&cloudInitialSyncComplete&&typeof cloudLastErrorMessage!=="undefined"&&!cloudLastErrorMessage&&navigator.onLine;if(synced){ensureWoodWarehouseMigrationV270();return}if(tries<120)window.setTimeout(wait,500)};window.setTimeout(wait,300);
 }
-// V27.8: warehouse switching is display-only. Never start a cloud read or rebuild
+// V27.9: warehouse switching is display-only. Never start a cloud read or rebuild
 // unrelated dashboard/system modules just because the user changed warehouse.
 function renderDashboardWarehouseSummaryV275(){
   const products=loadJSON("importSystemProducts",[]);
