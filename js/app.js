@@ -3,7 +3,6 @@ document.addEventListener("DOMContentLoaded", () => {
   repairLegacyImportDates();
   setupNavigation();
   setupSettings();
-  setupProductManagementV281();
   const requestedPageV210 = String(new URLSearchParams(window.location.search).get("page") || "").trim().toLowerCase();
   const deepLinkPageMapV210 = {
     home: "dashboardPage",
@@ -21,6 +20,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   setupDashboard();
   setupImportModule();
+  setupProductManagementV281();
   setupImportDraftV247();
   setupImportHistory();
   setupInventoryModule();
@@ -2980,7 +2980,7 @@ function setupDashboard() {
 
 function renderDashboard() {
   const products = loadJSON("importSystemProducts", []);
-  // V29.0: single real inventory source.  Do not depend on any legacy
+  // V29.1: single real inventory source.  Do not depend on any legacy
   // warehouse/category label when deciding whether a product belongs in the
   // live inventory.  A positive stock balance is the authoritative signal.
   const activeInventoryProducts = products.filter(
@@ -4166,7 +4166,7 @@ function getPromotionMarginBadgeV209(product, profitInfo = null) {
   const formattedRate = Number.isFinite(rate)
     ? (Number.isInteger(rate) ? Math.abs(rate).toFixed(0) : Math.abs(rate).toFixed(2).replace(/0+$/, "").replace(/\.$/, ""))
     : "";
-  // V29.0: the badge describes profit direction, not a discount. Profit is +green; loss is -red.
+  // V29.1: the badge describes profit direction, not a discount. Profit is +green; loss is -red.
   const text = formattedRate ? `${cls === "loss" ? "-" : cls === "gain" ? "+" : ""}${formattedRate}%` : "";
   return text ? `<em class="inventory-promotion-margin-v209 ${cls}">${escapeHTML(text)}</em>` : "";
 }
@@ -4633,7 +4633,7 @@ function isHiddenLegacyProductIdV256(value) {
   return HIDDEN_LEGACY_PRODUCT_IDS_V256.has(String(value || "").trim().toUpperCase());
 }
 function getOperationalProductsV256(products = getProducts()) {
-  // V29.0: the system is single-warehouse bonsai-only. Do not re-filter the
+  // V29.1: the system is single-warehouse bonsai-only. Do not re-filter the
   // canonical Products by legacy category text, because older saved rows may
   // have blank/legacy category labels. Real stock remains the source of truth.
   return (Array.isArray(products) ? products : []).filter(product =>
@@ -4641,7 +4641,7 @@ function getOperationalProductsV256(products = getProducts()) {
   );
 }
 
-// ================= V29.0 Bonsai-only product scope =================
+// ================= V29.1 Bonsai-only product scope =================
 function getProductDisplayNamesV271(product){const chinese=String(product?.name||"").trim();const english=String(productEnglishNameV262(product)||"").trim();const same=chinese&&english&&chinese.toLowerCase()===english.toLowerCase();return{primary:chinese||english,secondary:(!same&&chinese&&english)?english:"",primaryLanguage:chinese?"cn":"en"}}
 function productDisplayNameHtmlV271(product,unused,secondaryClass="product-secondary-name-v271"){const names=getProductDisplayNamesV271(product);return `${escapeHTML(names.primary||"未命名产品")}${names.secondary?`<small class="${secondaryClass}">${escapeHTML(names.secondary)}</small>`:""}`}
 function isBonsaiProductV281(product){return normalizeProductCategoryNameV227(product?.category||"盆栽")==="盆栽"}
@@ -4679,6 +4679,7 @@ function saveProducts(products) {
     });
   saveMinimumPriceManualOverridesV160(overrides);
   saveJSON("importSystemProducts", normalizedProducts);
+  if (typeof invalidateInventoryMasterRowsV291 === "function") invalidateInventoryMasterRowsV291();
   if (typeof markCloudCollectionSaved === "function") {
     markCloudCollectionSaved("products", previous, normalizedProducts);
   }
@@ -5775,15 +5776,13 @@ function setupImportModule(){
   }
 
   if (productStockSearch) {
+    let productStockSearchTimerV291 = 0;
     productStockSearch.addEventListener("input", () => {
       const keyword = String(productStockSearch.value || "").trim();
-
-      if (keyword && batchSearch) {
-        batchSearch.value = "";
-      }
-
+      if (keyword && batchSearch && productStockSearch.closest("#importPage")) batchSearch.value = "";
       batchListExpanded = false;
-      renderBatchProductStockResults();
+      window.clearTimeout(productStockSearchTimerV291);
+      productStockSearchTimerV291 = window.setTimeout(renderBatchProductStockResults, 120);
     });
   }
 
@@ -6043,7 +6042,7 @@ function saveImportDraftV242() {
     return;
   }
   const state = collectImportDraftStateV242();
-  // V29.0: recognition red text is only a pre-save visual cue. Do not persist it in the import draft.
+  // V29.1: recognition red text is only a pre-save visual cue. Do not persist it in the import draft.
   state.rows = (state.rows || []).map(row => { const copy = { ...row }; delete copy.recognitionNewV265; return copy; });
   if (!state.rows.length) {
     alert("请先输入至少一个产品，再保存草稿。");
@@ -6267,7 +6266,7 @@ function confirmFormalImportV247() {
   const totalQty = rows.reduce((sum, row) => sum + Math.max(0, Number(row?.quantity) || 0), 0);
   const firstNames = rows.slice(0, 4).map(row => String(row.name || "").trim()).filter(Boolean).join("、");
   const summary = `${rows.length} 个产品 / 总数量 ${totalQty}${firstNames ? `\n${firstNames}${rows.length > 4 ? "…" : ""}` : ""}`;
-  if (!window.confirm(`⚠️ 确认正式保存这份进口？\n\n${summary}\n\n确认后才会执行 V29.0 原本正式保存逻辑：写入真实库存、成本、Import / Batch、Product ID 与最低售价相关处理。\n\n正式保存成功后，这份进口会锁定。`)) return;
+  if (!window.confirm(`⚠️ 确认正式保存这份进口？\n\n${summary}\n\n确认后才会执行 V29.1 原本正式保存逻辑：写入真实库存、成本、Import / Batch、Product ID 与最低售价相关处理。\n\n正式保存成功后，这份进口会锁定。`)) return;
   if (!window.confirm("最后确认：现在正式入库？\n\n这是第二阶段正式保存，不再是草稿。成功后如需修改，只能依 Data Repair 规则处理。")) return;
   saveBatchImport();
 }
@@ -11200,6 +11199,7 @@ function saveImports(v) {
   const previous = getImports();
   invalidateMinimumPriceOriginIndexV160();
   saveJSON("importSystemImports", v);
+  if (typeof invalidateInventoryMasterRowsV291 === "function") invalidateInventoryMasterRowsV291();
   if (typeof markCloudCollectionSaved === "function") {
     markCloudCollectionSaved("imports", previous, v);
   }
@@ -11209,6 +11209,7 @@ function saveBatches(v) {
   const previous = getBatches();
   invalidateMinimumPriceOriginIndexV160();
   saveJSON("importSystemBatches", v);
+  if (typeof invalidateInventoryMasterRowsV291 === "function") invalidateInventoryMasterRowsV291();
   if (typeof markCloudCollectionSaved === "function") {
     markCloudCollectionSaved("batches", previous, v);
   }
@@ -13687,12 +13688,10 @@ function renderBatchProductStockResults() {
   if (!input || !output) return;
 
   const keyword = String(input.value || "").trim().toLowerCase();
-  const recentBatchArea =
-    document.getElementById("recentBatchResultsArea");
-  const toggleButton =
-    document.getElementById("toggleBatchListBtn");
-  const countElement =
-    document.getElementById("batchListCount");
+  const searchLivesOnImportPageV291 = Boolean(input.closest("#importPage"));
+  const recentBatchArea = searchLivesOnImportPageV291 ? document.getElementById("recentBatchResultsArea") : null;
+  const toggleButton = searchLivesOnImportPageV291 ? document.getElementById("toggleBatchListBtn") : null;
+  const countElement = searchLivesOnImportPageV291 ? document.getElementById("batchListCount") : null;
 
   if (status) status.textContent = "";
 
@@ -13704,7 +13703,7 @@ function renderBatchProductStockResults() {
     if (toggleButton) toggleButton.hidden = false;
     if (countElement) countElement.hidden = false;
 
-    renderBatchList();
+    if (searchLivesOnImportPageV291) renderBatchList();
     return;
   }
 
@@ -17090,7 +17089,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "29.0",
+      version: "29.1",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -17457,7 +17456,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V29.0 Stable",
+      updatedBy: "System V29.1 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -17600,24 +17599,62 @@ function productNameWithEnglishV262(product){const en=productEnglishNameV262(pro
 function rememberProductLanguageV262(productId, chineseName, englishName){const id=String(productId||"").toUpperCase();if(!id)return;const meta=getProductLanguageMetaV262();meta[id]={chineseName:String(chineseName||"").trim(),englishName:String(englishName||"").trim()};saveProductLanguageMetaV262(meta)}
 function inferSimpleBilingualV262(text){const raw=String(text||"").trim();const rule=speciesRuleV262(raw);return{chineseName:rule?.cn||(/[\u3400-\u9fff]/.test(raw)?raw:""),englishName:rule?.en||(!/[\u3400-\u9fff]/.test(raw)?raw.replace(/\b(?:P?\d{2,4}|\d+(?:\.\d+)?C|\d+[xX]\d+)\b.*$/i,"").trim():""),prefix:rule?.prefix||""}}
 
-// ================= V29.0 Product Management + Bonsai Inventory Master =================
-function inventoryMasterRowsV281(){
+// ================= V29.1 Product Management + Bonsai Inventory Master =================
+let inventoryMasterRowsCacheV291 = null;
+let inventoryMasterRowsCacheAtV291 = 0;
+function invalidateInventoryMasterRowsV291(){
+  inventoryMasterRowsCacheV291 = null;
+  inventoryMasterRowsCacheAtV291 = 0;
+}
+function inventoryMasterRowsV281(forceRefresh = false){
+  const now = Date.now();
+  if (!forceRefresh && Array.isArray(inventoryMasterRowsCacheV291) && (now - inventoryMasterRowsCacheAtV291) < 30000) {
+    return inventoryMasterRowsCacheV291;
+  }
+
   const sales=getInventorySalesAnalyticsV146();
   const imports=getImports();
-  return getOperationalProductsV256().map(p=>{
-    const productImports=imports.filter(i=>String(i.productId||"")===String(p.id||""));
-    const latest=productImports.slice().sort((a,b)=>String(b.createdAt||b.date||"").localeCompare(String(a.createdAt||a.date||"")))[0];
+  const languageMeta=getProductLanguageMetaV262();
+  const latestImportByProductId=new Map();
+
+  // V29.1: build latest-import index once. Previous code filtered the entire
+  // Imports list again for every product, which became very slow on mobile.
+  imports.forEach(record=>{
+    const id=String(record?.productId||"").trim();
+    if(!id)return;
+    const current=latestImportByProductId.get(id);
+    const stamp=String(record?.createdAt||record?.date||record?.arrivalDate||"");
+    const currentStamp=String(current?.createdAt||current?.date||current?.arrivalDate||"");
+    if(!current || stamp.localeCompare(currentStamp)>0) latestImportByProductId.set(id,record);
+  });
+
+  const rows=getOperationalProductsV256().map(p=>{
+    const id=String(p?.id||"").trim();
+    const latest=latestImportByProductId.get(id);
     const rawDate=String(latest?.arrivalDate||latest?.date||latest?.createdAt||"");
     let latestDate="";
     if(/^\d{2}-\d{2}-\d{4}$/.test(rawDate)) latestDate=rawDate;
     else if(/^\d{4}-\d{2}-\d{2}/.test(rawDate)) latestDate=formatDateFromInput(rawDate.slice(0,10));
     else if(rawDate){const d=new Date(rawDate);if(!Number.isNaN(d.getTime()))latestDate=formatDateDDMMYYYY(d)}
-    return {product:p,productId:p.id||"",cnName:p.name||"",enName:productEnglishNameV262(p),stock:Number(p.stock)||0,originalCost:latest?Math.max(0,Number(latest.unitPrice)||0):0,averageCost:Number(p.averageCost)||0,inventoryValue:(Number(p.stock)||0)*(Number(p.averageCost)||0),minimumPrice:getEffectiveProductMinimumPriceV183(p),lastImportDate:latestDate,lastImportNumber:String(latest?.importNumber||""),remark:String(p.remark||""),latestSoldAt:Number(sales.latestById.get(String(p.id||"").trim())||sales.latestByName.get(String(p.name||"").trim().toLowerCase())||0),netSoldQuantity:Number(sales.quantityById.get(String(p.id||"").trim())||sales.quantityByName.get(String(p.name||"").trim().toLowerCase())||0),cumulativeSoldProfit:Number(sales.profitById.get(String(p.id||"").trim())||sales.profitByName.get(String(p.name||"").trim().toLowerCase())||0)};
+
+    const meta=languageMeta[String(id).toUpperCase()]||{};
+    const enName=String(meta.englishName||p?.englishName||speciesRuleV262(p?.name)?.en||"");
+    const nameKey=String(p?.name||"").trim().toLowerCase();
+    return {product:p,productId:id,cnName:p.name||"",enName,stock:Number(p.stock)||0,originalCost:latest?Math.max(0,Number(latest.unitPrice)||0):0,averageCost:Number(p.averageCost)||0,inventoryValue:(Number(p.stock)||0)*(Number(p.averageCost)||0),minimumPrice:getEffectiveProductMinimumPriceV183(p),lastImportDate:latestDate,lastImportNumber:String(latest?.importNumber||""),remark:String(p.remark||""),latestSoldAt:Number(sales.latestById.get(id)||sales.latestByName.get(nameKey)||0),netSoldQuantity:Number(sales.quantityById.get(id)||sales.quantityByName.get(nameKey)||0),cumulativeSoldProfit:Number(sales.profitById.get(id)||sales.profitByName.get(nameKey)||0)};
   });
+  inventoryMasterRowsCacheV291=rows;
+  inventoryMasterRowsCacheAtV291=now;
+  return rows;
 }
-function renderInventoryMasterV261(){
+function renderInventoryMasterV261(forceRefresh = false){
   const body=document.getElementById("inventoryMasterBodyV261"),count=document.getElementById("inventoryMasterCountV261"),rawQuery=String(document.getElementById("inventoryMasterSearchV261")?.value||"").trim(),sort=String(document.getElementById("inventoryMasterSortV264")?.value||"latest");
-  if(!body)return;let rows=inventoryMasterRowsV281();
+  if(!body)return;
+  const panel=document.getElementById("inventoryMasterPanelV264");
+  // V29.1: never build hundreds of master rows during app startup. This was
+  // blocking setupImportModule(), which is why the Import product input row
+  // could appear missing until the master table finally finished rendering.
+  if(panel && !panel.open && !forceRefresh)return;
+  let rows=inventoryMasterRowsV281(forceRefresh).slice();
   if(rawQuery)rows=rows.filter(r=>productSearchMatchesWithShipmentV235(`${r.productId} ${r.cnName} ${r.enName}`,r.product,rawQuery));
   if(sort==="name")rows.sort((a,b)=>String(a.cnName).localeCompare(String(b.cnName),"zh"));
   else if(sort==="latest-sold")rows.sort((a,b)=>b.latestSoldAt-a.latestSoldAt);
@@ -17629,16 +17666,21 @@ function renderInventoryMasterV261(){
   body.innerHTML=rows.map(r=>{const profitInfo=getProductMinimumProfitV205(r.product);const cls=profitInfo.profit<-.005?"master-price-loss-v264":"master-price-profit-v264";const badge=getPromotionMarginBadgeV209(r.product,profitInfo);return `<tr><td><button type="button" class="master-copy-v263" data-master-copy-v263="${escapeHTML(r.productId)}">${escapeHTML(r.productId)}</button></td><td><button type="button" class="master-copy-v263 master-name-v262" data-master-copy-v263="${escapeHTML(r.cnName)}">${escapeHTML(r.cnName)}</button></td><td><button type="button" class="master-copy-v263 master-en-v262" data-master-copy-v263="${escapeHTML(r.enName)}">${escapeHTML(r.enName)}</button></td><td class="master-num-v264">${formatNumber(r.stock)}</td><td class="master-num-v264">${formatMoney(r.averageCost)}</td><td class="master-num-v264 ${cls}"><span class="master-price-main-v266">${formatMoney(r.minimumPrice)}</span>${badge?`<span class="master-price-badge-v266">${badge}</span>`:""}</td></tr>`}).join("")||'<tr><td colspan="6">暂无符合资料</td></tr>';
   body.querySelectorAll("[data-master-copy-v263]").forEach(btn=>btn.addEventListener("click",()=>copyRuleLabelV232(btn,btn.dataset.masterCopyV263||"")));
 }
+
 function excelWorkbookV263(worksheets){return `<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:html="http://www.w3.org/TR/REC-html40"><Styles><Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Bottom"/><Font ss:FontName="Arial" ss:Size="10"/></Style><Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="#D9EAD3" ss:Pattern="Solid"/></Style><Style ss:ID="HeaderRow"/><Style ss:ID="Number2"><NumberFormat ss:Format="#,##0.00"/></Style><Style ss:ID="Integer"><NumberFormat ss:Format="#,##0"/></Style><Style ss:ID="GeneralNumber"><NumberFormat ss:Format="#,##0.00"/></Style></Styles>${worksheets}</Workbook>`}
 function exportInventoryMasterExcelV261(){
   const headers=["产品编号","中文名","英文名","当前库存","原成本","平均成本","库存成本总值","最低售价","最近进口日期","最近进口编号","备注"];
   const types=["text","text","text","decimal2","money","money","money","money","text","text","text"];
-  const rows=inventoryMasterRowsV281().map(r=>[r.productId,r.cnName,r.enName,r.stock,r.originalCost,r.averageCost,r.inventoryValue,r.minimumPrice,r.lastImportDate,r.lastImportNumber,r.remark]);
+  const rows=inventoryMasterRowsV281(true).map(r=>[r.productId,r.cnName,r.enName,r.stock,r.originalCost,r.averageCost,r.inventoryValue,r.minimumPrice,r.lastImportDate,r.lastImportNumber,r.remark]);
   const workbook=excelWorkbookV263(excelWorksheet("盆栽仓库",headers,rows,types));
   downloadTextFile(`Import_Inventory_Master_${formatDateDDMMYYYY(new Date())}.xls`,workbook,"application/vnd.ms-excel;charset=utf-8");
 }
 function setupProductManagementV281(){
-  const search=document.getElementById("inventoryMasterSearchV261"),exp=document.getElementById("exportInventoryMasterExcelV261");
-  renderInventoryMasterV261();search?.addEventListener("input",renderInventoryMasterV261);document.getElementById("inventoryMasterSortV264")?.addEventListener("change",renderInventoryMasterV261);document.getElementById("inventoryMasterPanelV264")?.addEventListener("toggle",e=>{if(e.currentTarget.open)renderInventoryMasterV261()});exp?.addEventListener("click",exportInventoryMasterExcelV261);
+  const search=document.getElementById("inventoryMasterSearchV261"),exp=document.getElementById("exportInventoryMasterExcelV261"),panel=document.getElementById("inventoryMasterPanelV264");
+  let timer=0;
+  search?.addEventListener("input",()=>{window.clearTimeout(timer);timer=window.setTimeout(()=>renderInventoryMasterV261(false),120)});
+  document.getElementById("inventoryMasterSortV264")?.addEventListener("change",()=>renderInventoryMasterV261(false));
+  panel?.addEventListener("toggle",e=>{if(e.currentTarget.open){const body=document.getElementById("inventoryMasterBodyV261");if(body&&!body.children.length)body.innerHTML='<tr><td colspan="6">正在读取库存资料...</td></tr>';window.requestAnimationFrame(()=>renderInventoryMasterV261(true));}});
+  exp?.addEventListener("click",exportInventoryMasterExcelV261);
 }
 
