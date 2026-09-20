@@ -19,16 +19,25 @@ document.addEventListener("DOMContentLoaded", () => {
     window.setTimeout(() => document.querySelector(`.nav-btn[data-page="${requestedTargetV210}"]`)?.click(), 0);
   }
   setupDashboard();
-  setupImportModule();
-  setupProductManagementV281();
-  setupImportDraftV247();
-  setupImportHistory();
-  setupInventoryModule();
-  setupGlobalMobilePullDownClear();
-  registerServiceWorker();
+
+  // V29.3 startup fix: queue the canonical Google sync BEFORE the heavier
+  // Import / Product Management / History / inventory event wiring.
+  // setupCloudSync() schedules runCloudSync() at 0ms; because it is queued
+  // first, the network request starts as soon as this DOMContentLoaded task
+  // yields, instead of waiting behind all page setup work.
   setupCloudSync();
-  setupSalesInventoryReminder();
-  setupDataOperationSafety();
+
+  window.setTimeout(() => {
+    setupImportModule();
+    setupProductManagementV281();
+    setupImportDraftV247();
+    setupImportHistory();
+    setupInventoryModule();
+    setupGlobalMobilePullDownClear();
+    registerServiceWorker();
+    setupSalesInventoryReminder();
+    setupDataOperationSafety();
+  }, 0);
 });
 
 
@@ -2980,7 +2989,7 @@ function setupDashboard() {
 
 function renderDashboard() {
   const products = loadJSON("importSystemProducts", []);
-  // V29.2: single real inventory source.  Do not depend on any legacy
+  // V29.3: single real inventory source.  Do not depend on any legacy
   // warehouse/category label when deciding whether a product belongs in the
   // live inventory.  A positive stock balance is the authoritative signal.
   const activeInventoryProducts = products.filter(
@@ -3026,7 +3035,7 @@ function renderDashboard() {
     latestBatchImportDate || "";
 
   renderDashboardPromotionStatusV208();
-  // V29.2: anomaly/system diagnostics are Settings-only and can scan the full
+  // V29.3: anomaly/system diagnostics are Settings-only and can scan the full
   // dataset. Do not block every Dashboard refresh or cloud Pull with those scans.
   if (document.getElementById("settingsPage")?.classList.contains("active")) {
     renderImportAnomalyCenterV201();
@@ -4170,7 +4179,7 @@ function getPromotionMarginBadgeV209(product, profitInfo = null) {
   const formattedRate = Number.isFinite(rate)
     ? (Number.isInteger(rate) ? Math.abs(rate).toFixed(0) : Math.abs(rate).toFixed(2).replace(/0+$/, "").replace(/\.$/, ""))
     : "";
-  // V29.2: the badge describes profit direction, not a discount. Profit is +green; loss is -red.
+  // V29.3: the badge describes profit direction, not a discount. Profit is +green; loss is -red.
   const text = formattedRate ? `${cls === "loss" ? "-" : cls === "gain" ? "+" : ""}${formattedRate}%` : "";
   return text ? `<em class="inventory-promotion-margin-v209 ${cls}">${escapeHTML(text)}</em>` : "";
 }
@@ -4637,7 +4646,7 @@ function isHiddenLegacyProductIdV256(value) {
   return HIDDEN_LEGACY_PRODUCT_IDS_V256.has(String(value || "").trim().toUpperCase());
 }
 function getOperationalProductsV256(products = getProducts()) {
-  // V29.2: the system is single-warehouse bonsai-only. Do not re-filter the
+  // V29.3: the system is single-warehouse bonsai-only. Do not re-filter the
   // canonical Products by legacy category text, because older saved rows may
   // have blank/legacy category labels. Real stock remains the source of truth.
   return (Array.isArray(products) ? products : []).filter(product =>
@@ -4645,7 +4654,7 @@ function getOperationalProductsV256(products = getProducts()) {
   );
 }
 
-// ================= V29.2 Bonsai-only product scope =================
+// ================= V29.3 Bonsai-only product scope =================
 function getProductDisplayNamesV271(product){const chinese=String(product?.name||"").trim();const english=String(productEnglishNameV262(product)||"").trim();const same=chinese&&english&&chinese.toLowerCase()===english.toLowerCase();return{primary:chinese||english,secondary:(!same&&chinese&&english)?english:"",primaryLanguage:chinese?"cn":"en"}}
 function productDisplayNameHtmlV271(product,unused,secondaryClass="product-secondary-name-v271"){const names=getProductDisplayNamesV271(product);return `${escapeHTML(names.primary||"未命名产品")}${names.secondary?`<small class="${secondaryClass}">${escapeHTML(names.secondary)}</small>`:""}`}
 function isBonsaiProductV281(product){return normalizeProductCategoryNameV227(product?.category||"盆栽")==="盆栽"}
@@ -6046,7 +6055,7 @@ function saveImportDraftV242() {
     return;
   }
   const state = collectImportDraftStateV242();
-  // V29.2: recognition red text is only a pre-save visual cue. Do not persist it in the import draft.
+  // V29.3: recognition red text is only a pre-save visual cue. Do not persist it in the import draft.
   state.rows = (state.rows || []).map(row => { const copy = { ...row }; delete copy.recognitionNewV265; return copy; });
   if (!state.rows.length) {
     alert("请先输入至少一个产品，再保存草稿。");
@@ -6270,7 +6279,7 @@ function confirmFormalImportV247() {
   const totalQty = rows.reduce((sum, row) => sum + Math.max(0, Number(row?.quantity) || 0), 0);
   const firstNames = rows.slice(0, 4).map(row => String(row.name || "").trim()).filter(Boolean).join("、");
   const summary = `${rows.length} 个产品 / 总数量 ${totalQty}${firstNames ? `\n${firstNames}${rows.length > 4 ? "…" : ""}` : ""}`;
-  if (!window.confirm(`⚠️ 确认正式保存这份进口？\n\n${summary}\n\n确认后才会执行 V29.2 原本正式保存逻辑：写入真实库存、成本、Import / Batch、Product ID 与最低售价相关处理。\n\n正式保存成功后，这份进口会锁定。`)) return;
+  if (!window.confirm(`⚠️ 确认正式保存这份进口？\n\n${summary}\n\n确认后才会执行 V29.3 原本正式保存逻辑：写入真实库存、成本、Import / Batch、Product ID 与最低售价相关处理。\n\n正式保存成功后，这份进口会锁定。`)) return;
   if (!window.confirm("最后确认：现在正式入库？\n\n这是第二阶段正式保存，不再是草稿。成功后如需修改，只能依 Data Repair 规则处理。")) return;
   saveBatchImport();
 }
@@ -15722,7 +15731,7 @@ function renderInventoryManagementList() {
       ])
   );
 
-  // V29.2 performance fix: index Imports once instead of scanning and sorting
+  // V29.3 performance fix: index Imports once instead of scanning and sorting
   // the complete Imports array again for every inventory product. This changes
   // only front-end preparation; Products/Imports/Batches and sync formulas stay untouched.
   const importsByProductIdV292 = new Map();
@@ -17111,7 +17120,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "29.2",
+      version: "29.3",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -17478,7 +17487,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V29.2 Stable",
+      updatedBy: "System V29.3 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -17621,7 +17630,7 @@ function productNameWithEnglishV262(product){const en=productEnglishNameV262(pro
 function rememberProductLanguageV262(productId, chineseName, englishName){const id=String(productId||"").toUpperCase();if(!id)return;const meta=getProductLanguageMetaV262();meta[id]={chineseName:String(chineseName||"").trim(),englishName:String(englishName||"").trim()};saveProductLanguageMetaV262(meta)}
 function inferSimpleBilingualV262(text){const raw=String(text||"").trim();const rule=speciesRuleV262(raw);return{chineseName:rule?.cn||(/[\u3400-\u9fff]/.test(raw)?raw:""),englishName:rule?.en||(!/[\u3400-\u9fff]/.test(raw)?raw.replace(/\b(?:P?\d{2,4}|\d+(?:\.\d+)?C|\d+[xX]\d+)\b.*$/i,"").trim():""),prefix:rule?.prefix||""}}
 
-// ================= V29.2 Product Management + Bonsai Inventory Master =================
+// ================= V29.3 Product Management + Bonsai Inventory Master =================
 let inventoryMasterRowsCacheV291 = null;
 let inventoryMasterRowsCacheAtV291 = 0;
 function invalidateInventoryMasterRowsV291(){
@@ -17639,7 +17648,7 @@ function inventoryMasterRowsV281(forceRefresh = false){
   const languageMeta=getProductLanguageMetaV262();
   const latestImportByProductId=new Map();
 
-  // V29.2: build latest-import index once. Previous code filtered the entire
+  // V29.3: build latest-import index once. Previous code filtered the entire
   // Imports list again for every product, which became very slow on mobile.
   imports.forEach(record=>{
     const id=String(record?.productId||"").trim();
@@ -17672,7 +17681,7 @@ function renderInventoryMasterV261(forceRefresh = false){
   const body=document.getElementById("inventoryMasterBodyV261"),count=document.getElementById("inventoryMasterCountV261"),rawQuery=String(document.getElementById("inventoryMasterSearchV261")?.value||"").trim(),sort=String(document.getElementById("inventoryMasterSortV264")?.value||"latest");
   if(!body)return;
   const panel=document.getElementById("inventoryMasterPanelV264");
-  // V29.2: never build hundreds of master rows during app startup. This was
+  // V29.3: never build hundreds of master rows during app startup. This was
   // blocking setupImportModule(), which is why the Import product input row
   // could appear missing until the master table finally finished rendering.
   if(panel && !panel.open && !forceRefresh)return;
