@@ -5890,7 +5890,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .promotion-batch-margin-v279 input{width:82px;min-width:82px;padding:7px 8px;text-align:right}
 @media(max-width:720px){.promotion-search-result-v278{grid-template-columns:24px minmax(0,1fr)!important}.promotion-margin-control-v278{grid-column:2/3;min-width:0}.promotion-search-result-v278>[data-add-promotion-exclusion]{grid-column:2/3;justify-self:start}.promotion-batch-margin-v279{width:100%}}
 
-/* V28.2 bonsai-only product management */
+/* V28.3 bonsai-only product management */
 .inventory-master-warehouse-label-v281{min-height:42px;display:flex;align-items:center;padding:0 12px;border:1px solid #cfdad3;border-radius:9px;background:#f4faf6;font-weight:800;color:#24553c}
 .inventory-master-toolbar-v264{grid-template-columns:150px minmax(280px,1fr) 180px!important}
 .product-english-name-v262{display:block;font-size:.82em;font-weight:500;color:#6b7c72;margin-top:2px;line-height:1.25}
@@ -5899,7 +5899,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 @media(max-width:720px){.inventory-master-toolbar-v264{grid-template-columns:1fr!important}.inventory-master-wrap-v261{overflow-x:auto;-webkit-overflow-scrolling:touch}.inventory-master-table-v261{min-width:720px}}
 
 
-/* V28.2 — five-item bottom navigation stays on one line. */
+/* V28.3 — five-item bottom navigation stays on one line. */
 .bottom-nav{grid-template-columns:repeat(5,minmax(0,1fr))!important;}
 .bottom-nav .nav-btn small{white-space:nowrap!important;word-break:keep-all!important;overflow-wrap:normal!important;line-height:1.1!important;}
 @media(max-width:700px){

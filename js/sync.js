@@ -64,7 +64,16 @@ function saveCloudQueue(queue) {
 
 function isCloudBootstrapComplete() {
   const saved = loadJSON(CLOUD_BOOTSTRAP_KEY, {});
-  return saved && saved.version === APP_VERSION && saved.schemaVersion === CLOUD_SCHEMA_VERSION && saved.completed === true;
+  // V28.3 speed fix: an app-version upgrade must not force a full bootstrap Pull
+  // when the canonical cloud schema is unchanged and this device already has a
+  // completed bootstrap. V28.2 treated every new APP_VERSION as a new bootstrap,
+  // which made normal upgrades download the complete Products / Imports / Batches
+  // again before the UI could settle.
+  return Boolean(
+    saved &&
+    saved.completed === true &&
+    saved.schemaVersion === CLOUD_SCHEMA_VERSION
+  );
 }
 
 function clearLegacyPendingCloudState() {
@@ -241,7 +250,7 @@ function makeLocalSnapshot() {
   };
 }
 
-// V28.2: keep the fast local existence check from V28.1, while restoring the
+// V28.3: keep the fast local existence check from V28.1, while restoring the
 // proven V22.6 single-request cloud sync path.
 function hasLocalCoreDataFastV280() {
   const keys = ["importSystemProducts", "importSystemImports", "importSystemBatches"];
@@ -378,7 +387,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V28.2 Stable",
+      updatedBy: "System V28.3 Stable",
       ...payload
     });
 
@@ -413,7 +422,7 @@ async function commitSalesInventoryBatchToCloudV125(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V28.2 Stable",
+      updatedBy: "System V28.3 Stable",
       ...payload
     });
     if (data.conflict || data.stockChanged) {
@@ -436,7 +445,7 @@ window.commitSalesInventoryBatchToCloudV125 = commitSalesInventoryBatchToCloudV1
 
 async function commitSalesCorrectionBatchToCloudV110(payload) {
   await flushCloudQueueStrictV83(); const config=getCloudConfig(); setCloudState("syncing");
-  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V28.2 Stable",...payload});
+  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V28.3 Stable",...payload});
     if(data.conflict||data.stockChanged) throw new Error(data.message||"Google Sheet 资料已改变，全部库存差异没有处理。请同步后重试。");
     config.revision=Number(data.revision)||Number(config.revision)||0; config.lastSyncAt=new Date().toISOString(); config.bootstrapToken=String(data.bootstrapToken||config.bootstrapToken||""); config.bootstrapRevision=Number(data.revision)||Number(config.bootstrapRevision)||0; saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced"); return data;
   } catch(error){setCloudState("failed");throw error;}
@@ -450,7 +459,7 @@ async function migrateProductPrefixesV164() {
     action: "migrateProductPrefixesV164", clientVersion: APP_VERSION,
     schemaVersion: CLOUD_SCHEMA_VERSION, baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""), bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V28.2 Stable"
+    updatedBy: "System V28.3 Stable"
   });
   if (data.conflict) throw new Error(data.message || "资料已改变，请同步后重试。");
   config.revision = Number(data.revision) || Number(config.revision) || 0;
@@ -508,7 +517,7 @@ async function runCloudSync() {
       // 不额外增加一次网络请求。
       await pushPendingSnapshot(queue);
     } else {
-      // V28.2 speed baseline: follow the proven V22.6 one-request sync path.
+      // V28.3 speed baseline: follow the proven V22.6 one-request sync path.
       // The Pull endpoint itself compares knownRevision first and returns a tiny
       // unchanged response without serializing Products / Imports / Batches.
       // This avoids the extra status request that made V28.1 feel slower.
@@ -558,7 +567,7 @@ async function pullLatestSnapshot(forceBootstrap = false) {
     saveCloudConfig(config);
     renderCloudMeta(config);
     setCloudState("synced");
-    // V28.2: unchanged Pull responses stay lightweight; do not run historical
+    // V28.3: unchanged Pull responses stay lightweight; do not run historical
     // full-data repair scans when the cloud revision has not changed.
     return false;
   }
@@ -625,7 +634,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V28.2 Stable",
+    updatedBy: "System V28.3 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     minimumPriceManual: Boolean(minimumPriceManual),
@@ -668,7 +677,7 @@ async function updatePromotionSettingsFastV185(promotion) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V28.2 Stable",
+    updatedBy: "System V28.3 Stable",
     promotion: promotion || null
   });
   if (data.conflict) throw new Error(data.message || "云端资料已改变，请同步后重试。");
@@ -694,7 +703,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V28.2 Stable",
+    updatedBy: "System V28.3 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
@@ -814,7 +823,7 @@ function applyRemoteData(data) {
   if (!Array.isArray(data.products) || !Array.isArray(data.imports) || !Array.isArray(data.batches)) {
     throw new Error("云端资料不完整，已停止覆盖本机资料");
   }
-  // V28.2 safety: a transient/abnormal empty Products response must never wipe a
+  // V28.3 safety: a transient/abnormal empty Products response must never wipe a
   // device that already has the real inventory. Keep Local-First data and fail the
   // sync visibly instead of showing 0 inventory as "已同步".
   const localProductsBeforeV275=loadJSON("importSystemProducts",[]);
@@ -846,26 +855,35 @@ function applyRemoteData(data) {
 }
 
 function refreshSystemViewsAfterSync() {
-  // V28.2 mobile performance: redraw only the page the user can currently see.
-  // Hidden pages already render on navigation; repainting all heavy lists after
-  // every cloud Pull caused visible freezes on phones.
+  // V28.3: keep the light page-only refresh, but call the dashboard renderers
+  // directly. This prevents a stale 0-item inventory panel if a global lookup is
+  // unavailable while the top dashboard has already refreshed from cloud data.
   const activePage = document.querySelector(".page.active")?.id || "dashboardPage";
-  const byPage = {
-    dashboardPage: ["renderDashboard", "renderInventoryManagementList"],
-    importPage: ["renderBatchSuggestions", "renderBatchList", "renderImportDraftsV242"],
-    settingsPage: ["renderProductList", "refreshPromotionUiV183", "updatePasswordHintDisplays"],
-    productManagementPage: ["renderProductList"],
-    historyPage: []
-  };
-  const names = byPage[activePage] || ["renderDashboard"];
   window.requestAnimationFrame(() => {
-    names.forEach(name => {
-      try {
-        if (typeof window[name] === "function") window[name]();
-      } catch (error) {
-        console.warn(`${name} refresh skipped:`, error);
+    try {
+      if (activePage === "dashboardPage") {
+        if (typeof renderDashboard === "function") renderDashboard();
+        if (typeof renderInventoryManagementList === "function") renderInventoryManagementList();
+        return;
       }
-    });
+      if (activePage === "importPage") {
+        if (typeof renderBatchSuggestions === "function") renderBatchSuggestions();
+        if (typeof renderBatchList === "function") renderBatchList();
+        if (typeof renderImportDraftsV242 === "function") renderImportDraftsV242();
+        return;
+      }
+      if (activePage === "productManagementPage") {
+        if (typeof renderProductList === "function") renderProductList();
+        return;
+      }
+      if (activePage === "settingsPage") {
+        if (typeof renderProductList === "function") renderProductList();
+        if (typeof refreshPromotionUiV183 === "function") refreshPromotionUiV183();
+        if (typeof updatePasswordHintDisplays === "function") updatePasswordHintDisplays();
+      }
+    } catch (error) {
+      console.warn("V28.3 page refresh skipped:", error);
+    }
   });
 }
 

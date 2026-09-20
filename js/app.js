@@ -4172,7 +4172,7 @@ function getPromotionMarginBadgeV209(product, profitInfo = null) {
   const formattedRate = Number.isFinite(rate)
     ? (Number.isInteger(rate) ? Math.abs(rate).toFixed(0) : Math.abs(rate).toFixed(2).replace(/0+$/, "").replace(/\.$/, ""))
     : "";
-  // V28.2: the badge describes profit direction, not a discount. Profit is +green; loss is -red.
+  // V28.3: the badge describes profit direction, not a discount. Profit is +green; loss is -red.
   const text = formattedRate ? `${cls === "loss" ? "-" : cls === "gain" ? "+" : ""}${formattedRate}%` : "";
   return text ? `<em class="inventory-promotion-margin-v209 ${cls}">${escapeHTML(text)}</em>` : "";
 }
@@ -4639,12 +4639,17 @@ function isHiddenLegacyProductIdV256(value) {
   return HIDDEN_LEGACY_PRODUCT_IDS_V256.has(String(value || "").trim().toUpperCase());
 }
 function getOperationalProductsV256(products = getProducts()) {
+  // V28.3 bonsai-only baseline: V28.1 already removed Warehouse 2 / misc-wood
+  // workflows. Do not re-filter the live Products collection by legacy category
+  // metadata here, because older real bonsai records can have blank/legacy category
+  // values after rollback. Stock > 0 remains the authoritative inventory display
+  // condition, exactly as on the dashboard. Hidden historical IDs stay excluded.
   return (Array.isArray(products) ? products : []).filter(product =>
-    !isHiddenLegacyProductIdV256(product?.id) && normalizeProductCategoryNameV227(product?.category || "盆栽") === "盆栽"
+    !isHiddenLegacyProductIdV256(product?.id)
   );
 }
 
-// ================= V28.2 Bonsai-only product scope =================
+// ================= V28.3 Bonsai-only product scope =================
 function getProductDisplayNamesV271(product){const chinese=String(product?.name||"").trim();const english=String(productEnglishNameV262(product)||"").trim();const same=chinese&&english&&chinese.toLowerCase()===english.toLowerCase();return{primary:chinese||english,secondary:(!same&&chinese&&english)?english:"",primaryLanguage:chinese?"cn":"en"}}
 function productDisplayNameHtmlV271(product,unused,secondaryClass="product-secondary-name-v271"){const names=getProductDisplayNamesV271(product);return `${escapeHTML(names.primary||"未命名产品")}${names.secondary?`<small class="${secondaryClass}">${escapeHTML(names.secondary)}</small>`:""}`}
 function isBonsaiProductV281(product){return normalizeProductCategoryNameV227(product?.category||"盆栽")==="盆栽"}
@@ -6046,7 +6051,7 @@ function saveImportDraftV242() {
     return;
   }
   const state = collectImportDraftStateV242();
-  // V28.2: recognition red text is only a pre-save visual cue. Do not persist it in the import draft.
+  // V28.3: recognition red text is only a pre-save visual cue. Do not persist it in the import draft.
   state.rows = (state.rows || []).map(row => { const copy = { ...row }; delete copy.recognitionNewV265; return copy; });
   if (!state.rows.length) {
     alert("请先输入至少一个产品，再保存草稿。");
@@ -17095,7 +17100,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "28.2",
+      version: "28.3",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -17462,7 +17467,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V28.2 Stable",
+      updatedBy: "System V28.3 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -17605,7 +17610,7 @@ function productNameWithEnglishV262(product){const en=productEnglishNameV262(pro
 function rememberProductLanguageV262(productId, chineseName, englishName){const id=String(productId||"").toUpperCase();if(!id)return;const meta=getProductLanguageMetaV262();meta[id]={chineseName:String(chineseName||"").trim(),englishName:String(englishName||"").trim()};saveProductLanguageMetaV262(meta)}
 function inferSimpleBilingualV262(text){const raw=String(text||"").trim();const rule=speciesRuleV262(raw);return{chineseName:rule?.cn||(/[\u3400-\u9fff]/.test(raw)?raw:""),englishName:rule?.en||(!/[\u3400-\u9fff]/.test(raw)?raw.replace(/\b(?:P?\d{2,4}|\d+(?:\.\d+)?C|\d+[xX]\d+)\b.*$/i,"").trim():""),prefix:rule?.prefix||""}}
 
-// ================= V28.2 Product Management + Bonsai Inventory Master =================
+// ================= V28.3 Product Management + Bonsai Inventory Master =================
 function inventoryMasterRowsV281(){
   const sales=getInventorySalesAnalyticsV146();
   const imports=getImports();
