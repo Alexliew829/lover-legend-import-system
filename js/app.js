@@ -2980,24 +2980,14 @@ function setupDashboard() {
 
 function renderDashboard() {
   const products = loadJSON("importSystemProducts", []);
-  // 库存数量才是首页是否显示的最终依据。
-  // 旧版本或删除批次后可能遗留 inventoryArchived=true，
-  // 只要库存仍大于 0，就必须继续显示。
+  // V28.9: single real inventory source.  Do not depend on any legacy
+  // warehouse/category label when deciding whether a product belongs in the
+  // live inventory.  A positive stock balance is the authoritative signal.
   const activeInventoryProducts = products.filter(
-    item => (Number(item.stock) || 0) > 0 && isBonsaiProductV281(item)
+    item => (Number(item.stock) || 0) > 0
   );
 
   const productCount = activeInventoryProducts.length;
-  const categoryOrder = typeof getProductCategoriesV227 === "function" ? getProductCategoriesV227() : ["盆栽"];
-  const categoryCounts = activeInventoryProducts.reduce((counts, item) => {
-    const category = normalizePrimaryProductCategoryV255(item.category || "盆栽");
-    counts[category] = (counts[category] || 0) + 1;
-    return counts;
-  }, {});
-  const categorySummary = categoryOrder
-    .filter(category => (categoryCounts[category] || 0) > 0)
-    .map(category => `${category}：${formatNumber(categoryCounts[category])}`)
-    .join("\n");
 
   const stockCount = activeInventoryProducts.reduce(
     (sum, item) => sum + (Number(item.stock) || 0),
@@ -3018,15 +3008,15 @@ function renderDashboard() {
       return parse(b) - parse(a);
     });
 
-  document.getElementById("productCount").textContent = categorySummary || formatNumber(productCount);
+  document.getElementById("productCount").textContent = formatNumber(productCount);
   document.getElementById("stockCount").textContent = formatNumber(stockCount);
   document.getElementById("inventoryValue").textContent = formatMoney(inventoryValue, "RM ");
   const batches = getBatches();
+  const activeProductIdsV289 = new Set(activeInventoryProducts.map(item => String(item?.id || "").trim()).filter(Boolean));
   const latestBatchImportDate = batches
-    .filter(batch => getBatchItemsForDisplay(batch).some(item => {
-      const p = products.find(x => String(x?.id || "") === String(item?.productId || ""));
-      return isBonsaiProductV281(p || item);
-    }))
+    .filter(batch => getBatchItemsForDisplay(batch).some(item =>
+      activeProductIdsV289.has(String(item?.productId || "").trim())
+    ))
     .map(batch => normalizeDateToDDMMYYYY(batch.arrivalDate))
     .filter(value => parseDDMMYYYY(value) > 0)
     .sort((a, b) => parseDDMMYYYY(b) - parseDDMMYYYY(a))[0];
@@ -4176,7 +4166,7 @@ function getPromotionMarginBadgeV209(product, profitInfo = null) {
   const formattedRate = Number.isFinite(rate)
     ? (Number.isInteger(rate) ? Math.abs(rate).toFixed(0) : Math.abs(rate).toFixed(2).replace(/0+$/, "").replace(/\.$/, ""))
     : "";
-  // V28.8: the badge describes profit direction, not a discount. Profit is +green; loss is -red.
+  // V28.9: the badge describes profit direction, not a discount. Profit is +green; loss is -red.
   const text = formattedRate ? `${cls === "loss" ? "-" : cls === "gain" ? "+" : ""}${formattedRate}%` : "";
   return text ? `<em class="inventory-promotion-margin-v209 ${cls}">${escapeHTML(text)}</em>` : "";
 }
@@ -4643,7 +4633,7 @@ function isHiddenLegacyProductIdV256(value) {
   return HIDDEN_LEGACY_PRODUCT_IDS_V256.has(String(value || "").trim().toUpperCase());
 }
 function getOperationalProductsV256(products = getProducts()) {
-  // V28.8: the system is single-warehouse bonsai-only. Do not re-filter the
+  // V28.9: the system is single-warehouse bonsai-only. Do not re-filter the
   // canonical Products by legacy category text, because older saved rows may
   // have blank/legacy category labels. Real stock remains the source of truth.
   return (Array.isArray(products) ? products : []).filter(product =>
@@ -4651,7 +4641,7 @@ function getOperationalProductsV256(products = getProducts()) {
   );
 }
 
-// ================= V28.8 Bonsai-only product scope =================
+// ================= V28.9 Bonsai-only product scope =================
 function getProductDisplayNamesV271(product){const chinese=String(product?.name||"").trim();const english=String(productEnglishNameV262(product)||"").trim();const same=chinese&&english&&chinese.toLowerCase()===english.toLowerCase();return{primary:chinese||english,secondary:(!same&&chinese&&english)?english:"",primaryLanguage:chinese?"cn":"en"}}
 function productDisplayNameHtmlV271(product,unused,secondaryClass="product-secondary-name-v271"){const names=getProductDisplayNamesV271(product);return `${escapeHTML(names.primary||"未命名产品")}${names.secondary?`<small class="${secondaryClass}">${escapeHTML(names.secondary)}</small>`:""}`}
 function isBonsaiProductV281(product){return normalizeProductCategoryNameV227(product?.category||"盆栽")==="盆栽"}
@@ -6053,7 +6043,7 @@ function saveImportDraftV242() {
     return;
   }
   const state = collectImportDraftStateV242();
-  // V28.8: recognition red text is only a pre-save visual cue. Do not persist it in the import draft.
+  // V28.9: recognition red text is only a pre-save visual cue. Do not persist it in the import draft.
   state.rows = (state.rows || []).map(row => { const copy = { ...row }; delete copy.recognitionNewV265; return copy; });
   if (!state.rows.length) {
     alert("请先输入至少一个产品，再保存草稿。");
@@ -15729,7 +15719,7 @@ function renderInventoryManagementList() {
       ])
   );
 
-  const products = getOperationalProductsV256()
+  const products = loadJSON("importSystemProducts", [])
     .filter(product => (Number(product.stock) || 0) > 0)
     .map(product => {
       const productName = String(product.name || "").trim().toLowerCase();
@@ -15970,8 +15960,8 @@ function renderInventoryManagementList() {
 
   const filteredTotalStock = matchedBatch
     ? getBatchItemsForDisplay(matchedBatch).filter(item => {
-        const p = getOperationalProductsV256().find(x => String(x?.id || "") === String(item?.productId || ""));
-        return isBonsaiProductV281(p || item);
+        const productId = String(item?.productId || "").trim();
+        return products.some(product => String(product?.id || "").trim() === productId);
       }).reduce((sum, item) => {
         const originalQuantity = Math.max(
           0,
@@ -17100,7 +17090,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "28.8",
+      version: "28.9",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -17467,7 +17457,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V28.8 Stable",
+      updatedBy: "System V28.9 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -17610,7 +17600,7 @@ function productNameWithEnglishV262(product){const en=productEnglishNameV262(pro
 function rememberProductLanguageV262(productId, chineseName, englishName){const id=String(productId||"").toUpperCase();if(!id)return;const meta=getProductLanguageMetaV262();meta[id]={chineseName:String(chineseName||"").trim(),englishName:String(englishName||"").trim()};saveProductLanguageMetaV262(meta)}
 function inferSimpleBilingualV262(text){const raw=String(text||"").trim();const rule=speciesRuleV262(raw);return{chineseName:rule?.cn||(/[\u3400-\u9fff]/.test(raw)?raw:""),englishName:rule?.en||(!/[\u3400-\u9fff]/.test(raw)?raw.replace(/\b(?:P?\d{2,4}|\d+(?:\.\d+)?C|\d+[xX]\d+)\b.*$/i,"").trim():""),prefix:rule?.prefix||""}}
 
-// ================= V28.8 Product Management + Bonsai Inventory Master =================
+// ================= V28.9 Product Management + Bonsai Inventory Master =================
 function inventoryMasterRowsV281(){
   const sales=getInventorySalesAnalyticsV146();
   const imports=getImports();
