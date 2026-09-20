@@ -5199,7 +5199,7 @@ function getOperationalProductsV256(products = getProducts()) {
   );
 }
 
-// ================= V27.1 Two Real Warehouses =================
+// ================= V27.5 Two Real Warehouses =================
 const WAREHOUSE_BONSAI_V270 = "bonsai";
 const WAREHOUSE_WOOD_V270 = "wood";
 function getWarehouseForCategoryV270(category) {
@@ -5210,7 +5210,7 @@ function getProductWarehouseV270(product) {
   if (stored === WAREHOUSE_BONSAI_V270 || stored === WAREHOUSE_WOOD_V270) return stored;
   return getWarehouseForCategoryV270(product?.category || "盆栽");
 }
-// V27.1: 盆栽仓库中文为主、英文为次；杂木仓库英文为主、中文为次。
+// V27.5: 盆栽仓库中文为主、英文为次；杂木仓库英文为主、中文为次。
 // 仅改变显示顺序，不改变 product.name / Product ID / 同步 / 保存结构。
 function getProductDisplayNamesV271(product, warehouse = getProductWarehouseV270(product)) {
   const chinese = String(product?.name || "").trim();
@@ -5701,7 +5701,7 @@ function setupProductCategorySettingsV227() {
     );
     if (duplicateName) { if (status) status.textContent = "这个产品类别名称已经存在"; return; }
 
-    // V27.1: one prefix may be shared by multiple DIFFERENT product/category names.
+    // V27.5: one prefix may be shared by multiple DIFFERENT product/category names.
     // Only the same product/category name is forbidden from mapping to a second prefix.
 
     const verb = editingName ? "修改" : "新增";
@@ -7154,7 +7154,7 @@ function saveImportDraftV242() {
     return;
   }
   const state = collectImportDraftStateV242();
-  // V27.1: recognition red text is only a pre-save visual cue. Do not persist it in the import draft.
+  // V27.5: recognition red text is only a pre-save visual cue. Do not persist it in the import draft.
   state.rows = (state.rows || []).map(row => { const copy = { ...row }; delete copy.recognitionNewV265; return copy; });
   if (!state.rows.length) {
     alert("请先输入至少一个产品，再保存草稿。");
@@ -18351,7 +18351,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "27.1",
+      version: "27.5",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18718,7 +18718,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V27.1 Stable",
+      updatedBy: "System V27.5 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -18833,9 +18833,9 @@ function registerServiceWorker() {
 })();
 
 
-// ================= V27.1 Mobile ChatGPT Invoice Assistant =================
+// ================= V27.5 Mobile ChatGPT Invoice Assistant =================
 // Recognition remains isolated from stock, average cost, minimum-price and formal Import/Batch logic.
-// V27.1 adds only safer naming/category normalization, preview progress/table UI and independent handoff state.
+// V27.5 adds only safer naming/category normalization, preview progress/table UI and independent handoff state.
 (function initInvoiceAssistantV259Module(){
   const MAIN_CATEGORIES = new Set(["盆栽","杂花杂木","肥料 / 农药","泥土 / 介质","花盆","工具","其他"]);
   const DRAFT_KEY="invoiceRecognitionDraftsV259", HISTORY_KEY="invoiceRecognitionHistoryV259";
@@ -19035,7 +19035,7 @@ function supplierReferenceInfoV265(s){
   const name=supplierCanonNameV261(s?.name||"").toLowerCase();
   const aliases=[name,...(Array.isArray(s?.aliases)?s.aliases:[]).map(x=>supplierCanonNameV261(x).toLowerCase())].filter(Boolean);
   const labels=Array.from(new Set(aliases));
-  // V27.1: reference protection belongs to this supplier record, not merely to a shared prefix.
+  // V27.5: reference protection belongs to this supplier record, not merely to a shared prefix.
   // Two suppliers may share one prefix; a newly copied name must not inherit another supplier's stock lock.
   const matchesLabel=(value)=>{const v=supplierCanonNameV261(value||"").toLowerCase();return labels.some(label=>v===label||v.startsWith(label));};
   const virtual=getVirtualWarehouseSourceV240().some(v=>{
@@ -19112,10 +19112,20 @@ function cleanupTestSupplierV268(){
 }
 
 
-// ================= V27.1 Virtual Reference -> Two Real Warehouses =================
+// ================= V27.5 Virtual Reference -> Two Real Warehouses =================
 function ensureWoodWarehouseMigrationV270(){
   const settings=loadJSON("importSystemSettings",{});
-  if(settings.twoWarehouseMigrationV270===true)return false;
+  // V27.5: V27.1 users have already completed the warehouse migration. Backfill
+  // the compact public catalog without repeating migration or touching stock.
+  if(settings.twoWarehouseMigrationV270===true){
+    if(!Array.isArray(settings.warehousePublicCatalogV275)){
+      const current=getProducts();
+      const warehousePublicCatalogV275=current.filter(p=>getProductWarehouseV270(p)===WAREHOUSE_WOOD_V270).map(p=>({id:String(p?.id||"").trim(),name:String(p?.name||"").trim(),englishName:String(productEnglishNameV262(p)||p?.englishName||"").trim(),category:String(p?.category||"").trim(),warehouse:"wood",minimumPrice:Math.max(0,Number(p?.minimumPrice)||0)})).filter(p=>p.id);
+      saveJSON("importSystemSettings",{...settings,warehousePublicCatalogV275});
+      if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved();
+    }
+    return false;
+  }
   const refs=getVirtualWarehouseSourceV240(); if(!refs.length)return false;
   const products=getProducts().slice(); const existingNames=new Set(products.map(p=>normalizeVirtualWarehouseNameV240(p?.name)));
   const meta=getProductLanguageMetaV262(); let added=0; const now=new Date().toISOString();
@@ -19131,15 +19141,37 @@ function ensureWoodWarehouseMigrationV270(){
   // Existing real records are never zeroed or rebuilt; missing former reference products enter the category-derived real warehouse at stock 0.
   const normalized=products.map(p=>({...p,warehouseV270:getProductWarehouseV270(p)}));
   saveProducts(normalized);
-  const latest=loadJSON("importSystemSettings",{});saveJSON("importSystemSettings",{...latest,[PRODUCT_LANGUAGE_META_KEY_V262]:meta,twoWarehouseMigrationV270:true,twoWarehouseMigrationAddedV270:added});if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved();
+  const latest=loadJSON("importSystemSettings",{});
+  const warehousePublicCatalogV275=normalized.filter(p=>getProductWarehouseV270(p)===WAREHOUSE_WOOD_V270).map(p=>({id:String(p?.id||"").trim(),name:String(p?.name||"").trim(),englishName:String(productEnglishNameV262(p)||p?.englishName||"").trim(),category:String(p?.category||"").trim(),warehouse:"wood",minimumPrice:Math.max(0,Number(p?.minimumPrice)||0)})).filter(p=>p.id);
+  saveJSON("importSystemSettings",{...latest,[PRODUCT_LANGUAGE_META_KEY_V262]:meta,twoWarehouseMigrationV270:true,twoWarehouseMigrationAddedV270:added,warehousePublicCatalogV275});if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved();
   renderDashboard();renderInventoryManagementList();renderBatchProductStockResults();renderInventoryMasterV261();
   return true;
 }
 function scheduleWoodWarehouseMigrationV270(){
   let tries=0;const wait=()=>{tries+=1;const synced=typeof cloudInitialSyncComplete!=="undefined"&&cloudInitialSyncComplete&&typeof cloudLastErrorMessage!=="undefined"&&!cloudLastErrorMessage&&navigator.onLine;if(synced){ensureWoodWarehouseMigrationV270();return}if(tries<120)window.setTimeout(wait,500)};window.setTimeout(wait,300);
 }
+// V27.5: warehouse switching is display-only. Never start a cloud read or rebuild
+// unrelated dashboard/system modules just because the user changed warehouse.
+function renderDashboardWarehouseSummaryV275(){
+  const products=loadJSON("importSystemProducts",[]);
+  if(!Array.isArray(products)||!products.length)return; // keep last good screen during transient load
+  const selectedWarehouseV270=getSelectedWarehouseV270("inventoryWarehouseV270");
+  const activeInventoryProducts=products.filter(item=>(Number(item.stock)||0)>0&&productMatchesWarehouseV270(item,selectedWarehouseV270));
+  const categoryOrder=typeof getProductCategoriesV227==="function"?getProductCategoriesV227():["盆栽"];
+  const categoryCounts=activeInventoryProducts.reduce((counts,item)=>{const category=normalizePrimaryProductCategoryV255(item.category||"盆栽");counts[category]=(counts[category]||0)+1;return counts},{});
+  const categorySummary=categoryOrder.filter(category=>(categoryCounts[category]||0)>0).map(category=>`${category}：${formatNumber(categoryCounts[category])}`).join("\n");
+  const stockCount=activeInventoryProducts.reduce((sum,item)=>sum+(Number(item.stock)||0),0);
+  const inventoryValue=activeInventoryProducts.reduce((sum,item)=>sum+((Number(item.stock)||0)*(Number(item.averageCost)||0)),0);
+  const set=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value};
+  set("productCount",categorySummary||formatNumber(activeInventoryProducts.length));
+  set("stockCount",formatNumber(stockCount));
+  set("inventoryValue",formatMoney(inventoryValue,"RM "));
+  const batches=getBatches();
+  const latest=(Array.isArray(batches)?batches:[]).filter(batch=>getBatchItemsForDisplay(batch).some(item=>{const p=products.find(x=>String(x?.id||"")===String(item?.productId||""));return productMatchesWarehouseV270(p||item,selectedWarehouseV270)})).map(batch=>normalizeDateToDDMMYYYY(batch.arrivalDate)).filter(value=>parseDDMMYYYY(value)>0).sort((a,b)=>parseDDMMYYYY(b)-parseDDMMYYYY(a))[0];
+  set("lastImport",latest||"");
+}
 function setupWarehouseSelectorsV270(){
-  document.getElementById("inventoryWarehouseV270")?.addEventListener("change",()=>{renderInventoryManagementList();renderDashboard();renderOriginalCostPanel(inventoryVisibleProductsV153)});
+  document.getElementById("inventoryWarehouseV270")?.addEventListener("change",()=>{renderInventoryManagementList();renderDashboardWarehouseSummaryV275();renderOriginalCostPanel(inventoryVisibleProductsV153)});
   document.getElementById("productManagementWarehouseV270")?.addEventListener("change",renderBatchProductStockResults);
   document.getElementById("historyWarehouseV270")?.addEventListener("change",()=>{historyManualLookupReadyV246=true;renderImportHistory()});
 }
