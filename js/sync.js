@@ -1,0 +1,912 @@
+const CLOUD_CONFIG_KEY = "importSystemCloudConfig";
+const CLOUD_SCHEMA_VERSION = "LL-IMPORT-2026-08-CANONICAL-4";
+const CLOUD_BOOTSTRAP_KEY = "importSystemCloudBootstrapV50";
+const CLOUD_QUEUE_KEY = "importSystemCloudQueueV2";
+const CLOUD_PREVIOUS_REVISION_KEY_V185 = "importSystemPreviousRevisionV185";
+const DEFAULT_GOOGLE_SCRIPT_URL =
+  "https://script.google.com/macros/s/AKfycbxWKdEC7vy_7pZ2_CPie-9L5DeIofPggZlLuwB7gW-31HqWXEOxshtCR-HB-m5qLYS6/exec";
+
+let cloudSyncBusy = false;
+let cloudApplyingRemote = false;
+let cloudInitialSyncComplete = false;
+let cloudSyncTimer = null;
+let cloudSyncRequestedWhileBusy = false;
+let cloudLastForegroundCheckAt = 0;
+let cloudForegroundCheckTimer = null;
+let cloudLastErrorMessage = "";
+const CLOUD_FOREGROUND_CHECK_GAP = 1500;
+
+function getCloudConfig() {
+  const saved = loadJSON(CLOUD_CONFIG_KEY, {});
+  return {
+    url: DEFAULT_GOOGLE_SCRIPT_URL,
+    revision: Number(saved.revision) || 0,
+    lastSyncAt: saved.lastSyncAt || "",
+    bootstrapToken: saved.bootstrapToken || "",
+    bootstrapRevision: Number(saved.bootstrapRevision) || 0
+  };
+}
+
+function saveCloudConfig(config) {
+  const previousConfig = loadJSON(CLOUD_CONFIG_KEY, {});
+  const previousRevision = Number(previousConfig.revision);
+  const nextRevision = Number(config.revision) || 0;
+  if (Number.isFinite(previousRevision) && previousRevision > 0 && previousRevision !== nextRevision) {
+    localStorage.setItem(CLOUD_PREVIOUS_REVISION_KEY_V185, String(previousRevision));
+  }
+  localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify({
+    url: DEFAULT_GOOGLE_SCRIPT_URL,
+    revision: Number(config.revision) || 0,
+    lastSyncAt: config.lastSyncAt || "",
+    bootstrapToken: config.bootstrapToken || "",
+    bootstrapRevision: Number(config.bootstrapRevision) || 0
+  }));
+}
+
+function getCloudQueue() {
+  const saved = loadJSON(CLOUD_QUEUE_KEY, {});
+  return {
+    dirty: Boolean(saved.dirty),
+    changedAt: saved.changedAt || "",
+    deleted: {
+      products: Array.isArray(saved.deleted?.products) ? saved.deleted.products : [],
+      imports: Array.isArray(saved.deleted?.imports) ? saved.deleted.imports : [],
+      batches: Array.isArray(saved.deleted?.batches) ? saved.deleted.batches : [],
+      importNumbers: Array.isArray(saved.deleted?.importNumbers) ? saved.deleted.importNumbers : [],
+      batchIds: Array.isArray(saved.deleted?.batchIds) ? saved.deleted.batchIds : []
+    }
+  };
+}
+
+function saveCloudQueue(queue) {
+  localStorage.setItem(CLOUD_QUEUE_KEY, JSON.stringify(queue));
+}
+
+function isCloudBootstrapComplete() {
+  const saved = loadJSON(CLOUD_BOOTSTRAP_KEY, {});
+  return saved && saved.version === APP_VERSION && saved.schemaVersion === CLOUD_SCHEMA_VERSION && saved.completed === true;
+}
+
+function clearLegacyPendingCloudState() {
+  window.clearTimeout(cloudSyncTimer);
+  saveCloudQueue({
+    dirty: false,
+    changedAt: "",
+    deleted: { products: [], imports: [], batches: [], importNumbers: [], batchIds: [] }
+  });
+}
+
+function saveCloudBootstrap(data) {
+  const config = getCloudConfig();
+  config.bootstrapToken = String(data.bootstrapToken || "");
+  config.bootstrapRevision = Number(data.revision) || 0;
+  saveCloudConfig(config);
+  localStorage.setItem(CLOUD_BOOTSTRAP_KEY, JSON.stringify({
+    version: APP_VERSION,
+    schemaVersion: CLOUD_SCHEMA_VERSION,
+    completed: true,
+    revision: Number(data.revision) || 0,
+    completedAt: new Date().toISOString()
+  }));
+}
+
+function isApplyingGoogleData() {
+  return cloudApplyingRemote;
+}
+
+function setupCloudSync() {
+  renderCloudMeta(getCloudConfig());
+  setCloudState("syncing");
+
+  window.addEventListener("online", () => {
+    // 如果首次打开时处于离线状态，恢复网络后执行首次同步；
+    // 否则才使用前景检查，避免重复同步。
+    if (!cloudInitialSyncComplete) {
+      runCloudSync();
+      return;
+    }
+
+    scheduleForegroundCloudCheck(10);
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (
+      !document.hidden &&
+      cloudInitialSyncComplete
+    ) {
+      scheduleForegroundCloudCheck(10);
+    }
+  });
+
+  window.addEventListener("pageshow", event => {
+    // 首次载入页面时 pageshow 会自动触发。
+    // 初次同步未完成前忽略，避免打开 App 后同步两次。
+    if (!cloudInitialSyncComplete) return;
+
+    scheduleForegroundCloudCheck(
+      event.persisted ? 10 : 80
+    );
+  });
+
+  // 首次开启只由这里执行一次同步。
+  window.setTimeout(() => runCloudSync(), 0);
+}
+
+function scheduleForegroundCloudCheck(delay = 10) {
+  if (!navigator.onLine || cloudApplyingRemote) return;
+
+  const now = Date.now();
+  const elapsed = now - cloudLastForegroundCheckAt;
+
+  window.clearTimeout(cloudForegroundCheckTimer);
+
+  cloudForegroundCheckTimer = window.setTimeout(() => {
+    cloudLastForegroundCheckAt = Date.now();
+    runCloudSync();
+  }, Math.max(delay, elapsed >= CLOUD_FOREGROUND_CHECK_GAP
+    ? 0
+    : CLOUD_FOREGROUND_CHECK_GAP - elapsed));
+}
+
+function showLatestDataSyncedToast() {
+  let toast = document.getElementById("latestDataSyncedToast");
+
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "latestDataSyncedToast";
+    toast.className = "latest-data-synced-toast";
+    document.body.appendChild(toast);
+  }
+
+  toast.textContent = "✓ 已同步最新资料";
+  toast.classList.add("show");
+
+  window.clearTimeout(toast._hideTimer);
+  toast._hideTimer = window.setTimeout(() => {
+    toast.classList.remove("show");
+  }, 800);
+}
+
+async function refreshLatestCloudData() {
+  const beforeRevision = Number(getCloudConfig().revision) || 0;
+
+  if (!navigator.onLine) {
+    setCloudState("failed");
+    return {
+      ok: false,
+      updated: false,
+      offline: true
+    };
+  }
+
+  await runCloudSync();
+
+  const afterRevision = Number(getCloudConfig().revision) || 0;
+
+  return {
+    ok: true,
+    updated: afterRevision > beforeRevision,
+    revision: afterRevision
+  };
+}
+
+window.refreshLatestCloudData = refreshLatestCloudData;
+
+async function callGoogleApi(payload, attempt = 0) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 25000);
+
+  try {
+    const response = await fetch(DEFAULT_GOOGLE_SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`Google connection failed (${response.status})`);
+    }
+
+    const data = await response.json();
+    if (!data.ok) throw new Error(data.error || "Google sync failed");
+    return data;
+  } catch (error) {
+    const retryable =
+      navigator.onLine &&
+      attempt < 2 &&
+      (error?.name === "AbortError" || error instanceof TypeError || /connection failed/i.test(String(error?.message || error)));
+
+    if (retryable) {
+      await new Promise(resolve => window.setTimeout(resolve, attempt === 0 ? 150 : 450));
+      return callGoogleApi(payload, attempt + 1);
+    }
+
+    if (error?.name === "AbortError") {
+      throw new Error("Google sync timeout");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+function makeLocalSnapshot() {
+  return {
+    settings: loadJSON("importSystemSettings", {}),
+    products: getProducts(),
+    imports: getImports(),
+    batches: getBatches()
+  };
+}
+
+function markCloudImportNumberDeletedV232(importNumber, batchId = "") {
+  if (cloudApplyingRemote || !isCloudBootstrapComplete()) return;
+  const queue = getCloudQueue();
+  const importNumbers = new Set(queue.deleted.importNumbers || []);
+  const batchIds = new Set(queue.deleted.batchIds || []);
+  const normalizedImportNumber = String(importNumber || "").trim();
+  const normalizedBatchId = String(batchId || "").trim();
+  if (normalizedImportNumber) importNumbers.add(normalizedImportNumber);
+  if (normalizedBatchId) batchIds.add(normalizedBatchId);
+  queue.deleted.importNumbers = [...importNumbers];
+  queue.deleted.batchIds = [...batchIds];
+  queue.dirty = true;
+  queue.changedAt = new Date().toISOString();
+  saveCloudQueue(queue);
+}
+window.markCloudImportNumberDeletedV232 = markCloudImportNumberDeletedV232;
+
+function cancelCloudImportNumberDeletionV232(importNumber, batchId = "") {
+  const queue = getCloudQueue();
+  const normalizedImportNumber = String(importNumber || "").trim().toLowerCase();
+  const normalizedBatchId = String(batchId || "").trim();
+  queue.deleted.importNumbers = (queue.deleted.importNumbers || []).filter(value => String(value || "").trim().toLowerCase() !== normalizedImportNumber);
+  queue.deleted.batchIds = (queue.deleted.batchIds || []).filter(value => String(value || "").trim() !== normalizedBatchId);
+  saveCloudQueue(queue);
+}
+window.cancelCloudImportNumberDeletionV232 = cancelCloudImportNumberDeletionV232;
+
+function markCloudCollectionSaved(collection, previousItems, nextItems) {
+  if (cloudApplyingRemote || !isCloudBootstrapComplete()) return;
+  if (JSON.stringify(previousItems || []) === JSON.stringify(nextItems || [])) return;
+
+  const queue = getCloudQueue();
+  const oldIds = new Set((previousItems || []).map(item => String(item?.id || "")).filter(Boolean));
+  const newIds = new Set((nextItems || []).map(item => String(item?.id || "")).filter(Boolean));
+  const deleted = new Set(queue.deleted[collection] || []);
+
+  oldIds.forEach(id => {
+    if (!newIds.has(id)) deleted.add(id);
+  });
+  newIds.forEach(id => deleted.delete(id));
+
+  queue.deleted[collection] = [...deleted];
+  queue.dirty = true;
+  queue.changedAt = new Date().toISOString();
+  saveCloudQueue(queue);
+  scheduleGoogleSync(25);
+}
+
+function markCloudSettingsSaved() {
+  if (cloudApplyingRemote || !isCloudBootstrapComplete()) return;
+  const queue = getCloudQueue();
+  queue.dirty = true;
+  queue.changedAt = new Date().toISOString();
+  saveCloudQueue(queue);
+  scheduleGoogleSync(25);
+}
+
+function scheduleGoogleSync(delay = 25) {
+  if (cloudApplyingRemote || !isCloudBootstrapComplete()) return;
+
+  const queue = getCloudQueue();
+  if (!queue.dirty) {
+    queue.dirty = true;
+    queue.changedAt = new Date().toISOString();
+    saveCloudQueue(queue);
+  }
+
+  setCloudState("syncing");
+  window.clearTimeout(cloudSyncTimer);
+  cloudSyncTimer = window.setTimeout(() => runCloudSync(), delay);
+}
+
+async function waitForCloudIdleV83(timeoutMs = 30000) {
+  const started = Date.now();
+  while (cloudSyncBusy) {
+    if (Date.now() - started > timeoutMs) {
+      throw new Error("云端同步仍在进行，超过安全等待时间。请稍后再试。");
+    }
+    await new Promise(resolve => window.setTimeout(resolve, 100));
+  }
+}
+
+async function flushCloudQueueStrictV83() {
+  if (!navigator.onLine) throw new Error("目前离线，库存没有扣除。");
+  if (!isCloudBootstrapComplete()) {
+    throw new Error("首次同步尚未完成，请等显示「已同步」后再确认销售库存。");
+  }
+
+  window.clearTimeout(cloudSyncTimer);
+  await waitForCloudIdleV83();
+
+  const queue = getCloudQueue();
+  if (!queue?.dirty) return getCloudConfig();
+
+  cloudSyncBusy = true;
+  setCloudState("syncing");
+  try {
+    await pushPendingSnapshot(queue);
+    if (getCloudQueue()?.dirty) {
+      throw new Error("仍有资料等待同步，已停止销售库存扣除。");
+    }
+    return getCloudConfig();
+  } catch (error) {
+    setCloudState("failed");
+    throw error;
+  } finally {
+    cloudSyncBusy = false;
+  }
+}
+
+window.flushCloudQueueStrictV228 = flushCloudQueueStrictV83;
+
+async function commitSalesInventoryToCloudV83(payload) {
+  await flushCloudQueueStrictV83();
+  const config = getCloudConfig();
+  setCloudState("syncing");
+
+  try {
+    const data = await callGoogleApi({
+      action: "commitSalesInventoryV83",
+      clientVersion: APP_VERSION,
+      schemaVersion: CLOUD_SCHEMA_VERSION,
+      baseRevision: Number(config.revision) || 0,
+      bootstrapToken: String(config.bootstrapToken || ""),
+      bootstrapRevision: Number(config.bootstrapRevision) || 0,
+      updatedBy: "System V27.9 Stable",
+      ...payload
+    });
+
+    if (data.conflict || data.stockChanged) {
+      throw new Error(data.message || "Google Sheet 资料已改变，库存没有扣除。请同步后重试。");
+    }
+
+    config.revision = Number(data.revision) || Number(config.revision) || 0;
+    config.lastSyncAt = new Date().toISOString();
+    config.bootstrapToken = String(data.bootstrapToken || config.bootstrapToken || "");
+    config.bootstrapRevision = Number(data.revision) || Number(config.bootstrapRevision) || 0;
+    saveCloudConfig(config);
+    renderCloudMeta(config);
+    setCloudState("synced");
+    return data;
+  } catch (error) {
+    setCloudState("failed");
+    throw error;
+  }
+}
+window.commitSalesInventoryToCloudV83 = commitSalesInventoryToCloudV83;
+
+async function commitSalesInventoryBatchToCloudV125(payload) {
+  await flushCloudQueueStrictV83();
+  const config = getCloudConfig();
+  setCloudState("syncing");
+  try {
+    const data = await callGoogleApi({
+      action: "commitSalesInventoryBatchV125",
+      clientVersion: APP_VERSION,
+      schemaVersion: CLOUD_SCHEMA_VERSION,
+      baseRevision: Number(config.revision) || 0,
+      bootstrapToken: String(config.bootstrapToken || ""),
+      bootstrapRevision: Number(config.bootstrapRevision) || 0,
+      updatedBy: "System V27.9 Stable",
+      ...payload
+    });
+    if (data.conflict || data.stockChanged) {
+      throw new Error(data.message || "Google Sheet 资料已改变，整张销售卡库存没有处理。请同步后重试。");
+    }
+    config.revision = Number(data.revision) || Number(config.revision) || 0;
+    config.lastSyncAt = new Date().toISOString();
+    config.bootstrapToken = String(data.bootstrapToken || config.bootstrapToken || "");
+    config.bootstrapRevision = Number(data.revision) || Number(config.bootstrapRevision) || 0;
+    saveCloudConfig(config);
+    renderCloudMeta(config);
+    setCloudState("synced");
+    return data;
+  } catch (error) {
+    setCloudState("failed");
+    throw error;
+  }
+}
+window.commitSalesInventoryBatchToCloudV125 = commitSalesInventoryBatchToCloudV125;
+
+async function commitSalesCorrectionBatchToCloudV110(payload) {
+  await flushCloudQueueStrictV83(); const config=getCloudConfig(); setCloudState("syncing");
+  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V27.9 Stable",...payload});
+    if(data.conflict||data.stockChanged) throw new Error(data.message||"Google Sheet 资料已改变，全部库存差异没有处理。请同步后重试。");
+    config.revision=Number(data.revision)||Number(config.revision)||0; config.lastSyncAt=new Date().toISOString(); config.bootstrapToken=String(data.bootstrapToken||config.bootstrapToken||""); config.bootstrapRevision=Number(data.revision)||Number(config.bootstrapRevision)||0; saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced"); return data;
+  } catch(error){setCloudState("failed");throw error;}
+}
+window.commitSalesCorrectionBatchToCloudV110=commitSalesCorrectionBatchToCloudV110;
+
+async function migrateProductPrefixesV164() {
+  await flushCloudQueueStrictV83();
+  const config = getCloudConfig();
+  const data = await callGoogleApi({
+    action: "migrateProductPrefixesV164", clientVersion: APP_VERSION,
+    schemaVersion: CLOUD_SCHEMA_VERSION, baseRevision: Number(config.revision) || 0,
+    bootstrapToken: String(config.bootstrapToken || ""), bootstrapRevision: Number(config.bootstrapRevision) || 0,
+    updatedBy: "System V27.9 Stable"
+  });
+  if (data.conflict) throw new Error(data.message || "资料已改变，请同步后重试。");
+  config.revision = Number(data.revision) || Number(config.revision) || 0;
+  config.bootstrapToken = String(data.bootstrapToken || config.bootstrapToken || "");
+  config.bootstrapRevision = Number(data.revision) || Number(config.bootstrapRevision) || 0;
+  config.lastSyncAt = new Date().toISOString(); saveCloudConfig(config);
+  await pullLatestSnapshot(true);
+  return data;
+}
+window.migrateProductPrefixesV164 = migrateProductPrefixesV164;
+
+async function pullLatestAfterSalesCommitV83(forceFull = false) {
+  await waitForCloudIdleV83();
+  return pullLatestSnapshot(Boolean(forceFull));
+}
+window.pullLatestAfterSalesCommitV83 = pullLatestAfterSalesCommitV83;
+
+async function runCloudSync() {
+  if (!navigator.onLine) {
+    setCloudState("failed");
+    return;
+  }
+
+  if (cloudSyncBusy) {
+    cloudSyncRequestedWhileBusy = true;
+    return;
+  }
+
+  cloudSyncBusy = true;
+  cloudSyncRequestedWhileBusy = false;
+  setCloudState("syncing");
+
+  try {
+    const queue = getCloudQueue();
+    const snapshot = makeLocalSnapshot();
+    const localHasCoreData =
+      (snapshot.products || []).length > 0 ||
+      (snapshot.imports || []).length > 0 ||
+      (snapshot.batches || []).length > 0;
+
+    // V8.7 hard bootstrap: this version's first successful sync is ALWAYS a full Pull.
+    // Legacy V4.20/V4.25/V4.26 dirty flags are discarded before any write can happen.
+    // No Push is allowed until the canonical Sheet has been pulled successfully.
+    let remoteUpdated = false;
+
+    if (!isCloudBootstrapComplete()) {
+      clearLegacyPendingCloudState();
+      remoteUpdated = await pullLatestSnapshot(true);
+    } else if (queue.dirty && !localHasCoreData) {
+      saveCloudQueue({
+        dirty: false,
+        changedAt: "",
+        deleted: { products: [], imports: [], batches: [], importNumbers: [], batchIds: [] }
+      });
+      remoteUpdated = await pullLatestSnapshot();
+    } else if (queue.dirty) {
+      // push 本身会以 baseRevision 做服务器端检查；
+      // 若电脑已经更新，服务器返回 conflict 后自动合并再重试，
+      // 不额外增加一次网络请求。
+      await pushPendingSnapshot(queue);
+    } else {
+      remoteUpdated = await pullLatestSnapshot();
+    }
+
+    if (remoteUpdated) {
+      showLatestDataSyncedToast();
+    }
+
+    cloudInitialSyncComplete = true;
+  } catch (error) {
+    cloudInitialSyncComplete = true;
+    setCloudState("failed", error);
+    console.error("Google sync failed:", error);
+  } finally {
+    cloudSyncBusy = false;
+    if (cloudSyncRequestedWhileBusy || getCloudQueue().dirty) {
+      cloudSyncTimer = window.setTimeout(() => runCloudSync(), 40);
+    }
+  }
+}
+
+async function pullLatestSnapshot(forceBootstrap = false) {
+  const config = getCloudConfig();
+  const local = makeLocalSnapshot();
+  const localHasCoreData =
+    (local.products || []).length > 0 ||
+    (local.imports || []).length > 0 ||
+    (local.batches || []).length > 0;
+
+  const data = await callGoogleApi({
+    action: "pull",
+    clientVersion: APP_VERSION,
+    schemaVersion: CLOUD_SCHEMA_VERSION,
+    knownRevision: forceBootstrap ? 0 : (Number(config.revision) || 0),
+    hasLocalData: forceBootstrap ? false : localHasCoreData,
+    forceFull: forceBootstrap || !localHasCoreData
+  });
+
+  if (data.unchanged) {
+    if (!localHasCoreData) {
+      throw new Error("Google Sheet未返回完整资料，已停止显示空库存");
+    }
+    config.revision = Number(data.revision) || 0;
+    config.lastSyncAt = new Date().toISOString();
+    if (data.bootstrapToken) {
+      config.bootstrapToken = String(data.bootstrapToken);
+      config.bootstrapRevision = Number(data.revision) || 0;
+    }
+    saveCloudConfig(config);
+    renderCloudMeta(config);
+    setCloudState("synced");
+    if (typeof window.repairStaleBatchUnitCostsV206 === "function") {
+      window.repairStaleBatchUnitCostsV206({ persistCloud: true });
+    }
+    return false;
+  }
+
+  if (!Array.isArray(data.products) || !Array.isArray(data.imports) || !Array.isArray(data.batches)) {
+    throw new Error("Google Sheet返回资料不完整");
+  }
+
+  // 正常启动拉取以Google Sheet为准；只有明确dirty的本地修改才可推送。
+  applyRemoteData(data);
+  config.revision = Number(data.revision) || 0;
+  config.lastSyncAt = new Date().toISOString();
+  config.bootstrapToken = String(data.bootstrapToken || "");
+  config.bootstrapRevision = Number(data.revision) || 0;
+  saveCloudConfig(config);
+  if (forceBootstrap) saveCloudBootstrap(data);
+  renderCloudMeta(config);
+  setCloudState("synced");
+  return true;
+}
+
+function hasUnsyncedLocalChanges(local, remote, config) {
+  const localHasData =
+    (local.products || []).length || (local.imports || []).length || (local.batches || []).length;
+  const remoteHasData =
+    (remote.products || []).length || (remote.imports || []).length || (remote.batches || []).length;
+
+  if (localHasData && !remoteHasData) return true;
+  if (!config.lastSyncAt) return false;
+
+  const lastSync = Date.parse(config.lastSyncAt) || 0;
+  const remoteIds = {
+    products: new Set((remote.products || []).map(item => String(item.id || ""))),
+    imports: new Set((remote.imports || []).map(item => String(item.id || ""))),
+    batches: new Set((remote.batches || []).map(item => String(item.id || "")))
+  };
+
+  return ["products", "imports", "batches"].some(collection =>
+    (local[collection] || []).some(item => {
+      const id = String(item?.id || "");
+      const changedAt = getItemTime(item);
+      return changedAt > lastSync && (!remoteIds[collection].has(id) || changedAt > 0);
+    })
+  );
+}
+
+
+async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt, minimumPriceManual = true) {
+  const config = getCloudConfig();
+
+  if (!navigator.onLine) {
+    throw new Error("目前离线，最低售价尚未同步到 Google Sheet。");
+  }
+  if (!isCloudBootstrapComplete()) {
+    throw new Error("首次同步尚未完成，请等显示「已同步」后再修改最低售价。");
+  }
+
+  setCloudState("syncing");
+
+  const data = await callGoogleApi({
+    action: "updateMinimumPrice",
+    clientVersion: APP_VERSION,
+    schemaVersion: CLOUD_SCHEMA_VERSION,
+    baseRevision: Number(config.revision) || 0,
+    bootstrapToken: String(config.bootstrapToken || ""),
+    bootstrapRevision: Number(config.bootstrapRevision) || 0,
+    updatedBy: "System V27.9 Stable",
+    productId: String(productId || ""),
+    minimumPrice: Number(minimumPrice),
+    minimumPriceManual: Boolean(minimumPriceManual),
+    updatedAt: String(updatedAt || new Date().toISOString())
+  });
+
+  if (data.conflict) {
+    config.revision = Number(data.revision) || Number(config.revision) || 0;
+    if (data.bootstrapToken) {
+      config.bootstrapToken = String(data.bootstrapToken);
+      config.bootstrapRevision = Number(data.revision) || 0;
+    }
+    saveCloudConfig(config);
+    throw new Error("资料已在其他设备更新，请同步最新资料后再修改最低售价。");
+  }
+
+  config.revision = Number(data.revision) || 0;
+  config.lastSyncAt = new Date().toISOString();
+  config.bootstrapToken = String(data.bootstrapToken || "");
+  config.bootstrapRevision = Number(data.revision) || 0;
+  saveCloudConfig(config);
+
+  renderCloudMeta(config);
+  setCloudState("synced");
+  return data;
+}
+
+window.updateProductMinimumPriceFast = updateProductMinimumPriceFast;
+
+async function updatePromotionSettingsFastV185(promotion) {
+  if (!navigator.onLine) throw new Error("目前离线，促销设置尚未同步。");
+  if (!isCloudBootstrapComplete()) throw new Error("首次同步尚未完成，请稍后再试。");
+  await waitForCloudIdleV83();
+  const config = getCloudConfig();
+  setCloudState("syncing");
+  const data = await callGoogleApi({
+    action: "updatePromotionSettingsV185",
+    clientVersion: APP_VERSION,
+    schemaVersion: CLOUD_SCHEMA_VERSION,
+    baseRevision: Number(config.revision) || 0,
+    bootstrapToken: String(config.bootstrapToken || ""),
+    bootstrapRevision: Number(config.bootstrapRevision) || 0,
+    updatedBy: "System V27.9 Stable",
+    promotion: promotion || null
+  });
+  if (data.conflict) throw new Error(data.message || "云端资料已改变，请同步后重试。");
+  config.revision = Number(data.revision) || Number(config.revision) || 0;
+  config.lastSyncAt = new Date().toISOString();
+  config.bootstrapToken = String(data.bootstrapToken || config.bootstrapToken || "");
+  config.bootstrapRevision = Number(data.revision) || Number(config.bootstrapRevision) || 0;
+  saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced");
+  return data;
+}
+window.updatePromotionSettingsFastV185 = updatePromotionSettingsFastV185;
+
+async function pushPendingSnapshot(queue, retryCount = 0) {
+  const config = getCloudConfig();
+  const snapshot = makeLocalSnapshot();
+  const sentChangedAt = queue.changedAt || "";
+
+  const data = await callGoogleApi({
+    action: "push",
+    clientVersion: APP_VERSION,
+    schemaVersion: CLOUD_SCHEMA_VERSION,
+    force: false,
+    baseRevision: Number(config.revision) || 0,
+    bootstrapToken: String(config.bootstrapToken || ""),
+    bootstrapRevision: Number(config.bootstrapRevision) || 0,
+    updatedBy: "System V27.9 Stable",
+    settings: snapshot.settings,
+    products: snapshot.products,
+    imports: snapshot.imports,
+    batches: snapshot.batches,
+    deleted: queue.deleted || { products: [], imports: [], batches: [] }
+  });
+
+  if (data.conflict) {
+    if (retryCount >= 1) throw new Error("资料冲突仍未解决，请重新打开系统再同步");
+
+    const merged = mergeSnapshots(data, snapshot, queue);
+    applyRemoteData(merged);
+
+    config.revision = Number(data.revision) || 0;
+    config.bootstrapToken = String(data.bootstrapToken || "");
+    config.bootstrapRevision = Number(data.revision) || 0;
+    saveCloudConfig(config);
+
+    // Keep dirty state and retry exactly once with the merged snapshot.
+    return pushPendingSnapshot(queue, retryCount + 1);
+  }
+
+  config.revision = Number(data.revision) || 0;
+  config.lastSyncAt = new Date().toISOString();
+  config.bootstrapToken = String(data.bootstrapToken || "");
+  config.bootstrapRevision = Number(data.revision) || 0;
+  saveCloudConfig(config);
+
+  const latestQueue = getCloudQueue();
+  if (latestQueue.changedAt === sentChangedAt) {
+    saveCloudQueue({
+      dirty: false,
+      changedAt: "",
+      deleted: { products: [], imports: [], batches: [], importNumbers: [], batchIds: [] }
+    });
+  }
+
+  renderCloudMeta(config);
+  setCloudState("synced");
+}
+
+function mergeSnapshots(remote, local, queue) {
+  const deletedImportNumbers = new Set((queue.deleted?.importNumbers || []).map(value => String(value || "").trim().toLowerCase()).filter(Boolean));
+  const deletedBatchIds = new Set((queue.deleted?.batchIds || []).map(value => String(value || "").trim()).filter(Boolean));
+  const keepImport = item => {
+    const importNumber = String(item?.importNumber || "").trim().toLowerCase();
+    const batchId = String(item?.batchId || "").trim();
+    return !(deletedImportNumbers.has(importNumber) || deletedBatchIds.has(batchId));
+  };
+  const keepBatch = item => {
+    const importNumber = String(item?.importNumber || "").trim().toLowerCase();
+    const batchId = String(item?.id || "").trim();
+    return !(deletedImportNumbers.has(importNumber) || deletedBatchIds.has(batchId));
+  };
+  const remoteSettings = remote.settings || {};
+  const localSettings = local.settings || {};
+  const draftDeletedIdsV250 = [...new Set([
+    ...(Array.isArray(remoteSettings.importDraftDeletedIdsV250) ? remoteSettings.importDraftDeletedIdsV250 : []),
+    ...(Array.isArray(localSettings.importDraftDeletedIdsV250) ? localSettings.importDraftDeletedIdsV250 : [])
+  ].map(String).filter(Boolean))].slice(0, 100);
+  const mergedDraftsV242 = mergeImportDraftsV242(
+    remoteSettings.importDraftsV242,
+    localSettings.importDraftsV242,
+    draftDeletedIdsV250
+  );
+  return {
+    settings: { ...remoteSettings, ...localSettings, importDraftsV242: mergedDraftsV242, importDraftDeletedIdsV250: draftDeletedIdsV250 },
+    products: mergeCollection(remote.products, local.products, queue.deleted.products),
+    imports: mergeCollection((remote.imports || []).filter(keepImport), (local.imports || []).filter(keepImport), queue.deleted.imports),
+    batches: mergeCollection((remote.batches || []).filter(keepBatch), (local.batches || []).filter(keepBatch), queue.deleted.batches)
+  };
+}
+
+function mergeImportDraftsV242(remoteDrafts = [], localDrafts = [], deletedIdsV250 = []) {
+  const deleted = new Set((Array.isArray(deletedIdsV250) ? deletedIdsV250 : []).map(String));
+  const merged = new Map();
+  [...(Array.isArray(remoteDrafts) ? remoteDrafts : []), ...(Array.isArray(localDrafts) ? localDrafts : [])].forEach(draft => {
+    const id = String(draft?.id || "").trim();
+    if (!id || deleted.has(id)) return;
+    const current = merged.get(id);
+    const nextTime = Date.parse(draft?.updatedAt || draft?.createdAt || "") || 0;
+    const currentTime = Date.parse(current?.updatedAt || current?.createdAt || "") || 0;
+    if (!current || nextTime >= currentTime) merged.set(id, draft);
+  });
+  return [...merged.values()].sort((a, b) => (Date.parse(b?.updatedAt || "") || 0) - (Date.parse(a?.updatedAt || "") || 0)).slice(0, 30);
+}
+
+function mergeCollection(remoteItems = [], localItems = [], deletedIds = []) {
+  const deleted = new Set((deletedIds || []).map(String));
+  const merged = new Map();
+
+  (remoteItems || []).forEach(item => {
+    const id = String(item?.id || "");
+    if (id && !deleted.has(id)) merged.set(id, item);
+  });
+
+  (localItems || []).forEach(item => {
+    const id = String(item?.id || "");
+    if (!id || deleted.has(id)) return;
+
+    const remoteItem = merged.get(id);
+    if (!remoteItem || getItemTime(item) >= getItemTime(remoteItem)) {
+      merged.set(id, item);
+    }
+  });
+
+  return [...merged.values()];
+}
+
+function getItemTime(item) {
+  const value = item?.updatedAt || item?.createdAt || "";
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? time : 0;
+}
+
+function applyRemoteData(data) {
+  if (!Array.isArray(data.products) || !Array.isArray(data.imports) || !Array.isArray(data.batches)) {
+    throw new Error("云端资料不完整，已停止覆盖本机资料");
+  }
+  // V27.9 safety: a transient/abnormal empty Products response must never wipe a
+  // device that already has the real inventory. Keep Local-First data and fail the
+  // sync visibly instead of showing 0 inventory as "已同步".
+  const localProductsBeforeV275=loadJSON("importSystemProducts",[]);
+  if(Array.isArray(localProductsBeforeV275)&&localProductsBeforeV275.length>0&&data.products.length===0){
+    throw new Error("云端暂时返回空产品资料，已保留本机库存");
+  }
+
+  cloudApplyingRemote = true;
+  try {
+    localStorage.setItem("importSystemSettings", JSON.stringify(data.settings || {}));
+    localStorage.setItem("importSystemProducts", JSON.stringify(data.products));
+    if (typeof invalidateMinimumPriceOriginIndexV160 === "function") {
+      invalidateMinimumPriceOriginIndexV160();
+    }
+    localStorage.setItem("importSystemImports", JSON.stringify(data.imports));
+    localStorage.setItem("importSystemBatches", JSON.stringify(data.batches));
+  } finally {
+    cloudApplyingRemote = false;
+  }
+  try { window.dispatchEvent(new Event("loverLegendCloudDataAppliedV277")); } catch (_) {}
+
+  // V21.4 corrected build: after a canonical Pull, repair only deterministic
+  // stale batch-cost snapshots. The repair is idempotent and queues one normal
+  // cloud Push only when unitCost/Average Cost truly differ from saved batch inputs.
+  if (typeof window.repairStaleBatchUnitCostsV206 === "function") {
+    window.repairStaleBatchUnitCostsV206({ persistCloud: true });
+  }
+  refreshSystemViewsAfterSync();
+}
+
+function refreshSystemViewsAfterSync() {
+  [
+    "renderDashboard",
+    "renderProductList",
+    "renderBatchSuggestions",
+    "renderBatchList",
+    "renderInventoryManagementList",
+    "renderImportDraftsV242",
+    "refreshPromotionUiV183",
+    "updatePasswordHintDisplays"
+  ].forEach(name => {
+    try {
+      if (typeof window[name] === "function") window[name]();
+    } catch (error) {
+      console.warn(`${name} refresh skipped:`, error);
+    }
+  });
+}
+
+function renderCloudMeta(config = getCloudConfig()) {
+  const lastSyncEl = document.getElementById("googleLastSync");
+  const revisionEl = document.getElementById("settingsRevisionV185");
+  if (revisionEl) {
+    const currentRevision = Number(config.revision) || 0;
+    const previousRevision = Number(localStorage.getItem(CLOUD_PREVIOUS_REVISION_KEY_V185));
+    revisionEl.textContent = currentRevision > 0
+      ? `${previousRevision > 0 && previousRevision !== currentRevision ? previousRevision : "—"} → ${currentRevision}`
+      : "尚未同步";
+  }
+  if (typeof renderSystemInformationV203 === "function") renderSystemInformationV203();
+  if (!lastSyncEl) return;
+
+  if (!config.lastSyncAt) {
+    lastSyncEl.textContent = "尚未同步";
+    return;
+  }
+
+  const date = new Date(config.lastSyncAt);
+  lastSyncEl.textContent = date.toLocaleString("en-GB", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false
+  }).replaceAll("/", "-");
+}
+
+function setCloudState(state, error = null) {
+  const element = document.getElementById("googleSyncStatus");
+  if (!element) return;
+
+  const icon = element.querySelector(".dashboard-sync-icon");
+  const text = element.querySelector(".dashboard-sync-text");
+  element.classList.remove("syncing", "synced", "failed");
+
+  if (state === "synced") {
+    cloudLastErrorMessage = "";
+    element.classList.add("synced");
+    if (icon) icon.textContent = "✓";
+    if (text) text.textContent = "已同步";
+  } else if (state === "failed") {
+    if (error) cloudLastErrorMessage = String(error?.message || error || "").trim();
+    element.classList.add("failed");
+    if (icon) icon.textContent = "!";
+    if (text) {
+      text.textContent = navigator.onLine
+        ? `同步失败${cloudLastErrorMessage ? `：${cloudLastErrorMessage.slice(0, 160)}` : "，请稍后重试"}`
+        : "离线，资料已保存在本机";
+    }
+  } else {
+    element.classList.add("syncing");
+    if (icon) icon.textContent = "↻";
+    if (text) text.textContent = "同步中...";
+  }
+}
