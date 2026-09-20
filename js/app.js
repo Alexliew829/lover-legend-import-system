@@ -983,7 +983,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V29.7 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V29.8 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1352,7 +1352,7 @@ function salesItemAlreadyProcessedLocallyV104(item, product) {
     }
   }
 
-  // V29.7: batch commits store a unique commit key plus the stable Sales
+  // V29.8: batch commits store a unique commit key plus the stable Sales
   // accounting key.  Either one proves that inventory was already committed.
   // This keeps a still-pending Sales card visible as ACK-only after a timeout
   // instead of silently dropping it and risking a later duplicate deduction.
@@ -1611,7 +1611,7 @@ function showStartupSalesInventoryReminderV80() {
       const restorePrecheckFailed=/Sales Restore 状态读取超时|无法连接 Sales System 读取 Restore 状态|无法读取 Sales Restore 状态/i.test(message);
 
       if(restorePrecheckFailed){
-        // V29.7: prepareSalesInventoryOperationV117 runs before any inventory
+        // V29.8: prepareSalesInventoryOperationV117 runs before any inventory
         // commit.  If that read-only Restore precheck times out, nothing has been
         // deducted yet, so keep the frozen reminder exactly as-is.  Do not replace
         // it with a transient/empty feed result and make the card disappear.
@@ -2606,7 +2606,7 @@ function setupNavigation() {
 
       if (target === "importPage") {
         const batchSearch = document.getElementById("batchSearch");
-        const productSearch = null; // V29.7 moved to Product Management
+        const productSearch = null; // V29.8 moved to Product Management
         const batchList = document.getElementById("batchList");
         const productResults =
           document.getElementById("batchProductStockResults");
@@ -2614,7 +2614,7 @@ function setupNavigation() {
           document.getElementById("batchProductStockStatus");
         const recentBatchArea =
           document.getElementById("recentBatchResultsArea");
-        const countElement = null; // V29.7 batch count display removed
+        const countElement = null; // V29.8 batch count display removed
         const toggleButton =
           document.getElementById("toggleBatchListBtn");
 
@@ -2746,7 +2746,7 @@ function collapseSettingsPanelsV196() {
   document.querySelectorAll('#settingsPage details.collapsible-settings-v181').forEach(details => {
     const transient = [...details.querySelectorAll('input[type="search"], #newProductPrefixKeyword, #newProductPrefixEnglishV295, #newProductPrefixCode')]
       .some(input => String(input?.value || "").trim() !== "");
-    // V29.7: a panel normally closes after switching pages. If the user left
+    // V29.8: a panel normally closes after switching pages. If the user left
     // transient search/input text inside that panel, keep it open so the text is not hidden.
     details.open = transient;
   });
@@ -3129,7 +3129,7 @@ function applyBatchCostEditability() {
   const repairEnabled = getCostRepairModeEnabled();
   const lockedSaved = isEditing && !repairEnabled;
 
-  // V29.7: China-side/core import facts are immutable once saved, even when
+  // V29.8: China-side/core import facts are immutable once saved, even when
   // Data Repair is ON. If they are wrong, copy the whole import as a new draft,
   // save the corrected new import number, then delete the wrong old import.
   [
@@ -5324,7 +5324,7 @@ function sequentialSearchMatches(searchableValue, queryValue) {
   return source.includes(query);
 }
 
-// V29.7: shared read-only Original Cost matcher for every product-search surface.
+// V29.8: shared read-only Original Cost matcher for every product-search surface.
 // Pure numeric queries (commas/spaces/decimals allowed) match unitPrice exactly,
 // regardless of currency. This helper only reads already-loaded local collections.
 function parseOriginalCostSearchQueryV216(queryValue) {
@@ -5355,14 +5355,14 @@ function originalCostMatchesProductV216(product, queryValue, imports = null) {
   });
 }
 
-// V29.7: record/batch-level searches must match the Original Cost stored on
+// V29.8: record/batch-level searches must match the Original Cost stored on
 // that exact row. Never fall back to another import row of the same Product ID,
 // otherwise a 320 search can incorrectly pull in a 200 batch for the same product.
 function originalCostMatchesBatchItemV216(item, queryValue) {
   return originalCostNumberMatchesV216(item?.unitPrice, queryValue);
 }
 
-// V29.7: a pure numeric product-search query is reserved exclusively for
+// V29.8: a pure numeric product-search query is reserved exclusively for
 // exact Original Cost matching. It must never fall through to product names,
 // IDs, import numbers, tracking numbers, dates, quantities, or other numeric text.
 function isOriginalCostOnlySearchV218(queryValue) {
@@ -7686,7 +7686,7 @@ function setupImportHistory() {
     });
   });
 
-  // V29.7: typing a product keyword must not make date buttons / clear buttons
+  // V29.8: typing a product keyword must not make date buttons / clear buttons
   // wait behind a heavy history render. Search runs only on 查看历史 / Enter /
   // an explicit date change; blur/change of the keyword field is intentionally light.
   input?.addEventListener("change", () => {
@@ -10121,7 +10121,7 @@ function renderImportHistoryNowV134() {
   const exactHistoryProduct = String(
     input.dataset.exactHistoryProduct || ""
   ).trim().toLowerCase();
-  // V29.7: stable Product ID linkage is only for the original text/product search.
+  // V29.8: stable Product ID linkage is only for the original text/product search.
   // A numeric Original Cost hit must remain row/batch-specific; it must not turn
   // into a Product ID hit that automatically includes every historical batch.
   const matchedProductIds = new Set(
@@ -10374,7 +10374,7 @@ function renderImportHistoryNowV134() {
 async function renderImportHistory() {
   const token = ++historyLookupRenderTokenV134;
   hydrateHistorySalesCacheV179();
-  // V29.7: first paint uses one in-memory snapshot so repeated localStorage JSON
+  // V29.8: first paint uses one in-memory snapshot so repeated localStorage JSON
   // parsing cannot block date/clear controls. Sales financial enrichment runs later.
   const baseGetProducts=getProducts, baseGetBatches=getBatches, baseGetImports=getImports;
   const productsSnapshot=baseGetProducts(), batchesSnapshot=baseGetBatches(), importsSnapshot=baseGetImports();
@@ -10387,7 +10387,7 @@ async function renderImportHistory() {
       const gp=getProducts,gb=getBatches,gi=getImports;
       getProducts=()=>productsSnapshot; getBatches=()=>batchesSnapshot; getImports=()=>importsSnapshot;
       try{renderImportHistoryNowV134();}finally{getProducts=gp;getBatches=gb;getImports=gi;}
-    } catch(error){ console.warn('V29.7 history enrichment skipped',error); }
+    } catch(error){ console.warn('V29.8 history enrichment skipped',error); }
   },30);
 }
 
@@ -11580,7 +11580,7 @@ function saveBatchImport() {
       transitDays: updateTransitDays()
     };
 
-    // V29.7: revision history records every allowed Data Repair field, not only costs.
+    // V29.8: revision history records every allowed Data Repair field, not only costs.
     const repairLogTimeV222 = new Date().toLocaleString("zh-MY", { hour12: false });
     const addRepairLogV222 = (fieldLabel, before, after) => {
       if (String(before ?? "") === String(after ?? "")) return;
@@ -11603,7 +11603,7 @@ function saveBatchImport() {
     let updatedCostSnapshot = {};
     let repairChangesCostV206 = false;
     if (repairEnabled) {
-      // V29.7 Data Repair may change only the Malaysia-side overseas freight
+      // V29.8 Data Repair may change only the Malaysia-side overseas freight
       // among cost-bearing fields. China-side costs, original prices, currency
       // and exchange rate are immutable here.
       const nextChina = Number(oldBatch.chinaTransportCost) || 0;
@@ -12026,7 +12026,7 @@ function renderBatchList() {
 
   const searchInput = document.getElementById("batchSearch");
   const toggleButton = document.getElementById("toggleBatchListBtn");
-  const countElement = null; // V29.7 batch count display removed
+  const countElement = null; // V29.8 batch count display removed
   const listElement = document.getElementById("batchList");
   const keyword = String(searchInput?.value || "").trim().toLowerCase();
 
@@ -12157,7 +12157,7 @@ function renderBatchList() {
   }).join("");
 }
 
-// ================= V29.7 Dedicated Original Cost Correction =================
+// ================= V29.8 Dedicated Original Cost Correction =================
 let originalCostEditPendingV219 = null;
 
 function getPreferredOriginalCostRecordV219(product, queryValue = "", explicitImportId = "") {
@@ -14486,7 +14486,7 @@ function renderInventoryManagementList() {
         )
       ).join(" ");
 
-      // V29.7: cache original import-cost numbers while matching imports are
+      // V29.8: cache original import-cost numbers while matching imports are
       // already in memory. This adds no save/sync/delete calls and leaves the
       // existing smart-search pipeline untouched.
       const originalCostValuesV216 = matchingImports
@@ -14568,7 +14568,7 @@ function renderInventoryManagementList() {
           keyword
         );
 
-      // V29.7: when the query is purely numeric (commas and decimals allowed),
+      // V29.8: when the query is purely numeric (commas and decimals allowed),
       // match the numeric Original Cost exactly, regardless of currency.
       // Existing product/import/tracking searches continue to run unchanged.
       const originalCostQueryTextV216 = String(keyword || "")
@@ -15562,7 +15562,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "29.7",
+      version: "29.8",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -15929,7 +15929,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V29.7 Stable",
+      updatedBy: "System V29.8 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -16044,7 +16044,7 @@ function registerServiceWorker() {
 })();
 
 
-// ================= V29.7 SELECTED STABLE FEATURE LAYER =================
+// ================= V29.8 SELECTED STABLE FEATURE LAYER =================
 const IMPORT_DRAFTS_KEY_V294 = "importSystemDraftsV294";
 let activeImportDraftIdV294 = "";
 let mediaSaveBusyV294 = false;
@@ -16192,10 +16192,10 @@ function setupV294Features(){
 }
 
 document.addEventListener('click',event=>{if(!window.__mediaUploadBusyV294)return;const nav=event.target.closest?.('.nav-btn,[data-page]');if(!nav)return;if(!confirm('照片/视频仍在上传，离开可能导致上传失败。确定离开？')){event.preventDefault();event.stopPropagation();event.stopImmediatePropagation?.();}},true);
-// V29.7: setupV294Features runs after access unlock inside initializeAppUiAfterAccessV297.
+// V29.8: setupV294Features runs after access unlock inside initializeAppUiAfterAccessV297.
 
 
-// V29.7 grouped prefix editor: edit/delete an entire alias group sharing a prefix.
+// V29.8 grouped prefix editor: edit/delete an entire alias group sharing a prefix.
 function renderProductPrefixRulesV181(){
   const list=document.getElementById('productPrefixRulesList'); if(!list)return;
   const groups=new Map(); getProductPrefixRulesV181().forEach(([k,p])=>{if(!groups.has(p))groups.set(p,[]);groups.get(p).push(k);});
@@ -16205,7 +16205,7 @@ function editPrefixAliasGroupV294(aliases,prefix){const current=(aliases||[]).jo
 function deletePrefixAliasGroupV294(aliases,prefix){if(!confirm(`删除整组 ${prefix}：${(aliases||[]).join(' / ')}？\n中英文 Alias 会一起删除。`))return;const settings=loadJSON('importSystemSettings',{}),ov={...(settings.productPrefixOverridesV294||{})};(aliases||[]).forEach(a=>ov[normalizeProductPrefixKeywordV181(a)]={keyword:a,prefix:'',deleted:true,updatedAt:new Date().toISOString()});const additional=Array.isArray(settings.productPrefixAdditionalRules)?settings.productPrefixAdditionalRules.filter(r=>!(aliases||[]).includes(String(Array.isArray(r)?r[0]:r?.keyword||''))):[];saveJSON('importSystemSettings',{...settings,productPrefixOverridesV294:ov,productPrefixAdditionalRules:additional});markCloudSettingsSaved?.();renderProductPrefixRulesV181();}
 window.editPrefixAliasGroupV294=editPrefixAliasGroupV294;window.deletePrefixAliasGroupV294=deletePrefixAliasGroupV294;
 
-// V29.7 promotion custom-margin bulk tools.
+// V29.8 promotion custom-margin bulk tools.
 let promotionMarginSelectionV294=new Set();
 function renderPromotionCustomMarginsV294(){
   const host=document.getElementById('promotionExcludedListV183');if(!host)return;
@@ -16217,7 +16217,7 @@ function renderPromotionCustomMarginsV294(){
 }
 
 
-// ================= V29.7 UX + MANAGEMENT LAYER =================
+// ================= V29.8 UX + MANAGEMENT LAYER =================
 function copyMediaLinkV295(productId, type) {
   const url = String(getProductMediaV294(productId)?.[type] || "").trim();
   if (!url) { showHistoryCopyToast?.("没有可复制的链接"); return; }
@@ -16236,10 +16236,10 @@ enhanceInventoryCardsV294 = function(){
     if(!host)return;
     host.insertAdjacentHTML('beforeend',`<div class="product-media-controls-v295 product-media-controls-v295-grid">
       <div class="product-media-row-v295 photo-row">
-        ${m.photo?`<button class="media-main-v295" type="button" onclick="openMediaV294('${escapeHTML(id)}','photo')">📷 照片</button><button type="button" onclick="copyMediaLinkV295('${escapeHTML(id)}','photo')">复制</button><button type="button" onclick="removeMediaV294('${escapeHTML(id)}','photo')">删除</button>`:`<button class="media-main-v295 media-empty-v295" data-media-save-v294="${escapeHTML(id)}:photo" type="button" onclick="saveMediaUrlV294('${escapeHTML(id)}','photo')">照片链接</button><span></span><span></span>`}
+        ${m.photo?`<button class="media-main-v295" type="button" onclick="openMediaV294('${escapeHTML(id)}','photo')">照片</button><button type="button" onclick="copyMediaLinkV295('${escapeHTML(id)}','photo')">复制</button><button type="button" onclick="removeMediaV294('${escapeHTML(id)}','photo')">删除</button>`:`<button class="media-main-v295 media-empty-v295" data-media-save-v294="${escapeHTML(id)}:photo" type="button" onclick="saveMediaUrlV294('${escapeHTML(id)}','photo')">照片链接</button><span></span><span></span>`}
       </div>
       <div class="product-media-row-v295 video-row">
-        ${m.video?`<button class="media-main-v295" type="button" onclick="openMediaV294('${escapeHTML(id)}','video')">🎥 视频</button><button type="button" onclick="copyMediaLinkV295('${escapeHTML(id)}','video')">复制</button><button type="button" onclick="removeMediaV294('${escapeHTML(id)}','video')">删除</button>`:`<button class="media-main-v295 media-empty-v295" data-media-save-v294="${escapeHTML(id)}:video" type="button" onclick="saveMediaUrlV294('${escapeHTML(id)}','video')">视频链接</button><span></span><span></span>`}
+        ${m.video?`<button class="media-main-v295" type="button" onclick="openMediaV294('${escapeHTML(id)}','video')">视频</button><button type="button" onclick="copyMediaLinkV295('${escapeHTML(id)}','video')">复制</button><button type="button" onclick="removeMediaV294('${escapeHTML(id)}','video')">删除</button>`:`<button class="media-main-v295 media-empty-v295" data-media-save-v294="${escapeHTML(id)}:video" type="button" onclick="saveMediaUrlV294('${escapeHTML(id)}','video')">视频链接</button><span></span><span></span>`}
       </div>
     </div>`);
   });
@@ -16365,10 +16365,10 @@ function setupProductManagementV295(){
 const _refreshPromotionUiV295Base=refreshPromotionUiV183;
 refreshPromotionUiV183=function(){_refreshPromotionUiV295Base();const active=getPromotionSettingsV183();const mode=document.getElementById('promotionModeV295');if(mode&&!promotionDraftTouchedV209)mode.value=active?.modeV295==='selected'?'selected':'all';if(!promotionDraftTouchedV209)promotionSelectedDraftV295=new Set(active?.selectedProductIdsV295||[]);syncPromotionModeUiV295();};
 
-// V29.7: Product Management/Promotion setup runs after access unlock.
+// V29.8: Product Management/Promotion setup runs after access unlock.
 
 
-// ================= V29.7 UX / performance refinements =================
+// ================= V29.8 UX / performance refinements =================
 function inferProductEnglishNameV296(name){
   const text=String(name||'').trim(); if(!text)return '';
   const groups=typeof getDisplayPrefixGroupsV295==='function'?getDisplayPrefixGroupsV295():[];
@@ -16465,10 +16465,10 @@ renderImportHistoryNowV134=function(){_renderImportHistoryNowV296Base();decorate
 // Page navigation hook for settings collapse and lazy product-management tables.
 document.addEventListener('click',e=>{const nav=e.target.closest?.('.nav-btn');if(!nav)return;const current=document.querySelector('.page.active')?.id;if(current==='settingsPage'&&nav.dataset.page!=='settingsPage')collapseSettingsOnLeaveV296();if(nav.dataset.page==='productManagementPage')setTimeout(()=>{renderProductPrefixRulesV181();const d=document.getElementById('inventorySummaryTableV294');if(d?.open)renderInventorySummaryTableV294();},0);},true);
 
-// V29.7 media labels/colors and category removal are presentation-only.
+// V29.8 media labels/colors and category removal are presentation-only.
 
 
-// V29.7 final media layout: two aligned rows, state colors follow status dots.
+// V29.8 final media layout: two aligned rows, state colors follow status dots.
 enhanceInventoryCardsV294=function(){
   document.querySelectorAll('.inventory-manage-card[data-product-id]').forEach(card=>{
     const id=String(card.dataset.productId||''), product=getProducts().find(p=>String(p.id||'')===id); if(!product)return;
@@ -16480,8 +16480,8 @@ enhanceInventoryCardsV294=function(){
     let controls=card.querySelector('.product-media-controls-v294'); if(controls)controls.remove();
     const m=getProductMediaV294(id),host=card.querySelector('.inventory-manage-primary-v174'); if(!host)return;
     host.insertAdjacentHTML('beforeend',`<div class="product-media-controls-v294 product-media-controls-v296">
-      <div class="product-media-row-v296 photo-row-v296">${m.photo?`<button class="product-media-main-v296 photo-state-v296" type="button" onclick="openMediaV294('${escapeHTML(id)}','photo')">📷 照片</button><button type="button" onclick="copyV294(${JSON.stringify(m.photo)},'已复制照片链接')">复制</button><button type="button" onclick="removeMediaV294('${escapeHTML(id)}','photo')">删除</button>`:`<button class="product-media-main-v296 product-media-empty-v296" data-media-save-v294="${escapeHTML(id)}:photo" type="button" onclick="saveMediaUrlV294('${escapeHTML(id)}','photo')">照片链接</button>`}</div>
-      <div class="product-media-row-v296 video-row-v296">${m.video?`<button class="product-media-main-v296 video-state-v296" type="button" onclick="openMediaV294('${escapeHTML(id)}','video')">🎥 视频</button><button type="button" onclick="copyV294(${JSON.stringify(m.video)},'已复制视频链接')">复制</button><button type="button" onclick="removeMediaV294('${escapeHTML(id)}','video')">删除</button>`:`<button class="product-media-main-v296 product-media-empty-v296" data-media-save-v294="${escapeHTML(id)}:video" type="button" onclick="saveMediaUrlV294('${escapeHTML(id)}','video')">视频链接</button>`}</div>
+      <div class="product-media-row-v296 photo-row-v296">${m.photo?`<button class="product-media-main-v296 photo-state-v296" type="button" onclick="openMediaV294('${escapeHTML(id)}','photo')">照片</button><button type="button" onclick="copyV294(${JSON.stringify(m.photo)},'已复制照片链接')">复制</button><button type="button" onclick="removeMediaV294('${escapeHTML(id)}','photo')">删除</button>`:`<button class="product-media-main-v296 product-media-empty-v296" data-media-save-v294="${escapeHTML(id)}:photo" type="button" onclick="saveMediaUrlV294('${escapeHTML(id)}','photo')">照片链接</button>`}</div>
+      <div class="product-media-row-v296 video-row-v296">${m.video?`<button class="product-media-main-v296 video-state-v296" type="button" onclick="openMediaV294('${escapeHTML(id)}','video')">视频</button><button type="button" onclick="copyV294(${JSON.stringify(m.video)},'已复制视频链接')">复制</button><button type="button" onclick="removeMediaV294('${escapeHTML(id)}','video')">删除</button>`:`<button class="product-media-main-v296 product-media-empty-v296" data-media-save-v294="${escapeHTML(id)}:video" type="button" onclick="saveMediaUrlV294('${escapeHTML(id)}','video')">视频链接</button>`}</div>
     </div>`);
   });
 };
@@ -16499,7 +16499,7 @@ addBatchRow=function(prefill={}){
 };
 
 
-// ================= V29.7 HIGH-PRIORITY PERFORMANCE + UI =================
+// ================= V29.8 HIGH-PRIORITY PERFORMANCE + UI =================
 // Avoid heavy redraws behind the password screen. Cloud data may still sync in background.
 if (typeof refreshSystemViewsAfterSync === 'function') {
   const _refreshSystemViewsAfterSyncV297Base = refreshSystemViewsAfterSync;
@@ -16594,3 +16594,79 @@ document.addEventListener('click',e=>{const nav=e.target.closest?.('.nav-btn');i
 // Inventory card visual order and equal typography.
 const _enhanceInventoryCardsV297Base=enhanceInventoryCardsV294;
 enhanceInventoryCardsV294=function(){_enhanceInventoryCardsV297Base();document.querySelectorAll('.inventory-manage-card').forEach(card=>{const sold=card.querySelector('.inventory-sold-quantity'),media=card.querySelector('.product-media-controls-v294');if(sold&&media){sold.classList.add('inventory-sold-align-v297');} });};
+
+// ================= V29.8 UI CONSOLIDATION + FAST PRODUCT SEARCH =================
+let productQuickIndexV298 = null;
+function invalidateProductQuickIndexV298(){ productQuickIndexV298=null; }
+function buildProductQuickIndexV298(){
+  if(productQuickIndexV298) return productQuickIndexV298;
+  const imports=getImports();
+  const costsById=new Map();
+  for(const r of imports){const id=String(r.productId||'').trim();if(!id)continue;let a=costsById.get(id);if(!a){a=[];costsById.set(id,a);}const n=Number(r.unitPrice);if(Number.isFinite(n))a.push(n);}
+  productQuickIndexV298=getProducts().map(p=>({p,text:normalizeSequentialSearchText(`${p.id||''} ${p.name||''} ${getProductEnglishNameV294(p)||''}`),costs:costsById.get(String(p.id||''))||[]}));
+  return productQuickIndexV298;
+}
+function fastProductMatchesV298(entry,q){
+  const raw=String(q||'').trim(); if(!raw)return true;
+  const numeric=parseOriginalCostSearchQueryV216(raw);
+  if(numeric!==null)return entry.costs.some(v=>Math.abs(v-numeric)<.000001);
+  const n=normalizeSequentialSearchText(raw); return entry.text.includes(n);
+}
+function getFastProductResultsV298(q){return buildProductQuickIndexV298().filter(e=>fastProductMatchesV298(e,q)).map(e=>e.p);}
+const _saveProductsV298=saveProducts; saveProducts=function(v){const r=_saveProductsV298(v);invalidateProductQuickIndexV298();return r;};
+
+// Product-management search: render from one cached index. No per-product import scans for text searches.
+const _renderBatchProductStockResultsV298Base=renderBatchProductStockResults;
+renderBatchProductStockResults=function(){
+  const input=document.getElementById('batchProductStockSearch'); if(!input)return _renderBatchProductStockResultsV298Base();
+  const q=String(input.value||'').trim();
+  if(!q)return _renderBatchProductStockResultsV298Base();
+  // Temporarily supply only matched products to the proven V29.8 renderer.
+  const matched=getFastProductResultsV298(q); const originalGetProducts=getProducts;
+  getProducts=()=>matched;
+  try{return _renderBatchProductStockResultsV298Base();}finally{getProducts=originalGetProducts;enhanceProductManagementCardsV298();}
+};
+function enhanceProductManagementCardsV298(){
+ document.querySelectorAll('#batchProductStockResults .product-stock-result-row').forEach(row=>{
+   const name=row.querySelector('.product-stock-name-edit-btn'); if(!name)return;
+   const p=getProducts().find(x=>String(x.name||'').trim()===String(name.textContent||'').trim()); if(!p)return;
+   let head=row.querySelector('.product-stock-head-v298'); if(!head){head=document.createElement('div');head.className='product-stock-head-v298';name.parentNode.insertBefore(head,name);head.appendChild(name);}
+   head.querySelector('.product-id-copy-v298')?.remove();
+   name.insertAdjacentHTML('afterend',`<button type="button" class="product-id-copy-v298" onclick="copyV294(${JSON.stringify(String(p.id||''))},'已复制产品编号')">${escapeHTML(p.id||'')}</button>`);
+   const en=getProductEnglishNameV294(p); if(en&&!head.querySelector('.product-stock-english-v298')) head.insertAdjacentHTML('beforeend',`<button type="button" class="product-stock-english-v298" onclick="copyV294(${JSON.stringify(en)},'已复制英文名')">${escapeHTML(en)}</button>`);
+ });
+}
+
+// Same custom editor shell for stock and original cost; removes browser-native stock prompt.
+function requestStockValueV298(product,currentStock){return new Promise(resolve=>{
+ document.getElementById('stockEditOverlayV298')?.remove(); const o=document.createElement('div');o.id='stockEditOverlayV298';o.className='original-cost-edit-overlay-v219';
+ o.innerHTML=`<div class="original-cost-edit-dialog-v219 stock-edit-dialog-v298" role="dialog" aria-modal="true"><h3>修改当前库存</h3><div class="original-cost-edit-meta-v219"><strong>${escapeHTML(product.name||'')}</strong><span>${escapeHTML(product.id||'')}</span></div><label>当前库存数量<input id="stockEditInputV298" type="text" inputmode="numeric" value="${escapeHTML(String(currentStock))}" autocomplete="off"></label><div class="original-cost-edit-actions-v219"><button class="ghost-btn stock-edit-cancel-v298" type="button">取消</button><button class="primary-btn stock-edit-ok-v298" type="button">确认</button></div></div>`;
+ document.body.appendChild(o);const i=o.querySelector('#stockEditInputV298');const done=v=>{o.remove();resolve(v)};o.querySelector('.stock-edit-cancel-v298').onclick=()=>done(null);o.querySelector('.stock-edit-ok-v298').onclick=()=>done(i.value);o.addEventListener('click',e=>{if(e.target===o)done(null)});i.addEventListener('keydown',e=>{if(e.key==='Enter')done(i.value);if(e.key==='Escape')done(null)});i.focus();i.select();
+});}
+const _editProductStockFromImportPageV298Base=editProductStockFromImportPage;
+editProductStockFromImportPage=async function(productId){
+ const id=String(productId||'').trim(),p=getProducts().find(x=>String(x.id||'')===id);if(!p)return _editProductStockFromImportPageV298Base(productId);
+ const current=Math.max(0,Number(p.stock)||0);const oldPrompt=window.prompt;window.prompt=async()=>null;
+ // Reuse the stable save/classification path by supplying our value synchronously through a one-shot prompt shim after await.
+ const entered=await requestStockValueV298(p,current); if(entered===null)return;
+ window.prompt=()=>String(entered);try{return await _editProductStockFromImportPageV298Base(productId);}finally{window.prompt=oldPrompt;}
+}; window.editProductStockFromImportPage=editProductStockFromImportPage;
+
+// Prefix list: stable canonical order first, then valid custom groups; no duplicate alias groups.
+const _getDisplayPrefixGroupsV298Base=getDisplayPrefixGroupsV295;
+getDisplayPrefixGroupsV295=function(){
+ const seen=new Set(),out=[]; for(const g of _getDisplayPrefixGroupsV298Base()){const aliases=splitPrefixZhV297(g.zh).concat(g.en||[]).map(normalizeProductPrefixKeywordV181).filter(Boolean);if(!aliases.length||!/^[A-Z]{2}$/.test(String(g.prefix||'')))continue;if(aliases.some(a=>seen.has(a)))continue;aliases.forEach(a=>seen.add(a));out.push(g);} return out;
+};
+
+// Inventory summary: one physical row, visible titles, horizontal scroll on narrow screens.
+renderInventorySummaryTableV294=function(){
+ const body=document.getElementById('inventorySummaryBodyV294'),stats=document.getElementById('inventorySummaryStatsV294');if(!body)return;
+ const q=String(document.getElementById('inventorySummarySearchV294')?.value||'').trim(),sort=String(document.getElementById('inventorySummarySortV294')?.value||'latest');
+ const imports=getImports(), latest=new Map();for(const r of imports){const id=String(r.productId||''),t=Date.parse(r.createdAt||'')||0;if(t>(latest.get(id)||0))latest.set(id,t);}let rows=getProducts().filter(p=>Number(p.stock)>0).filter(p=>!q||productSearchEverywhereV294(p,q));const sales=getInventorySalesAnalyticsV146?.();
+ rows.sort((a,b)=>{if(sort==='name')return String(a.name||'').localeCompare(String(b.name||''),'zh');if(sort==='stock-desc')return Number(b.stock)-Number(a.stock);if(sort==='stock-asc')return Number(a.stock)-Number(b.stock);if(sort==='value-desc')return Number(b.stock)*Number(b.averageCost)-Number(a.stock)*Number(a.averageCost);if(sort==='cost-desc')return Number(b.averageCost)-Number(a.averageCost);if(sort==='bestseller-desc')return Number(sales?.quantityById?.get?.(b.id)||0)-Number(sales?.quantityById?.get?.(a.id)||0);if(sort==='profit-desc')return Number(sales?.profitById?.get?.(b.id)||0)-Number(sales?.profitById?.get?.(a.id)||0);if(sort==='latest-sold')return Number(sales?.latestById?.get?.(b.id)||0)-Number(sales?.latestById?.get?.(a.id)||0);return Number(latest.get(b.id)||0)-Number(latest.get(a.id)||0)});
+ const stock=rows.reduce((n,p)=>n+Math.max(0,Number(p.stock)||0),0),value=rows.reduce((n,p)=>n+Math.max(0,Number(p.stock)||0)*Math.max(0,Number(p.averageCost)||0),0);if(stats)stats.innerHTML=`当前库存：<strong>${formatNumber(stock)}</strong>　库存成本：<strong>${formatMoney(value,'RM ')}</strong>　${rows.length} 项`;
+ body.innerHTML=rows.map(p=>{const en=getProductEnglishNameV294(p)||'-',avg=Math.max(0,Number(p.averageCost)||0),min=getEffectiveProductMinimumPriceV183(p),qty=Math.max(0,Number(p.stock)||0);return `<tr><td><button class="inventory-summary-copy-v296" onclick="copyV294(${JSON.stringify(String(p.id||''))},'已复制产品编号')">${escapeHTML(p.id||'')}</button></td><td><button class="inventory-summary-copy-v296" onclick="copyV294(${JSON.stringify(String(p.name||''))},'已复制中文名')">${escapeHTML(p.name||'')}</button></td><td><button class="inventory-summary-copy-v296" onclick="copyV294(${JSON.stringify(en)},'已复制英文名')">${escapeHTML(en)}</button></td><td>${formatNumber(qty)}</td><td>${formatMoney(avg)}</td><td class="${min<avg?'summary-price-loss-v296':'summary-price-ok-v296'}">${formatMoney(min)}</td><td>${formatMoney(qty*avg)}</td></tr>`}).join('')||'<tr><td colspan="7" class="empty-state">没有符合的库存资料</td></tr>';
+};
+
+// Make the V29.8 index available immediately after access, and invalidate after cloud refresh.
+try{buildProductQuickIndexV298();}catch(_){}

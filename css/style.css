@@ -5252,7 +5252,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 
-/* V29.7 Dedicated Original Cost correction: the blue value is the sole
+/* V29.8 Dedicated Original Cost correction: the blue value is the sole
    controlled historical Original Cost edit entrance. */
 .product-stock-original-cost-btn-v219 {
   border: 0;
@@ -5286,7 +5286,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 
 
 
-/* V29.7 UI + full revision history */
+/* V29.8 UI + full revision history */
 #costRevisionHistorySearch {
   text-align: left !important;
   direction: ltr;
@@ -5327,7 +5327,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
   .product-stock-result-row { grid-template-columns: minmax(0, 1fr) 155px; }
 }
 
-/* V29.7 mobile fit + touch-selection polish */
+/* V29.8 mobile fit + touch-selection polish */
 .original-cost-edit-actions-v219 button,
 .original-cost-edit-actions-v219 button *,
 #saveOriginalCostEditV219,
@@ -5376,7 +5376,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 
-/* V29.7 desktop result-space use + original-cost dialog copy/selection polish */
+/* V29.8 desktop result-space use + original-cost dialog copy/selection polish */
 @media (min-width: 701px) {
   .product-stock-result-row {
     grid-template-columns: minmax(0, 1fr) minmax(220px, 32%);
@@ -5412,7 +5412,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
   -webkit-touch-callout: none !important;
 }
 
-/* V29.7 original-cost editor: prevent mobile text selection everywhere except the numeric input. */
+/* V29.8 original-cost editor: prevent mobile text selection everywhere except the numeric input. */
 .original-cost-edit-dialog-v219,
 .original-cost-edit-dialog-v219 *:not(input):not(textarea) {
   -webkit-user-select: none !important;
@@ -5430,7 +5430,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 
-/* ================= V29.7 selected stable UI ================= */
+/* ================= V29.8 selected stable UI ================= */
 .batch-english-name-v294{margin-top:5px;font-size:.84rem;color:#475569;border:1px dashed #cbd5e1;background:#f8fafc}
 .product-english-v294,.recent-import-english-v294,.product-stock-english-v294,.summary-english-v294{display:block;border:0;background:transparent;padding:2px 0;color:#334155;font-weight:700;text-align:left;cursor:pointer;font-size:.92rem}
 .media-dot-v294{display:inline-block;width:10px;height:10px;border-radius:50%;margin-left:5px;vertical-align:middle}.media-dot-v294.photo{background:#f4c430}.media-dot-v294.video{background:#2563eb}
@@ -5447,7 +5447,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .promotion-margin-bulk-v294{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 0;border-top:2px solid #e2e8f0}.promotion-margin-bulk-v294 input{width:86px}.promotion-margin-select-v294{display:flex;align-items:center;gap:5px}.promotion-margin-select-v294>input{width:auto}.promotion-custom-margin-row-v294{flex-wrap:wrap}
 
 
-/* ================= V29.7 pending-fix UI ================= */
+/* ================= V29.8 pending-fix UI ================= */
 .bottom-nav{grid-template-columns:repeat(5,minmax(0,1fr))!important}
 .bottom-nav .nav-btn{min-width:0;padding-left:2px;padding-right:2px}
 .bottom-nav .nav-btn small{font-size:10px;line-height:1.12;white-space:normal;overflow-wrap:anywhere}
@@ -5472,7 +5472,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 
-/* ================= V29.7 UI refinements ================= */
+/* ================= V29.8 UI refinements ================= */
 .batch-category-col-v296{display:none!important}
 .batch-english-name-v294.existing-english-v296{border:0!important;background:transparent!important;padding:3px 2px!important;color:#34495e!important;font-weight:650!important;pointer-events:none}
 #batchListCount{display:none!important}
@@ -5531,7 +5531,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 @media(max-width:719px){.product-media-row-v296{grid-template-columns:minmax(112px,1fr) 72px 72px!important}.product-media-row-v296 button{font-size:.98rem!important;padding:8px 9px!important}.product-media-row-v296 .product-media-empty-v296{font-size:1rem!important}}
 
 
-/* ================= V29.7 performance-safe unified UI ================= */
+/* ================= V29.8 performance-safe unified UI ================= */
 #productManagementPage>h2{font-size:1.45rem!important;margin-bottom:14px!important}
 #productManagementPage .product-prefix-settings-v181>summary span{font-size:1.18rem!important;font-weight:800!important}
 .product-prefix-head-v295{grid-template-columns:minmax(130px,1.15fr) minmax(170px,1.5fr) 70px 120px auto!important;text-align:left!important}
@@ -5581,3 +5581,13 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
   .inventory-summary-grid strong{font-size:.96rem!important}
   .inventory-sold-align-v297{margin-top:36px!important}
 }
+
+/* ================= V29.8 V28.0-inspired clean layout ================= */
+.product-stock-head-v298{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:8px}.product-stock-head-v298 .product-stock-name-edit-btn{font-size:1.08rem!important;font-weight:800!important;white-space:nowrap!important}.product-id-copy-v298{border:1px solid #a8d8bb;background:#eef9f2;color:#08713d;border-radius:8px;padding:3px 8px;font-weight:800;cursor:pointer}.product-stock-english-v298{flex-basis:100%;border:0;background:transparent;padding:0;text-align:left;color:#52635a;font-size:.92rem;font-weight:650;cursor:pointer}
+.product-stock-card-v296 .product-stock-qty-btn,.product-stock-card-v296 .product-stock-original-cost-btn-v219,.product-stock-card-v296 .product-stock-minimum-price-btn,.product-stock-card-v296 .product-stock-cost-btn{font-size:.98rem!important;text-align:left!important}.product-stock-card-v296 .product-stock-qty-btn strong,.product-stock-card-v296 .product-stock-original-cost-btn-v219 strong,.product-stock-card-v296 .product-stock-minimum-price-btn strong,.product-stock-card-v296 .product-stock-cost-btn strong{font-size:1.03rem!important}
+.product-prefix-locked-list-v181{overflow-x:auto!important}.product-prefix-row-v296{min-width:760px}.product-prefix-head-v295{min-width:760px}.product-prefix-add-v295 input{text-align:left!important}
+.inventory-summary-table-v294 thead{display:table-header-group!important}.inventory-summary-table-v294{min-width:900px!important;width:100%!important;border-collapse:collapse!important}.inventory-summary-table-v294 th,.inventory-summary-table-v294 td{white-space:nowrap!important;padding:10px 12px!important;border-bottom:1px solid #dce8df!important}.inventory-summary-table-v294 th{font-weight:800!important;background:#f2f8f4!important}.inventory-summary-table-v294 th:first-child,.inventory-summary-table-v294 td:first-child{text-align:left!important}.inventory-summary-table-v294 th:nth-child(2),.inventory-summary-table-v294 td:nth-child(2),.inventory-summary-table-v294 th:nth-child(3),.inventory-summary-table-v294 td:nth-child(3){text-align:left!important}.inventory-summary-table-v294 th:nth-child(n+4),.inventory-summary-table-v294 td:nth-child(n+4){text-align:right!important}.inventory-summary-table-wrap-v294{overflow-x:auto!important;-webkit-overflow-scrolling:touch!important}
+.original-cost-edit-dialog-v219,.stock-edit-dialog-v298{width:min(460px,calc(100vw - 28px))!important}.stock-edit-dialog-v298 .original-cost-edit-meta-v219 strong{font-size:1rem}.original-cost-edit-dialog-v219 label,.stock-edit-dialog-v298 label{font-size:.95rem!important}.original-cost-edit-dialog-v219 input,.stock-edit-dialog-v298 input{text-align:left!important}
+/* compact inventory media buttons, no icons; preserve space for sold/profit box */
+.product-media-controls-v295-grid{padding-right:126px!important}.product-media-row-v295 button{min-height:34px!important;padding:5px 9px!important;font-size:.86rem!important}.product-media-row-v295 .media-main-v295{min-width:92px!important}.inventory-sold-align-v297{margin-top:34px!important}
+@media(max-width:719px){.product-prefix-row-v296,.product-prefix-head-v295{min-width:680px!important}.inventory-summary-table-v294{min-width:880px!important}.inventory-summary-table-tools-v294{grid-template-columns:minmax(0,1fr) 132px!important}.inventory-summary-table-tools-v294 input,.inventory-summary-table-tools-v294 select{width:100%!important}.product-stock-head-v298{gap:6px}.product-stock-head-v298 .product-stock-name-edit-btn{max-width:calc(100% - 86px);overflow:hidden;text-overflow:ellipsis}.product-media-controls-v295-grid{padding-right:112px!important}.product-media-row-v295{grid-template-columns:minmax(82px,1fr) 54px 54px!important;gap:5px!important}.product-media-row-v295 button{font-size:.78rem!important;padding:4px 6px!important}.inventory-sold-align-v297{margin-top:28px!important}}
