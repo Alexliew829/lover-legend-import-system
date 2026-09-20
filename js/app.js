@@ -4827,7 +4827,7 @@ function getPromotionMarginBadgeV209(product, profitInfo = null) {
   const formattedRate = Number.isFinite(rate)
     ? (Number.isInteger(rate) ? Math.abs(rate).toFixed(0) : Math.abs(rate).toFixed(2).replace(/0+$/, "").replace(/\.$/, ""))
     : "";
-  // V27.9: the badge describes profit direction, not a discount. Profit is +green; loss is -red.
+  // V28.0: the badge describes profit direction, not a discount. Profit is +green; loss is -red.
   const text = formattedRate ? `${cls === "loss" ? "-" : cls === "gain" ? "+" : ""}${formattedRate}%` : "";
   return text ? `<em class="inventory-promotion-margin-v209 ${cls}">${escapeHTML(text)}</em>` : "";
 }
@@ -5299,7 +5299,7 @@ function getOperationalProductsV256(products = getProducts()) {
   );
 }
 
-// ================= V27.9 Two Real Warehouses =================
+// ================= V28.0 Two Real Warehouses =================
 const WAREHOUSE_BONSAI_V270 = "bonsai";
 const WAREHOUSE_WOOD_V270 = "wood";
 function getWarehouseForCategoryV270(category) {
@@ -5310,7 +5310,7 @@ function getProductWarehouseV270(product) {
   if (stored === WAREHOUSE_BONSAI_V270 || stored === WAREHOUSE_WOOD_V270) return stored;
   return getWarehouseForCategoryV270(product?.category || "盆栽");
 }
-// V27.9: 盆栽仓库中文为主、英文为次；杂木仓库英文为主、中文为次。
+// V28.0: 盆栽仓库中文为主、英文为次；杂木仓库英文为主、中文为次。
 // 仅改变显示顺序，不改变 product.name / Product ID / 同步 / 保存结构。
 function getProductDisplayNamesV271(product, warehouse = getProductWarehouseV270(product)) {
   const chinese = String(product?.name || "").trim();
@@ -5801,7 +5801,7 @@ function setupProductCategorySettingsV227() {
     );
     if (duplicateName) { if (status) status.textContent = "这个产品类别名称已经存在"; return; }
 
-    // V27.9: one prefix may be shared by multiple DIFFERENT product/category names.
+    // V28.0: one prefix may be shared by multiple DIFFERENT product/category names.
     // Only the same product/category name is forbidden from mapping to a second prefix.
 
     const verb = editingName ? "修改" : "新增";
@@ -7255,7 +7255,7 @@ function saveImportDraftV242() {
     return;
   }
   const state = collectImportDraftStateV242();
-  // V27.9: recognition red text is only a pre-save visual cue. Do not persist it in the import draft.
+  // V28.0: recognition red text is only a pre-save visual cue. Do not persist it in the import draft.
   state.rows = (state.rows || []).map(row => { const copy = { ...row }; delete copy.recognitionNewV265; return copy; });
   if (!state.rows.length) {
     alert("请先输入至少一个产品，再保存草稿。");
@@ -18467,7 +18467,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "27.9",
+      version: "28.0",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18834,7 +18834,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V27.9 Stable",
+      updatedBy: "System V28.0 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -18949,9 +18949,9 @@ function registerServiceWorker() {
 })();
 
 
-// ================= V27.9 Mobile ChatGPT Invoice Assistant =================
+// ================= V28.0 Mobile ChatGPT Invoice Assistant =================
 // Recognition remains isolated from stock, average cost, minimum-price and formal Import/Batch logic.
-// V27.9 adds only safer naming/category normalization, preview progress/table UI and independent handoff state.
+// V28.0 adds only safer naming/category normalization, preview progress/table UI and independent handoff state.
 (function initInvoiceAssistantV259Module(){
   const MAIN_CATEGORIES = new Set(["盆栽","杂花杂木","肥料 / 农药","泥土 / 介质","花盆","工具","其他"]);
   const DRAFT_KEY="invoiceRecognitionDraftsV259", HISTORY_KEY="invoiceRecognitionHistoryV259";
@@ -19183,7 +19183,7 @@ function supplierReferenceInfoV265(s){
   const name=supplierCanonNameV261(s?.name||"").toLowerCase();
   const aliases=[name,...(Array.isArray(s?.aliases)?s.aliases:[]).map(x=>supplierCanonNameV261(x).toLowerCase())].filter(Boolean);
   const labels=Array.from(new Set(aliases));
-  // V27.9: reference protection belongs to this supplier record, not merely to a shared prefix.
+  // V28.0: reference protection belongs to this supplier record, not merely to a shared prefix.
   // Two suppliers may share one prefix; a newly copied name must not inherit another supplier's stock lock.
   const matchesLabel=(value)=>{const v=supplierCanonNameV261(value||"").toLowerCase();return labels.some(label=>v===label||v.startsWith(label));};
   const virtual=getVirtualWarehouseSourceV240().some(v=>{
@@ -19260,13 +19260,13 @@ function cleanupTestSupplierV268(){
 }
 
 
-// ================= V27.9 Virtual Reference -> Two Real Warehouses =================
+// ================= V28.0 Virtual Reference -> Two Real Warehouses =================
 function ensureWoodWarehouseMigrationV270(){
   const settings=loadJSON("importSystemSettings",{});
   const refs=getVirtualWarehouseSourceV240();
   if(!refs.length)return false;
 
-  // V27.9 repair: V27.0/V27.1 may already carry the old migration flag even when
+  // V28.0 repair: V27.0/V27.1 may already carry the old migration flag even when
   // the reference rows never reached the real Products collection. The flag alone
   // is therefore not proof that Warehouse 2 exists. Reconcile the actual Products
   // collection once, without changing stock/cost/history of any existing product.
@@ -19339,7 +19339,7 @@ function ensureWoodWarehouseMigrationV270(){
 function scheduleWoodWarehouseMigrationV270(){
   let tries=0;const wait=()=>{tries+=1;const synced=typeof cloudInitialSyncComplete!=="undefined"&&cloudInitialSyncComplete&&typeof cloudLastErrorMessage!=="undefined"&&!cloudLastErrorMessage&&navigator.onLine;if(synced){ensureWoodWarehouseMigrationV270();return}if(tries<120)window.setTimeout(wait,500)};window.setTimeout(wait,300);
 }
-// V27.9: warehouse switching is display-only. Never start a cloud read or rebuild
+// V28.0: warehouse switching is display-only. Never start a cloud read or rebuild
 // unrelated dashboard/system modules just because the user changed warehouse.
 function renderDashboardWarehouseSummaryV275(){
   const products=loadJSON("importSystemProducts",[]);
