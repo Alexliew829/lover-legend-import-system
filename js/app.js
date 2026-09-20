@@ -8,7 +8,9 @@ document.addEventListener("DOMContentLoaded", () => {
     home: "dashboardPage",
     dashboard: "dashboardPage",
     import: "importPage",
-    products: "importPage",
+    products: "productManagementPage",
+    product: "productManagementPage",
+    "product-management": "productManagementPage",
     history: "historyPage",
     settings: "settingsPage"
   };
@@ -20,6 +22,9 @@ document.addEventListener("DOMContentLoaded", () => {
   setupImportModule();
   setupImportHistory();
   setupInventoryModule();
+  setupProductManagementV284();
+  // V28.6: keep mobile pull-down refresh, but only arm it after a deliberate
+  // downward gesture from the very top and never from interactive controls.
   setupGlobalMobilePullDownClear();
   registerServiceWorker();
   setupCloudSync();
@@ -976,7 +981,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V22.6 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V28.6 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1345,7 +1350,7 @@ function salesItemAlreadyProcessedLocallyV104(item, product) {
     }
   }
 
-  // V22.6: batch commits store a unique commit key plus the stable Sales
+  // V28.6: batch commits store a unique commit key plus the stable Sales
   // accounting key.  Either one proves that inventory was already committed.
   // This keeps a still-pending Sales card visible as ACK-only after a timeout
   // instead of silently dropping it and risking a later duplicate deduction.
@@ -1604,7 +1609,7 @@ function showStartupSalesInventoryReminderV80() {
       const restorePrecheckFailed=/Sales Restore 状态读取超时|无法连接 Sales System 读取 Restore 状态|无法读取 Sales Restore 状态/i.test(message);
 
       if(restorePrecheckFailed){
-        // V22.6: prepareSalesInventoryOperationV117 runs before any inventory
+        // V28.6: prepareSalesInventoryOperationV117 runs before any inventory
         // commit.  If that read-only Restore precheck times out, nothing has been
         // deducted yet, so keep the frozen reminder exactly as-is.  Do not replace
         // it with a transient/empty feed result and make the card disappear.
@@ -2646,6 +2651,11 @@ function setupNavigation() {
         renderImportHistory();
       }
 
+      if (target === "productManagementPage") {
+        renderProductManagementV284();
+        renderInventoryMasterV284();
+      }
+
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
   });
@@ -3109,7 +3119,7 @@ function applyBatchCostEditability() {
   const repairEnabled = getCostRepairModeEnabled();
   const lockedSaved = isEditing && !repairEnabled;
 
-  // V22.6: China-side/core import facts are immutable once saved, even when
+  // V28.6: China-side/core import facts are immutable once saved, even when
   // Data Repair is ON. If they are wrong, copy the whole import as a new draft,
   // save the corrected new import number, then delete the wrong old import.
   [
@@ -5270,7 +5280,7 @@ function sequentialSearchMatches(searchableValue, queryValue) {
   return source.includes(query);
 }
 
-// V22.6: shared read-only Original Cost matcher for every product-search surface.
+// V28.6: shared read-only Original Cost matcher for every product-search surface.
 // Pure numeric queries (commas/spaces/decimals allowed) match unitPrice exactly,
 // regardless of currency. This helper only reads already-loaded local collections.
 function parseOriginalCostSearchQueryV216(queryValue) {
@@ -5301,14 +5311,14 @@ function originalCostMatchesProductV216(product, queryValue, imports = null) {
   });
 }
 
-// V22.6: record/batch-level searches must match the Original Cost stored on
+// V28.6: record/batch-level searches must match the Original Cost stored on
 // that exact row. Never fall back to another import row of the same Product ID,
 // otherwise a 320 search can incorrectly pull in a 200 batch for the same product.
 function originalCostMatchesBatchItemV216(item, queryValue) {
   return originalCostNumberMatchesV216(item?.unitPrice, queryValue);
 }
 
-// V22.6: a pure numeric product-search query is reserved exclusively for
+// V28.6: a pure numeric product-search query is reserved exclusively for
 // exact Original Cost matching. It must never fall through to product names,
 // IDs, import numbers, tracking numbers, dates, quantities, or other numeric text.
 function isOriginalCostOnlySearchV218(queryValue) {
@@ -5670,7 +5680,10 @@ function setupImportModule(){
     document.getElementById("batchProductStockSearch");
 
   if (batchSearch) {
+    let batchSearchTimerV285 = null;
     batchSearch.addEventListener("input", () => {
+      window.clearTimeout(batchSearchTimerV285);
+      batchSearchTimerV285 = window.setTimeout(() => {
       const keyword = String(batchSearch.value || "").trim();
 
       if (keyword && productStockSearch) {
@@ -5694,11 +5707,15 @@ function setupImportModule(){
 
       batchListExpanded = false;
       renderBatchList();
+      }, 120);
     });
   }
 
   if (productStockSearch) {
+    let productStockSearchTimerV285 = null;
     productStockSearch.addEventListener("input", () => {
+      window.clearTimeout(productStockSearchTimerV285);
+      productStockSearchTimerV285 = window.setTimeout(() => {
       const keyword = String(productStockSearch.value || "").trim();
 
       if (keyword && batchSearch) {
@@ -5707,6 +5724,7 @@ function setupImportModule(){
 
       batchListExpanded = false;
       renderBatchProductStockResults();
+      }, 120);
     });
   }
 
@@ -10065,7 +10083,7 @@ function renderImportHistoryNowV134() {
   const exactHistoryProduct = String(
     input.dataset.exactHistoryProduct || ""
   ).trim().toLowerCase();
-  // V22.6: stable Product ID linkage is only for the original text/product search.
+  // V28.6: stable Product ID linkage is only for the original text/product search.
   // A numeric Original Cost hit must remain row/batch-specific; it must not turn
   // into a Product ID hit that automatically includes every historical batch.
   const matchedProductIds = new Set(
@@ -11504,7 +11522,7 @@ function saveBatchImport() {
       transitDays: updateTransitDays()
     };
 
-    // V22.6: revision history records every allowed Data Repair field, not only costs.
+    // V28.6: revision history records every allowed Data Repair field, not only costs.
     const repairLogTimeV222 = new Date().toLocaleString("zh-MY", { hour12: false });
     const addRepairLogV222 = (fieldLabel, before, after) => {
       if (String(before ?? "") === String(after ?? "")) return;
@@ -11527,7 +11545,7 @@ function saveBatchImport() {
     let updatedCostSnapshot = {};
     let repairChangesCostV206 = false;
     if (repairEnabled) {
-      // V22.6 Data Repair may change only the Malaysia-side overseas freight
+      // V28.6 Data Repair may change only the Malaysia-side overseas freight
       // among cost-bearing fields. China-side costs, original prices, currency
       // and exchange rate are immutable here.
       const nextChina = Number(oldBatch.chinaTransportCost) || 0;
@@ -12081,7 +12099,7 @@ function renderBatchList() {
   }).join("");
 }
 
-// ================= V22.6 Dedicated Original Cost Correction =================
+// ================= V28.6 Dedicated Original Cost Correction =================
 let originalCostEditPendingV219 = null;
 
 function getPreferredOriginalCostRecordV219(product, queryValue = "", explicitImportId = "") {
@@ -13895,19 +13913,31 @@ function setupGlobalMobilePullDownClear() {
   if (window.globalPullDownClearBound) return;
   window.globalPullDownClearBound = true;
 
+  const ARM_DISTANCE = 18;
+  const REFRESH_DISTANCE = 56;
+  const HORIZONTAL_CANCEL_DISTANCE = 14;
+  const VERTICAL_DOMINANCE = 1.25;
+  const REFRESH_COOLDOWN_MS = 1200;
+
   let startX = 0;
   let startY = 0;
   let tracking = false;
   let verticalGesture = false;
-  let readyToClear = false;
+  let readyToRefresh = false;
+  let refreshing = false;
   let indicator = null;
+
+  const interactiveSelector = [
+    "input", "select", "textarea", "button", "a", "label", "summary",
+    "[role='button']", "[contenteditable='true']", ".nav-btn", ".bottom-nav",
+    ".btn", ".icon-btn", ".copy-btn", ".delete-btn", ".edit-btn"
+  ].join(",");
 
   const getIndicator = () => {
     if (indicator) return indicator;
-
     indicator = document.createElement("div");
     indicator.className = "pull-clear-indicator";
-    indicator.textContent = "松开即可刷新当前页面";
+    indicator.textContent = "继续下拉以刷新";
     document.body.appendChild(indicator);
     return indicator;
   };
@@ -13915,27 +13945,29 @@ function setupGlobalMobilePullDownClear() {
   const resetGesture = () => {
     tracking = false;
     verticalGesture = false;
-    readyToClear = false;
+    readyToRefresh = false;
   };
 
   const hideIndicator = () => {
-    const box = getIndicator();
-    box.classList.remove("show", "ready");
-    box.textContent = "松开即可刷新当前页面";
+    if (!indicator) return;
+    indicator.classList.remove("show", "ready");
+    indicator.textContent = "继续下拉以刷新";
   };
 
   document.addEventListener(
     "touchstart",
     event => {
-      if (window.scrollY > 2) return;
-      if (event.target.closest("input, select, textarea, button, a")) return;
+      if (refreshing) return;
+      if (window.scrollY > 1 || document.documentElement.scrollTop > 1) return;
+      if (event.touches?.length !== 1) return;
+      if (event.target.closest(interactiveSelector)) return;
 
-      const point = event.touches?.[0];
-      startX = Number(point?.clientX) || 0;
-      startY = Number(point?.clientY) || 0;
+      const point = event.touches[0];
+      startX = Number(point.clientX) || 0;
+      startY = Number(point.clientY) || 0;
       tracking = true;
       verticalGesture = false;
-      readyToClear = false;
+      readyToRefresh = false;
     },
     { passive: true }
   );
@@ -13943,43 +13975,43 @@ function setupGlobalMobilePullDownClear() {
   document.addEventListener(
     "touchmove",
     event => {
-      if (!tracking) return;
+      if (!tracking || refreshing || event.touches?.length !== 1) return;
 
-      const point = event.touches?.[0];
-      const currentX = Number(point?.clientX) || 0;
-      const currentY = Number(point?.clientY) || 0;
-      const distanceX = currentX - startX;
-      const distanceY = currentY - startY;
-      const horizontalDistance = Math.abs(distanceX);
-      const box = getIndicator();
+      const point = event.touches[0];
+      const distanceX = (Number(point.clientX) || 0) - startX;
+      const distanceY = (Number(point.clientY) || 0) - startY;
+      const absX = Math.abs(distanceX);
+      const absY = Math.abs(distanceY);
 
-      // 只接受明显向下的手势。
-      // 向左、向右或斜向滑动不会触发刷新。
+      if (distanceY <= 0 || (absX >= HORIZONTAL_CANCEL_DISTANCE && absX >= absY)) {
+        resetGesture();
+        hideIndicator();
+        return;
+      }
+
+      // Ignore normal tap jitter and short drags so a first tap is never swallowed.
       if (!verticalGesture) {
-        if (horizontalDistance >= 8 && horizontalDistance >= Math.abs(distanceY)) {
+        if (distanceY < ARM_DISTANCE) return;
+        if (distanceY < absX * VERTICAL_DOMINANCE) {
           resetGesture();
           hideIndicator();
           return;
         }
-
-        verticalGesture =
-          distanceY > 0 &&
-          distanceY > horizontalDistance;
+        verticalGesture = true;
       }
 
-      readyToClear =
+      readyToRefresh =
         verticalGesture &&
-        distanceY >= 10 &&
-        distanceY > horizontalDistance;
+        distanceY >= REFRESH_DISTANCE &&
+        distanceY >= absX * VERTICAL_DOMINANCE;
 
-      if (!readyToClear) {
-        box.classList.remove("show", "ready");
-        return;
-      }
+      const box = getIndicator();
+      box.classList.add("show");
+      box.classList.toggle("ready", readyToRefresh);
+      box.textContent = readyToRefresh ? "松开即可刷新当前页面" : "继续下拉以刷新";
 
-      event.preventDefault();
-      box.textContent = "松开即可刷新当前页面";
-      box.classList.add("show", "ready");
+      // Only a deliberate, armed refresh gesture suppresses the browser bounce.
+      if (readyToRefresh) event.preventDefault();
     },
     { passive: false }
   );
@@ -13989,7 +14021,7 @@ function setupGlobalMobilePullDownClear() {
     async () => {
       if (!tracking) return;
 
-      const shouldRefresh = readyToClear && verticalGesture;
+      const shouldRefresh = readyToRefresh && verticalGesture && !refreshing;
       resetGesture();
 
       if (!shouldRefresh) {
@@ -13997,9 +14029,9 @@ function setupGlobalMobilePullDownClear() {
         return;
       }
 
+      refreshing = true;
       const box = getIndicator();
       clearCurrentPageUnsavedInputs();
-
       box.textContent = "正在刷新并检查最新资料...";
       box.classList.add("show", "ready");
 
@@ -14010,7 +14042,7 @@ function setupGlobalMobilePullDownClear() {
             : null;
 
         if (result?.offline) {
-          box.textContent = "已清空当前页面 · 当前离线";
+          box.textContent = "已刷新当前页面 · 当前离线";
         } else if (result?.updated) {
           box.textContent = "✓ 已同步最新资料";
         } else {
@@ -14018,12 +14050,13 @@ function setupGlobalMobilePullDownClear() {
         }
       } catch (error) {
         console.error("Pull refresh failed:", error);
-        box.textContent = "页面已清空 · 同步检查失败";
+        box.textContent = "刷新完成 · 同步检查失败";
       }
 
       window.setTimeout(() => {
         hideIndicator();
-      }, 800);
+        refreshing = false;
+      }, REFRESH_COOLDOWN_MS);
     },
     { passive: true }
   );
@@ -14076,9 +14109,12 @@ function getLatestImportDateByProduct(productId) {
 }
 
 function setupInventoryModule() {
-  document
-    .getElementById("inventorySearch")
-    .addEventListener("input", renderInventoryManagementList);
+  const inventorySearchInputV285 = document.getElementById("inventorySearch");
+  let inventorySearchTimerV285 = null;
+  inventorySearchInputV285?.addEventListener("input", () => {
+    window.clearTimeout(inventorySearchTimerV285);
+    inventorySearchTimerV285 = window.setTimeout(renderInventoryManagementList, 120);
+  });
   document
     .getElementById("inventorySort")
     .addEventListener("change", async event => {
@@ -14410,7 +14446,7 @@ function renderInventoryManagementList() {
         )
       ).join(" ");
 
-      // V22.6: cache original import-cost numbers while matching imports are
+      // V28.6: cache original import-cost numbers while matching imports are
       // already in memory. This adds no save/sync/delete calls and leaves the
       // existing smart-search pipeline untouched.
       const originalCostValuesV216 = matchingImports
@@ -14478,7 +14514,7 @@ function renderInventoryManagementList() {
     })
     .filter(product => {
       const productTarget =
-        `${product.id} ${product.name} ${product.category}`;
+        `${product.id} ${product.name} ${getProductEnglishNameV284(product)} ${product.category}`;
 
       const productMatch =
         smartSearchMatches(productTarget, keyword);
@@ -14492,7 +14528,7 @@ function renderInventoryManagementList() {
           keyword
         );
 
-      // V22.6: when the query is purely numeric (commas and decimals allowed),
+      // V28.6: when the query is purely numeric (commas and decimals allowed),
       // match the numeric Original Cost exactly, regardless of currency.
       // Existing product/import/tracking searches continue to run unchanged.
       const originalCostQueryTextV216 = String(keyword || "")
@@ -14641,6 +14677,7 @@ function renderInventoryManagementList() {
                 ${escapeHTML(product.name)}
               </button>
               ${buildProductIdCopyButtonV166(product.id, "inventory-product-id-v166")}
+              ${getProductEnglishNameV284(product) ? `<small class="inventory-english-secondline-v265" data-copy-english-v284="${escapeHTML(getProductEnglishNameV284(product))}" title="点击复制英文名">${escapeHTML(getProductEnglishNameV284(product))}</small>` : ""}
               </span>
             </div>
             ${product.batchStocks?.length ? `
@@ -14653,6 +14690,7 @@ function renderInventoryManagementList() {
                 `).join("")}
               </div>
             ` : ""}
+            ${renderProductMediaLinksV284(product.id)}
             <div class="product-code inventory-product-code-v166">${escapeHTML(product.category)}</div>
           </div>
           <div class="inventory-sold-quantity" title="按 Import History 的实际净售出数量计算">
@@ -14692,6 +14730,128 @@ function renderInventoryManagementList() {
 
 
 
+
+
+function getProductMediaLinksV284(productId) {
+  const settings = loadJSON("importSystemSettings", {});
+  const all = settings.productMediaLinksV229 && typeof settings.productMediaLinksV229 === "object" ? settings.productMediaLinksV229 : {};
+  return all[String(productId || "").toUpperCase()] || {};
+}
+
+function renderProductMediaLinksV284(productId) {
+  const media = getProductMediaLinksV284(productId);
+  const photo = String(media.photo || "").trim();
+  const video = String(media.video || "").trim();
+  if (!photo && !video) return "";
+  const row = (label,url,cls) => `<div class="inventory-media-row-v284"><a class="inventory-media-open-v284 ${cls}" href="${escapeHTML(url)}" target="_blank" rel="noopener">${label} · 打开</a><button type="button" class="small-btn" data-copy-v284="${escapeHTML(url)}">复制</button></div>`;
+  return `<div class="inventory-media-links-v284">${photo?row("照片链接",photo,"photo"):""}${video?row("视频链接",video,"video"):""}</div>`;
+}
+
+function getProductEnglishNameV284(product) {
+  if (!product) return "";
+  const direct = String(product.englishName || product.productName2 || product.name2 || "").trim();
+  if (direct) return direct;
+  const settings = loadJSON("importSystemSettings", {});
+  const meta = settings.productLanguageMetaV262 && typeof settings.productLanguageMetaV262 === "object"
+    ? settings.productLanguageMetaV262[String(product.id || "").toUpperCase()]
+    : null;
+  return String(meta?.englishName || "").trim();
+}
+
+async function copyTextV284(value, message = "已复制") {
+  const text = String(value || "").trim();
+  if (!text) return false;
+  try { await navigator.clipboard.writeText(text); }
+  catch (_) {
+    const ta = document.createElement("textarea"); ta.value = text; ta.style.position="fixed"; ta.style.opacity="0";
+    document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
+  }
+  if (typeof showHistoryCopyToast === "function") showHistoryCopyToast(`✓ ${message}`);
+  return true;
+}
+
+function getProductOriginalCostV284(productId) {
+  const rows = getImports().filter(r => String(r.productId || "") === String(productId || ""));
+  rows.sort((a,b)=>String(b.createdAt||b.date||"").localeCompare(String(a.createdAt||a.date||"")));
+  return Math.max(0, Number(rows[0]?.unitPrice) || 0);
+}
+
+function productManagementRowsV284() {
+  return getProducts().map(product => ({
+    product,
+    id: String(product.id || ""),
+    name: String(product.name || ""),
+    english: getProductEnglishNameV284(product),
+    stock: Math.max(0, Number(product.stock) || 0),
+    averageCost: Math.max(0, Number(product.averageCost) || 0),
+    minimumPrice: Math.max(0, Number(getEffectiveProductMinimumPriceV183(product)) || 0),
+    originalCost: getProductOriginalCostV284(product.id),
+    inventoryValue: Math.max(0, Number(product.stock)||0) * Math.max(0, Number(product.averageCost)||0),
+    lastImport: getLatestImportDateByProduct(product.id) || ""
+  }));
+}
+
+function renderProductManagementV284() {
+  const out = document.getElementById("productManagementResultsV284");
+  if (!out) return;
+  const q = String(document.getElementById("productManagementSearchV284")?.value || "").trim().toLowerCase();
+  const numeric = /^\d+(?:\.\d+)?$/.test(q.replace(/[,\s]/g,"")) ? Number(q.replace(/[,\s]/g,"")) : null;
+  const rows = productManagementRowsV284().filter(row => {
+    if (!q) return true;
+    const target = `${row.id} ${row.name} ${row.english}`.toLowerCase();
+    return target.includes(q) || (numeric !== null && Math.abs(row.originalCost - numeric) < 0.000001);
+  });
+  if (!rows.length) { out.innerHTML='<div class="empty-state">暂无符合的产品</div>'; return; }
+  out.innerHTML = rows.slice(0,120).map(row => `
+    <article class="product-stock-result-v284" data-product-id="${escapeHTML(row.id)}">
+      <div class="product-stock-result-main-v284">
+        <button type="button" class="product-stock-name-v284" data-copy-v284="${escapeHTML(row.name)}">${escapeHTML(row.name)}</button>
+        ${buildProductIdCopyButtonV166(row.id, "product-stock-id-v284")}
+        ${row.english ? `<button type="button" class="product-stock-english-v284" data-copy-v284="${escapeHTML(row.english)}" data-english-edit-v284="${escapeHTML(row.id)}" title="点击复制；长按修改英文名">${escapeHTML(row.english)}</button>` : `<button type="button" class="product-stock-english-v284 muted" data-english-edit-v284="${escapeHTML(row.id)}" title="长按新增英文名">英文名：未设置</button>`}
+      </div>
+      <div class="product-stock-metrics-v284"><span>库存 <strong>${formatNumber(row.stock)}</strong></span><span>平均成本 <strong>${formatMoney(row.averageCost,'RM ')}</strong></span><span>原成本 <strong>${formatMoney(row.originalCost)}</strong></span><span>最低售价 <strong>${formatMoney(row.minimumPrice,'RM ')}</strong></span></div>
+    </article>`).join("");
+}
+
+function renderInventoryMasterV284() {
+  const body = document.getElementById("inventoryMasterBodyV284");
+  if (!body) return;
+  const q=String(document.getElementById("inventoryMasterSearchV284")?.value||"").trim().toLowerCase();
+  const sort=String(document.getElementById("inventoryMasterSortV284")?.value||"latest");
+  let rows=productManagementRowsV284().filter(r=>!q || `${r.id} ${r.name} ${r.english}`.toLowerCase().includes(q));
+  if(sort==='name') rows.sort((a,b)=>a.name.localeCompare(b.name,'zh'));
+  else if(sort==='stock-desc') rows.sort((a,b)=>b.stock-a.stock);
+  else if(sort==='stock-asc') rows.sort((a,b)=>a.stock-b.stock);
+  else if(sort==='value-desc') rows.sort((a,b)=>b.inventoryValue-a.inventoryValue);
+  else if(sort==='cost-desc') rows.sort((a,b)=>b.averageCost-a.averageCost);
+  else rows.sort((a,b)=>parseDDMMYYYY(b.lastImport)-parseDDMMYYYY(a.lastImport));
+  document.getElementById('inventoryMasterStockV284').textContent=formatNumber(rows.reduce((s,r)=>s+r.stock,0));
+  document.getElementById('inventoryMasterValueV284').textContent=formatMoney(rows.reduce((s,r)=>s+r.inventoryValue,0),'RM ');
+  document.getElementById('inventoryMasterCountV284').textContent=`${rows.length} 项`;
+  body.innerHTML=rows.map(r=>`<tr><td><button class="master-copy-v284" data-copy-v284="${escapeHTML(r.id)}">${escapeHTML(r.id)}</button></td><td><button class="master-copy-v284" data-copy-v284="${escapeHTML(r.name)}">${escapeHTML(r.name)}</button></td><td>${r.english?`<button class="master-copy-v284" data-copy-v284="${escapeHTML(r.english)}">${escapeHTML(r.english)}</button>`:'-'}</td><td>${formatNumber(r.stock)}</td><td>${formatMoney(r.averageCost,'RM ')}</td><td>${formatMoney(r.minimumPrice,'RM ')}</td></tr>`).join('');
+}
+
+function editProductEnglishNameV284(productId) {
+  const products=getProducts(); const p=products.find(x=>String(x.id||'')===String(productId||'')); if(!p)return;
+  const old=getProductEnglishNameV284(p); const next=window.prompt(`修改产品2（英文）\n\n目前：${old||'（空白）'}\n留空可清除。`,old); if(next===null)return;
+  p.englishName=String(next||'').trim(); saveProducts(products); renderProductManagementV284(); renderInventoryMasterV284(); renderInventoryManagementList();
+}
+
+function setupProductManagementV284() {
+  const search=document.getElementById('productManagementSearchV284');
+  const masterSearch=document.getElementById('inventoryMasterSearchV284');
+  const masterSort=document.getElementById('inventoryMasterSortV284');
+  let t=null; search?.addEventListener('input',()=>{clearTimeout(t);t=setTimeout(renderProductManagementV284,120)});
+  masterSearch?.addEventListener('input',()=>{clearTimeout(t);t=setTimeout(renderInventoryMasterV284,120)});
+  masterSort?.addEventListener('change',renderInventoryMasterV284);
+  document.getElementById('exportInventoryMasterExcelV284')?.addEventListener('click',()=>{ if(typeof exportSystemExcel==='function') exportSystemExcel(); });
+  document.addEventListener('click',e=>{ const b=e.target.closest('[data-copy-v284],[data-copy-english-v284]'); if(!b)return; const v=b.dataset.copyV284||b.dataset.copyEnglishV284||''; if(v)void copyTextV284(v); });
+  let timer=null,startX=0,startY=0,active=null;
+  document.addEventListener('pointerdown',e=>{const b=e.target.closest('[data-english-edit-v284]'); if(!b)return; active=b;startX=e.clientX;startY=e.clientY;timer=setTimeout(()=>{if(active)editProductEnglishNameV284(active.dataset.englishEditV284);active=null},650)});
+  document.addEventListener('pointermove',e=>{if(!active)return;if(Math.abs(e.clientX-startX)>12||Math.abs(e.clientY-startY)>12){clearTimeout(timer);active=null}});
+  document.addEventListener('pointerup',()=>{clearTimeout(timer);active=null});
+  renderProductManagementV284(); renderInventoryMasterV284();
+}
 
 function getOriginalCostSummaryRows() {
   // V19.8: these are the actual objects just rendered by Inventory Management.
@@ -15486,7 +15646,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "22.6",
+      version: "28.6",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -15853,7 +16013,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V22.6 Stable",
+      updatedBy: "System V28.6 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
