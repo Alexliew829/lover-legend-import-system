@@ -5890,10 +5890,19 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .promotion-batch-margin-v279 input{width:82px;min-width:82px;padding:7px 8px;text-align:right}
 @media(max-width:720px){.promotion-search-result-v278{grid-template-columns:24px minmax(0,1fr)!important}.promotion-margin-control-v278{grid-column:2/3;min-width:0}.promotion-search-result-v278>[data-add-promotion-exclusion]{grid-column:2/3;justify-self:start}.promotion-batch-margin-v279{width:100%}}
 
-/* V28.1 bonsai-only product management */
+/* V28.2 bonsai-only product management */
 .inventory-master-warehouse-label-v281{min-height:42px;display:flex;align-items:center;padding:0 12px;border:1px solid #cfdad3;border-radius:9px;background:#f4faf6;font-weight:800;color:#24553c}
 .inventory-master-toolbar-v264{grid-template-columns:150px minmax(280px,1fr) 180px!important}
 .product-english-name-v262{display:block;font-size:.82em;font-weight:500;color:#6b7c72;margin-top:2px;line-height:1.25}
 .master-name-v262{font-weight:700}.master-en-v262{color:#60746a}
 .inventory-master-wrap-v261{overflow:auto;margin-top:14px;border:1px solid #d8e8df;border-radius:12px}.inventory-master-table-v261{width:100%;border-collapse:collapse;min-width:760px}.inventory-master-table-v261 th,.inventory-master-table-v261 td{padding:9px 10px;border-bottom:1px solid #e7efe9;text-align:left;vertical-align:middle;white-space:nowrap}.inventory-master-table-v261 th{background:#eef8f1;position:sticky;top:0;z-index:1}.inventory-master-table-v261 th:nth-child(2),.inventory-master-table-v261 td:nth-child(2){min-width:220px;white-space:normal}.inventory-master-table-v261 th:nth-child(3),.inventory-master-table-v261 td:nth-child(3){min-width:160px;white-space:normal}
 @media(max-width:720px){.inventory-master-toolbar-v264{grid-template-columns:1fr!important}.inventory-master-wrap-v261{overflow-x:auto;-webkit-overflow-scrolling:touch}.inventory-master-table-v261{min-width:720px}}
+
+
+/* V28.2 — five-item bottom navigation stays on one line. */
+.bottom-nav{grid-template-columns:repeat(5,minmax(0,1fr))!important;}
+.bottom-nav .nav-btn small{white-space:nowrap!important;word-break:keep-all!important;overflow-wrap:normal!important;line-height:1.1!important;}
+@media(max-width:700px){
+  .bottom-nav .nav-btn small{font-size:10px!important;letter-spacing:-0.2px!important;}
+  .bottom-nav .nav-btn{min-width:0!important;padding-left:1px!important;padding-right:1px!important;}
+}

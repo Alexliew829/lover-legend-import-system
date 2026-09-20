@@ -14,10 +14,7 @@ let cloudSyncRequestedWhileBusy = false;
 let cloudLastForegroundCheckAt = 0;
 let cloudForegroundCheckTimer = null;
 let cloudLastErrorMessage = "";
-const CLOUD_FOREGROUND_CHECK_GAP = 2500;
-const CLOUD_FAST_STATUS_MIN_GAP_V280 = 1800;
-let cloudLastFastStatusAtV280 = 0;
-let cloudLastFastStatusRevisionV280 = null;
+const CLOUD_FOREGROUND_CHECK_GAP = 1500;
 
 function getCloudConfig() {
   const saved = loadJSON(CLOUD_CONFIG_KEY, {});
@@ -244,9 +241,8 @@ function makeLocalSnapshot() {
   };
 }
 
-// V28.1 mobile performance: foreground syncs must not repeatedly parse the
-// complete Products / Imports / Batches payload just to decide whether local data exists.
-// The canonical full arrays are only parsed when a real Push/Pull needs them.
+// V28.2: keep the fast local existence check from V28.1, while restoring the
+// proven V22.6 single-request cloud sync path.
 function hasLocalCoreDataFastV280() {
   const keys = ["importSystemProducts", "importSystemImports", "importSystemBatches"];
   return keys.some(key => {
@@ -255,22 +251,6 @@ function hasLocalCoreDataFastV280() {
     const trimmed = raw.trim();
     return trimmed !== "" && trimmed !== "[]" && trimmed !== "null";
   });
-}
-
-async function getRemoteRevisionFastV280() {
-  const now = Date.now();
-  if (cloudLastFastStatusRevisionV280 !== null && now - cloudLastFastStatusAtV280 < CLOUD_FAST_STATUS_MIN_GAP_V280) {
-    return { revision: cloudLastFastStatusRevisionV280, cached: true };
-  }
-  const data = await callGoogleApi({
-    action: "statusV280",
-    clientVersion: APP_VERSION,
-    schemaVersion: CLOUD_SCHEMA_VERSION
-  });
-  const revision = Number(data.revision) || 0;
-  cloudLastFastStatusAtV280 = Date.now();
-  cloudLastFastStatusRevisionV280 = revision;
-  return { revision, cached: false };
 }
 
 function markCloudImportNumberDeletedV232(importNumber, batchId = "") {
@@ -398,7 +378,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V28.1 Stable",
+      updatedBy: "System V28.2 Stable",
       ...payload
     });
 
@@ -433,7 +413,7 @@ async function commitSalesInventoryBatchToCloudV125(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V28.1 Stable",
+      updatedBy: "System V28.2 Stable",
       ...payload
     });
     if (data.conflict || data.stockChanged) {
@@ -456,7 +436,7 @@ window.commitSalesInventoryBatchToCloudV125 = commitSalesInventoryBatchToCloudV1
 
 async function commitSalesCorrectionBatchToCloudV110(payload) {
   await flushCloudQueueStrictV83(); const config=getCloudConfig(); setCloudState("syncing");
-  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V28.1 Stable",...payload});
+  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V28.2 Stable",...payload});
     if(data.conflict||data.stockChanged) throw new Error(data.message||"Google Sheet 资料已改变，全部库存差异没有处理。请同步后重试。");
     config.revision=Number(data.revision)||Number(config.revision)||0; config.lastSyncAt=new Date().toISOString(); config.bootstrapToken=String(data.bootstrapToken||config.bootstrapToken||""); config.bootstrapRevision=Number(data.revision)||Number(config.bootstrapRevision)||0; saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced"); return data;
   } catch(error){setCloudState("failed");throw error;}
@@ -470,7 +450,7 @@ async function migrateProductPrefixesV164() {
     action: "migrateProductPrefixesV164", clientVersion: APP_VERSION,
     schemaVersion: CLOUD_SCHEMA_VERSION, baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""), bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V28.1 Stable"
+    updatedBy: "System V28.2 Stable"
   });
   if (data.conflict) throw new Error(data.message || "资料已改变，请同步后重试。");
   config.revision = Number(data.revision) || Number(config.revision) || 0;
@@ -528,19 +508,11 @@ async function runCloudSync() {
       // 不额外增加一次网络请求。
       await pushPendingSnapshot(queue);
     } else {
-      // V28.1: most foreground checks only need one tiny revision response.
-      // Full Products / Imports / Batches are downloaded only when the revision changed.
-      const config = getCloudConfig();
-      const status = await getRemoteRevisionFastV280();
-      if (Number(status.revision) === Number(config.revision || 0)) {
-        config.lastSyncAt = new Date().toISOString();
-        saveCloudConfig(config);
-        renderCloudMeta(config);
-        setCloudState("synced");
-        remoteUpdated = false;
-      } else {
-        remoteUpdated = await pullLatestSnapshot();
-      }
+      // V28.2 speed baseline: follow the proven V22.6 one-request sync path.
+      // The Pull endpoint itself compares knownRevision first and returns a tiny
+      // unchanged response without serializing Products / Imports / Batches.
+      // This avoids the extra status request that made V28.1 feel slower.
+      remoteUpdated = await pullLatestSnapshot();
     }
 
     if (remoteUpdated) {
@@ -586,9 +558,8 @@ async function pullLatestSnapshot(forceBootstrap = false) {
     saveCloudConfig(config);
     renderCloudMeta(config);
     setCloudState("synced");
-    // V28.1: unchanged foreground checks must stay lightweight. The historical
-    // cost repair scans every batch/import/product and is only needed after an
-    // actual full Pull, not on every focus/pageshow event.
+    // V28.2: unchanged Pull responses stay lightweight; do not run historical
+    // full-data repair scans when the cloud revision has not changed.
     return false;
   }
 
@@ -654,7 +625,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V28.1 Stable",
+    updatedBy: "System V28.2 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     minimumPriceManual: Boolean(minimumPriceManual),
@@ -697,7 +668,7 @@ async function updatePromotionSettingsFastV185(promotion) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V28.1 Stable",
+    updatedBy: "System V28.2 Stable",
     promotion: promotion || null
   });
   if (data.conflict) throw new Error(data.message || "云端资料已改变，请同步后重试。");
@@ -723,7 +694,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V28.1 Stable",
+    updatedBy: "System V28.2 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
@@ -843,7 +814,7 @@ function applyRemoteData(data) {
   if (!Array.isArray(data.products) || !Array.isArray(data.imports) || !Array.isArray(data.batches)) {
     throw new Error("云端资料不完整，已停止覆盖本机资料");
   }
-  // V28.1 safety: a transient/abnormal empty Products response must never wipe a
+  // V28.2 safety: a transient/abnormal empty Products response must never wipe a
   // device that already has the real inventory. Keep Local-First data and fail the
   // sync visibly instead of showing 0 inventory as "已同步".
   const localProductsBeforeV275=loadJSON("importSystemProducts",[]);
@@ -875,7 +846,7 @@ function applyRemoteData(data) {
 }
 
 function refreshSystemViewsAfterSync() {
-  // V28.1 mobile performance: redraw only the page the user can currently see.
+  // V28.2 mobile performance: redraw only the page the user can currently see.
   // Hidden pages already render on navigation; repainting all heavy lists after
   // every cloud Pull caused visible freezes on phones.
   const activePage = document.querySelector(".page.active")?.id || "dashboardPage";
