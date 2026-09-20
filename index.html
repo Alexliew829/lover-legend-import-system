@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=29.4" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=29.4" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=29.4" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=29.4" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=29.4" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=29.4" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=29.4" />
+  <link rel="manifest" href="./manifest.json?v=29.5" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=29.5" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=29.5" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=29.5" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=29.5" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=29.5" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=29.5" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=29.4" />
-  <link rel="stylesheet" href="./css/style.css?v=29.4" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=29.5" />
+  <link rel="stylesheet" href="./css/style.css?v=29.5" />
 </head>
 <body>
   <div id="accessLock"
@@ -84,7 +84,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 29.4 Stable</div>
+          <div class="app-header-version">正式版 29.5 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -365,13 +365,6 @@
       autocomplete="off"
     />
 
-    <input
-      id="batchProductStockSearch"
-      class="search-input text-left-input batch-product-search"
-      type="text"
-      placeholder="输入产品或原成本可查询"
-      autocomplete="off"
-    />
   </div>
 
   <button
@@ -384,8 +377,6 @@
   <span class="muted" id="batchListCount">0 批</span>
 </div>
 
-          <div id="batchProductStockResults" class="product-stock-search-results" hidden></div>
-          <div id="batchProductStockStatus" class="status-text"></div>
 
           <div id="recentBatchResultsArea">
             <div id="batchList" class="import-list">
@@ -395,6 +386,27 @@
         </section>
       </section>
 
+
+      <section id="productManagementPage" class="page">
+        <h2>Product Management / 产品管理</h2>
+        <section class="panel product-management-panel-v295">
+          <div class="section-title-row">
+            <div>
+              <h3>产品查询与修改</h3>
+              <p class="settings-help">保留原本“输入产品或原成本可查询”的完整查询、原成本搜索与长按修改逻辑。</p>
+            </div>
+          </div>
+          <input
+            id="batchProductStockSearch"
+            class="search-input text-left-input batch-product-search product-management-search-v295"
+            type="text"
+            placeholder="输入产品或原成本可查询"
+            autocomplete="off"
+          />
+          <div id="batchProductStockResults" class="product-stock-search-results" hidden></div>
+          <div id="batchProductStockStatus" class="status-text"></div>
+        </section>
+      </section>
 
       <section id="historyPage" class="page">
         <h2>History Search / 历史查询</h2>
@@ -531,14 +543,22 @@
 
         <details class="panel collapsible-settings-v181 promotion-settings-v183">
           <summary><span class="promotion-summary-title-v192"><span>促销最低售价管理</span><small id="promotionSummaryStatusV183"></small></span><small id="promotionToggleHintV192" class="promotion-toggle-hint-v192">点击打开</small></summary>
-          <p class="settings-help">促销开启后，所有未排除产品会临时使用促销最低售价；原最低售价不会被修改。删除促销后立即恢复原价。</p>
+          <p class="settings-help">目标净利率默认 10%，代表净利 10%。可选择“全部产品参加”或“仅指定产品参加”；手动设置过原最低售价的产品始终保留手动售价，不会被促销覆盖。</p>
+          <div class="promotion-mode-row-v295">
+            <label>促销模式
+              <select id="promotionModeV295">
+                <option value="all">全部产品参加促销</option>
+                <option value="selected">仅指定产品参加促销</option>
+              </select>
+            </label>
+          </div>
           <div class="form-grid promotion-main-grid-v183">
             <label>促销名称<input id="promotionNameV183" maxlength="30" value="年尾清货" /></label>
             <label>主播佣金（%）<input id="promotionCommissionV183" inputmode="decimal" value="10" /></label>
             <label>目标净利率（%）<input id="promotionMarginV183" type="text" inputmode="text" pattern="-?[0-9]*([.][0-9]+)?" autocomplete="off" value="10" /></label>
           </div>
-          <h4>排除产品</h4>
-          <p class="settings-help">搜索并选择产品编号，不需要输入数量。被排除的产品继续使用原本最低售价；数量不限。</p>
+          <h4 id="promotionScopeTitleV295">排除促销产品</h4>
+          <p class="settings-help"><span id="promotionScopeHelpV295">搜索并选择不参加促销的产品。被排除产品继续使用原本最低售价。</span></p>
           <div class="promotion-search-box-v186">
             <div class="promotion-search-tools-v184">
               <input id="promotionExcludeSearchV183" type="search" autocomplete="off" placeholder="搜索产品编号、名称、进口编号或原成本" />
@@ -568,6 +588,15 @@
             </div>
             <div id="promotionExcludedListV183" class="promotion-excluded-list-v183"></div>
           </div>
+          <div id="promotionSelectedPanelV295" class="promotion-selected-panel-v295" hidden>
+            <div class="promotion-search-tools-v184">
+              <input id="promotionSelectedSearchV295" type="search" autocomplete="off" placeholder="搜索中文 / 英文 / 产品编号 / 进口编号 / 原成本" />
+              <button id="promotionSelectedAddVisibleV295" class="secondary-btn" type="button">加入当前勾选</button>
+            </div>
+            <div id="promotionSelectedSearchResultsV295" class="promotion-search-results-v183"></div>
+            <div class="promotion-selected-head-v295"><strong>已选择参加促销</strong><span id="promotionSelectedCountV295">0 项</span></div>
+            <div id="promotionSelectedListV295" class="promotion-excluded-list-v183"></div>
+          </div>
           <div id="promotionUnsavedV186" class="promotion-unsaved-v186" hidden></div>
           <div class="promotion-actions-v183">
             <button id="savePromotionV183" class="primary-btn" type="button">保存并开启促销</button>
@@ -596,18 +625,17 @@
 
         <details class="panel collapsible-settings-v181 product-prefix-settings-v181">
           <summary><span>产品编号前缀管理</span><small>只影响以后新增产品</small></summary>
-          <p class="settings-help">
-            所有已保存规则永久只读，不能修改关键词、前缀或删除。这里只能新增未使用过的产品名称关键词；保存后只影响以后新增的产品，不修改现有编号、进口、历史、库存或成本。
-          </p>
-          <div class="product-prefix-locked-head-v181"><span>产品名称关键词</span><span>编号前缀</span></div>
+          <p class="settings-help">中文关键词与英文 Alias 都可以匹配产品名称；英文大小写不敏感。修改或删除按整组处理，只影响以后新增产品，不修改现有编号、进口、历史、库存或成本。</p>
+          <div class="product-prefix-locked-head-v181 product-prefix-head-v295"><span>中文关键词</span><span>英文关键词 / Alias</span><span>现有产品前缀</span><span></span></div>
           <div id="productPrefixRulesList" class="product-prefix-locked-list-v181"></div>
-          <div class="product-prefix-add-v181">
-            <label>新产品名称关键词<input id="newProductPrefixKeyword" maxlength="20" autocomplete="off" placeholder="例如：榕树" /></label>
-            <label>新编号前缀<input id="newProductPrefixCode" maxlength="2" autocomplete="off" autocapitalize="characters" placeholder="例如：RS" /></label>
+          <div class="product-prefix-add-v181 product-prefix-add-v295">
+            <label>中文关键词<input id="newProductPrefixKeyword" maxlength="30" autocomplete="off" placeholder="例如：榕树" /></label>
+            <label>英文关键词 / Alias<input id="newProductPrefixEnglishV295" maxlength="100" autocomplete="off" placeholder="例如：Ficus / Banyan" /></label>
+            <label>编号前缀<input id="newProductPrefixCode" maxlength="2" autocomplete="off" autocapitalize="characters" placeholder="例如：RS" /></label>
           </div>
           <button id="addProductPrefixRuleBtn" class="primary-btn" type="button">新增并锁定产品前缀</button>
           <div id="productPrefixRulesStatus" class="status-text"></div>
-          <p class="settings-help">花盆固定使用 PS；无法识别的盆栽使用 PZ。不同产品允许使用相同前缀，但产品名称关键词不能重复。</p>
+          <p class="settings-help">无法识别但明确为盆栽的产品使用 PZ；“盆栽 / Bonsai”本身也匹配 PZ。中文与英文 Alias 不能重复。</p>
         </details>
 
         <section class="panel">
@@ -821,7 +849,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 29.4 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 29.5 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
@@ -844,6 +872,9 @@
       <a class="nav-btn" data-page="importPage" href="./?page=import">
         <span>📦</span><small>产品/进口<br>查询/新增</small>
       </a>
+      <a class="nav-btn" data-page="productManagementPage" href="./?page=products">
+        <span>🏷️</span><small>产品管理</small>
+      </a>
       <a class="nav-btn" data-page="historyPage" href="./?page=history">
         <span>📜</span><small>历史查询</small>
       </a>
@@ -853,8 +884,8 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=29.4"></script>
-  <script src="./js/sync.js?v=29.4"></script>
-  <script src="./js/app.js?v=29.4"></script>
+  <script src="./js/common.js?v=29.5"></script>
+  <script src="./js/sync.js?v=29.5"></script>
+  <script src="./js/app.js?v=29.5"></script>
 </body>
 </html>
