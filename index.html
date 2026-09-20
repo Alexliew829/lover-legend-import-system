@@ -5,18 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=29.9" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=29.9" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=29.9" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=29.9" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=29.9" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=29.9" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=29.9" />
+  <link rel="manifest" href="./manifest.json?v=30.0" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=30.0" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=30.0" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=30.0" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=30.0" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=30.0" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=30.0" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=29.9" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=30.0" />
   <style id="access-lock-critical-v299">
     html,body{margin:0;min-height:100%;font-family:Arial,Helvetica,sans-serif}
     .access-lock{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(242,248,244,.96)}
@@ -26,7 +26,12 @@
     .access-lock-card form{display:grid;gap:10px}.access-lock-card input,.access-lock-card button{box-sizing:border-box;width:100%;min-height:46px;border-radius:11px;font-size:17px}
     .access-lock-card input{border:1px solid #1f5d3a;padding:0 14px;text-align:center}.access-lock-card .primary-btn{border:0;background:#1f6b40;color:#fff;font-weight:700}
   </style>
-  <link rel="stylesheet" href="./css/style.css?v=29.9" />
+  <link rel="preload" href="./css/style.css?v=30.0" as="style" />
+  <link rel="stylesheet" href="./css/style.css?v=30.0" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="./css/style.css?v=30.0" /></noscript>
+  <script defer src="./js/common.js?v=30.0"></script>
+  <script defer src="./js/sync.js?v=30.0"></script>
+  <script defer src="./js/app.js?v=30.0"></script>
 </head>
 <body>
   <div id="accessLock"
@@ -82,6 +87,13 @@
            class="status-text access-lock-status"></div>
     </div>
   </div>
+  <script id="access-lock-fast-prefill-v300">
+    try {
+      const saved = localStorage.getItem("loverLegendDesktopSavedPassword");
+      const input = document.getElementById("accessPasswordInput");
+      if (saved && input) input.value = saved;
+    } catch (_) {}
+  </script>
   <div class="app-shell">
     <header class="app-header-wrap">
       <div class="app-header-card">
@@ -93,7 +105,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 29.9 Stable</div>
+          <div class="app-header-version">正式版 30.0 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -859,7 +871,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 29.9 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 30.0 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
@@ -894,8 +906,5 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=29.9"></script>
-  <script src="./js/sync.js?v=29.9"></script>
-  <script src="./js/app.js?v=29.9"></script>
 </body>
 </html>
