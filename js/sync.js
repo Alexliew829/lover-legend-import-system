@@ -62,15 +62,7 @@ function saveCloudQueue(queue) {
 
 function isCloudBootstrapComplete() {
   const saved = loadJSON(CLOUD_BOOTSTRAP_KEY, {});
-  // V29.3: bootstrap validity belongs to the cloud schema, not the visible
-  // UI version.  The old APP_VERSION check forced a full Products/Imports/
-  // Batches download after every release (29.0 -> 29.1 -> 29.3), even when
-  // the same browser already held a verified canonical snapshot.
-  return Boolean(
-    saved &&
-    saved.completed === true &&
-    saved.schemaVersion === CLOUD_SCHEMA_VERSION
-  );
+  return saved && saved.version === APP_VERSION && saved.schemaVersion === CLOUD_SCHEMA_VERSION && saved.completed === true;
 }
 
 function clearLegacyPendingCloudState() {
@@ -343,7 +335,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V29.3 Stable",
+      updatedBy: "System V29.4 Stable",
       ...payload
     });
 
@@ -378,7 +370,7 @@ async function commitSalesInventoryBatchToCloudV125(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V29.3 Stable",
+      updatedBy: "System V29.4 Stable",
       ...payload
     });
     if (data.conflict || data.stockChanged) {
@@ -401,7 +393,7 @@ window.commitSalesInventoryBatchToCloudV125 = commitSalesInventoryBatchToCloudV1
 
 async function commitSalesCorrectionBatchToCloudV110(payload) {
   await flushCloudQueueStrictV83(); const config=getCloudConfig(); setCloudState("syncing");
-  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V29.3 Stable",...payload});
+  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V29.4 Stable",...payload});
     if(data.conflict||data.stockChanged) throw new Error(data.message||"Google Sheet 资料已改变，全部库存差异没有处理。请同步后重试。");
     config.revision=Number(data.revision)||Number(config.revision)||0; config.lastSyncAt=new Date().toISOString(); config.bootstrapToken=String(data.bootstrapToken||config.bootstrapToken||""); config.bootstrapRevision=Number(data.revision)||Number(config.bootstrapRevision)||0; saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced"); return data;
   } catch(error){setCloudState("failed");throw error;}
@@ -415,7 +407,7 @@ async function migrateProductPrefixesV164() {
     action: "migrateProductPrefixesV164", clientVersion: APP_VERSION,
     schemaVersion: CLOUD_SCHEMA_VERSION, baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""), bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V29.3 Stable"
+    updatedBy: "System V29.4 Stable"
   });
   if (data.conflict) throw new Error(data.message || "资料已改变，请同步后重试。");
   config.revision = Number(data.revision) || Number(config.revision) || 0;
@@ -463,24 +455,7 @@ async function runCloudSync() {
 
     if (!isCloudBootstrapComplete()) {
       clearLegacyPendingCloudState();
-      const config = getCloudConfig();
-      const canVerifyExistingSnapshotV293 =
-        localHasCoreData &&
-        Number(config.revision) > 0;
-
-      if (canVerifyExistingSnapshotV293) {
-        // V29.3: first verify the already-downloaded snapshot by revision.
-        // If cloud changed, pullLatestSnapshot() automatically receives the
-        // complete snapshot. If unchanged, this is only one lightweight request.
-        remoteUpdated = await pullLatestSnapshot(false);
-        saveCloudBootstrap({
-          revision: Number(getCloudConfig().revision) || 0,
-          bootstrapToken: String(getCloudConfig().bootstrapToken || "")
-        });
-      } else {
-        // A genuinely new/empty device still performs the original safe full Pull.
-        remoteUpdated = await pullLatestSnapshot(true);
-      }
+      remoteUpdated = await pullLatestSnapshot(true);
     } else if (queue.dirty && !localHasCoreData) {
       saveCloudQueue({
         dirty: false,
@@ -612,7 +587,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V29.3 Stable",
+    updatedBy: "System V29.4 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     minimumPriceManual: Boolean(minimumPriceManual),
@@ -655,7 +630,7 @@ async function updatePromotionSettingsFastV185(promotion) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V29.3 Stable",
+    updatedBy: "System V29.4 Stable",
     promotion: promotion || null
   });
   if (data.conflict) throw new Error(data.message || "云端资料已改变，请同步后重试。");
@@ -681,7 +656,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V29.3 Stable",
+    updatedBy: "System V29.4 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
@@ -786,44 +761,22 @@ function applyRemoteData(data) {
   refreshSystemViewsAfterSync();
 }
 
-let cloudPostSyncRefreshTimerV292 = null;
 function refreshSystemViewsAfterSync() {
-  // V29.3 performance fix: the Google Pull is already complete at this point.
-  // Do not keep the yellow “同步中” state waiting for heavy list rendering.
-  // Refresh only the cheap, visible summary synchronously, then render the
-  // active page after the current task yields back to the browser.
-  ["renderDashboard", "refreshPromotionUiV183", "updatePasswordHintDisplays"].forEach(name => {
+  [
+    "renderDashboard",
+    "renderProductList",
+    "renderBatchSuggestions",
+    "renderBatchList",
+    "renderInventoryManagementList",
+    "refreshPromotionUiV183",
+    "updatePasswordHintDisplays"
+  ].forEach(name => {
     try {
       if (typeof window[name] === "function") window[name]();
     } catch (error) {
       console.warn(`${name} refresh skipped:`, error);
     }
   });
-
-  window.clearTimeout(cloudPostSyncRefreshTimerV292);
-  cloudPostSyncRefreshTimerV292 = window.setTimeout(() => {
-    const activePage = document.querySelector(".page.active")?.id || "dashboardPage";
-    const run = name => {
-      try {
-        if (typeof window[name] === "function") window[name]();
-      } catch (error) {
-        console.warn(`${name} deferred refresh skipped:`, error);
-      }
-    };
-
-    if (activePage === "dashboardPage") {
-      run("renderInventoryManagementList");
-      return;
-    }
-    if (activePage === "importPage") {
-      run("renderProductList");
-      run("renderBatchSuggestions");
-      run("renderBatchList");
-      return;
-    }
-    // Product Management, History and Settings are demand-rendered by their
-    // existing page handlers. Avoid rebuilding hidden lists after every Pull.
-  }, 0);
 }
 
 function renderCloudMeta(config = getCloudConfig()) {
@@ -879,6 +832,3 @@ function setCloudState(state, error = null) {
     if (text) text.textContent = "同步中...";
   }
 }
-
-// V29.3 UI compatibility alias only; canonical sync algorithm remains V22.6.
-window.flushCloudQueueStrictV228 = flushCloudQueueStrictV83;
