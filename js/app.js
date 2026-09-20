@@ -2444,7 +2444,7 @@ function repairLegacyImportDates() {
         const year = Number(validMatch[3]);
 
         // Previous versions could wrongly store 2026 as 2726.
-        if (year >= 2710 && year <= 2799) {
+        if (year >= 2700 && year <= 2799) {
           const corrected =
             `${validMatch[1]}-${validMatch[2]}-20${validMatch[3].slice(-2)}`;
 
@@ -2589,11 +2589,10 @@ function setupNavigation() {
         window.alert("照片／视频正在上传并确认云端状态，请等待显示上传成功或失败后再切换页面。");
         return;
       }
-      if(target!==current&&typeof window.confirmLeaveUnsavedRecognitionV278==="function"&&!window.confirmLeaveUnsavedRecognitionV278("切换页面"))return;
       if(target!==current&&!confirmLeaveOriginalCostEditV219())return;
       if(target!==current&&current==="importPage"&&!confirmDiscardImportDraftChangesV243("切换页面"))return;
       if(target!==current&&promotionDeleteInProgressV184&&!window.confirm("促销删除仍在同步中。\n\n现在切换页面可能无法立即确认云端删除结果，建议等待显示删除完成。\n\n仍要切换页面吗？"))return;
-      if(target!==current&&current==="supplierPage"){const d=document.getElementById("supplierDirectoryPanelV265");if(d)d.open=false;const a=document.getElementById("inventoryMasterPanelV264");const qa=String(document.getElementById("inventoryMasterSearchV261")?.value||"").trim();if(a&&!qa)a.open=false;}
+      if(target!==current&&current==="supplierPage"){const d=document.getElementById("supplierDirectoryPanelV265");if(d)d.open=false;const a=document.getElementById("inventoryMasterPanelV264"),b=document.getElementById("virtualWarehousePanelV240");const qa=String(document.getElementById("inventoryMasterSearchV261")?.value||"").trim(),qb=String(document.getElementById("virtualWarehouseSearchV240")?.value||"").trim();if(a&&!qa)a.open=false;if(b&&!qb)b.open=false;}
       if(target!==current&&current==="settingsPage"){
         if(!confirmDiscardStaleZeroStockSelectionV227())return;
         if(!confirmLeaveSettingsV160())return;
@@ -2998,7 +2997,11 @@ function normalizeSupplierPrefixV241(value) {
 function supplierNameKeyV241(value) {
   return normalizeSupplierFullNameV241(value).toLocaleLowerCase();
 }
-function isSupplierPrefixUsedV241(prefix) { return false; }
+function isSupplierPrefixUsedV241(prefix) {
+  const wanted = normalizeSupplierPrefixV241(prefix);
+  if (!wanted) return false;
+  return getVirtualWarehouseSourceV240().some(item => normalizeSupplierPrefixV241(item?.supplierPrefix) === wanted);
+}
 function getSupplierPrefixRulesV241() {
   const settings = loadJSON("importSystemSettings", {});
   const source = Array.isArray(settings.supplierPrefixRulesV241) && settings.supplierPrefixRulesV241.length
@@ -3024,7 +3027,7 @@ function renderSupplierPrefixRulesV241() {
       <button type="button" class="supplier-copy-v241" data-supplier-copy-v241="${escapeHTML(rule.fullName)}" title="点击复制供应商名称">${escapeHTML(rule.fullName)}</button>
       <button type="button" class="supplier-copy-v241 supplier-prefix-code-v241" data-supplier-copy-v241="${escapeHTML(rule.prefix)}" title="点击复制前缀">${escapeHTML(rule.prefix)}</button>
       ${rule.locked
-        ? `<em>已使用 · 已锁定</em>`
+        ? `<em>虚拟仓库已使用 · 已锁定</em>`
         : `<div class="rule-actions-v231"><button type="button" class="secondary-btn" data-supplier-edit-v241="${escapeHTML(rule.prefix)}">修改</button><button type="button" class="danger-btn rule-delete-v231" data-supplier-delete-v241="${escapeHTML(rule.prefix)}">删除</button></div>`}
     </div>`).join("");
 }
@@ -3053,7 +3056,7 @@ function setupSupplierPrefixSettingsV241() {
       editingSupplierPrefixV241 = prefix;
       fullNameInput.value = rule.fullName; prefixInput.value = rule.prefix;
       addButton.textContent = "保存供应商 修改";
-      if (status) status.textContent = "尚未被真实资料锁定，可以修改。";
+      if (status) status.textContent = "尚未被虚拟仓库使用，可以修改。";
       fullNameInput.focus(); return;
     }
     const del = event.target.closest("[data-supplier-delete-v241]");
@@ -3079,7 +3082,7 @@ function setupSupplierPrefixSettingsV241() {
     const editing = normalizeSupplierPrefixV241(editingSupplierPrefixV241);
     const current = getSupplierPrefixRulesV241();
     const oldRule = editing ? current.find(item => item.prefix === editing) : null;
-    if (oldRule?.locked) { if (status) status.textContent = "这个供应商前缀已被使用，不能修改。"; resetEditor(); renderSupplierPrefixRulesV241(); return; }
+    if (oldRule?.locked) { if (status) status.textContent = "这个供应商前缀已被虚拟仓库使用，不能修改。"; resetEditor(); renderSupplierPrefixRulesV241(); return; }
     const nameKey = supplierNameKeyV241(fullName);
     const duplicateName = current.find(item => supplierNameKeyV241(item.fullName) === nameKey && item.prefix !== editing);
     if (duplicateName) { if (status) status.textContent = `供应商名称已存在：${duplicateName.fullName} → ${duplicateName.prefix}`; return; }
@@ -3097,6 +3100,147 @@ function setupSupplierPrefixSettingsV241() {
     resetEditor(); renderSupplierPrefixRulesV241();
     if (status) status.textContent = `${verb}成功：${fullName} → ${prefix}`;
   });
+}
+
+// ================= V24.6 Virtual Warehouse / Product Reference Library =================
+function normalizeVirtualWarehouseNameV240(value) {
+  return String(value || "").trim().normalize("NFKC").toLocaleLowerCase();
+}
+
+function getVirtualWarehouseSourceV240() {
+  return Array.isArray(window.LL_VIRTUAL_WAREHOUSE_V240)
+    ? window.LL_VIRTUAL_WAREHOUSE_V240
+    : [];
+}
+
+function getVirtualWarehouseAvailableV240() {
+  const realNames = new Set(getOperationalProductsV256().map(product => normalizeVirtualWarehouseNameV240(product?.name)));
+  return getVirtualWarehouseSourceV240()
+    .map((item, index) => ({ ...item, _virtualIndexV240: index }))
+    .filter(item => item?.name && !realNames.has(normalizeVirtualWarehouseNameV240(item.name)));
+}
+
+function virtualWarehouseMatchesV240(item, queryValue) {
+  const query = String(queryValue || "").trim();
+  if (!query) return true;
+  const numericText = query.normalize("NFKC").replace(/[,，\s]/g, "");
+  if (/^\d+(?:\.\d+)?$/.test(numericText)) {
+    const wanted = Number(numericText);
+    const cost = Number(item?.cost);
+    return Number.isFinite(cost) && Math.abs(cost - wanted) < 0.000001;
+  }
+  const target = [item?.name,item?.description].filter(value => value !== undefined && value !== null).join(" ");
+  return smartSearchMatches(target, query) || sequentialSearchMatches(target, query);
+}
+
+function refreshVirtualWarehouseCountV240() {
+  const source = getVirtualWarehouseSourceV240();
+  const available = getVirtualWarehouseAvailableV240();
+  const converted = Math.max(0, source.length - available.length);
+  const count = document.getElementById("virtualWarehouseCountV240");
+  if (count) count.textContent = `可参考 ${available.length} · 已转正式 ${converted}`;
+}
+
+async function copyVirtualWarehouseTextV241(button) {
+  const text = String(button?.dataset?.virtualWarehouseCopyV241 || button?.dataset?.virtualWarehouseNameV240 || button?.textContent || "").trim();
+  if (!text) return;
+  try { await navigator.clipboard.writeText(text); }
+  catch (_) {
+    const area = document.createElement("textarea"); area.value = text; area.style.position = "fixed"; area.style.opacity = "0";
+    document.body.appendChild(area); area.select(); document.execCommand("copy"); area.remove();
+  }
+  const original = button.textContent; button.textContent = "已复制";
+  window.setTimeout(() => { if (button.isConnected) button.textContent = original; }, 900);
+}
+window.copyVirtualWarehouseTextV241 = copyVirtualWarehouseTextV241;
+window.copyVirtualWarehouseNameV240 = copyVirtualWarehouseTextV241;
+
+function renderVirtualWarehouseV240() {
+  refreshVirtualWarehouseCountV240();
+  const panel=document.getElementById("virtualWarehousePanelV240"),list=document.getElementById("virtualWarehouseListV240");if(!list||(panel&&!panel.open))return;
+  const keyword=String(document.getElementById("virtualWarehouseSearchV240")?.value||"").trim(),available=getVirtualWarehouseAvailableV240(),filtered=available.filter(item=>virtualWarehouseMatchesV240(item,keyword));
+  if(!filtered.length){list.innerHTML='<div class="empty-state">暂无符合的虚拟仓库产品</div>';return;}
+  list.innerHTML=filtered.map(item=>`<div class="virtual-warehouse-row-v240"><button type="button" class="virtual-warehouse-name-v240" data-virtual-warehouse-copy-v241="${escapeHTML(item.name)}" onclick="copyVirtualWarehouseTextV241(this)" title="点击复制产品名">${escapeHTML(item.name)}</button><button type="button" class="virtual-warehouse-description-v240 virtual-warehouse-copy-v241" data-virtual-warehouse-copy-v241="${escapeHTML(item.description||"")}" onclick="copyVirtualWarehouseTextV241(this)" title="点击复制 Description">${escapeHTML(item.description||"-")}</button><strong class="virtual-cost-v264">${Number.isFinite(Number(item.cost))?formatMoney(Number(item.cost)):"-"}</strong></div>`).join("");
+}
+
+function setupVirtualWarehouseV240() {
+  const panel = document.getElementById("virtualWarehousePanelV240");
+  const search = document.getElementById("virtualWarehouseSearchV240");
+  if (!panel) return;
+  refreshVirtualWarehouseCountV240();
+  panel.addEventListener("toggle", () => { if (panel.open) renderVirtualWarehouseV240(); });
+  search?.addEventListener("input", renderVirtualWarehouseV240);
+}
+
+function prepareVirtualWarehouseSettingsLeaveV241() {
+  const panel = document.getElementById("virtualWarehousePanelV240");
+  const search = document.getElementById("virtualWarehouseSearchV240");
+  if (!panel) return;
+  // Blank search = leave Settings in a clean/collapsed state. Any text, even one
+  // character such as “S”, keeps the user's reference work open and preserved.
+  panel.open = Boolean(String(search?.value || "").trim());
+}
+
+function resolveVirtualWarehouseCategoryV240(item) {
+  const sourceCategory = normalizeProductCategoryNameV227(item?.category || "杂花杂木");
+  if (isPrimaryProductCategoryV255(sourceCategory)) return sourceCategory;
+  const prefix = normalizeCategoryPrefixV228(item?.productPrefix || "");
+  const primaryByPrefix = getProductCategoryRulesV228().find(rule =>
+    rule?.mode === "category" && isPrimaryProductCategoryV255(rule.name) && normalizeCategoryPrefixV228(rule?.prefix) === prefix
+  );
+  if (primaryByPrefix) return primaryByPrefix.name;
+  // Fine prefixes such as MO / FI / SS / CL belong under 杂花杂木.
+  return "杂花杂木";
+}
+
+function virtualWarehouseSearchSuggestionsV240(queryValue) {
+  const value = String(queryValue || "").trim();
+  if (!value) return [];
+  const fuzzyReady = isProductFuzzySearchReadyV238(value);
+  const prefixReady = /^[a-z]{2}$/i.test(value);
+  const numericReady = /^\d+(?:\.\d+)?$/.test(value);
+  if (!fuzzyReady && !prefixReady && !numericReady) return [];
+  return getVirtualWarehouseAvailableV240()
+    .filter(item => virtualWarehouseMatchesV240(item, value))
+    .slice(0, 40);
+}
+
+function getVirtualWarehouseByIndexV240(indexValue) {
+  const index = Number(indexValue);
+  if (!Number.isInteger(index) || index < 0) return null;
+  return getVirtualWarehouseSourceV240()[index] || null;
+}
+
+function applyVirtualWarehouseSelectionV240(rowId, indexValue) {
+  const item = getVirtualWarehouseByIndexV240(indexValue);
+  if (!item) return false;
+  const tr = document.querySelector(`#batchRows tr[data-row-id="${rowId}"]`);
+  const nameInput = document.getElementById(`batchName-${rowId}`);
+  const productIdField = document.getElementById(`batchProductId-${rowId}`);
+  const categoryField = document.getElementById(`batchCategory-${rowId}`);
+  const priceField = document.getElementById(`batchPrice-${rowId}`);
+  if (!tr || !nameInput || !productIdField || !categoryField || !priceField) return false;
+
+  nameInput.value = Array.from(String(item.name || "").trim()).slice(0, 15).join("");
+  productIdField.value = "";
+  categoryField.value = resolveVirtualWarehouseCategoryV240(item);
+  const normalizedName = nameInput.value.trim().toLowerCase();
+  tr.dataset.categoryManualForName = normalizedName;
+  tr.dataset.virtualWarehouseNameV240 = normalizedName;
+  tr.dataset.virtualWarehousePrefixV240 = normalizeCategoryPrefixV228(item.productPrefix || "");
+  tr.dataset.virtualWarehouseIndexV240 = String(indexValue);
+  tr.dataset.virtualWarehouseCategoryV240 = categoryField.value;
+  if (Number.isFinite(Number(item.cost)) && Number(item.cost) > 0) {
+    // V26.6: virtual-warehouse reference costs are MYR supplier costs. Seed them
+    // through the same auto-original-cost path so foreign batches convert them.
+    setAutoOriginalCostV249(rowId, { unitPrice: Number(item.cost), currency: "MYR" }, { force: true });
+  }
+  // The reference workbook contains local nursery supplier costs, so a virtual
+  // warehouse pick defaults this new import to MYR. The batch-wide one-currency
+  // safety check remains unchanged and can block conflicts with other rows.
+  maybeApplySuggestedBatchCurrencyV231(rowId, "MYR", item.name || "虚拟仓库产品");
+  calculateBatch();
+  return true;
 }
 
 const COST_REPAIR_SESSION_MS_V206 = 30 * 60 * 1000;
@@ -3529,10 +3673,6 @@ function renderDashboard() {
   document.getElementById("inventoryValue").textContent = formatMoney(inventoryValue, "RM ");
   const batches = getBatches();
   const latestBatchImportDate = batches
-    .filter(batch => getBatchItemsForDisplay(batch).some(item => {
-      const p = products.find(x => String(x?.id || "") === String(item?.productId || ""));
-      return true;
-    }))
     .map(batch => normalizeDateToDDMMYYYY(batch.arrivalDate))
     .filter(value => parseDDMMYYYY(value) > 0)
     .sort((a, b) => parseDDMMYYYY(b) - parseDDMMYYYY(a))[0];
@@ -4224,8 +4364,6 @@ function getPromotionSettingsV183() {
       .map(id => String(id || "").trim().toUpperCase()).filter(Boolean))),
     priceOverrides: Object.fromEntries(Object.entries(raw.priceOverrides && typeof raw.priceOverrides === "object" ? raw.priceOverrides : {})
       .map(([id, price]) => [String(id || "").trim().toUpperCase(), Math.max(0, Number(price) || 0)]).filter(([id, price]) => id && price > 0)),
-    customMarginRates: Object.fromEntries(Object.entries(raw.customMarginRates && typeof raw.customMarginRates === "object" ? raw.customMarginRates : {})
-      .map(([id, rate]) => [String(id || "").trim().toUpperCase(), Number(rate)]).filter(([id, rate]) => id && Number.isFinite(rate) && rate > -100 && rate < 100)),
     createdAt: String(raw.createdAt || ""),
     updatedAt: String(raw.updatedAt || "")
   };
@@ -4244,37 +4382,17 @@ function getPromotionDeliveryV183(product, rules) {
   return getMinimumFreightTierV188(originalPrice, rules);
 }
 
-function getPromotionDefaultProductMarginV278(product, rules = null) {
-  const configuredRules = rules || getMinimumPriceRulesV160();
-  const averageCostValue = Math.max(0, Number(product?.averageCost) || 0);
-  return averageCostValue <= 300 ? Number(configuredRules.margin0To300) || 0
-    : averageCostValue <= 500 ? Number(configuredRules.margin300To500) || 0
-      : averageCostValue < 800 ? Number(configuredRules.margin500To800) || 0
-        : averageCostValue < 5000 ? Number(configuredRules.margin800To5000) || 0
-          : averageCostValue < 8000 ? Number(configuredRules.margin5000To8000) || 0
-            : Number(configuredRules.margin8000Plus) || 0;
-}
-
-function getPromotionProductMarginV278(product, promotion = null, rules = null) {
-  const active = promotion || getPromotionSettingsV183();
-  if (!active) return 0;
-  const id = String(product?.id || "").trim().toUpperCase();
-  const custom = Number(active.customMarginRates?.[id]);
-  return Number.isFinite(custom) ? custom : Number(active.targetMarginRate) || 0;
-}
-
 function getPromotionPriceBreakdownV183(product, promotion = null, rules = null, originIndex = null) {
   const active = promotion || getPromotionSettingsV183();
   const configuredRules = rules || getMinimumPriceRulesV160();
   const cost = getPromotionCostV183(product, configuredRules, originIndex);
-  if (!active || cost <= 0) return { price:0, cost, delivery:0, tier:"A", profit:0, profitRate:0, targetMarginRate:0 };
-  const targetMarginRate = getPromotionProductMarginV278(product, active, configuredRules);
-  const denominator = 1 - active.commissionRate / 100 - targetMarginRate / 100;
+  if (!active || cost <= 0) return { price:0, cost, delivery:0, tier:"A", profit:0, profitRate:0 };
+  const denominator = 1 - active.commissionRate / 100 - active.targetMarginRate / 100;
   if (denominator <= 0) return { price:0, cost, delivery:0, tier:"A", profit:0, profitRate:0 };
   const freightTier = getPromotionDeliveryV183(product, configuredRules);
   const price = Math.ceil((((cost + freightTier.amount) / denominator) - 1e-9) / 10) * 10;
   const profit = price * (1 - active.commissionRate / 100) - cost - freightTier.amount;
-  return { price, cost, delivery:freightTier.amount, tier:freightTier.code, profit, profitRate:price > 0 ? profit / price * 100 : 0, targetMarginRate };
+  return { price, cost, delivery:freightTier.amount, tier:freightTier.code, profit, profitRate:price > 0 ? profit / price * 100 : 0 };
 }
 
 function getEffectiveProductMinimumPriceV183(product, promotion = null, rules = null, originIndex = null) {
@@ -4288,7 +4406,6 @@ function getEffectiveProductMinimumPriceV183(product, promotion = null, rules = 
 
 let promotionExcludedDraftV183 = new Set();
 let promotionPriceOverridesDraftV193 = {};
-let promotionMarginOverridesDraftV278 = {};
 let promotionSearchSelectionV184 = new Set();
 let promotionExcludedSelectionV184 = new Set();
 let promotionDeleteInProgressV184 = false;
@@ -4315,8 +4432,7 @@ function getPromotionDraftV183() {
     commissionRate: parsePromotionPercentV211(document.getElementById("promotionCommissionV183")?.value),
     targetMarginRate: parsePromotionPercentV211(document.getElementById("promotionMarginV183")?.value),
     excludedProductIds: Array.from(promotionExcludedDraftV183),
-    priceOverrides: { ...promotionPriceOverridesDraftV193 },
-    customMarginRates: { ...promotionMarginOverridesDraftV278 }
+    priceOverrides: { ...promotionPriceOverridesDraftV193 }
   };
 }
 
@@ -4330,8 +4446,7 @@ function hasPromotionDraftChangesV183() {
     Math.abs(draft.commissionRate - expected.commissionRate) >= 0.005 ||
     Math.abs(draft.targetMarginRate - expected.targetMarginRate) >= 0.005 ||
     JSON.stringify([...draft.excludedProductIds].sort()) !== JSON.stringify([...(expected.excludedProductIds || [])].sort()) ||
-    JSON.stringify(draft.priceOverrides || {}) !== JSON.stringify(expected.priceOverrides || {}) ||
-    JSON.stringify(draft.customMarginRates || {}) !== JSON.stringify(expected.customMarginRates || {});
+    JSON.stringify(draft.priceOverrides || {}) !== JSON.stringify(expected.priceOverrides || {});
 }
 
 function resetPromotionDraftV183() {
@@ -4345,7 +4460,6 @@ function resetPromotionDraftV183() {
   if (marginInput) marginInput.value = String(active?.targetMarginRate ?? 10);
   promotionExcludedDraftV183 = new Set(active?.excludedProductIds || []);
   promotionPriceOverridesDraftV193 = { ...(active?.priceOverrides || {}) };
-  promotionMarginOverridesDraftV278 = { ...(active?.customMarginRates || {}) };
   promotionSearchSelectionV184 = new Set();
   promotionExcludedSelectionV184 = new Set();
   renderPromotionExcludedListV183();
@@ -4366,18 +4480,10 @@ function promotionProductMatchesV183(product, query) {
 function getPromotionSearchProductsV185(query, sortMode = "latest") {
   const keyword = String(query || "").trim().toLowerCase();
   const imports = getImports();
-  const importsByProductV279 = new Map(), importsByNameV279 = new Map();
-  imports.forEach(row => {
-    const pid = String(row?.productId || "").trim();
-    const pname = String(row?.productName || "").trim().toLowerCase();
-    if (pid) { if (!importsByProductV279.has(pid)) importsByProductV279.set(pid, []); importsByProductV279.get(pid).push(row); }
-    if (pname) { if (!importsByNameV279.has(pname)) importsByNameV279.set(pname, []); importsByNameV279.get(pname).push(row); }
-  });
   const sales = getInventorySalesAnalyticsV146();
   const products = getProducts().filter(product => Number(product?.stock) > 0).map(product => {
-    const pidKeyV279 = String(product?.id || "").trim();
-    const pnameKeyV279 = String(product?.name || "").trim().toLowerCase();
-    const rows = importsByProductV279.get(pidKeyV279) || importsByNameV279.get(pnameKeyV279) || [];
+    const rows = imports.filter(row => String(row?.productId || "") === String(product?.id || "") ||
+      String(row?.productName || "").trim().toLowerCase() === String(product?.name || "").trim().toLowerCase());
     const importNumbers = rows.map(row => String(row?.importNumber || "")).join(" ");
     const trackingNumbers = rows.map(row => `${row?.trackingNumber || ""} ${row?.overseasTrackingNumber || ""}`).join(" ");
     const id = String(product?.id || "").trim();
@@ -4511,11 +4617,6 @@ function updatePromotionBatchControlsV184() {
     addSelected.textContent = `确认加入排除（${promotionSearchSelectionV184.size}）`;
     addSelected.classList.add("promotion-confirm-action-v197", "promotion-confirm-add-v197");
   }
-  const batchSetV279 = document.getElementById("promotionSetBatchMarginV279");
-  if (batchSetV279) {
-    batchSetV279.disabled = promotionSearchSelectionV184.size === 0;
-    batchSetV279.textContent = `设置所选产品（${promotionSearchSelectionV184.size}）`;
-  }
   renderPromotionPendingSelectionV193();
   if (removeSelected) {
     removeSelected.disabled = promotionExcludedSelectionV184.size === 0;
@@ -4545,16 +4646,11 @@ function renderPromotionExcludeSearchV183() {
   const matches = allMatches;
   results.innerHTML = matches.length ? matches.map(product => {
     const id = String(product.id || "").toUpperCase();
-    const promoBreakdown = getPromotionPriceBreakdownV183(product, promotion, rules, originIndex);
-    const promoPrice = promoBreakdown.price;
-    const defaultMarginV278 = Number.isFinite(Number(promotion.targetMarginRate)) ? Number(promotion.targetMarginRate) : 0;
-    const hasCustomMarginV278 = Object.prototype.hasOwnProperty.call(promotionMarginOverridesDraftV278, id);
-    const shownMarginV278 = hasCustomMarginV278 ? Number(promotionMarginOverridesDraftV278[id]) : defaultMarginV278;
-    return `<div class="promotion-search-result-v183 promotion-search-result-v278">
+    const promoPrice = getPromotionPriceBreakdownV183(product, promotion, rules, originIndex).price;
+    return `<div class="promotion-search-result-v183">
       <input class="promotion-row-check-v184" type="checkbox" data-select-search-v184="${escapeHTML(id)}" ${promotionSearchSelectionV184.has(id) ? "checked" : ""} aria-label="选择 ${escapeHTML(product.name)}" />
       <div><button type="button" class="inventory-product-name-copy promotion-search-name-v186" data-product-name="${escapeHTML(product.name)}" onclick="copyInventoryProductName(this)" title="点击复制产品名称">${escapeHTML(product.name)}</button>${buildProductIdCopyButtonV166(id, "promotion-product-id-v183")}
       <span>库存 ${formatNumber(product.stock)} · ${getAverageCostLabelV205(product, originIndex)} ${formatMoney(product.averageCost, "RM ")} · 原最低售价 ${formatMoney(product.minimumPrice, "RM ")} · 促销最低售价 ${formatMoney(promoPrice, "RM ")}</span></div>
-      <div class="promotion-margin-control-v278"><label>独立净利率 <input type="text" inputmode="decimal" data-promotion-margin-input-v278="${escapeHTML(id)}" value="${escapeHTML(String(shownMarginV278))}" aria-label="${escapeHTML(product.name)} 独立净利率" /></label><small>${hasCustomMarginV278 ? `已设定 ${escapeHTML(String(shownMarginV278))}%` : `默认目标净利率 ${escapeHTML(String(defaultMarginV278))}%`}</small><div><button type="button" data-set-promotion-margin-v278="${escapeHTML(id)}">设定利润率</button>${hasCustomMarginV278 ? `<button type="button" class="secondary-btn" data-reset-promotion-margin-v278="${escapeHTML(id)}">恢复默认</button>` : ""}</div></div>
       <button type="button" data-add-promotion-exclusion="${escapeHTML(id)}">加入排除</button>
     </div>`;
   }).join("") : `<div class="promotion-empty-v183">${query ? "当前搜索没有更多可加入产品" : "当前筛选下没有更多可加入产品"}</div>`;
@@ -4652,7 +4748,7 @@ async function refreshPromotionCloudStateV209(force = false) {
   if (!navigator.onLine || promotionDeleteInProgressV184 || promotionDraftTouchedV209) return false;
   if (typeof pullLatestAfterSalesCommitV83 !== "function") return false;
   const now = Date.now();
-  if (!force && (promotionCloudRefreshBusyV209 || now - promotionCloudRefreshLastAtV209 < 15000)) return false;
+  if (!force && (promotionCloudRefreshBusyV209 || now - promotionCloudRefreshLastAtV209 < 1500)) return false;
   promotionCloudRefreshBusyV209 = true;
   promotionCloudRefreshLastAtV209 = now;
   try {
@@ -4677,12 +4773,8 @@ function getPromotionMarginBadgeV209(product, profitInfo = null) {
   if (!promotion || promotion.excludedProductIds.includes(id)) return "";
   const info = profitInfo || getProductMinimumProfitV205(product, promotion);
   const cls = info.profit < -0.005 ? "loss" : info.profit > 0.005 ? "gain" : "neutral";
-  const rate = Number(getPromotionProductMarginV278(product, promotion));
-  const formattedRate = Number.isFinite(rate)
-    ? (Number.isInteger(rate) ? Math.abs(rate).toFixed(0) : Math.abs(rate).toFixed(2).replace(/0+$/, "").replace(/\.$/, ""))
-    : "";
-  // V28.01: the badge describes profit direction, not a discount. Profit is +green; loss is -red.
-  const text = formattedRate ? `${cls === "loss" ? "-" : cls === "gain" ? "+" : ""}${formattedRate}%` : "";
+  const rate = Number(promotion.targetMarginRate);
+  const text = Number.isFinite(rate) ? `-${Number.isInteger(rate) ? rate.toFixed(0) : rate.toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}%` : "";
   return text ? `<em class="inventory-promotion-margin-v209 ${cls}">${escapeHTML(text)}</em>` : "";
 }
 
@@ -4737,8 +4829,6 @@ function setupPromotionSettingsV183() {
   const searchResults = document.getElementById("promotionExcludeSearchResultsV183");
   const selectAllSearch = document.getElementById("promotionSelectAllSearchV184");
   const excludeSelected = document.getElementById("promotionExcludeSelectedV184");
-  const batchMarginInputV279 = document.getElementById("promotionBatchMarginV279");
-  const setBatchMarginV279 = document.getElementById("promotionSetBatchMarginV279");
   const excludedList = document.getElementById("promotionExcludedListV183");
   const selectAllExcluded = document.getElementById("promotionSelectAllExcludedV184");
   const removeSelected = document.getElementById("promotionRemoveSelectedV184");
@@ -4776,24 +4866,19 @@ function setupPromotionSettingsV183() {
     promotionExcludedDraftV183 = new Set(active.excludedProductIds);
     // V19.8: manual promotion prices belong only to the active promotion draft.
     promotionPriceOverridesDraftV193 = { ...(active.priceOverrides || {}) };
-    promotionMarginOverridesDraftV278 = { ...(active.customMarginRates || {}) };
   } else {
     promotionExcludedDraftV183 = new Set();
     promotionPriceOverridesDraftV193 = {};
-    promotionMarginOverridesDraftV278 = {};
   }
   renderPromotionExcludedListV183();
   refreshPromotionUiV183();
-  if (batchMarginInputV279 && !String(batchMarginInputV279.value || "").trim()) batchMarginInputV279.value = String(parsePromotionPercentV211(marginInput?.value) || 0);
   [nameInput, commissionInput, marginInput].forEach(input => input?.addEventListener("input", () => {
     promotionDraftTouchedV209 = true;
-    if (input === marginInput && batchMarginInputV279 && promotionSearchSelectionV184.size === 0) batchMarginInputV279.value = String(parsePromotionPercentV211(marginInput.value) || 0);
     renderPromotionExcludeSearchV183();
     if (pricePanel && !pricePanel.hidden) renderPromotionPriceListV183();
     updatePromotionDraftStatusV186();
   }));
-  let promotionSearchTimerV279 = null;
-  searchInput?.addEventListener("input", () => { window.clearTimeout(promotionSearchTimerV279); promotionSearchTimerV279 = window.setTimeout(renderPromotionExcludeSearchV183, 180); });
+  searchInput?.addEventListener("input", () => { renderPromotionExcludeSearchV183(); });
   filterInput?.addEventListener("change", () => { renderPromotionExcludeSearchV183(); });
   selectAllSearch?.addEventListener("change", () => {
     const ids = getPromotionExcludeMatchesV183(searchInput?.value || "")
@@ -4804,50 +4889,7 @@ function setupPromotionSettingsV183() {
     else ids.forEach(id => promotionSearchSelectionV184.delete(id));
     renderPromotionExcludeSearchV183();
   });
-  setBatchMarginV279?.addEventListener("click", () => {
-    const ids = [...promotionSearchSelectionV184].filter(id => !promotionExcludedDraftV183.has(id));
-    if (!ids.length) return;
-    const rate = parsePromotionPercentV211(batchMarginInputV279?.value);
-    const draft = getPromotionDraftV183();
-    if (!Number.isFinite(rate) || rate <= -100 || rate >= 100 || 1 - draft.commissionRate / 100 - rate / 100 <= 0) {
-      alert("批量独立净利率无效，请检查佣金与净利率组合。");
-      batchMarginInputV279?.focus();
-      return;
-    }
-    ids.forEach(id => { promotionMarginOverridesDraftV278[id] = Math.round(rate * 100) / 100; });
-    promotionDraftTouchedV209 = true;
-    renderPromotionExcludeSearchV183();
-    if (pricePanel && !pricePanel.hidden) renderPromotionPriceListV183();
-    updatePromotionDraftStatusV186();
-  });
   searchResults?.addEventListener("click", event => {
-    const marginSetButtonV278 = event.target.closest("[data-set-promotion-margin-v278]");
-    if (marginSetButtonV278) {
-      const id = String(marginSetButtonV278.dataset.setPromotionMarginV278 || "").toUpperCase();
-      const input = searchResults.querySelector(`[data-promotion-margin-input-v278="${CSS.escape(id)}"]`);
-      const rate = parsePromotionPercentV211(input?.value);
-      const draft = getPromotionDraftV183();
-      if (!Number.isFinite(rate) || rate <= -100 || rate >= 100 || 1 - draft.commissionRate / 100 - rate / 100 <= 0) {
-        window.alert("独立净利率无效。请检查利润率与主播佣金，合计必须低于 100%。");
-        return;
-      }
-      promotionMarginOverridesDraftV278[id] = Math.round(rate * 100) / 100;
-      promotionDraftTouchedV209 = true;
-      renderPromotionExcludeSearchV183();
-      if (pricePanel && !pricePanel.hidden) renderPromotionPriceListV183();
-      updatePromotionDraftStatusV186();
-      return;
-    }
-    const marginResetButtonV278 = event.target.closest("[data-reset-promotion-margin-v278]");
-    if (marginResetButtonV278) {
-      const id = String(marginResetButtonV278.dataset.resetPromotionMarginV278 || "").toUpperCase();
-      delete promotionMarginOverridesDraftV278[id];
-      promotionDraftTouchedV209 = true;
-      renderPromotionExcludeSearchV183();
-      if (pricePanel && !pricePanel.hidden) renderPromotionPriceListV183();
-      updatePromotionDraftStatusV186();
-      return;
-    }
     const button = event.target.closest("[data-add-promotion-exclusion]");
     if (!button) return;
     const id = String(button.dataset.addPromotionExclusion || "").toUpperCase();
@@ -5009,7 +5051,7 @@ function setupPromotionSettingsV183() {
     const activeNotice = currentActive
       ? `⚠️ 促销“${currentActive.name}”已经开启。\n本次确认会更新正在进行的促销设置，不会新增第二个促销。\n\n`
       : "";
-    if (!window.confirm(`${activeNotice}确认${currentActive ? "更新并继续开启" : "保存并开启"}促销？\n\n促销：${promotion.name}\n主播佣金：${promotion.commissionRate}%\n目标净利率：${promotion.targetMarginRate}%\n应用产品：${affected.length} 项\n独立利润率：${Object.keys(promotion.customMarginRates || {}).length} 项\n排除产品：${promotion.excludedProductIds.length} 项${warning}\n\n原最低售价不会被修改；删除促销后会立即恢复。`)) return;
+    if (!window.confirm(`${activeNotice}确认${currentActive ? "更新并继续开启" : "保存并开启"}促销？\n\n促销：${promotion.name}\n主播佣金：${promotion.commissionRate}%\n目标净利率：${promotion.targetMarginRate}%\n应用产品：${affected.length} 项\n排除产品：${promotion.excludedProductIds.length} 项${warning}\n\n原最低售价不会被修改；删除促销后会立即恢复。`)) return;
     const now = new Date().toISOString();
     const payload = { ...promotion, active:true, createdAt:currentActive?.createdAt||now, updatedAt:now };
     saveButton.disabled = true; if (deleteButton) deleteButton.disabled = true;
@@ -5084,8 +5126,7 @@ function setupPromotionSettingsV183() {
     toggleButton.textContent = pricePanel.hidden ? "查看全部促销价格" : "收起全部促销价格";
     if (!pricePanel.hidden) renderPromotionPriceListV183();
   });
-  let promotionPriceSearchTimerV279 = null;
-  priceSearch?.addEventListener("input", () => { window.clearTimeout(promotionPriceSearchTimerV279); promotionPriceSearchTimerV279 = window.setTimeout(renderPromotionPriceListV183, 180); });
+  priceSearch?.addEventListener("input", renderPromotionPriceListV183);
   const priceSortV195 = document.getElementById("promotionPriceListSortV185");
   const rerenderPromotionSortV195 = () => renderPromotionPriceListV183();
   priceSortV195?.addEventListener("input", rerenderPromotionSortV195);
@@ -5153,22 +5194,6 @@ function getOperationalProductsV256(products = getProducts()) {
   );
 }
 
-// ================= V28.01 Single Warehouse =================
-function getProductDisplayNamesV271(product) {
-  const chinese = String(product?.name || "").trim();
-  const english = String(productEnglishNameV262(product) || "").trim();
-  const same = chinese && english && chinese.toLowerCase() === english.toLowerCase();
-  return { primary: chinese || english, secondary: (!same && chinese && english) ? english : "", primaryLanguage: chinese ? "cn" : "en" };
-}
-function productDisplayNameHtmlV271(product, _unused = null, secondaryClass = "product-secondary-name-v271") {
-  const names = getProductDisplayNamesV271(product);
-  return `${escapeHTML(names.primary || "未命名产品")}${names.secondary ? `<small class="${secondaryClass}">${escapeHTML(names.secondary)}</small>` : ""}`;
-}
-function getHistoryBatchItemsV270(batch) { return getBatchItemsForDisplay(batch); }
-function historyItemMatchesWarehouseV270(item) { return true; }
-function productMatchesWarehouseV270(product, warehouse) { return true; }
-function historyWarehouseV270() { return "single"; }
-
 function getProducts() {
   const rules = getMinimumPriceRulesV160();
   const overrides = getMinimumPriceManualOverridesV160();
@@ -5197,18 +5222,63 @@ function saveProducts(products) {
 }
 
 
-const PRIMARY_PRODUCT_CATEGORIES_V255 = Object.freeze(["盆栽"]);
+const PRIMARY_PRODUCT_CATEGORIES_V255 = Object.freeze([
+  "盆栽",
+  "杂花杂木",
+  "肥料 / 农药",
+  "泥土 / 介质 Soil",
+  "花盆 Pot",
+  "工具",
+  "其他"
+]);
 
-const DEFAULT_PRODUCT_CATEGORY_RULES_V228 = Object.freeze([{ name: "盆栽", prefix: "PZ", mode: "name" }]);
+const DEFAULT_PRODUCT_CATEGORY_RULES_V228 = Object.freeze([
+  // V26.6: the import/product page has only seven MAIN categories.
+  // The additional rows below are non-bonsai SUBCATEGORY name rules used only
+  // to choose a more specific Product ID prefix inside 杂花杂木.
+  { name: "盆栽", prefix: "PZ", mode: "name" },
+  { name: "杂花杂木", prefix: "ZZ", mode: "category" },
+  { name: "肥料 / 农药", prefix: "FL", mode: "category" },
+  { name: "泥土 / 介质 Soil", prefix: "NT", mode: "category" },
+  { name: "花盆 Pot", prefix: "PT", mode: "category" },
+  { name: "工具", prefix: "TL", mode: "category" },
+  { name: "其他", prefix: "QT", mode: "category" },
+  { name: "虎尾兰 Sansevieria", prefix: "SS", mode: "category" },
+  { name: "竹芋 芋头叶 Calathea Caladium", prefix: "CL", mode: "category" },
+  { name: "金钱树 发财树 ZZ Money Plant", prefix: "MP", mode: "category" },
+  { name: "Ficus 榕属", prefix: "FI", mode: "category" },
+  { name: "Monstera 龟背竹", prefix: "MO", mode: "category" }
+]);
 
 function isPrimaryProductCategoryV255(value) {
   const wanted = normalizeProductCategoryNameV227(value);
   return PRIMARY_PRODUCT_CATEGORIES_V255.includes(wanted);
 }
 
-function normalizePrimaryProductCategoryV255(value) { return "盆栽"; }
+function normalizePrimaryProductCategoryV255(value) {
+  const wanted = normalizeProductCategoryNameV227(value);
+  if (PRIMARY_PRODUCT_CATEGORIES_V255.includes(wanted)) return wanted;
+  // Legacy V26.6 and earlier stored non-bonsai fine classes (MO/SS/CL/FI...)
+  // directly in category. Keep the historical data untouched, but present and
+  // treat those rows as the main category 杂花杂木 from V26.6 onward.
+  if (getProductCategoryRulesV228().some(rule => rule?.mode === "category" && rule.name === wanted)) return "杂花杂木";
+  return wanted || "盆栽";
+}
 
-function findNonBonsaiSubcategoryRuleV255(name) { return null; }
+function findNonBonsaiSubcategoryRuleV255(name) {
+  const compact = normalizeProductPrefixKeywordV181(name);
+  if (!compact) return null;
+  const fuzzyReady = isProductFuzzySearchReadyV238(name);
+  const primary = new Set(PRIMARY_PRODUCT_CATEGORIES_V255);
+  return getProductCategoryRulesV228().find(rule => {
+    if (!rule || rule.mode !== "category" || primary.has(rule.name)) return false;
+    const tokens = String(rule.name || "")
+      .split(/[\/／|、,，\s]+/)
+      .map(token => normalizeProductPrefixKeywordV181(token))
+      .filter(token => token.length >= 2);
+    return tokens.some(token => compact.includes(token) || (fuzzyReady && token.includes(compact)));
+  }) || null;
+}
 
 function normalizeProductCategoryNameV227(value) {
   return String(value || "").normalize("NFKC").replace(/[\s\u3000]+/g, " ").trim();
@@ -5260,9 +5330,54 @@ function getCategoryPrefixConflictV229(prefix, excludeCategoryName = "") {
   return conflictingId ? `现有／历史产品编号 ${wanted}xxxx` : "";
 }
 
-function getProductCategoryRulesV228() { return [{ name: "盆栽", prefix: "PZ", mode: "name", locked: true, lockedByUsageV229: true }]; }
+function getProductCategoryRulesV228() {
+  const settings = loadJSON("importSystemSettings", {});
+  const savedRules = Array.isArray(settings.productCategoryRulesV228) ? settings.productCategoryRulesV228 : [];
+  const legacyNames = Array.isArray(settings.productCategoriesV227) ? settings.productCategoriesV227 : [];
+  const source = savedRules.length
+    ? savedRules
+    : (legacyNames.length
+      ? legacyNames.map(name => {
+          const normalized = normalizeProductCategoryNameV227(name);
+          const preset = DEFAULT_PRODUCT_CATEGORY_RULES_V228.find(rule => rule.name === normalized);
+          return preset ? { ...preset } : { name: normalized, prefix: "QT", mode: normalized === "盆栽" ? "name" : "category" };
+        })
+      : DEFAULT_PRODUCT_CATEGORY_RULES_V228.map(rule => ({ ...rule })));
 
-function getProductCategoriesV227() { return ["盆栽"]; }
+  const result = [];
+  const usedNames = new Set();
+  source.forEach(raw => {
+    const name = normalizeProductCategoryNameV227(raw?.name ?? raw);
+    if (!name || name === "周边产品") return;
+    const key = name.toLocaleLowerCase();
+    if (usedNames.has(key)) return;
+    usedNames.add(key);
+    const preset = DEFAULT_PRODUCT_CATEGORY_RULES_V228.find(rule => rule.name === name);
+    const mode = name === "盆栽" ? "name" : "category";
+    const prefix = mode === "name" ? "PZ" : (normalizeCategoryPrefixV228(raw?.prefix) || preset?.prefix || "QT");
+    const lockedByUsageV229 = raw?.lockedByUsageV229 === true;
+    // V24.6: usage lock is derived from current active data, not a permanent flag.
+    // After the user explicitly cleans the last zero-stock product, the rule may unlock.
+    const locked = name === "盆栽" ? true : isProductCategoryUsedV229(name);
+    result.push({ name, prefix, mode, locked, lockedByUsageV229 });
+  });
+  if (!result.some(rule => rule.name === "盆栽")) result.unshift({ name: "盆栽", prefix: "PZ", mode: "name", locked: true });
+  // V26.6: the seven main categories must always be available. This does not
+  // change any existing Product ID or historical record.
+  PRIMARY_PRODUCT_CATEGORIES_V255.forEach(name => {
+    if (result.some(rule => rule.name === name)) return;
+    const preset = DEFAULT_PRODUCT_CATEGORY_RULES_V228.find(rule => rule.name === name);
+    if (!preset) return;
+    result.push({ name, prefix: preset.prefix, mode: preset.mode, locked: name === "盆栽" ? true : isProductCategoryUsedV229(name) });
+  });
+  return result;
+}
+
+function getProductCategoriesV227() {
+  // V26.6: UI categories are MAIN categories only. Fine-class rules such as
+  // Monstera / Ficus / 虎尾兰 only decide the Product ID prefix.
+  return PRIMARY_PRODUCT_CATEGORIES_V255.slice();
+}
 
 function productCategoryOptionsHTMLV227(selected = "盆栽") {
   const wanted = normalizePrimaryProductCategoryV255(selected);
@@ -5339,7 +5454,15 @@ function renderProductCategoriesV227() {
   if (!list) return;
   let visibleRulesV255 = getProductCategoryRulesV228()
     .filter(rule => rule.name !== "盆栽")
-    ;
+    .sort((a, b) => (a.name === "杂花杂木" ? -1 : 0) - (b.name === "杂花杂木" ? -1 : 0));
+  const miscBase=visibleRulesV255.find(rule=>rule.name==="杂花杂木"&&rule.prefix==="ZZ");
+  const miscAlias=visibleRulesV255.find(rule=>rule!==miscBase&&rule.prefix==="ZZ"&&/misc/i.test(rule.name));
+  if(miscBase&&miscAlias){
+    visibleRulesV255=visibleRulesV255.filter(rule=>rule!==miscAlias);
+    const aliasText=String(miscAlias.name||"").replace(/^杂花杂木\s*/i,"").replace(/^\/\s*/,"").trim()||"Misc";
+    const idx=visibleRulesV255.indexOf(miscBase);
+    visibleRulesV255[idx]={...miscBase,name:`杂花杂木 / ${aliasText}`,displayBaseNameV265:"杂花杂木"};
+  }
   list.innerHTML = visibleRulesV255.map(rule => {
     return `
       <div class="product-category-row-v227">
@@ -5355,6 +5478,23 @@ function renderProductCategoriesV227() {
   }).join("");
 }
 
+function cleanupUnusedTestCategoryProductsV237(categoryName = "杂花杂木") {
+  const wanted = normalizeProductCategoryNameV227(categoryName);
+  if (!wanted) return false;
+  const imports = getImports();
+  const batches = getBatches();
+  const products = getProducts();
+  // Never touch the category if any import/batch still references it.
+  if (imports.some(row => normalizeProductCategoryNameV227(row?.category) === wanted)) return false;
+  if (batches.some(batch => (Array.isArray(batch?.items) ? batch.items : []).some(item => normalizeProductCategoryNameV227(item?.category) === wanted))) return false;
+  const categoryProducts = products.filter(product => normalizeProductCategoryNameV227(product?.category) === wanted);
+  if (!categoryProducts.length) return false;
+  // Only clear truly orphaned test products: zero stock and no protected sales/stock history.
+  if (categoryProducts.some(product => (Number(product?.stock) || 0) !== 0 || productHasProtectedHistoryV234(product))) return false;
+  const nextProducts = products.filter(product => normalizeProductCategoryNameV227(product?.category) !== wanted);
+  saveProducts(nextProducts);
+  return true;
+}
 
 function ensureApprovedPrefixRulesV244() {
   const settings = loadJSON("importSystemSettings", {});
@@ -5395,8 +5535,9 @@ function ensureApprovedPrefixRulesV244() {
 function setupProductCategorySettingsV227() {
   migrateLegacyProductCategoriesV227();
   ensureApprovedPrefixRulesV244();
+  // V24.6 one-time safe cleanup for the old test-only 杂花杂木 / ZZ records.
   // It runs only when there is no import/batch/history/stock left, so real data is never removed.
-  
+  cleanupUnusedTestCategoryProductsV237("杂花杂木");
   persistUsedCategoryLocksV229();
   renderProductCategoriesV227();
   const input = document.getElementById("newProductCategoryName");
@@ -5417,15 +5558,9 @@ function setupProductCategorySettingsV227() {
 
   const resolveExistingCategoryRuleV268 = value => {
     const raw=String(value||"").trim();
-    if(!raw)return null;
-    const tokens=raw.split(/[\/／|、,，]+/).map(v=>normalizeProductPrefixKeywordV181(v)).filter(Boolean);
-    const rules=getProductCategoryRulesV228();
-    const matches=rules.filter(rule=>{
-      const ruleTokens=String(rule.name||"").split(/[\/／|、,，\s]+/).map(v=>normalizeProductPrefixKeywordV181(v)).filter(Boolean);
-      return tokens.some(t=>ruleTokens.includes(t));
-    });
-    const prefixes=[...new Set(matches.map(r=>String(r.prefix||"").toUpperCase()))];
-    return prefixes.length===1?matches[0]:null;
+    const base=normalizeProductCategoryNameV227(raw.split("/")[0].trim());
+    if(!base)return null;
+    return getProductCategoryRulesV228().find(rule=>normalizeProductCategoryNameV227(rule.name).toLocaleLowerCase()===base.toLocaleLowerCase())||null;
   };
   input?.addEventListener("input",()=>{
     const existing=resolveExistingCategoryRuleV268(input.value);
@@ -5486,9 +5621,9 @@ function setupProductCategorySettingsV227() {
     if (!name) { if (status) status.textContent = "请输入产品类别名称"; input?.focus(); return; }
     if (name === "盆栽") { if (status) status.textContent = "盆栽固定按产品名称规则生成前缀，请到「盆栽前缀规则」处理"; return; }
     const existingCategoryV268=resolveExistingCategoryRuleV268(input?.value);
-    if(existingCategoryV268 && !editingName){
+    if(existingCategoryV268 && !editingName && normalizeProductCategoryNameV227(existingCategoryV268.name).toLocaleLowerCase()===normalizeProductCategoryNameV227(name.split("/")[0].trim()).toLocaleLowerCase()){
       if(prefix!==existingCategoryV268.prefix){
-        const message=`“${input?.value||name}”已经对应前缀 ${existingCategoryV268.prefix}，不能再改成 ${prefix}。同一个产品/类别不能对应两个前缀。`;
+        const message=`“${input?.value||name}”已经对应前缀 ${existingCategoryV268.prefix}，不能再改成 ${prefix}。一个产品类别只能对应一个产品前缀。`;
         if(status)status.textContent=message;window.alert(message);if(prefixInput)prefixInput.value=existingCategoryV268.prefix;return;
       }
       const message=`“${input?.value||name}”已经存在，对应前缀 ${existingCategoryV268.prefix}，不能重复新增。`;
@@ -5510,8 +5645,14 @@ function setupProductCategorySettingsV227() {
     );
     if (duplicateName) { if (status) status.textContent = "这个产品类别名称已经存在"; return; }
 
-    // V28.01: one prefix may be shared by multiple DIFFERENT product/category names.
-    // Only the same product/category name is forbidden from mapping to a second prefix.
+    const conflict = getCategoryPrefixConflictV229(prefix, editingName);
+    if (conflict) {
+      const message = `编号前缀 ${prefix} 已被${conflict}使用，不能重复使用。请换另一个前缀。`;
+      if (status) status.textContent = message;
+      window.alert(message);
+      prefixInput?.focus();
+      return;
+    }
 
     const verb = editingName ? "修改" : "新增";
     if (!window.confirm(`${verb}产品类别？\n\n类别：${name}\n编号前缀：${prefix}\n\n只要仍有产品／进口资料使用就会锁定；库存变成0也不会自动解锁，必须先清理零库存产品。\n现有产品编号永远不会自动改号。`)) return;
@@ -5580,8 +5721,7 @@ const PRODUCT_PREFIX_RULES_V163 = Object.freeze([
   ["七里香", "MR"], ["九里香", "MR"], ["Murraya", "MR"],
   ["仙丹", "IX"], ["Ixora", "IX"],
   ["真柏", "JU"], ["Juniperus", "JU"], ["系鱼川", "JU"], ["Itoigawa", "JU"], ["Itoigawa Shimpaku", "JU"],
-  ["福建茶", "HK"], ["Ho Kian Tea", "HK"], ["Fujian Tea", "HK"], ["Fukien Tea", "HK"],
-  ["橡皮树", "FI"], ["Ficus Elastica", "FI"], ["Ficus", "FI"]
+  ["福建茶", "HK"], ["Ho Kian Tea", "HK"], ["Fujian Tea", "HK"], ["Fukien Tea", "HK"]
 ]);
 
 function normalizeProductPrefixKeywordV181(value) {
@@ -5724,16 +5864,11 @@ function setupProductPrefixSettingsV181() {
   });
 
   const existingPrefixForKeywordV268 = value => {
-    const raw=String(value||"").trim();
-    if(!raw)return "";
-    const tokens=raw.split(/[\/／|、,，]+/).map(v=>normalizeProductPrefixKeywordV181(v)).filter(Boolean);
-    const rules=getProductPrefixRulesV181();
-    const prefixes=new Set();
-    tokens.forEach(token=>{
-      if(token===normalizeProductPrefixKeywordV181("盆栽")) prefixes.add("PZ");
-      rules.forEach(([k,p])=>{if(normalizeProductPrefixKeywordV181(k)===token)prefixes.add(String(p||"").toUpperCase())});
-    });
-    return prefixes.size===1?[...prefixes][0]:"";
+    const normalized=normalizeProductPrefixKeywordV181(value);
+    if(!normalized) return "";
+    if(normalized===normalizeProductPrefixKeywordV181("盆栽")) return "PZ";
+    const matched=getProductPrefixRulesV181().find(([k])=>normalizeProductPrefixKeywordV181(k)===normalized);
+    return matched?.[1]||"";
   };
   keywordInput.addEventListener("input",()=>{
     const expected=existingPrefixForKeywordV268(keywordInput.value);
@@ -5802,12 +5937,6 @@ function setupProductPrefixSettingsV181() {
       const message=`“${keyword}”已经对应前缀 ${expectedPrefixV268}，不能再改成 ${prefix}。一个产品名称只能对应一个产品前缀。`;
       if(status)status.textContent=message;window.alert(message);prefixInput.value=expectedPrefixV268;return;
     }
-    if(expectedPrefixV268 && !editingKeyword){
-      const tokens=String(keyword||"").split(/[\/／|、,，]+/).map(v=>normalizeProductPrefixKeywordV181(v)).filter(Boolean);
-      const rules=getProductPrefixRulesV181();
-      const allExisting=tokens.length>0&&tokens.every(token=>token===normalizeProductPrefixKeywordV181("盆栽")||rules.some(([k,p])=>normalizeProductPrefixKeywordV181(k)===token&&String(p||"").toUpperCase()===expectedPrefixV268));
-      if(allExisting){const message=`“${keyword}”已经对应前缀 ${expectedPrefixV268}，不能重复新增。`;if(status)status.textContent=message;window.alert(message);return;}
-    }
     if (normalizedKeyword === normalizeProductPrefixKeywordV181("盆栽")) {
       const message = "“盆栽”是系统固定默认规则 PZ，不能重复新增。一个产品名称只能对应一个前缀。";
       if (status) status.textContent = message; window.alert(message); prefixInput.value="PZ"; return;
@@ -5872,7 +6001,10 @@ function getProductPrefix(category, name = "") {
     const matched = getProductPrefixRulesV181().find(([keyword]) => compact.includes(normalizeProductPrefixKeywordV181(keyword)));
     return matched ? matched[1] : "PZ";
   }
-  
+  if (normalizedCategory === "杂花杂木") {
+    const subRule = findNonBonsaiSubcategoryRuleV255(name);
+    return subRule?.prefix || "ZZ";
+  }
   const rule = getProductCategoryRulesV228().find(item => item.name === normalizedCategory);
   return rule?.prefix || "QT";
 }
@@ -6307,7 +6439,7 @@ function renderProductList() {
       <article class="product-card">
         <div class="product-card-head">
           <div>
-            <h4>${productDisplayNameHtmlV271(product)}</h4>
+            <h4>${escapeHTML(product.name)}${productEnglishNameV262(product)?`<small class="product-english-name-v262">${escapeHTML(productEnglishNameV262(product))}</small>`:""}</h4>
             <div class="product-code">${escapeHTML(product.id)}</div>
           </div>
           <div class="product-badges">
@@ -6762,6 +6894,10 @@ function importDraftFingerprintV243(state) {
     name: String(row?.name || "").trim(), productId: String(row?.productId || "").trim(),
     category: String(row?.category || "盆栽"), quantity: Number(row?.quantity) || 0,
     unitPrice: Number(row?.unitPrice) || 0,
+    virtualWarehouseNameV240: String(row?.virtualWarehouseNameV240 || ""),
+    virtualWarehousePrefixV240: String(row?.virtualWarehousePrefixV240 || ""),
+    virtualWarehouseIndexV240: String(row?.virtualWarehouseIndexV240 || ""),
+    virtualWarehouseCategoryV240: String(row?.virtualWarehouseCategoryV240 || ""),
     preferredSubcategoryPrefixV255: String(row?.preferredSubcategoryPrefixV255 || ""),
     autoOriginalCostV249: String(row?.autoOriginalCostV249 || ""),
     autoOriginalCostSourceValueV249: String(row?.autoOriginalCostSourceValueV249 || ""),
@@ -6794,7 +6930,8 @@ function hasMeaningfulImportDraftInputV243() {
 function importDraftStateHasUserDataV246(state) {
   const rows = Array.isArray(state?.rows) ? state.rows : [];
   if (rows.some(row => String(row?.name || "").trim() || String(row?.productId || "").trim() ||
-    (Number(row?.quantity) || 0) > 0 || (Number(row?.unitPrice) || 0) > 0)) return true;
+    (Number(row?.quantity) || 0) > 0 || (Number(row?.unitPrice) || 0) > 0 ||
+    String(row?.virtualWarehouseNameV240 || "").trim())) return true;
 
   const common = state?.common || {};
   // V24.6: when there is no product row, automatic currency/rate/arrival defaults
@@ -6918,6 +7055,10 @@ function collectImportDraftStateV242() {
       category: String(document.getElementById(`batchCategory-${id}`)?.value || "\u76c6\u683d"),
       quantity: Math.max(0, Math.floor(parseAmount(document.getElementById(`batchQty-${id}`)?.value))),
       unitPrice: Math.max(0, parseAmount(document.getElementById(`batchPrice-${id}`)?.value)),
+      virtualWarehouseNameV240: String(tr.dataset.virtualWarehouseNameV240 || ""),
+      virtualWarehousePrefixV240: String(tr.dataset.virtualWarehousePrefixV240 || ""),
+      virtualWarehouseIndexV240: String(tr.dataset.virtualWarehouseIndexV240 || ""),
+      virtualWarehouseCategoryV240: String(tr.dataset.virtualWarehouseCategoryV240 || ""),
       preferredSubcategoryPrefixV255: String(tr.dataset.preferredSubcategoryPrefixV255 || ""),
       autoOriginalCostV249: String(tr.dataset.autoOriginalCostV249 || ""),
       autoOriginalCostSourceValueV249: String(tr.dataset.autoOriginalCostSourceValueV249 || ""),
@@ -6952,8 +7093,6 @@ function saveImportDraftV242() {
     return;
   }
   const state = collectImportDraftStateV242();
-  // V28.01: recognition red text is only a pre-save visual cue. Do not persist it in the import draft.
-  state.rows = (state.rows || []).map(row => { const copy = { ...row }; delete copy.recognitionNewV265; return copy; });
   if (!state.rows.length) {
     alert("请先输入至少一个产品，再保存草稿。");
     return;
@@ -7015,7 +7154,12 @@ function applyImportDraftV242(draftId) {
       unitPrice: Number(row.unitPrice) || 0
     });
     const tr = document.querySelector("#batchRows tr:last-child");
-    if (!tr) return;    if (row.preferredSubcategoryPrefixV255) tr.dataset.preferredSubcategoryPrefixV255 = row.preferredSubcategoryPrefixV255;
+    if (!tr) return;
+    if (row.virtualWarehouseNameV240) tr.dataset.virtualWarehouseNameV240 = row.virtualWarehouseNameV240;
+    if (row.virtualWarehousePrefixV240) tr.dataset.virtualWarehousePrefixV240 = row.virtualWarehousePrefixV240;
+    if (row.virtualWarehouseIndexV240 !== undefined) tr.dataset.virtualWarehouseIndexV240 = row.virtualWarehouseIndexV240;
+    if (row.virtualWarehouseCategoryV240) tr.dataset.virtualWarehouseCategoryV240 = row.virtualWarehouseCategoryV240;
+    if (row.preferredSubcategoryPrefixV255) tr.dataset.preferredSubcategoryPrefixV255 = row.preferredSubcategoryPrefixV255;
     if (row.autoOriginalCostV249) tr.dataset.autoOriginalCostV249 = row.autoOriginalCostV249;
     if (row.autoOriginalCostSourceValueV249) tr.dataset.autoOriginalCostSourceValueV249 = row.autoOriginalCostSourceValueV249;
     if (row.autoOriginalCostSourceCurrencyV249) tr.dataset.autoOriginalCostSourceCurrencyV249 = row.autoOriginalCostSourceCurrencyV249;
@@ -9135,19 +9279,6 @@ async function copyProductIdV166(button) {
   button._productIdCopyTimerV166 = window.setTimeout(() => button.classList.remove("copied"), 1200);
 }
 
-function historyEnglishNameV270(productName, productId = "") {
-  const id=String(productId||"").trim(); const name=String(productName||"").trim().toLowerCase();
-  const p=getOperationalProductsV256().find(x=>(id&&String(x?.id||"").trim()===id)||(!id&&name&&String(x?.name||"").trim().toLowerCase()===name));
-  return p ? String(productEnglishNameV262(p)||"").trim() : "";
-}
-function historyProductNameHtmlV270(productName, productId = "") {
-  const value=String(productName||"").trim(); const id=String(productId||"").trim();
-  const p=getOperationalProductsV256().find(x=>(id&&String(x?.id||"").trim()===id)||(!id&&value&&String(x?.name||"").trim().toLowerCase()===value.toLowerCase()));
-  if(!p) return escapeHTML(value||"-");
-  const names=getProductDisplayNamesV271(p);
-  return `${escapeHTML(names.primary||value||"-")}${names.secondary?`<small class="history-english-name-v270 product-secondary-name-v271">${escapeHTML(names.secondary)}</small>`:""}`;
-}
-
 function buildHistoryProductNameButtons(productNames) {
   return Array.from(productNames || [])
     .map(name => {
@@ -9166,7 +9297,7 @@ function buildHistoryProductNameButtons(productNames) {
         <button type="button"
                 class="history-copy-product"
                 data-history-product="${escapeHTML(value)}"
-                title="点击复制并查询此产品">${historyProductNameHtmlV270(value,productId)}</button>
+                title="点击复制并查询此产品">${escapeHTML(value)}</button>
         ${buildProductIdCopyButtonV166(productId, "history-product-id-v166")}
       </span>`;
     })
@@ -9834,7 +9965,7 @@ function buildRelatedBatchNotices(batch, items) {
       const otherNumber = String(otherBatch.importNumber || "").trim();
       if (!otherNumber || otherNumber === currentNumber) return;
 
-      const matchingItems = getHistoryBatchItemsV270(otherBatch).filter(otherItem => {
+      const matchingItems = getBatchItemsForDisplay(otherBatch).filter(otherItem => {
         const sameProductId =
           productId &&
           otherItem.productId &&
@@ -9969,7 +10100,7 @@ function buildImportHistoryCard(batch, items, options = {}) {
                   )}"
                   data-history-copy-only="true"
                   title="点击复制产品名称">
-            ${historyProductNameHtmlV270(item.productName || "-", item.productId)}
+            ${escapeHTML(item.productName || "-")}
           </button>
           ${buildProductIdCopyButtonV166(item.productId, "history-product-id-v166")}
         </span></td>
@@ -10059,7 +10190,6 @@ function getDailyStockAdjustments(selectedDate, keyword = "") {
           };
         })
     )
-    .filter(adjustment => historyItemMatchesWarehouseV270(adjustment))
     .filter(adjustment =>
       historyProductMatchesKeyword(adjustment, keyword)
     )
@@ -10389,7 +10519,9 @@ function buildDailyStockAdjustmentHtml(adjustments) {
                   )}"
                   data-history-copy-only="true"
                   title="点击复制产品名称">
-            ${historyProductNameHtmlV270(adjustment.productName || "未命名产品", adjustment.productId)}
+            ${escapeHTML(
+              adjustment.productName || "未命名产品"
+            )}
           </button>
           ${buildProductIdCopyButtonV166(adjustment.productId, "history-product-id-v166")}
           </span>
@@ -10553,7 +10685,6 @@ function getHistoryRelevantAdjustments(options = {}) {
     String(importNumber || "").trim().toLowerCase();
 
   return getAllHistoryStockAdjustments().filter(adjustment => {
-    if (!historyItemMatchesWarehouseV270(adjustment)) return false;
     if (
       range &&
       !range.error &&
@@ -10944,7 +11075,7 @@ function getHistorySingleDateEventCount(
       return false;
     }
 
-    const allItems = getHistoryBatchItemsV270(batch);
+    const allItems = getBatchItemsForDisplay(batch);
 
     if (!normalizedKeyword) {
       return allItems.length > 0;
@@ -10996,7 +11127,7 @@ function renderHistorySingleDateSection(
         return null;
       }
 
-      const allItems = getHistoryBatchItemsV270(batch);
+      const allItems = getBatchItemsForDisplay(batch);
 
       if (!normalizedKeyword) {
         return {
@@ -11156,7 +11287,7 @@ function renderCompactProductHistoryByRange(
 
   const allMatchingEntries = getBatches()
     .flatMap(batch =>
-      getHistoryBatchItemsV270(batch)
+      getBatchItemsForDisplay(batch)
         .filter(item => {
           const historyInput =
             document.getElementById("historyLookupInput");
@@ -11200,7 +11331,7 @@ function renderCompactProductHistoryByRange(
   const productMatches = getBatches()
     .map(batch => {
       const matchingItems =
-        getHistoryBatchItemsV270(batch).filter(item => {
+        getBatchItemsForDisplay(batch).filter(item => {
           const searchable = [
             item.productName,
             item.productId,
@@ -11395,7 +11526,7 @@ function renderCompactProductHistoryByRange(
     const endTimeV235 = parseDDMMYYYY(range.endDate);
     const shipmentMatchesV235 = getBatches().filter(batch => {
       if (!shipmentLocalNumberMatchesV235(getBatchShipmentLocalNumberV235(batch), shipmentKeywordV235)) return false;
-      const txDate = getHistoryImportTransactionDate(batch, getHistoryBatchItemsV270(batch)[0] || null);
+      const txDate = getHistoryImportTransactionDate(batch, getBatchItemsForDisplay(batch)[0] || null);
       const txTime = parseDDMMYYYY(txDate);
       return txTime && txTime >= startTimeV235 && txTime <= endTimeV235;
     });
@@ -11403,7 +11534,7 @@ function renderCompactProductHistoryByRange(
       output.innerHTML = shipmentMatchesV235
         .slice()
         .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
-        .map(batch => buildImportHistoryCard(batch, getHistoryBatchItemsV270(batch), { showRelatedBatches: false }))
+        .map(batch => buildImportHistoryCard(batch, getBatchItemsForDisplay(batch), { showRelatedBatches: false }))
         .join("");
       return;
     }
@@ -11475,9 +11606,11 @@ function renderCompactProductHistoryByRange(
                           )}"
                           data-history-copy-only="true"
                           title="点击复制产品名称">
-                    ${historyProductNameHtmlV270(
-                      adjustment.productName || item.name || item.productName || "未命名产品",
-                      adjustment.productId || item.productId
+                    ${escapeHTML(
+                      adjustment.productName ||
+                      item.name ||
+                      item.productName ||
+                      "未命名产品"
                     )}
                   </button>
                   ${buildProductIdCopyButtonV166(
@@ -11772,14 +11905,14 @@ function renderImportHistoryNowV134() {
   const normalizedKeyword = keyword.toLowerCase();
   const batches = getBatches();
   const exactBatch = numericOriginalCostOnlyV218 ? null : batches.find(item =>
-    String(item.importNumber || "").trim().toLowerCase() === normalizedKeyword && getHistoryBatchItemsV270(item).length > 0
+    String(item.importNumber || "").trim().toLowerCase() === normalizedKeyword
   );
 
   if (exactBatch) {
     output.innerHTML =
       buildImportHistoryCard(
         exactBatch,
-        getHistoryBatchItemsV270(exactBatch),
+        getBatchItemsForDisplay(exactBatch),
         { showRelatedBatches: false }
       ) +
       buildHistorySoldCostSummary({
@@ -11789,7 +11922,7 @@ function renderImportHistoryNowV134() {
   }
 
   const shipmentBatchMatchesV235 = numericOriginalCostOnlyV218 ? [] : batches.filter(batch =>
-    getHistoryBatchItemsV270(batch).length > 0 && shipmentLocalNumberMatchesV235(getBatchShipmentLocalNumberV235(batch), keyword)
+    shipmentLocalNumberMatchesV235(getBatchShipmentLocalNumberV235(batch), keyword)
   );
 
   if (shipmentBatchMatchesV235.length === 1) {
@@ -11797,7 +11930,7 @@ function renderImportHistoryNowV134() {
     output.innerHTML =
       buildImportHistoryCard(
         matchedBatch,
-        getHistoryBatchItemsV270(matchedBatch),
+        getBatchItemsForDisplay(matchedBatch),
         { showRelatedBatches: false }
       ) +
       buildHistorySoldCostSummary({ importNumber: matchedBatch.importNumber });
@@ -11808,13 +11941,13 @@ function renderImportHistoryNowV134() {
     output.innerHTML = shipmentBatchMatchesV235
       .slice()
       .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
-      .map(batch => buildImportHistoryCard(batch, getHistoryBatchItemsV270(batch), { showRelatedBatches: false }))
+      .map(batch => buildImportHistoryCard(batch, getBatchItemsForDisplay(batch), { showRelatedBatches: false }))
       .join("");
     return;
   }
 
   const partialBatchMatches = numericOriginalCostOnlyV218 ? [] : batches.filter(batch =>
-    getHistoryBatchItemsV270(batch).length > 0 && sequentialSearchMatches(batch.importNumber, keyword)
+    sequentialSearchMatches(batch.importNumber, keyword)
   );
 
   if (partialBatchMatches.length === 1) {
@@ -11823,7 +11956,7 @@ function renderImportHistoryNowV134() {
     output.innerHTML =
       buildImportHistoryCard(
         matchedBatch,
-        getHistoryBatchItemsV270(matchedBatch),
+        getBatchItemsForDisplay(matchedBatch),
         { showRelatedBatches: false }
       ) +
       buildHistorySoldCostSummary({
@@ -11849,7 +11982,6 @@ function renderImportHistoryNowV134() {
   // into a Product ID hit that automatically includes every historical batch.
   const matchedProductIds = new Set(
     getProducts().filter(product => {
-      
       if (numericOriginalCostOnlyV218) return false;
       const name = String(product.name || "").trim().toLowerCase();
       const id = String(product.id || "").trim().toLowerCase();
@@ -11860,7 +11992,7 @@ function renderImportHistoryNowV134() {
   );
 
   const productMatches = batches.map(batch => {
-    const matchingItems = getHistoryBatchItemsV270(batch).filter(item => {
+    const matchingItems = getBatchItemsForDisplay(batch).filter(item => {
       const itemName = String(item.productName || "").trim().toLowerCase();
       const itemProductId = String(item.productId || "").trim();
 
@@ -12017,9 +12149,11 @@ function renderImportHistoryNowV134() {
                             "未命名产品"
                           )}"
                           data-history-copy-only="true"
-                          title="点击复制产品名称">${historyProductNameHtmlV270(
-                    adjustment.productName || item.name || item.productName || "未命名产品",
-                    adjustment.productId || item.productId
+                          title="点击复制产品名称">${escapeHTML(
+                    adjustment.productName ||
+                    item.name ||
+                    item.productName ||
+                    "未命名产品"
                   )}</button>
                   ${buildProductIdCopyButtonV166(
                     adjustment.productId || item.productId,
@@ -12213,7 +12347,7 @@ function clearAutoArrivalWhenLeavingMYRV230() {
 
 function maybeDefaultMYRForCategoryV229(category) {
   if (currentEditingImportNumber || batchCurrencyManuallySelectedV229) return;
-  return; // V28.01 single warehouse: non-bonsai category path removed
+  if (normalizeProductCategoryNameV227(category) !== "杂花杂木") return;
   const currency = document.getElementById("batchCurrency");
   if (!currency || currency.value !== "CNY") return;
   currency.value = "MYR";
@@ -12629,6 +12763,7 @@ function getRowSuggestedCurrencyV231(rowId) {
   const name = document.getElementById(`batchName-${rowId}`)?.value?.trim() || "";
   if (!name) return "";
   const row = document.querySelector(`#batchRows tr[data-row-id="${rowId}"]`);
+  if (row?.dataset?.virtualWarehouseNameV240 === name.toLowerCase()) return "MYR";
   const product = findExactProductByNameV231(name);
   if (product) {
     const currencies = getHistoricalProductCurrenciesV232(product);
@@ -12822,11 +12957,7 @@ function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, c
     categoryField.value = normalizePrimaryProductCategoryV255(product.category);
     tr.dataset.categoryManualForName = normalizedName;
     tr.dataset.lastIdentityNameV231 = normalizedName;
-    const recognitionInvoiceProductIdV277 = String(tr.dataset.recognitionInvoiceProductIdV277 || "").trim();
-    const keepRecognitionInvoicePriceV277 = recognitionInvoiceProductIdV277 && recognitionInvoiceProductIdV277 === String(product.id || "").trim();
-    if (!keepRecognitionInvoicePriceV277) {
-      fillExistingProductOriginalCostV244(rowId, product, { force: identityChanged });
-    }
+    fillExistingProductOriginalCostV244(rowId, product, { force: identityChanged });
     const historicalCurrenciesV250 = getHistoricalProductCurrenciesV232(product);
     if (historicalCurrenciesV250.length) {
       applyExistingProductCurrencyV232(rowId, product, { commitCurrency });
@@ -12836,12 +12967,45 @@ function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, c
     return;
   }
 
+  // V26.6: exact typing/paste of a Virtual Warehouse name behaves like clicking
+  // its suggestion. This runs only after the delayed identity check / blur.
+  const exactVirtualV250 = findExactVirtualWarehouseByNameV250(name);
+  if (exactVirtualV250) {
+    productIdField.value = "";
+    categoryField.value = resolveVirtualWarehouseCategoryV240(exactVirtualV250);
+    tr.dataset.categoryManualForName = normalizedName;
+    tr.dataset.lastIdentityNameV231 = normalizedName;
+    tr.dataset.virtualWarehouseNameV240 = normalizedName;
+    tr.dataset.virtualWarehousePrefixV240 = normalizeCategoryPrefixV228(exactVirtualV250.productPrefix || "");
+    tr.dataset.virtualWarehouseIndexV240 = String(exactVirtualV250._virtualIndexV240);
+    tr.dataset.virtualWarehouseCategoryV240 = categoryField.value;
+    if (Number(exactVirtualV250.cost) > 0) {
+      setAutoOriginalCostV249(
+        rowId,
+        { unitPrice: Number(exactVirtualV250.cost), currency: "MYR" },
+        { force: tr.dataset.lastExactVirtualCostNameV250 !== normalizedName }
+      );
+      tr.dataset.lastExactVirtualCostNameV250 = normalizedName;
+    }
+    if (commitCurrency) maybeApplySuggestedBatchCurrencyV231(rowId, "MYR", name);
+    return;
+  }
+
+  if (tr.dataset.virtualWarehouseNameV240 === normalizedName) {
+    productIdField.value = "";
+    categoryField.value = tr.dataset.virtualWarehouseCategoryV240 || categoryField.value || "杂花杂木";
+    tr.dataset.categoryManualForName = normalizedName;
+    tr.dataset.lastIdentityNameV231 = normalizedName;
+    if (commitCurrency) maybeApplySuggestedBatchCurrencyV231(rowId, "MYR", name);
+    return;
+  }
+
   productIdField.value = "";
   const manualForSameName = tr.dataset.categoryManualForName === normalizedName;
   if (!fromCategoryChange && !manualForSameName) {
     const prefixRule = findNamePrefixRuleV231(name);
     const categoryRule = prefixRule ? null : findManagedCategoryRuleByProductNameV232(name);
-    categoryField.value = "盆栽";
+    categoryField.value = prefixRule ? "盆栽" : "杂花杂木";
     if (categoryRule?.prefix) tr.dataset.preferredSubcategoryPrefixV255 = normalizeCategoryPrefixV228(categoryRule.prefix);
     else delete tr.dataset.preferredSubcategoryPrefixV255;
   }
@@ -13072,8 +13236,11 @@ function renderBatchRowSuggestionBox(id) {
         return (fuzzyReady && normalizedName.includes(normalizedQuery)) || normalizedPrefix === normalizedQuery;
       }).slice(0, 12)
     : [];
+  const virtualWarehouseSuggestionsV240 = (fuzzyReady || prefixQuery || codeQuery)
+    ? virtualWarehouseSearchSuggestionsV240(value).slice(0, 25)
+    : [];
 
-  if (!matchedReal.length && !prefixSuggestionsV237.length && !categorySuggestionsV238.length) {
+  if (!matchedReal.length && !virtualWarehouseSuggestionsV240.length && !prefixSuggestionsV237.length && !categorySuggestionsV238.length) {
     box.dataset.emptyV253 = "1";
     box.innerHTML = `<div class="batch-product-suggestion-empty">找不到符合“${escapeHTML(value)}”的产品</div>`;
   } else {
@@ -13085,10 +13252,15 @@ function renderBatchRowSuggestionBox(id) {
       const currency = String(record?.currency || batch?.currency || "").trim().toUpperCase();
       const costLabel = cost > 0 ? ` · 原成本 ${formatMoney(cost)}${currency ? ` ${escapeHTML(currency)}` : ""}` : "";
       return `<button type="button" class="batch-product-suggestion-item" data-batch-suggestion="${escapeHTML(product.name)}">
-        <strong>${escapeHTML(getProductDisplayNamesV271(product).primary || product.name)}</strong>${getProductDisplayNamesV271(product).secondary?`<span class="product-secondary-name-v271">${escapeHTML(getProductDisplayNamesV271(product).secondary)}</span>`:""}
+        <strong>${escapeHTML(product.name)}</strong>${productEnglishNameV262(product)?`<span class="product-english-name-v262">${escapeHTML(productEnglishNameV262(product))}</span>`:""}
         <small>${escapeHTML(product.id || "-")} · ${escapeHTML(normalizePrimaryProductCategoryV255(product.category || "盆栽"))}${costLabel}</small>
       </button>`;
-    }).join("") + prefixSuggestionsV237.map(([keyword, prefix]) => `
+    }).join("") + virtualWarehouseSuggestionsV240.map(item => `
+      <button type="button" class="batch-product-suggestion-item batch-virtual-warehouse-suggestion-v240" data-batch-virtual-warehouse="${item._virtualIndexV240}">
+        <strong>${escapeHTML(item.description || item.name || "-")}</strong>
+        <span class="batch-vw-product-name-v241">${escapeHTML(item.name || "-")}</span>
+        <small>Size ${escapeHTML(item.size || "-")} · 供应商 ${escapeHTML(item.supplierPrefix || "-")} · ${escapeHTML(item.productPrefix || "-")} · 原成本 ${Number.isFinite(Number(item.cost)) ? formatMoney(Number(item.cost)) : "-"}</small>
+      </button>`).join("") + prefixSuggestionsV237.map(([keyword, prefix]) => `
       <button type="button" class="batch-product-suggestion-item batch-prefix-rule-suggestion-v237" data-batch-suggestion="${escapeHTML(keyword)}">
         <strong>${escapeHTML(keyword)}</strong><small>${escapeHTML(prefix)} · 盆栽前缀规则</small>
       </button>`).join("") + categorySuggestionsV238.map(rule => `
@@ -13165,6 +13337,12 @@ function attachBatchRowEvents(id){
       tr.dataset.categoryManualForName = "";
       delete tr.dataset.preferredSubcategoryPrefixV255;
     }
+    if (tr && tr.dataset.virtualWarehouseNameV240 && tr.dataset.virtualWarehouseNameV240 !== currentName) {
+      delete tr.dataset.virtualWarehouseNameV240;
+      delete tr.dataset.virtualWarehousePrefixV240;
+      delete tr.dataset.virtualWarehouseIndexV240;
+      delete tr.dataset.virtualWarehouseCategoryV240;
+    }
     if (!currentName) hideBatchRowSuggestionBox(id);
     if (!batchNameComposingV246) scheduleBatchNameSearchV246();
   });
@@ -13205,13 +13383,21 @@ function attachBatchRowEvents(id){
 
     if (!button) return;
 
+    const virtualWarehouseIndexV240 = button.dataset.batchVirtualWarehouse;
+    if (virtualWarehouseIndexV240 !== undefined) {
+      if (applyVirtualWarehouseSelectionV240(id, virtualWarehouseIndexV240)) {
+        hideBatchRowSuggestionBox(id);
+      }
+      return;
+    }
+
     const categoryRuleName = String(button.dataset.batchCategoryRule || "").trim();
     if (categoryRuleName) {
       const categoryField = document.getElementById(`batchCategory-${id}`);
       const productIdField = document.getElementById(`batchProductId-${id}`);
       const tr = document.querySelector(`#batchRows tr[data-row-id="${id}"]`);
       const selectedSubRuleV255 = getProductCategoryRulesV228().find(rule => rule.name === categoryRuleName);
-      if (categoryField) categoryField.value = "盆栽";
+      if (categoryField) categoryField.value = isPrimaryProductCategoryV255(categoryRuleName) ? categoryRuleName : "杂花杂木";
       if (productIdField) productIdField.value = "";
       if (tr) {
         tr.dataset.categoryManualForName = n.value.trim().toLowerCase();
@@ -13305,7 +13491,7 @@ function removeBatchRow(id){
 }
 function collectBatchRows(){
   const rate=parseAmount(document.getElementById("batchRate").value),currency=document.getElementById("batchCurrency").value;
-  return Array.from(document.querySelectorAll("#batchRows tr")).map(tr=>{const id=Number(tr.dataset.rowId),name=document.getElementById(`batchName-${id}`).value.trim(),quantity=Math.max(0,Math.floor(parseAmount(document.getElementById(`batchQty-${id}`).value))),unitPrice=parseAmount(document.getElementById(`batchPrice-${id}`).value),stockAdded=quantity,foreignTotal=quantity*unitPrice,purchaseRM=rate>0?foreignTotal/rate:0,productId=document.getElementById(`batchProductId-${id}`).value,existing=getProducts().find(x=>x.id===productId),category="盆栽",preferredPrefixV240=getProductPrefix("盆栽",name)||"PZ";return{id,name,englishName:String(tr.dataset.englishNameV262||productEnglishNameV262(existing)||inferSimpleBilingualV262(name).englishName||""),category,productId,preferredPrefixV240,quantity,unitPrice,stockAdded,currency,rate,foreignTotal,purchaseRM,oldStock:Number(existing?.stock)||0,oldAverage:Number(existing?.averageCost)||0};});
+  return Array.from(document.querySelectorAll("#batchRows tr")).map(tr=>{const id=Number(tr.dataset.rowId),name=document.getElementById(`batchName-${id}`).value.trim(),quantity=Math.max(0,Math.floor(parseAmount(document.getElementById(`batchQty-${id}`).value))),unitPrice=parseAmount(document.getElementById(`batchPrice-${id}`).value),stockAdded=quantity,foreignTotal=quantity*unitPrice,purchaseRM=rate>0?foreignTotal/rate:0,productId=document.getElementById(`batchProductId-${id}`).value,existing=getProducts().find(x=>x.id===productId),category=normalizePrimaryProductCategoryV255(document.getElementById(`batchCategory-${id}`).value||"盆栽"),rawPreferredPrefixV240=normalizeCategoryPrefixV228(tr.dataset.virtualWarehousePrefixV240||""),subPreferredPrefixV255=normalizeCategoryPrefixV228(tr.dataset.preferredSubcategoryPrefixV255||""),preferredPrefixV240=category==="盆栽"?getProductPrefix("盆栽",name):(category==="杂花杂木"?(subPreferredPrefixV255||rawPreferredPrefixV240||getProductPrefix("杂花杂木",name)||"ZZ"):(getProductCategoryRulesV228().find(rule=>rule?.mode==="category"&&rule.name===category)?.prefix||"QT"));return{id,name,englishName:String(tr.dataset.englishNameV262||productEnglishNameV262(existing)||inferSimpleBilingualV262(name).englishName||""),category,productId,preferredPrefixV240,quantity,unitPrice,stockAdded,currency,rate,foreignTotal,purchaseRM,oldStock:Number(existing?.stock)||0,oldAverage:Number(existing?.averageCost)||0};});
 }
 function calculateBatch() {
   updateTransitDays();
@@ -13575,20 +13761,9 @@ function saveBatchImport() {
     return;
   }
 
-  const duplicateRowsByKeyV277 = new Map();
-  result.valid.forEach((item, index) => {
-    const key = `${String(item.name || "").trim().toLowerCase()}|${item.category}`;
-    if (!duplicateRowsByKeyV277.has(key)) duplicateRowsByKeyV277.set(key, []);
-    duplicateRowsByKeyV277.get(key).push({ item, row: index + 1 });
-  });
-  const duplicateGroupsV277 = [...duplicateRowsByKeyV277.values()].filter(group => group.length > 1);
-  if (duplicateGroupsV277.length) {
-    const details = duplicateGroupsV277.map(group =>
-      `${group[0].item.name}（第 ${group.map(x => x.item.id || x.row).join("、")} 行）`
-    ).join("；");
-    const message = `同一批不能重复相同产品名称：${details}。请删除或合并重复产品后再正式保存。`;
-    status.textContent = message;
-    window.alert(message);
+  const names = result.valid.map(item => `${item.name.toLowerCase()}|${item.category}`);
+  if (new Set(names).size !== names.length) {
+    status.textContent = "同一批不能重复相同产品名称。";
     return;
   }
 
@@ -14084,7 +14259,7 @@ function saveBatchImport() {
   result.valid.forEach(item => {
     // V26.6: prefer the already resolved Product ID. This prevents a legacy
     // fine-category product (e.g. Monstera 龟背竹) from being duplicated when
-    // V28.01 single warehouse keeps all active products in the bonsai workflow.
+    // the UI now correctly stores/shows the main category 杂花杂木.
     let productIndex = products.findIndex(product => item.productId && String(product.id || "") === String(item.productId || ""));
     if (productIndex === -1) {
       productIndex = products.findIndex(product =>
@@ -14352,7 +14527,7 @@ function renderBatchList() {
       items[0]?.productName || items[0]?.name || "-";
     const firstProductId = String(items[0]?.productId || "").trim();
     const firstProductObj = getProducts().find(p=>String(p.id||"")===firstProductId);
-    const firstProductDisplayV271 = firstProductObj ? getProductDisplayNamesV271(firstProductObj) : { primary:firstProductName, secondary:"" };
+    const firstProductEnglish = productEnglishNameV262(firstProductObj);
 
     return `<article class="import-card">
       <div class="batch-card-title-row">
@@ -14369,9 +14544,9 @@ function renderBatchList() {
         ${Number(batch.totalQuantity) || 0} 件 · ${Number(batch.rackQuantity) || 0} 个木架 ·
         <span class="product-identity-v167 recent-import-identity-v167"><button type="button"
                 class="inventory-product-name-copy recent-import-product-copy"
-                data-product-name="${escapeHTML(firstProductDisplayV271.primary || firstProductName)}"
+                data-product-name="${escapeHTML(firstProductName)}"
                 onclick="copyInventoryProductName(this)"
-                title="点击复制产品名称">${escapeHTML(firstProductDisplayV271.primary || firstProductName)}</button>${firstProductDisplayV271.secondary?`<small class="product-secondary-name-v271">${escapeHTML(firstProductDisplayV271.secondary)}</small>`:""}
+                title="点击复制产品名称">${escapeHTML(firstProductName)}</button>${firstProductEnglish?`<small class="product-english-name-v262">${escapeHTML(firstProductEnglish)}</small>`:""}
         ${buildProductIdCopyButtonV166(firstProductId, "recent-import-product-id-v166")}
         </span>
       </div>
@@ -14489,8 +14664,8 @@ function openProductOriginalCostEditorV219(productId, importRecordId = "") {
       <h3 id="originalCostEditTitleV219">修改原成本</h3>
       <div class="original-cost-edit-meta-v219">
         <button type="button" class="original-cost-edit-product-copy-v224 inventory-product-name-copy"
-          data-product-name="${escapeHTML(getProductDisplayNamesV271(product).primary || product.name || "未命名产品")}"
-          onclick="copyInventoryProductName(this)" title="点击复制产品名称" aria-label="点击复制产品名称">${escapeHTML(getProductDisplayNamesV271(product).primary || product.name || "未命名产品")}</button>${getProductDisplayNamesV271(product).secondary?`<small class="product-secondary-name-v271">${escapeHTML(getProductDisplayNamesV271(product).secondary)}</small>`:""}
+          data-product-name="${escapeHTML(product.name || "未命名产品")}"
+          onclick="copyInventoryProductName(this)" title="点击复制产品名称" aria-label="点击复制产品名称">${escapeHTML(product.name || "未命名产品")}</button>${productEnglishNameV262(product)?`<small class="product-english-name-v262">${escapeHTML(productEnglishNameV262(product))}</small>`:""}
         <span>${escapeHTML(product.id || "-")} · ${escapeHTML(importNumber)}</span>
       </div>
       <label>原成本${currency ? ` (${escapeHTML(currency)})` : ""}
@@ -14713,8 +14888,8 @@ function renderBatchProductStockResults() {
   if (recentBatchArea) recentBatchArea.hidden = true;
   if (toggleButton) toggleButton.hidden = true;
   if (countElement) countElement.hidden = true;
+
   const products = getOperationalProductsV256()
-    
     .filter(product =>
       productSearchMatchesWithShipmentV235(
         `${product.id || ""} ${product.name || ""} ${product.category || ""}`,
@@ -14744,7 +14919,6 @@ function renderBatchProductStockResults() {
       : "";
     const importNumberV256 = String(originalRecordV219?.importNumber || "").trim();
     const productIdV256 = String(product?.id || "").trim();
-    const displayNamesV271 = getProductDisplayNamesV271(product);
 
     return `
     <div class="product-stock-result-row product-stock-card-v256">
@@ -14754,14 +14928,14 @@ function renderBatchProductStockResults() {
           type="button"
           data-product-id="${escapeHTML(productIdV256)}"
           aria-label="点击复制产品名称；长按修改产品名称" title="点击复制产品名称；长按修改产品名称">
-          ${escapeHTML(displayNamesV271.primary || product.name || "未命名产品")}
+          ${escapeHTML(product.name || "未命名产品")}
         </button>
         ${productIdV256 ? `<button type="button" class="product-stock-id-copy-v256"
           data-product-id-copy-v256="${escapeHTML(productIdV256)}"
           onclick="copyProductStockIdV256(this)"
           aria-label="点击复制产品编号" title="点击复制产品编号">${escapeHTML(productIdV256)}</button>` : ""}
       </div>
-      ${`<button type="button" class="product-stock-english-edit-btn-v266" data-product-id="${escapeHTML(productIdV256)}" title="点击复制英文名；长按修改英文名">${escapeHTML(productEnglishNameV262(product)||"英文名：未设置（长按修改）")}</button>`}
+      <button type="button" class="product-stock-english-edit-btn-v266" data-product-id="${escapeHTML(productIdV256)}" title="点击复制英文名；长按修改英文名">${escapeHTML(productEnglishNameV262(product)||"英文名：未设置（长按修改）")}</button>
 
       <div class="product-stock-metrics-v256">
         <button
@@ -16723,9 +16897,10 @@ function renderInventoryManagementList() {
         batch
       ])
   );
+
   const products = getOperationalProductsV256()
-    
-    // 单仓：库存管理只显示有库存产品。
+    // 首页以实际库存为准；避免旧的 inventoryArchived 标记
+    // 把删除新批次后仍剩旧库存的产品错误隐藏。
     .filter(product => (Number(product.stock) || 0) > 0)
     .map(product => {
       const productName = String(product.name || "").trim().toLowerCase();
@@ -16965,10 +17140,7 @@ function renderInventoryManagementList() {
     : null;
 
   const filteredTotalStock = matchedBatch
-    ? getBatchItemsForDisplay(matchedBatch).filter(item => {
-        const p = getOperationalProductsV256().find(x => String(x?.id || "") === String(item?.productId || ""));
-        return true;
-      }).reduce((sum, item) => {
+    ? getBatchItemsForDisplay(matchedBatch).reduce((sum, item) => {
         const originalQuantity = Math.max(
           0,
           Number(item.originalQuantity ?? item.quantity) || 0
@@ -17032,7 +17204,6 @@ function renderInventoryManagementList() {
     const averageCostLabelV205 = getAverageCostLabelV205(product);
     const soldQuantity = Number(product.netSoldQuantity) || 0;
     const cumulativeProfit = Number(product.cumulativeSoldProfit) || 0;
-    const displayNamesV271 = getProductDisplayNamesV271(product);
 
     return `
       <article class="inventory-manage-card"
@@ -17043,13 +17214,13 @@ function renderInventoryManagementList() {
               <span class="product-identity-v167 inventory-product-identity-v167"><button
                 class="inventory-product-name-copy"
                 type="button"
-                data-product-name="${escapeHTML(displayNamesV271.primary || product.name)}"
+                data-product-name="${escapeHTML(product.name)}"
                 onclick="copyInventoryProductName(this)"
                 title="点击复制产品名称">
-                ${escapeHTML(displayNamesV271.primary || product.name)}
+                ${escapeHTML(product.name)}
               </button>
               ${buildProductIdCopyButtonV166(product.id, "inventory-product-id-v166")}
-              ${displayNamesV271.secondary?`<small class="product-secondary-name-v271 inventory-english-secondline-v265">${escapeHTML(displayNamesV271.secondary)}</small>`:""}
+              ${productEnglishNameV262(product)?`<small class="product-english-name-v262 inventory-english-secondline-v265">${escapeHTML(productEnglishNameV262(product))}</small>`:""}
               ${renderProductMediaStatusV236(product.id, productMediaLinksV229)}
               </span>
             </div>
@@ -18097,7 +18268,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "28.01",
+      version: "26.8",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18464,7 +18635,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V28.01 Stable",
+      updatedBy: "System V26.8 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -18579,165 +18750,40 @@ function registerServiceWorker() {
 })();
 
 
-// ================= V28.01 Mobile ChatGPT Invoice Assistant =================
-// Recognition remains isolated from stock, average cost, minimum-price and formal Import/Batch logic.
-// V28.01 adds only safer naming/category normalization, preview progress/table UI and independent handoff state.
+// ================= V26.6 Mobile ChatGPT Invoice Assistant =================
+// Recognition is a separate preview/draft layer. It never changes stock, average cost,
+// minimum price, formal Import/Batch logic, saveBatchImport(), or deletion core.
 (function initInvoiceAssistantV259Module(){
-  const MAIN_CATEGORIES = new Set(["盆栽"]);
+  const MAIN_CATEGORIES = new Set(["盆栽","杂花杂木","肥料 / 农药","泥土 / 介质","花盆","工具","其他"]);
   const DRAFT_KEY="invoiceRecognitionDraftsV259", HISTORY_KEY="invoiceRecognitionHistoryV259";
-  const SHARED_STATUS_KEY_V277="invoiceRecognitionSharedStatusV277";
-  let working=null, appliedRecognitionId="", appliedRecognitionSnapshot=null, progressTimer=null, desktopPollBusyV277=false;
-  function hasUnsavedRecognitionV278(){return Boolean(working?.id && !drafts().some(x=>String(x?.id||"")===String(working.id)))}
-  window.confirmLeaveUnsavedRecognitionV278=function(action="离开"){
-    if(!hasUnsavedRecognitionV278())return true;
-    return window.confirm(`识别结果尚未保存。${action}可能遗失这份识别资料。\n\n确定仍要离开吗？`);
-  };
-  window.addEventListener("beforeunload",event=>{if(!hasUnsavedRecognitionV278())return;event.preventDefault();event.returnValue="";});
+  let working=null, appliedRecognitionId="";
   const el=id=>document.getElementById(id);
   const esc=v=>escapeHTML(String(v??""));
   const money=n=>(Number(n)||0).toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});
-  const deepClone=v=>{try{return JSON.parse(JSON.stringify(v))}catch(_){return v}};
   function isPhone(){const coarse=window.matchMedia?.("(pointer: coarse)")?.matches;const narrow=Math.min(window.screen?.width||innerWidth,innerWidth||9999)<=768;return Boolean(coarse&&narrow)}
-  function normalizeCategory(v){return "盆栽"}
+  function normalizeCategory(v){const x=String(v||"").trim();if(MAIN_CATEGORIES.has(x))return x;if(/肥料|农药/.test(x))return"肥料 / 农药";if(/泥土|介质|soil/i.test(x))return"泥土 / 介质";if(/花盆/.test(x))return"花盆";if(/工具/.test(x))return"工具";if(/杂花|杂木/.test(x))return"杂花杂木";if(/盆栽/.test(x))return"盆栽";return"其他"}
   function settings(){return loadJSON("importSystemSettings",{})}
   function drafts(){const a=settings()[DRAFT_KEY];return Array.isArray(a)?a:[]}
   function history(){const a=settings()[HISTORY_KEY];return Array.isArray(a)?a:[]}
-  function workingCountsAsDraft(){return Boolean(working?.id && !drafts().some(x=>String(x?.id||"")===String(working.id)))}
   function writeCollections(d,h){const st=settings();saveJSON("importSystemSettings",{...st,[DRAFT_KEY]:(d||drafts()).slice(0,20),[HISTORY_KEY]:(h||history()).slice(0,80)});if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved();updateButton()}
-  function updateButton(){const b=el("invoicePreviewBtnV259");if(!b)return;const saved=drafts();const count=saved.length+(workingCountsAsDraft()?1:0);b.textContent=`📄 查看识别草稿（${count}）`}
-  let transientSharedStatusV279=null, lastPublishedPercentV279=-1;
-  function sharedStatusV277(){const v=transientSharedStatusV279||settings()[SHARED_STATUS_KEY_V277];return v&&typeof v==="object"?v:null}
-  function publishSharedStatusV277(state,text,percent=0,extra={}){
-    const next={state:String(state||""),text:String(text||""),percent:Math.max(0,Math.min(100,Math.round(Number(percent)||0))),updatedAt:new Date().toISOString(),...extra};
-    transientSharedStatusV279=next;
-    const p=next.percent;
-    if (p===lastPublishedPercentV279 && !["recognized","saved","error"].includes(next.state)) return;
-    lastPublishedPercentV279=p;
-    if (navigator.onLine) callGoogleApi({action:"setRecognitionStatusV279",clientVersion:APP_VERSION,status:next}).catch(()=>{});
-  }
-  function renderSharedStatusV277(){
-    updateButton();if(isPhone())return;const shared=sharedStatusV277(),status=el("invoiceRecognitionStatusV258"),wrap=el("invoiceRecognitionProgressWrapV269"),bar=el("invoiceRecognitionProgressBarV269"),label=el("invoiceRecognitionProgressLabelV269");if(!shared||!shared.updatedAt)return;
-    const age=Date.now()-(Date.parse(shared.updatedAt)||0);if(age>10*60*1000)return;const p=Math.max(0,Math.min(100,Math.round(Number(shared.percent)||0)));
-    if(status){status.textContent=shared.text||"";status.dataset.kind=shared.state==="error"?"error":shared.state==="saved"||shared.state==="recognized"?"ok":""}if(wrap)wrap.hidden=!(shared.state==="uploading"||shared.state==="recognizing");if(bar)bar.style.width=`${p}%`;if(label)label.textContent=`${p}%`;
-  }
-  async function pollRecognitionCloudV277(){const importPage=el("importPage");if(isPhone()||document.hidden||!importPage?.classList.contains("active")||desktopPollBusyV277||!navigator.onLine)return;desktopPollBusyV277=true;try{const data=await callGoogleApi({action:"getRecognitionStatusV279",clientVersion:APP_VERSION});if(data?.status){transientSharedStatusV279=data.status;renderSharedStatusV277();updateButton()}}catch(_){}finally{desktopPollBusyV277=false}}
-  function setProgress(percent,text,kind=""){
-    const p=Math.max(0,Math.min(100,Math.round(Number(percent)||0)));
-    const e=el("invoiceRecognitionStatusV258");if(e){e.textContent=text?`${text} ${p}%`:`${p}%`;e.dataset.kind=kind}
-    const wrap=el("invoiceRecognitionProgressWrapV269"),bar=el("invoiceRecognitionProgressBarV269"),label=el("invoiceRecognitionProgressLabelV269");
-    if(wrap)wrap.hidden=p<=0||p>=100&&kind==="error";if(bar)bar.style.width=`${p}%`;if(label)label.textContent=`${p}%`;
-  }
-  function stopProgressTimer(){if(progressTimer){window.clearInterval(progressTimer);progressTimer=null}}
+  function updateButton(){const b=el("invoicePreviewBtnV259");if(b)b.textContent=`📄 查看识别草稿（${drafts().length}）`}
+  function setStatus(t,k=""){const e=el("invoiceRecognitionStatusV258");if(e){e.textContent=t||"";e.dataset.kind=k}}
   function inventory(){return getOperationalProductsV256().map(p=>({id:String(p?.id||""),name:String(p?.name||""),category:normalizeCategory(p?.category),stock:Number(p?.stock)||0})).filter(p=>p.id&&p.name)}
   function compress(file){return new Promise((res,rej)=>{const r=new FileReader();r.onerror=()=>rej(new Error("无法读取照片"));r.onload=()=>{const im=new Image();im.onerror=()=>rej(new Error("照片格式无法读取"));im.onload=()=>{const m=1800,sc=Math.min(1,m/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=Math.max(1,Math.round(im.width*sc));c.height=Math.max(1,Math.round(im.height*sc));c.getContext("2d",{alpha:false}).drawImage(im,0,0,c.width,c.height);res(c.toDataURL("image/jpeg",.80))};im.src=String(r.result||"")};r.readAsDataURL(file)})}
-  function extractSizeTokenV269(source){const s=String(source||"");const m=s.match(/\b(?:P\s?\d{2,4}|\d{2,4}\s?P|\d{1,4}(?:\.\d+)?\s?C|\d{1,3}\s?(?:CM|MM))\b/i);return m?m[0].replace(/\s+/g,"").toUpperCase():""}
-  function supplierPrefixForRecognitionV269(result){
-    const supplier=String(result?.supplier||"").trim(); if(!supplier||typeof getSupplierDirectoryV261!=="function")return"";
-    const canon=v=>(typeof supplierCanonNameV261==="function"?supplierCanonNameV261(v):String(v||"")).toLowerCase().replace(/[^a-z0-9\u3400-\u9fff]+/g," ").trim();
-    const key=canon(supplier);
-    const row=getSupplierDirectoryV261().find(s=>[s.name,...(s.aliases||[])].some(n=>{const label=canon(n);return label&&(key===label||key.includes(label)||label.includes(key));}));
-    return row?.prefix?String(row.prefix):"";
-  }
-  function categoryFromPrefixV269(prefix,fallback,name){return "盆栽"}
-  function resolveProducts(result){
-    const ps=getOperationalProductsV256(),reserved=[...ps],supplierPrefix=supplierPrefixForRecognitionV269(result),catalog=getVirtualWarehouseSourceV240();
-    const norm=v=>normalizeSearchTextV262(String(v||""));
-    const sizeOf=v=>extractSizeTokenV269(v||"");
-    const findCatalog=(it)=>{
-      const candidates=[it.sourceText,it.name,it.chineseName,it.englishName].filter(Boolean).map(norm).filter(Boolean);
-      const wantedSize=sizeOf([it.sourceText,it.name].filter(Boolean).join(" "));
-      const hits=catalog.filter(v=>{
-        const fields=[v.name,v.description].filter(Boolean).map(norm);
-        const size=String(v.size||sizeOf(v.name)||"").replace(/\s+/g,"").toUpperCase();
-        if(wantedSize&&size&&wantedSize!==size)return false;
-        return candidates.some(q=>fields.some(t=>q===t||t.includes(q)||q.includes(t)));
-      });
-      return hits.length===1?hits[0]:null;
-    };
-    return (result.items||[]).map((it,idx)=>{
-      const source=[it.sourceText,it.name,it.chineseName,it.englishName].filter(Boolean).join(" ");const q=norm(source);
-      let old=null,id=String(it.existingProductId||"").toUpperCase();if(id)old=ps.find(p=>String(p.id||"").toUpperCase()===id)||null;
-      if(!old){
-        const exactFields=[it.name,it.chineseName].filter(Boolean).map(norm).filter(Boolean);
-        const exactHits=ps.filter(p=>exactFields.includes(norm(p.name)));
-        if(exactHits.length===1)old=exactHits[0];
-      }
-      if(!old){
-        const fuzzyHits=ps.filter(p=>{const t=norm(productSearchTextV262(p));return q&&[it.name,it.chineseName,it.englishName].filter(Boolean).some(v=>{const z=norm(v);return z&&t.includes(z)})});
-        if(fuzzyHits.length===1)old=fuzzyHits[0];
-      }
-      const ref=old?null:findCatalog(it);
-      const migratedRef=ref?ps.find(p=>norm(p.name)===norm(ref.name))||null:null;
-      if(migratedRef)old=migratedRef;
-      const catalogExisting=Boolean(!old&&ref);
-      const bilingual=inferSimpleBilingualV262(source);
-      let name="",en="",pref="",cat="",pid="";
-      if(old){
-        name=String(old.name||"");en=productEnglishNameV262(old);pref=String(old.id||"").slice(0,2).toUpperCase();cat=normalizeCategory(old.category);pid=String(old.id||"");
-      }else if(catalogExisting){
-        // Existing Products only; no secondary warehouse catalog.
-        name=String(ref.name||"").trim();en=String(ref.description||it.englishName||"").trim();pref=String(ref.productPrefix||"").toUpperCase();cat=normalizeCategory(resolveVirtualWarehouseCategoryV240(ref));pid="";
-      }else{
-        const cn=String(it.chineseName||bilingual.chineseName||it.name||"").trim();const size=sizeOf(it.sourceText||it.name||"");
-        const alreadyHasSize=size&&norm(cn).includes(norm(size));const alreadyHasSupplier=supplierPrefix&&norm(cn).startsWith(norm(supplierPrefix));
-        name=`${alreadyHasSupplier?"":supplierPrefix}${cn}${size&&!alreadyHasSize?size:""}`.trim();
-        en=String(it.englishName||bilingual.englishName||"").trim();
-        let requestedCategory="盆栽";
-        cat=requestedCategory;pref=String(it.preferredProductPrefix||bilingual.prefix||"").toUpperCase()||getProductPrefix(cat,name);cat=categoryFromPrefixV269(pref,cat,name);pid=generateNextProductIdFromPrefixV240(reserved,pref);reserved.push({id:pid,name,category:cat});
-      }
-      if(!name)name=String(it.name||"").trim();
-      return{index:idx+1,sourceText:String(it.sourceText||""),name,englishName:en,invoiceEnglishOriginal:String(it.invoiceEnglishOriginal||it.englishOriginal||it.englishName||"").trim(),productId:pid,isNew:!old&&!catalogExisting,quantity:Math.max(0,Math.floor(Number(it.quantity)||0)),unitPrice:Math.max(0,Number(it.unitPrice)||0),category:cat,preferredProductPrefix:pref,confidence:String(it.confidence||""),issue:String(it.issue||"")};
-    })
-  }
+  function resolveProducts(result){const ps=getOperationalProductsV256(),reserved=[...ps];return (result.items||[]).map((it,idx)=>{const source=[it.name,it.chineseName,it.englishName,it.sourceText].filter(Boolean).join(" ");const q=normalizeSearchTextV262(source);let old=null,id=String(it.existingProductId||"").toUpperCase();if(id)old=ps.find(p=>String(p.id||"").toUpperCase()===id)||null;if(!old)old=ps.find(p=>{const t=normalizeSearchTextV262(productSearchTextV262(p));return q&&([it.name,it.chineseName,it.englishName].filter(Boolean).some(v=>{const z=normalizeSearchTextV262(v);return z&&(t.includes(z)||z.includes(normalizeSearchTextV262(p.name))) }))})||null;let bilingual=inferSimpleBilingualV262(source);let ref=null;if(!old){ref=getVirtualWarehouseSourceV240().find(v=>{const t=normalizeSearchTextV262([v.name,v.description,v.supplierPrefix,v.supplierFullName].join(" "));return [it.name,it.chineseName,it.englishName].filter(Boolean).some(vv=>{const z=normalizeSearchTextV262(vv);return z&&t.includes(z)})})||null;if(ref){bilingual={chineseName:String(ref.name||""),englishName:String(ref.description||""),prefix:String(ref.productPrefix||"")}}}let name=old?String(old.name||""):String(it.chineseName||bilingual.chineseName||it.name||"").trim();if(!name)name=String(it.name||"").trim();if(!old&&Array.from(name).length>15)name=Array.from(name).slice(0,15).join("");const en=old?productEnglishNameV262(old):String(it.englishName||bilingual.englishName||ref?.description||"").trim();const cat=old?normalizeCategory(old.category):normalizeCategory(it.category);let pid=old?String(old.id||""):"";const pref=String(it.preferredProductPrefix||bilingual.prefix||ref?.productPrefix||"").trim().toUpperCase()||(cat==="杂花杂木"?getProductPrefix(cat,name):getProductPrefix(cat,name));if(!old){pid=generateNextProductIdFromPrefixV240(reserved,pref);reserved.push({id:pid,name,category:cat})}return{index:idx+1,sourceText:String(it.sourceText||""),name,englishName:en,productId:pid,isNew:!old,quantity:Math.max(0,Math.floor(Number(it.quantity)||0)),unitPrice:Math.max(0,Number(it.unitPrice)||0),category:cat,preferredProductPrefix:pref,confidence:String(it.confidence||""),issue:String(it.issue||"")}})}
   function buildDraft(result,pageCount){const items=resolveProducts(result),calcQty=items.reduce((a,x)=>a+x.quantity,0),calcAmt=items.reduce((a,x)=>a+x.quantity*x.unitPrice,0);return{id:`AIR${Date.now()}`,status:"recognition",createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),supplier:String(result.supplier||""),currency:String(result.currency||""),pageCount,items,source:{itemCount:Number(result.invoiceItemCount)||items.length,totalQuantity:Number(result.invoiceTotalQuantity)||calcQty,totalAmount:Number(result.invoiceTotalAmount)||calcAmt,printedItemCount:Number(result.printedItemCount)||0,printedTotalQuantity:Number(result.printedTotalQuantity)||0,printedTotalAmount:Number(result.printedTotalAmount)||0},issues:Array.isArray(result.issues)?result.issues.map(String):[],matchOk:result.matchOk!==false,complete:result.complete!==false}}
-  function render(d){
-    working=d||working||drafts()[0]||null;const modal=el("invoicePreviewModalV259"),body=el("invoicePreviewBodyV259"),sum=el("invoicePreviewSummaryV259"),meta=el("invoicePreviewMetaV259");if(!modal||!body||!sum)return;if(!working){alert("目前没有识别草稿。请先用手机拍照或上传发票。 ");return}
-    meta.textContent=`${working.supplier||"未识别供应商"} · ${working.pageCount||1} 页 · ${working.currency||""}`;
-    body.innerHTML=`<div class="invoice-preview-table-wrap-v270"><table class="invoice-preview-table-v270 invoice-preview-table-v278"><thead><tr><th>产品名称</th><th>Product ID</th><th>数量</th><th>原成本</th><th>小计</th><th>类别</th></tr></thead><tbody>${working.items.map(x=>{const invoiceEnglish=x.invoiceEnglishOriginal||x.englishName||"";return `<tr class="${x.isNew?'new-product':''} ${x.issue?'warning':''}"><td class="invoice-product-name-cell-v278"><button type="button" class="invoice-copy-name-v279" data-copy-recognition-v279="${esc(x.name)}" title="点击复制产品名1">${esc(x.name)}</button>${invoiceEnglish?`<button type="button" class="invoice-copy-english-v279" data-copy-recognition-v279="${esc(invoiceEnglish)}" title="点击复制发票完整英文原文">${esc(invoiceEnglish)}</button>`:""}</td><td>${esc(x.productId||"")}</td><td class="num">${x.quantity}</td><td class="num">${money(x.unitPrice)}</td><td class="num">${money(x.quantity*x.unitPrice)}</td><td>${esc(x.category)}</td></tr>`}).join("")}</tbody></table></div>`;
-    body.querySelectorAll("[data-copy-recognition-v279]").forEach(btn=>btn.addEventListener("click",async()=>{const text=String(btn.dataset.copyRecognitionV279||"");try{await navigator.clipboard.writeText(text);const oldText=btn.textContent;btn.textContent=`${oldText} ✓`;window.setTimeout(()=>btn.textContent=oldText,700)}catch(_){}}));
-    const q=working.items.reduce((a,x)=>a+x.quantity,0),a=working.items.reduce((z,x)=>z+x.quantity*x.unitPrice,0),c=working.items.length,ok=working.matchOk&&working.complete&&c===working.source.itemCount&&Math.abs(q-working.source.totalQuantity)<.0001&&Math.abs(a-working.source.totalAmount)<.01;
-    sum.className=`invoice-preview-summary-v259 ${ok?'ok':'warn'}`;sum.innerHTML=`<strong>${ok?'✅ 识别草稿与发票核对一致':'⚠️ 识别结果存在差异'}</strong><br>发票：${working.source.itemCount} 项 · 数量 ${working.source.totalQuantity} · 总额 ${money(working.source.totalAmount)} ${esc(working.currency)}<br>草稿：${c} 项 · 数量 ${q} · 总额 ${money(a)} ${esc(working.currency)}`+(working.issues.length?`<br><strong>原因：</strong>${working.issues.map(esc).join('；')}`:'')+`<div class="invoice-history-note-v259">红色字体 = 现有产品没有匹配到的真正新品。</div>`;
-    el("invoiceApplyRecognitionDraftV259").disabled=!ok;modal.hidden=false;updateButton()
-  }
-  async function recognize(files){
-    if(!isPhone()){alert("照片识别功能只能在手机使用。请先用手机处理并保存识别草稿，再到电脑检查。");return}const fs=Array.from(files||[]);if(!fs.length)return;
-    stopProgressTimer();let progress=5;
-    try{
-      setProgress(progress,`正在准备 ${fs.length} 页照片…`);publishSharedStatusV277("uploading",`手机正在准备 ${fs.length} 页发票…`,progress,{pageCount:fs.length});const urls=[];
-      for(let i=0;i<fs.length;i++){progress=10+Math.round(((i+1)/fs.length)*25);setProgress(progress,`正在准备第 ${i+1}/${fs.length} 页…`);urls.push(await compress(fs[i]))}
-      progress=45;setProgress(progress,"正在上传并交给 AI 识别…");publishSharedStatusV277("recognizing","手机正在上传发票并识别中…",progress,{pageCount:fs.length});progressTimer=window.setInterval(()=>{if(progress<88){progress+=1;setProgress(progress,"AI 正在识别并核对多页发票…");if(progress===55||progress===65||progress===75||progress===85)publishSharedStatusV277("recognizing","手机正在上传发票并识别中…",progress,{pageCount:fs.length})}},700);
-      const data=await callGoogleApi({action:"recognizeImportInvoiceV259",clientVersion:APP_VERSION,imageDataUrls:urls,inventory:inventory().map(p=>({...p,englishName:productEnglishNameV262(p)}))});stopProgressTimer();setProgress(90,"正在整理识别结果…");
-      if(!data?.result)throw new Error("AI 没有返回识别结果");const r=data.result;if(r.rejected)throw new Error(String(r.rejectionReason||"发票资料不符合安全识别条件，请重拍或重新上传。"));
-      working=buildDraft(r,fs.length);updateButton();setProgress(100,"识别完成","ok");publishSharedStatusV277("recognized","手机发票识别成功，等待保存识别草稿",100,{draftId:working.id,pageCount:fs.length});render(working)
-    }catch(e){stopProgressTimer();const m=String(e?.message||e||"识别失败");setProgress(100,`识别失败：${m}`,"error");publishSharedStatusV277("error",`手机发票识别失败：${m}`,100);alert(`${m}\n\n没有资料带入 Import，也没有影响库存、保存或删除。`)}finally{["invoiceCameraInputV259","invoiceUploadInputV259"].forEach(id=>{const i=el(id);if(i)i.value=""})}
-  }
-  function saveRecognition(){if(!working)return;const d=deepClone({...working,updatedAt:new Date().toISOString()});writeCollections([d,...drafts().filter(x=>x.id!==d.id)],history());working=d;publishSharedStatusV277("saved","手机识别成功，识别草稿已保存",100,{draftId:d.id,draftCount:drafts().length});setProgress(100,"识别草稿已保存","ok");el("invoicePreviewModalV259").hidden=true;alert("识别草稿已保存。电脑同步后可点击「查看识别草稿」检查。");updateButton()}
-  function deleteRecognition(){if(!working||!confirm("确认删除这份识别草稿？不会影响已经带入的进口草稿、库存或历史正式资料。"))return;const id=String(working.id||"");writeCollections(drafts().filter(x=>String(x?.id||"")!==id),history());working=null;el("invoicePreviewModalV259").hidden=true;updateButton()}
-  function showRecognitionHistory(){const h=history();if(!h.length){alert("目前没有识别历史记录。");return}const body=el("invoicePreviewBodyV259"),sum=el("invoicePreviewSummaryV259"),meta=el("invoicePreviewMetaV259");meta.textContent=`识别历史 · ${h.length} 份`;body.innerHTML=h.map((x,i)=>`<button type="button" class="invoice-history-item-v259" data-rec-history="${i}"><strong>${esc(x.supplier||"未命名供应商")}</strong><span>${esc((x.archivedAt||x.updatedAt||x.createdAt||"").replace("T"," ").slice(0,16))} · ${x.items?.length||0} 项 · ${x.pageCount||1} 页</span></button>`).join("");sum.className="invoice-preview-summary-v259";sum.innerHTML="选择一份历史记录即可重新查看当时的识别草稿；历史记录只供追溯，不会自动改动 Import 或库存。";body.querySelectorAll("[data-rec-history]").forEach(b=>b.onclick=()=>{const x=h[Number(b.dataset.recHistory)];if(x)render(deepClone(x))});el("invoiceDeleteRecognitionDraftV259").disabled=true;el("invoiceSaveRecognitionDraftV259").disabled=true;el("invoiceApplyRecognitionDraftV259").disabled=true}
-  function recognitionPreviousCostNoticesV277(snapshot,byId){
-    const notices=[];const imports=getImports();const batches=getBatches();const batchById=new Map(batches.map(b=>[String(b?.id||""),b]));
-    snapshot.items.forEach(x=>{const old=byId.get(String(x.productId||""));if(!old)return;const pid=String(old.id||"").trim(),pname=String(old.name||"").trim().toLowerCase();const matches=imports.filter(r=>(pid&&String(r?.productId||"").trim()===pid)||(!pid&&pname&&String(r?.productName||"").trim().toLowerCase()===pname)).filter(r=>Number(r?.unitPrice)>0);if(!matches.length)return;
-      matches.sort((a,b)=>{const ba=batchById.get(String(a?.batchId||""))||{},bb=batchById.get(String(b?.batchId||""))||{};const ta=Date.parse(a?.updatedAt||a?.createdAt||"")||parseDDMMYYYY(a?.arrivalDate||ba?.arrivalDate||a?.date||ba?.date||"")||0;const tb=Date.parse(b?.updatedAt||b?.createdAt||"")||parseDDMMYYYY(b?.arrivalDate||bb?.arrivalDate||b?.date||bb?.date||"")||0;return tb-ta});
-      const prev=matches[0],previousCost=Number(prev.unitPrice)||0,currentCost=Number(x.unitPrice)||0;if(Math.abs(previousCost-currentCost)<0.005)return;const supplier=typeof inferSupplierFromProductV261==="function"?inferSupplierFromProductV261(old):null;const supplierName=String(supplier?.name||"").trim();const prevCurrency=String(prev.currency||batchById.get(String(prev?.batchId||""))?.currency||snapshot.currency||"").trim().toUpperCase();const currentCurrency=String(snapshot.currency||"").trim().toUpperCase();notices.push(`${old.name}\n本次发票：${currentCurrency?currentCurrency+" ":""}${money(currentCost)}\n${supplierName?`之前向 ${supplierName} 购入：`:`之前购入：`}${prevCurrency?prevCurrency+" ":""}${money(previousCost)}`);
-    });return notices;
-  }
-  function applyRecognition(){
-    if(!working)return;const snapshot=deepClone(working),ps=getOperationalProductsV256(),byId=new Map(ps.map(p=>[String(p.id||""),p]));if(currentEditingImportNumber){alert("当前正在查看已正式保存进口编号，不能带入。请先回到新进口输入。");return}if(importDraftStateHasUserDataV246(collectImportDraftStateV242())&&!confirm("当前进口管理已有资料。继续会用识别草稿取代产品行，是否继续？"))return;
-    const tbody=el("batchRows");tbody.innerHTML="";batchRowSeq=0;
-    const previousCostNoticesV277=recognitionPreviousCostNoticesV277(snapshot,byId);snapshot.items.forEach(x=>{const old=byId.get(String(x.productId||""));addBatchRow({name:old?old.name:x.name,productId:old?old.id:"",category:old?normalizeCategory(old.category):x.category,quantity:x.quantity,unitPrice:x.unitPrice});const tr=document.querySelector("#batchRows tr:last-child");if(tr){if(old){tr.dataset.recognitionInvoiceProductIdV277=String(old.id||"");tr.dataset.priceManuallyEditedV249="1";tr.dataset.lastIdentityNameV231=String(old.name||"").trim().toLowerCase()}if(!old&&x.preferredProductPrefix)tr.dataset.preferredSubcategoryPrefixV255=String(x.preferredProductPrefix).toUpperCase();if(x.englishName)tr.dataset.englishNameV262=String(x.englishName);if(x.isNew){tr.dataset.recognitionNewV265="1";tr.classList.add("recognition-new-product-v265")}}});if(!document.querySelector("#batchRows tr"))addBatchRow();
-    const ce=el("batchCurrency"),currency=String(snapshot.currency||"").toUpperCase();if(ce&&["CNY","NTD","VND","IDR","MYR"].includes(currency)){ce.value=currency;batchCurrencyManuallySelectedV229=true;clearAutoArrivalWhenLeavingMYRV230();applyBatchRate();setTodayArrivalForMYRV229();refreshAutoOriginalCostsForBatchV249()}
-    calculateBatch();appliedRecognitionId=String(snapshot.id||"");appliedRecognitionSnapshot=snapshot;el("invoicePreviewModalV259").hidden=true;setProgress(100,"识别草稿已带入进口管理，请检查后保存草稿","ok");if(previousCostNoticesV277.length)window.alert(`原成本提示：\n\n${previousCostNoticesV277.join("\n\n")}`)
-  }
-  function archiveAppliedAfterImportDraftSave(){
-    if(!appliedRecognitionId&&!appliedRecognitionSnapshot)return;const d=deepClone(appliedRecognitionSnapshot||drafts().find(x=>x.id===appliedRecognitionId)||working);if(!d)return;
-    const archived={...d,status:"history",archivedAt:new Date().toISOString(),linkedImportDraftId:String(activeImportDraftIdV242||"")};writeCollections(drafts().filter(x=>x.id!==appliedRecognitionId),[archived,...history().filter(x=>x.id!==archived.id)]);
-    document.querySelectorAll("#batchRows tr.recognition-new-product-v265").forEach(tr=>{delete tr.dataset.recognitionNewV265;tr.classList.remove("recognition-new-product-v265")});
-    appliedRecognitionId="";appliedRecognitionSnapshot=null;working=null;updateButton();setProgress(100,"Import 草稿已保存；新产品提示已恢复正常颜色","ok")
-  }
+  function render(d){working=d||drafts()[0]||null;const modal=el("invoicePreviewModalV259"),body=el("invoicePreviewBodyV259"),sum=el("invoicePreviewSummaryV259"),meta=el("invoicePreviewMetaV259");if(!modal||!body||!sum)return;if(!working){alert("目前没有识别草稿。请先用手机拍照或上传发票。 ");return}meta.textContent=`${working.supplier||"未识别供应商"} · ${working.pageCount||1} 页 · ${working.currency||""}`;body.innerHTML='<div class="invoice-preview-row-v259 header"><div>产品名 / 状态</div><div>产品编号</div><div>数量</div><div>类别</div><div>原成本</div><div>小计</div></div>'+working.items.map(x=>`<div class="invoice-preview-row-v259 ${x.isNew?'new-product':''} ${x.issue?'warning':''}"><div class="invoice-preview-product-v259">${esc(x.name)}${x.englishName?`<span class="product-english-name-v262">${esc(x.englishName)}</span>`:""}<small>${x.isNew?'新产品':'沿用旧产品'}${x.issue?' · '+esc(x.issue):''}</small></div><div>${esc(x.productId)}</div><div>${x.quantity}</div><div>${esc(x.category)}</div><div>${money(x.unitPrice)}</div><div>${money(x.quantity*x.unitPrice)}</div></div>`).join("");const q=working.items.reduce((a,x)=>a+x.quantity,0),a=working.items.reduce((z,x)=>z+x.quantity*x.unitPrice,0),c=working.items.length,ok=working.matchOk&&working.complete&&c===working.source.itemCount&&Math.abs(q-working.source.totalQuantity)<.0001&&Math.abs(a-working.source.totalAmount)<.01;sum.className=`invoice-preview-summary-v259 ${ok?'ok':'warn'}`;sum.innerHTML=`<strong>${ok?'✅ 识别草稿与发票核对一致':'⚠️ 识别结果存在差异'}</strong><br>发票：${working.source.itemCount} 项 · 数量 ${working.source.totalQuantity} · 总额 ${money(working.source.totalAmount)} ${esc(working.currency)}<br>草稿：${c} 项 · 数量 ${q} · 总额 ${money(a)} ${esc(working.currency)}`+(working.issues.length?`<br><strong>原因：</strong>${working.issues.map(esc).join('；')}`:'')+`<div class="invoice-history-note-v259">红色整项 = 新产品；正常颜色 = 沿用库存旧产品。</div>`;el("invoiceApplyRecognitionDraftV259").disabled=!ok;modal.hidden=false}
+  async function recognize(files){if(!isPhone()){alert("照片识别功能只能在手机使用。请先用手机处理并保存识别草稿，再到电脑检查。");return}const fs=Array.from(files||[]);if(!fs.length)return;try{setStatus(`正在准备 ${fs.length} 页照片…`);const urls=[];for(let i=0;i<fs.length;i++){setStatus(`正在准备第 ${i+1}/${fs.length} 页…`);urls.push(await compress(fs[i]))}setStatus("正在交给 ChatGPT 合并识别并核对多页发票…");const data=await callGoogleApi({action:"recognizeImportInvoiceV259",clientVersion:APP_VERSION,imageDataUrls:urls,inventory:inventory().map(p=>({...p,englishName:productEnglishNameV262(p)})),virtualWarehouse:getVirtualWarehouseSourceV240()});if(!data?.result)throw new Error("ChatGPT 没有返回识别结果");const r=data.result;if(r.rejected)throw new Error(String(r.rejectionReason||"发票资料不符合安全识别条件，请重拍或重新上传。"));working=buildDraft(r,fs.length);setStatus("识别完成。请打开「查看识别草稿」检查。","ok");render(working)}catch(e){const m=String(e?.message||e||"识别失败");setStatus(`识别失败：${m}`,"error");alert(`${m}\n\n没有资料带入 Import，也没有影响库存、保存或删除。`)}finally{["invoiceCameraInputV259","invoiceUploadInputV259"].forEach(id=>{const i=el(id);if(i)i.value=""})}}
+  function saveRecognition(){if(!working)return;const d={...working,updatedAt:new Date().toISOString()};writeCollections([d,...drafts().filter(x=>x.id!==d.id)],history());working=d;setStatus("识别草稿已保存，可到电脑打开检查。","ok");el("invoicePreviewModalV259").hidden=true;alert("识别草稿已保存。电脑同步后可点击「查看识别草稿」检查。")}
+  function deleteRecognition(){if(!working||!confirm("确认删除这份识别草稿？不会影响 Import、库存或历史正式资料。"))return;writeCollections(drafts().filter(x=>x.id!==working.id),history());working=null;el("invoicePreviewModalV259").hidden=true}
+  function showRecognitionHistory(){const h=history();if(!h.length){alert("目前没有识别历史记录。");return}const body=el("invoicePreviewBodyV259"),sum=el("invoicePreviewSummaryV259"),meta=el("invoicePreviewMetaV259");meta.textContent=`识别历史 · ${h.length} 份`;body.innerHTML=h.map((x,i)=>`<button type="button" class="invoice-history-item-v259" data-rec-history="${i}"><strong>${esc(x.supplier||"未命名供应商")}</strong><span>${esc((x.archivedAt||x.updatedAt||x.createdAt||"").replace("T"," ").slice(0,16))} · ${x.items?.length||0} 项 · ${x.pageCount||1} 页</span></button>`).join("");sum.className="invoice-preview-summary-v259";sum.innerHTML="选择一份历史记录即可重新查看当时的识别草稿；历史记录只供追溯，不会自动改动 Import 或库存。";body.querySelectorAll("[data-rec-history]").forEach(b=>b.onclick=()=>{const x=h[Number(b.dataset.recHistory)];if(x)render(x)});el("invoiceDeleteRecognitionDraftV259").disabled=true;el("invoiceSaveRecognitionDraftV259").disabled=true;el("invoiceApplyRecognitionDraftV259").disabled=true}
+  function applyRecognition(){if(!working)return;const ps=getOperationalProductsV256(),byId=new Map(ps.map(p=>[String(p.id||""),p]));if(currentEditingImportNumber){alert("当前正在查看已正式保存进口编号，不能带入。请先回到新进口输入。");return}if(importDraftStateHasUserDataV246(collectImportDraftStateV242())&&!confirm("当前同批进口产品已有资料。继续会用识别草稿取代产品行，是否继续？"))return;const tbody=el("batchRows");tbody.innerHTML="";batchRowSeq=0;working.items.forEach(x=>{const old=byId.get(x.productId);addBatchRow({name:old?old.name:x.name,productId:old?old.id:"",category:old?normalizeCategory(old.category):x.category,quantity:x.quantity,unitPrice:x.unitPrice});const tr=document.querySelector("#batchRows tr:last-child");if(tr){if(!old&&x.preferredProductPrefix)tr.dataset.preferredSubcategoryPrefixV255=String(x.preferredProductPrefix).toUpperCase();if(x.englishName)tr.dataset.englishNameV262=String(x.englishName);if(!old){tr.dataset.recognitionNewV265="1";tr.classList.add("recognition-new-product-v265")}}});if(!document.querySelector("#batchRows tr"))addBatchRow();const ce=el("batchCurrency");if(ce&&["CNY","NTD","VND","IDR","MYR"].includes(String(working.currency).toUpperCase())){ce.value=String(working.currency).toUpperCase();batchCurrencyManuallySelectedV229=true}calculateBatch();appliedRecognitionId=working.id;el("invoicePreviewModalV259").hidden=true;setStatus("识别草稿已带入同批进口产品。请检查后按原本「保存草稿」。","ok")}
+  function archiveAppliedAfterImportDraftSave(){if(!appliedRecognitionId)return;const d=drafts().find(x=>x.id===appliedRecognitionId)||working;if(!d)return;const archived={...d,status:"history",archivedAt:new Date().toISOString(),linkedImportDraftId:String(activeImportDraftIdV242||"")};writeCollections(drafts().filter(x=>x.id!==appliedRecognitionId),[archived,...history().filter(x=>x.id!==archived.id)]);appliedRecognitionId="";working=null;setStatus("Import 草稿已保存；原识别草稿已自动收入识别历史。","ok")}
   window.archiveAppliedRecognitionDraftV259=archiveAppliedAfterImportDraftSave;
-  function init(){const btn=el("invoicePhotoBtnV258"),notice=el("invoiceDesktopNoticeV258");if(!btn)return;notice.hidden=isPhone();btn.setAttribute("aria-disabled",isPhone()?"false":"true");btn.onclick=()=>{if(!isPhone()){alert("照片识别功能只能在手机使用。请先用手机拍照/上传并保存识别草稿，再到电脑检查。");return}el("invoiceSourceChoiceV259").hidden=false};let cameraPagesV262=[];const cameraSession=el("invoiceCameraSessionV262"),cameraCount=el("invoiceCameraCountV262");const updateCameraSession=()=>{if(cameraCount)cameraCount.textContent=`已拍 ${cameraPagesV262.length} 页`;if(cameraSession)cameraSession.hidden=cameraPagesV262.length===0};el("invoiceTakePhotoV259").onclick=()=>{cameraPagesV262=[];updateCameraSession();el("invoiceCameraInputV259").click()};el("invoiceChoosePhotosV259").onclick=()=>{el("invoiceSourceChoiceV259").hidden=true;el("invoiceUploadInputV259").click()};el("invoiceChoiceCancelV259").onclick=()=>{cameraPagesV262=[];updateCameraSession();el("invoiceSourceChoiceV259").hidden=true};el("invoiceCameraInputV259").onchange=e=>{const f=e.target.files?.[0];if(f)cameraPagesV262.push(f);e.target.value="";updateCameraSession();el("invoiceSourceChoiceV259").hidden=false};el("invoiceCameraMoreV262").onclick=()=>el("invoiceCameraInputV259").click();el("invoiceCameraDeleteLastV262").onclick=()=>{cameraPagesV262.pop();updateCameraSession()};el("invoiceCameraFinishV262").onclick=()=>{if(!cameraPagesV262.length)return;const pages=cameraPagesV262.slice();cameraPagesV262=[];updateCameraSession();el("invoiceSourceChoiceV259").hidden=true;recognize(pages)};el("invoiceUploadInputV259").onchange=e=>recognize(e.target.files);el("invoicePreviewBtnV259").onclick=()=>render(working||drafts()[0]);el("invoicePreviewCloseV259").onclick=()=>el("invoicePreviewModalV259").hidden=true;el("invoiceHistoryV259").onclick=showRecognitionHistory;el("invoiceSaveRecognitionDraftV259").onclick=saveRecognition;el("invoiceDeleteRecognitionDraftV259").onclick=deleteRecognition;el("invoiceApplyRecognitionDraftV259").onclick=applyRecognition;updateButton();renderSharedStatusV277();window.addEventListener("storage",()=>{updateButton();renderSharedStatusV277()});window.addEventListener("loverLegendCloudDataAppliedV277",renderSharedStatusV277);if(!isPhone()){window.setInterval(pollRecognitionCloudV277,5000);window.setTimeout(pollRecognitionCloudV277,700)}}
+  function init(){const btn=el("invoicePhotoBtnV258"),notice=el("invoiceDesktopNoticeV258");if(!btn)return;notice.hidden=isPhone();btn.setAttribute("aria-disabled",isPhone()?"false":"true");btn.onclick=()=>{if(!isPhone()){alert("照片识别功能只能在手机使用。请先用手机拍照/上传并保存识别草稿，再到电脑检查。");return}el("invoiceSourceChoiceV259").hidden=false};let cameraPagesV262=[];const cameraSession=el("invoiceCameraSessionV262"),cameraCount=el("invoiceCameraCountV262");const updateCameraSession=()=>{if(cameraCount)cameraCount.textContent=`已拍 ${cameraPagesV262.length} 页`;if(cameraSession)cameraSession.hidden=cameraPagesV262.length===0};el("invoiceTakePhotoV259").onclick=()=>{cameraPagesV262=[];updateCameraSession();el("invoiceCameraInputV259").click()};el("invoiceChoosePhotosV259").onclick=()=>{el("invoiceSourceChoiceV259").hidden=true;el("invoiceUploadInputV259").click()};el("invoiceChoiceCancelV259").onclick=()=>{cameraPagesV262=[];updateCameraSession();el("invoiceSourceChoiceV259").hidden=true};el("invoiceCameraInputV259").onchange=e=>{const f=e.target.files?.[0];if(f)cameraPagesV262.push(f);e.target.value="";updateCameraSession();el("invoiceSourceChoiceV259").hidden=false};el("invoiceCameraMoreV262").onclick=()=>el("invoiceCameraInputV259").click();el("invoiceCameraDeleteLastV262").onclick=()=>{cameraPagesV262.pop();updateCameraSession()};el("invoiceCameraFinishV262").onclick=()=>{if(!cameraPagesV262.length)return;const pages=cameraPagesV262.slice();cameraPagesV262=[];updateCameraSession();el("invoiceSourceChoiceV259").hidden=true;recognize(pages)};el("invoiceUploadInputV259").onchange=e=>recognize(e.target.files);el("invoicePreviewBtnV259").onclick=()=>render(drafts()[0]||working);el("invoicePreviewCloseV259").onclick=()=>el("invoicePreviewModalV259").hidden=true;el("invoiceHistoryV259").onclick=showRecognitionHistory;el("invoiceSaveRecognitionDraftV259").onclick=saveRecognition;el("invoiceDeleteRecognitionDraftV259").onclick=deleteRecognition;el("invoiceApplyRecognitionDraftV259").onclick=applyRecognition;updateButton();window.addEventListener("storage",updateButton)}
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
 })();;
+
 
 
 // ================= V26.6 bilingual product master =================
@@ -18758,7 +18804,6 @@ const PRODUCT_SPECIES_ALIASES_V262 = Object.freeze([
   {cn:"福建茶", en:"Ho Kian Tea / Fujian Tea", keys:["福建茶","ho kian tea","fujian tea","fukien tea"], prefix:"HK"},
   {cn:"绿萝", en:"Epipremnum Aureum", keys:["绿萝","epipremnum aureum","epipremnum"], prefix:"ZZ"},
   {cn:"龟背竹", en:"Monstera", keys:["龟背竹","monstera","monstera deliciosa"], prefix:"MO"},
-  {cn:"橡皮树", en:"Ficus Elastica", keys:["橡皮树","ficus elastica","rubber plant"], prefix:"FI"},
   {cn:"榕属", en:"Ficus", keys:["榕属","ficus"], prefix:"FI"}
 ]);
 const PRODUCT_LANGUAGE_META_KEY_V262="productLanguageMetaV262";
@@ -18813,19 +18858,29 @@ function supplierReferenceInfoV265(s){
   const name=supplierCanonNameV261(s?.name||"").toLowerCase();
   const aliases=[name,...(Array.isArray(s?.aliases)?s.aliases:[]).map(x=>supplierCanonNameV261(x).toLowerCase())].filter(Boolean);
   const labels=Array.from(new Set(aliases));
+  // V26.8: reference protection belongs to this supplier record, not merely to a shared prefix.
+  // Two suppliers may share one prefix; a newly copied name must not inherit another supplier's stock lock.
+  const matchesLabel=(value)=>{const v=supplierCanonNameV261(value||"").toLowerCase();return labels.some(label=>v===label||v.startsWith(label));};
+  const virtual=getVirtualWarehouseSourceV240().some(v=>{
+    const full=supplierCanonNameV261(v?.supplierFullName||v?.supplierName||"").toLowerCase();
+    if(full) return labels.includes(full);
+    const productName=String(v?.name||"").trim().toLowerCase();
+    return labels.some(label=>productName.startsWith(label));
+  });
   const real=getOperationalProductsV256().some(p=>{
     const explicit=supplierCanonNameV261(p?.supplierName||p?.supplier||"").toLowerCase();
     if(explicit) return labels.includes(explicit);
     const n=String(p?.name||"").trim().toLowerCase();
     return labels.some(label=>n.startsWith(label));
   });
-  return {real,used:real};
+  return {virtual,real,used:virtual||real};
 }
 function inferSupplierFromProductV261(product){const name=String(product?.name||"").trim();const directory=getSupplierDirectoryV261();for(const s of directory){const labels=[s.prefix,s.name,...(s.aliases||[])].filter(Boolean).sort((a,b)=>b.length-a.length);for(const label of labels){if(name.toLowerCase().startsWith(String(label).toLowerCase()))return s}}const zh=["忠盛","大厚","游小北","昊杨","松美轩"].find(x=>name.startsWith(x));if(zh)return directory.find(s=>s.prefix===zh)||{name:zh,prefix:zh,currency:"CNY"};return null}
-function inventoryMasterRowsV261(){const sales=getInventorySalesAnalyticsV146();return getOperationalProductsV256().map(p=>{const sup=inferSupplierFromProductV261(p);const imports=getImports().filter(i=>String(i.productId||"")===String(p.id||""));const latest=imports.slice().sort((a,b)=>String(b.createdAt||b.date||"").localeCompare(String(a.createdAt||a.date||"")))[0];const originalCost=latest?Math.max(0,Number(latest.unitPrice)||0):0;const rawDate=String(latest?.arrivalDate||latest?.date||latest?.createdAt||"");let latestDate="";if(/^\d{2}-\d{2}-\d{4}$/.test(rawDate))latestDate=rawDate;else if(/^\d{4}-\d{2}-\d{2}/.test(rawDate))latestDate=formatDateFromInput(rawDate.slice(0,10));else if(rawDate){const d=new Date(rawDate);if(!Number.isNaN(d.getTime()))latestDate=formatDateDDMMYYYY(d)};return{product:p,productId:p.id||"",cnName:p.name||"",enName:productEnglishNameV262(p),supplierPrefix:supplierPrefixV261(sup?.prefix||""),category:p.category||"",stock:Number(p.stock)||0,originalCost,averageCost:Number(p.averageCost)||0,inventoryValue:(Number(p.stock)||0)*(Number(p.averageCost)||0),minimumPrice:getEffectiveProductMinimumPriceV183(p),lastImportDate:latestDate,lastImportNumber:String(latest?.importNumber||""),remark:String(p.remark||""),latestSoldAt:Number(sales.latestById.get(String(p.id||"").trim())||sales.latestByName.get(String(p.name||"").trim().toLowerCase())||0),netSoldQuantity:Number(sales.quantityById.get(String(p.id||"").trim())||sales.quantityByName.get(String(p.name||"").trim().toLowerCase())||0),cumulativeSoldProfit:Number(sales.profitById.get(String(p.id||"").trim())||sales.profitByName.get(String(p.name||"").trim().toLowerCase())||0)}})}
+function virtualRefForProductV261(product){const n=String(product?.name||"").normalize("NFKC").toLowerCase().replace(/[()（）\s]/g,"");const src=typeof getVirtualWarehouseSourceV240==="function"?getVirtualWarehouseSourceV240():[];let exact=src.find(x=>String(x?.name||"").normalize("NFKC").toLowerCase().replace(/[()（）\s]/g,"")===n);if(exact)return exact;const s=inferSupplierFromProductV261(product);if(!s)return null;const prefix=String(s.prefix||"").toUpperCase();return src.find(x=>String(x?.supplierPrefix||"").toUpperCase().replace(/^OLS$/,"OLN")===prefix && n.includes(String(x?.name||"").normalize("NFKC").toLowerCase().replace(/[()（）\s]/g,"").replace(prefix.toLowerCase(),"")))||null}
+function inventoryMasterRowsV261(){const sales=getInventorySalesAnalyticsV146();return getOperationalProductsV256().map(p=>{const sup=inferSupplierFromProductV261(p);const ref=virtualRefForProductV261(p);const imports=getImports().filter(i=>String(i.productId||"")===String(p.id||""));const latest=imports.slice().sort((a,b)=>String(b.createdAt||b.date||"").localeCompare(String(a.createdAt||a.date||"")))[0];const originalCost=latest?Math.max(0,Number(latest.unitPrice)||0):0;const rawDate=String(latest?.arrivalDate||latest?.date||latest?.createdAt||"");let latestDate="";if(/^\d{2}-\d{2}-\d{4}$/.test(rawDate))latestDate=rawDate;else if(/^\d{4}-\d{2}-\d{2}/.test(rawDate))latestDate=formatDateFromInput(rawDate.slice(0,10));else if(rawDate){const d=new Date(rawDate);if(!Number.isNaN(d.getTime()))latestDate=formatDateDDMMYYYY(d)};return{product:p,productId:p.id||"",cnName:p.name||"",enName:productEnglishNameV262(p),supplierPrefix:supplierPrefixV261(sup?.prefix||ref?.supplierPrefix||""),category:p.category||"",stock:Number(p.stock)||0,originalCost,averageCost:Number(p.averageCost)||0,inventoryValue:(Number(p.stock)||0)*(Number(p.averageCost)||0),minimumPrice:getEffectiveProductMinimumPriceV183(p),lastImportDate:latestDate,lastImportNumber:String(latest?.importNumber||""),remark:String(p.remark||""),latestSoldAt:Number(sales.latestById.get(String(p.id||"").trim())||sales.latestByName.get(String(p.name||"").trim().toLowerCase())||0),netSoldQuantity:Number(sales.quantityById.get(String(p.id||"").trim())||sales.quantityByName.get(String(p.name||"").trim().toLowerCase())||0),cumulativeSoldProfit:Number(sales.profitById.get(String(p.id||"").trim())||sales.profitByName.get(String(p.name||"").trim().toLowerCase())||0)}})}
 function renderSupplierDirectoryV261(){
   const body=document.getElementById("supplierListV261"); if(!body)return;
-  body.innerHTML=getSupplierDirectoryV261().map(s=>{const ref=supplierReferenceInfoV265(s);return `<tr><td><button type="button" class="supplier-copy-v264" data-supplier-copy-v264="${escapeHTML(s.name||"")}">${escapeHTML(s.name||"")}</button></td><td class="supplier-prefix-v261"><button type="button" class="supplier-copy-v264 supplier-prefix-copy-v264" data-supplier-copy-v264="${escapeHTML(s.prefix||"")}">${escapeHTML(s.prefix||"")}</button></td><td><div class="supplier-actions-v261"><button type="button" class="secondary-btn" data-supplier-edit-v261="${escapeHTML(s.id||s.prefix||s.name)}">修改</button><button type="button" class="danger-btn" data-supplier-delete-v261="${escapeHTML(s.id||s.prefix||s.name)}" ${ref.used?'disabled title="已有真实库存资料使用，不能删除"':''}>删除</button></div></td></tr>`}).join("")||'<tr><td colspan="3">暂无供应商资料</td></tr>';
+  body.innerHTML=getSupplierDirectoryV261().map(s=>{const ref=supplierReferenceInfoV265(s);return `<tr><td><button type="button" class="supplier-copy-v264" data-supplier-copy-v264="${escapeHTML(s.name||"")}">${escapeHTML(s.name||"")}</button></td><td class="supplier-prefix-v261"><button type="button" class="supplier-copy-v264 supplier-prefix-copy-v264" data-supplier-copy-v264="${escapeHTML(s.prefix||"")}">${escapeHTML(s.prefix||"")}</button></td><td><div class="supplier-actions-v261"><button type="button" class="secondary-btn" data-supplier-edit-v261="${escapeHTML(s.id||s.prefix||s.name)}">修改</button><button type="button" class="danger-btn" data-supplier-delete-v261="${escapeHTML(s.id||s.prefix||s.name)}" ${ref.used?'disabled title="已有真实库存／虚拟仓库资料使用，不能删除"':''}>删除</button></div></td></tr>`}).join("")||'<tr><td colspan="3">暂无供应商资料</td></tr>';
   body.querySelectorAll("[data-supplier-copy-v264]").forEach(btn=>btn.addEventListener("click",()=>copyRuleLabelV232(btn,btn.dataset.supplierCopyV264||"")));
 }
 let supplierEditingIdV261="";
@@ -18833,27 +18888,21 @@ function clearSupplierFormV261(){supplierEditingIdV261="";const pb=document.getE
 function renderInventoryMasterV261(){
   const body=document.getElementById("inventoryMasterBodyV261"),count=document.getElementById("inventoryMasterCountV261"),rawQuery=String(document.getElementById("inventoryMasterSearchV261")?.value||"").trim(),sort=String(document.getElementById("inventoryMasterSortV264")?.value||"latest");
   if(!body)return; let all=inventoryMasterRowsV261(),rows=rawQuery?all.filter(r=>{const target=`${r.productId} ${r.cnName} ${r.enName} ${r.category||""}`;return productSearchMatchesWithShipmentV235(target,r.product,rawQuery)}):all.slice();
-  if(sort==="name")rows.sort((a,b)=>{const an=getProductDisplayNamesV271(a.product).primary;const bn=getProductDisplayNamesV271(b.product).primary;return String(an).localeCompare(String(bn),"zh")});
+  if(sort==="name")rows.sort((a,b)=>String(a.cnName).localeCompare(String(b.cnName),"zh"));
   else if(sort==="latest-sold")rows.sort((a,b)=>b.latestSoldAt-a.latestSoldAt);
   else if(sort==="bestseller-desc")rows.sort((a,b)=>b.netSoldQuantity-a.netSoldQuantity);
   else if(sort==="profit-desc")rows.sort((a,b)=>b.cumulativeSoldProfit-a.cumulativeSoldProfit);
   else if(sort==="stock-desc")rows.sort((a,b)=>b.stock-a.stock); else if(sort==="stock-asc")rows.sort((a,b)=>a.stock-b.stock); else if(sort==="value-desc")rows.sort((a,b)=>b.inventoryValue-a.inventoryValue); else if(sort==="cost-desc")rows.sort((a,b)=>b.averageCost-a.averageCost); else rows.sort((a,b)=>String(b.lastImportDate||"").localeCompare(String(a.lastImportDate||"")));
   const totalStock=rows.reduce((n,r)=>n+(Number(r.stock)||0),0), totalValue=rows.reduce((n,r)=>n+(Number(r.inventoryValue)||0),0);
-    if(count)count.textContent=`${rows.length} 项`; const st=document.getElementById("inventoryMasterStockV264"),val=document.getElementById("inventoryMasterValueV264"); if(st)st.textContent=formatNumber(totalStock); if(val)val.textContent=`RM ${formatMoney(totalValue)}`;
-  body.innerHTML=rows.map(r=>{const profitInfo=getProductMinimumProfitV205(r.product);const cls=profitInfo.profit< -0.005?"master-price-loss-v264":"master-price-profit-v264";const badge=getPromotionMarginBadgeV209(r.product,profitInfo);const names=getProductDisplayNamesV271(r.product);return `<tr><td><button type="button" class="master-copy-v263" data-master-copy-v263="${escapeHTML(r.productId)}">${escapeHTML(r.productId)}</button></td><td><button type="button" class="master-copy-v263 master-name-v262" data-master-copy-v263="${escapeHTML(names.primary)}">${escapeHTML(names.primary)}</button></td><td><button type="button" class="master-copy-v263 master-en-v262" data-master-copy-v263="${escapeHTML(names.secondary)}">${escapeHTML(names.secondary)}</button></td><td class="master-num-v264">${formatNumber(r.stock)}</td><td class="master-num-v264">${formatMoney(r.averageCost)}</td><td class="master-num-v264 ${cls}"><span class="master-price-main-v266">${formatMoney(r.minimumPrice)}</span>${badge?`<span class="master-price-badge-v266">${badge}</span>`:""}</td></tr>`}).join("")||'<tr><td colspan="6">暂无符合资料</td></tr>';
+  if(count)count.textContent=`${rows.length} 项`; const st=document.getElementById("inventoryMasterStockV264"),val=document.getElementById("inventoryMasterValueV264"); if(st)st.textContent=formatNumber(totalStock); if(val)val.textContent=`RM ${formatMoney(totalValue)}`;
+  body.innerHTML=rows.map(r=>{const profitInfo=getProductMinimumProfitV205(r.product);const cls=profitInfo.profit< -0.005?"master-price-loss-v264":"master-price-profit-v264";const badge=getPromotionMarginBadgeV209(r.product,profitInfo);return `<tr><td><button type="button" class="master-copy-v263" data-master-copy-v263="${escapeHTML(r.productId)}">${escapeHTML(r.productId)}</button></td><td><button type="button" class="master-copy-v263 master-name-v262" data-master-copy-v263="${escapeHTML(r.cnName)}">${escapeHTML(r.cnName)}</button></td><td><button type="button" class="master-copy-v263 master-en-v262" data-master-copy-v263="${escapeHTML(r.enName)}">${escapeHTML(r.enName)}</button></td><td class="master-num-v264">${formatNumber(r.stock)}</td><td class="master-num-v264">${formatMoney(r.averageCost)}</td><td class="master-num-v264 ${cls}"><span class="master-price-main-v266">${formatMoney(r.minimumPrice)}</span>${badge?`<span class="master-price-badge-v266">${badge}</span>`:""}</td></tr>`}).join("")||'<tr><td colspan="6">暂无符合资料</td></tr>';
   body.querySelectorAll("[data-master-copy-v263]").forEach(btn=>btn.addEventListener("click",()=>copyRuleLabelV232(btn,btn.dataset.masterCopyV263||"")));
 }
 function excelWorkbookV263(worksheets){return `<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:html="http://www.w3.org/TR/REC-html40"><Styles><Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Bottom"/><Font ss:FontName="Arial" ss:Size="10"/></Style><Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="#D9EAD3" ss:Pattern="Solid"/></Style><Style ss:ID="HeaderRow"/><Style ss:ID="Number2"><NumberFormat ss:Format="#,##0.00"/></Style><Style ss:ID="Integer"><NumberFormat ss:Format="#,##0"/></Style><Style ss:ID="GeneralNumber"><NumberFormat ss:Format="#,##0.00"/></Style></Styles>${worksheets}</Workbook>`}
 function exportInventoryMasterExcelV261(){
-  const bonsaiHeaders=["产品编号","中文名","英文名","供应商前缀","类别 / 细分类","当前库存","原成本","平均成本","库存成本总值","最低售价","最近进口日期","最近进口编号","备注"];
-  const woodHeaders=["产品编号","英文名","中文名","供应商前缀","类别 / 细分类","当前库存","原成本","平均成本","库存成本总值","最低售价","最近进口日期","最近进口编号","备注"];
-  const types=["text","text","text","text","text","decimal2","money","money","money","money","text","text","text"];
-  const toBonsaiRows=list=>list.map(r=>[r.productId,r.cnName,r.enName,r.supplierPrefix,r.category,r.stock,r.originalCost,r.averageCost,r.inventoryValue,r.minimumPrice,r.lastImportDate,r.lastImportNumber,r.remark]);
-  const toWoodRows=list=>list.map(r=>[r.productId,r.enName,r.cnName,r.supplierPrefix,r.category,r.stock,r.originalCost,r.averageCost,r.inventoryValue,r.minimumPrice,r.lastImportDate,r.lastImportNumber,r.remark]);
-  const all=inventoryMasterRowsV261();
-  const bonsai=toBonsaiRows(all);
-  const workbook=excelWorkbookV263(excelWorksheet("库存资料",bonsaiHeaders,bonsai,types));
-  downloadTextFile(`Import_Inventory_Master_${formatDateDDMMYYYY(new Date())}.xls`,workbook,"application/vnd.ms-excel;charset=utf-8");
+  const rows=inventoryMasterRowsV261().map(r=>[r.productId,r.cnName,r.enName,r.supplierPrefix,r.category,r.stock,r.originalCost,r.averageCost,r.inventoryValue,r.minimumPrice,r.lastImportDate,r.lastImportNumber,r.remark]);
+  const sheet=excelWorksheet("Inventory Master",["产品编号","中文名","英文名","供应商前缀","类别 / 细分类","当前库存","原成本","平均成本","库存成本总值","最低售价","最近进口日期","最近进口编号","备注"],rows,["text","text","text","text","text","decimal2","money","money","money","money","text","text","text"]);
+  downloadTextFile(`Import_Inventory_Master_${formatDateDDMMYYYY(new Date())}.xls`,excelWorkbookV263(sheet),"application/vnd.ms-excel;charset=utf-8");
 }
 function exportSupplierExcelV263(){
   const rows=getSupplierDirectoryV261().map(s=>[s.name||"",s.prefix||"",s.address||"",s.phone||"",s.currency||"",s.note||""]);
@@ -18877,11 +18926,6 @@ function cleanupTestSupplierV268(){
   if(changed&&typeof markCloudSettingsSaved==="function")markCloudSettingsSaved();
 }
 
-
-// ================= V28.01 Single Warehouse: warehouse-2 migration removed =================
-function renderDashboardWarehouseSummaryV275(){ renderDashboard(); }
-function setupWarehouseSelectorsV270(){}
-
 function setupSupplierDirectoryV261(){
   const save=document.getElementById("saveSupplierV261"),clear=document.getElementById("clearSupplierV261"),list=document.getElementById("supplierListV261"),search=document.getElementById("inventoryMasterSearchV261"),exp=document.getElementById("exportInventoryMasterExcelV261"),expSupplier=document.getElementById("exportSupplierExcelV263");if(!save)return;
   cleanupTestSupplierV268();
@@ -18893,6 +18937,6 @@ function setupSupplierDirectoryV261(){
     const all=getSupplierDirectoryV261();const nameKey=supplierCanonNameV261(row.name).trim().toLowerCase();const sameName=all.find(x=>String(x.id||"")!==String(supplierEditingIdV261||"")&&supplierCanonNameV261(x.name).trim().toLowerCase()===nameKey);if(sameName){status.textContent=`供应商名字「${row.name}」已经存在，不能重复保存。`;alert(`供应商名字「${row.name}」已经存在。\n\n不同供应商可以共用同一个前缀，但供应商名字不能完全相同。`);return}const samePrefix=all.filter(x=>x.id!==supplierEditingIdV261&&supplierPrefixV261(x.prefix)===prefix);if(samePrefix.length&&!window.confirm(`前缀 ${prefix} 已被供应商 ${samePrefix.map(x=>x.name).join("、")} 使用。\n\n确认继续保存这个供应商并共用前缀 ${prefix}？\n\n原有供应商不会被覆盖或删除。`))return;
     if(!window.confirm(`${supplierEditingIdV261?"保存修改":"保存供应商"}？\n\n供应商：${row.name}\n前缀：${row.prefix}\n对应货币：${row.currency||"CNY"}`))return;
     const settings=loadJSON("importSystemSettings",{}),stored=Array.isArray(settings[SUPPLIER_DIRECTORY_KEY_V261])?settings[SUPPLIER_DIRECTORY_KEY_V261].filter(x=>String(x.id||"")!==String(supplierEditingIdV261||"")):[];stored.push(row);saveSupplierDirectoryV261(stored);status.textContent=`已保存：${row.name} → ${row.prefix}`;clearSupplierFormV261();renderSupplierDirectoryV261();renderInventoryMasterV261()});
-  list?.addEventListener("click",e=>{const edit=e.target.closest("[data-supplier-edit-v261]"),del=e.target.closest("[data-supplier-delete-v261]");if(edit){const key=edit.dataset.supplierEditV261,s=getSupplierDirectoryV261().find(x=>String(x.id||x.prefix||x.name)===String(key));if(!s)return;supplierEditingIdV261=s.id||key;document.getElementById("supplierNameV261").value=s.name||"";document.getElementById("supplierPrefixV261").value=s.prefix||"";document.getElementById("supplierAddressV261").value=s.address||"";document.getElementById("supplierPhoneV261").value=s.phone||"";document.getElementById("supplierCurrencyV261").value=s.currency||"CNY";document.getElementById("supplierNoteV261").value=s.note||"";save.textContent="保存修改";document.getElementById("supplierNameV261")?.scrollIntoView({behavior:"smooth",block:"center"});return}if(del){const key=del.dataset.supplierDeleteV261,s=getSupplierDirectoryV261().find(x=>String(x.id||x.prefix||x.name)===String(key));if(!s)return;const ref=supplierReferenceInfoV265(s);if(ref.used){alert(`已有已有真实库存资料使用这个供应商／前缀，不能删除。`);return}if(!confirm(`删除供应商资料？\n\n${s.name||""} → ${s.prefix||""}\n\n只删除这一个供应商，不会影响其他共用前缀的供应商。`))return;const settings=loadJSON("importSystemSettings",{}),stored=Array.isArray(settings[SUPPLIER_DIRECTORY_KEY_V261])?settings[SUPPLIER_DIRECTORY_KEY_V261].filter(x=>String(x.id||"")!==String(s.id||key)):[];stored.push({id:String(s.id||key),deleted:true});saveSupplierDirectoryV261(stored);document.getElementById("supplierStatusV261").textContent=`已删除供应商资料：${s.name||s.prefix}`;clearSupplierFormV261();renderSupplierDirectoryV261();renderInventoryMasterV261()}});
+  list?.addEventListener("click",e=>{const edit=e.target.closest("[data-supplier-edit-v261]"),del=e.target.closest("[data-supplier-delete-v261]");if(edit){const key=edit.dataset.supplierEditV261,s=getSupplierDirectoryV261().find(x=>String(x.id||x.prefix||x.name)===String(key));if(!s)return;supplierEditingIdV261=s.id||key;document.getElementById("supplierNameV261").value=s.name||"";document.getElementById("supplierPrefixV261").value=s.prefix||"";document.getElementById("supplierAddressV261").value=s.address||"";document.getElementById("supplierPhoneV261").value=s.phone||"";document.getElementById("supplierCurrencyV261").value=s.currency||"CNY";document.getElementById("supplierNoteV261").value=s.note||"";save.textContent="保存修改";document.getElementById("supplierNameV261")?.scrollIntoView({behavior:"smooth",block:"center"});return}if(del){const key=del.dataset.supplierDeleteV261,s=getSupplierDirectoryV261().find(x=>String(x.id||x.prefix||x.name)===String(key));if(!s)return;const ref=supplierReferenceInfoV265(s);if(ref.used){alert(`已有${ref.real?"真实库存":""}${ref.real&&ref.virtual?"／":""}${ref.virtual?"虚拟仓库":""}资料使用这个供应商／前缀，不能删除。`);return}if(!confirm(`删除供应商资料？\n\n${s.name||""} → ${s.prefix||""}\n\n只删除这一个供应商，不会影响其他共用前缀的供应商。`))return;const settings=loadJSON("importSystemSettings",{}),stored=Array.isArray(settings[SUPPLIER_DIRECTORY_KEY_V261])?settings[SUPPLIER_DIRECTORY_KEY_V261].filter(x=>String(x.id||"")!==String(s.id||key)):[];stored.push({id:String(s.id||key),deleted:true});saveSupplierDirectoryV261(stored);document.getElementById("supplierStatusV261").textContent=`已删除供应商资料：${s.name||s.prefix}`;clearSupplierFormV261();renderSupplierDirectoryV261();renderInventoryMasterV261()}});
   const panel=document.getElementById("supplierDirectoryPanelV265");document.querySelectorAll(".bottom-nav .nav-btn").forEach(btn=>btn.addEventListener("click",()=>{if(panel&&btn.dataset.page!=="supplierPage")panel.open=false}));
 }
