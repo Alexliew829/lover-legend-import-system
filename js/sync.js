@@ -51,9 +51,7 @@ function getCloudQueue() {
     deleted: {
       products: Array.isArray(saved.deleted?.products) ? saved.deleted.products : [],
       imports: Array.isArray(saved.deleted?.imports) ? saved.deleted.imports : [],
-      batches: Array.isArray(saved.deleted?.batches) ? saved.deleted.batches : [],
-      importNumbers: Array.isArray(saved.deleted?.importNumbers) ? saved.deleted.importNumbers : [],
-      batchIds: Array.isArray(saved.deleted?.batchIds) ? saved.deleted.batchIds : []
+      batches: Array.isArray(saved.deleted?.batches) ? saved.deleted.batches : []
     }
   };
 }
@@ -64,16 +62,7 @@ function saveCloudQueue(queue) {
 
 function isCloudBootstrapComplete() {
   const saved = loadJSON(CLOUD_BOOTSTRAP_KEY, {});
-  // V28.3 speed fix: an app-version upgrade must not force a full bootstrap Pull
-  // when the canonical cloud schema is unchanged and this device already has a
-  // completed bootstrap. V28.2 treated every new APP_VERSION as a new bootstrap,
-  // which made normal upgrades download the complete Products / Imports / Batches
-  // again before the UI could settle.
-  return Boolean(
-    saved &&
-    saved.completed === true &&
-    saved.schemaVersion === CLOUD_SCHEMA_VERSION
-  );
+  return saved && saved.version === APP_VERSION && saved.schemaVersion === CLOUD_SCHEMA_VERSION && saved.completed === true;
 }
 
 function clearLegacyPendingCloudState() {
@@ -81,7 +70,7 @@ function clearLegacyPendingCloudState() {
   saveCloudQueue({
     dirty: false,
     changedAt: "",
-    deleted: { products: [], imports: [], batches: [], importNumbers: [], batchIds: [] }
+    deleted: { products: [], imports: [], batches: [] }
   });
 }
 
@@ -250,45 +239,6 @@ function makeLocalSnapshot() {
   };
 }
 
-// V28.3: keep the fast local existence check from V28.1, while restoring the
-// proven V22.6 single-request cloud sync path.
-function hasLocalCoreDataFastV280() {
-  const keys = ["importSystemProducts", "importSystemImports", "importSystemBatches"];
-  return keys.some(key => {
-    const raw = localStorage.getItem(key);
-    if (!raw) return false;
-    const trimmed = raw.trim();
-    return trimmed !== "" && trimmed !== "[]" && trimmed !== "null";
-  });
-}
-
-function markCloudImportNumberDeletedV232(importNumber, batchId = "") {
-  if (cloudApplyingRemote || !isCloudBootstrapComplete()) return;
-  const queue = getCloudQueue();
-  const importNumbers = new Set(queue.deleted.importNumbers || []);
-  const batchIds = new Set(queue.deleted.batchIds || []);
-  const normalizedImportNumber = String(importNumber || "").trim();
-  const normalizedBatchId = String(batchId || "").trim();
-  if (normalizedImportNumber) importNumbers.add(normalizedImportNumber);
-  if (normalizedBatchId) batchIds.add(normalizedBatchId);
-  queue.deleted.importNumbers = [...importNumbers];
-  queue.deleted.batchIds = [...batchIds];
-  queue.dirty = true;
-  queue.changedAt = new Date().toISOString();
-  saveCloudQueue(queue);
-}
-window.markCloudImportNumberDeletedV232 = markCloudImportNumberDeletedV232;
-
-function cancelCloudImportNumberDeletionV232(importNumber, batchId = "") {
-  const queue = getCloudQueue();
-  const normalizedImportNumber = String(importNumber || "").trim().toLowerCase();
-  const normalizedBatchId = String(batchId || "").trim();
-  queue.deleted.importNumbers = (queue.deleted.importNumbers || []).filter(value => String(value || "").trim().toLowerCase() !== normalizedImportNumber);
-  queue.deleted.batchIds = (queue.deleted.batchIds || []).filter(value => String(value || "").trim() !== normalizedBatchId);
-  saveCloudQueue(queue);
-}
-window.cancelCloudImportNumberDeletionV232 = cancelCloudImportNumberDeletionV232;
-
 function markCloudCollectionSaved(collection, previousItems, nextItems) {
   if (cloudApplyingRemote || !isCloudBootstrapComplete()) return;
   if (JSON.stringify(previousItems || []) === JSON.stringify(nextItems || [])) return;
@@ -372,8 +322,6 @@ async function flushCloudQueueStrictV83() {
   }
 }
 
-window.flushCloudQueueStrictV228 = flushCloudQueueStrictV83;
-
 async function commitSalesInventoryToCloudV83(payload) {
   await flushCloudQueueStrictV83();
   const config = getCloudConfig();
@@ -387,7 +335,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V28.3 Stable",
+      updatedBy: "System V22.6 Stable",
       ...payload
     });
 
@@ -422,7 +370,7 @@ async function commitSalesInventoryBatchToCloudV125(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V28.3 Stable",
+      updatedBy: "System V22.6 Stable",
       ...payload
     });
     if (data.conflict || data.stockChanged) {
@@ -445,7 +393,7 @@ window.commitSalesInventoryBatchToCloudV125 = commitSalesInventoryBatchToCloudV1
 
 async function commitSalesCorrectionBatchToCloudV110(payload) {
   await flushCloudQueueStrictV83(); const config=getCloudConfig(); setCloudState("syncing");
-  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V28.3 Stable",...payload});
+  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V22.6 Stable",...payload});
     if(data.conflict||data.stockChanged) throw new Error(data.message||"Google Sheet 资料已改变，全部库存差异没有处理。请同步后重试。");
     config.revision=Number(data.revision)||Number(config.revision)||0; config.lastSyncAt=new Date().toISOString(); config.bootstrapToken=String(data.bootstrapToken||config.bootstrapToken||""); config.bootstrapRevision=Number(data.revision)||Number(config.bootstrapRevision)||0; saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced"); return data;
   } catch(error){setCloudState("failed");throw error;}
@@ -459,7 +407,7 @@ async function migrateProductPrefixesV164() {
     action: "migrateProductPrefixesV164", clientVersion: APP_VERSION,
     schemaVersion: CLOUD_SCHEMA_VERSION, baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""), bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V28.3 Stable"
+    updatedBy: "System V22.6 Stable"
   });
   if (data.conflict) throw new Error(data.message || "资料已改变，请同步后重试。");
   config.revision = Number(data.revision) || Number(config.revision) || 0;
@@ -494,7 +442,11 @@ async function runCloudSync() {
 
   try {
     const queue = getCloudQueue();
-    const localHasCoreData = hasLocalCoreDataFastV280();
+    const snapshot = makeLocalSnapshot();
+    const localHasCoreData =
+      (snapshot.products || []).length > 0 ||
+      (snapshot.imports || []).length > 0 ||
+      (snapshot.batches || []).length > 0;
 
     // V8.7 hard bootstrap: this version's first successful sync is ALWAYS a full Pull.
     // Legacy V4.20/V4.25/V4.26 dirty flags are discarded before any write can happen.
@@ -508,7 +460,7 @@ async function runCloudSync() {
       saveCloudQueue({
         dirty: false,
         changedAt: "",
-        deleted: { products: [], imports: [], batches: [], importNumbers: [], batchIds: [] }
+        deleted: { products: [], imports: [], batches: [] }
       });
       remoteUpdated = await pullLatestSnapshot();
     } else if (queue.dirty) {
@@ -517,10 +469,6 @@ async function runCloudSync() {
       // 不额外增加一次网络请求。
       await pushPendingSnapshot(queue);
     } else {
-      // V28.3 speed baseline: follow the proven V22.6 one-request sync path.
-      // The Pull endpoint itself compares knownRevision first and returns a tiny
-      // unchanged response without serializing Products / Imports / Batches.
-      // This avoids the extra status request that made V28.1 feel slower.
       remoteUpdated = await pullLatestSnapshot();
     }
 
@@ -543,7 +491,11 @@ async function runCloudSync() {
 
 async function pullLatestSnapshot(forceBootstrap = false) {
   const config = getCloudConfig();
-  const localHasCoreData = hasLocalCoreDataFastV280();
+  const local = makeLocalSnapshot();
+  const localHasCoreData =
+    (local.products || []).length > 0 ||
+    (local.imports || []).length > 0 ||
+    (local.batches || []).length > 0;
 
   const data = await callGoogleApi({
     action: "pull",
@@ -567,8 +519,9 @@ async function pullLatestSnapshot(forceBootstrap = false) {
     saveCloudConfig(config);
     renderCloudMeta(config);
     setCloudState("synced");
-    // V28.3: unchanged Pull responses stay lightweight; do not run historical
-    // full-data repair scans when the cloud revision has not changed.
+    if (typeof window.repairStaleBatchUnitCostsV206 === "function") {
+      window.repairStaleBatchUnitCostsV206({ persistCloud: true });
+    }
     return false;
   }
 
@@ -634,7 +587,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V28.3 Stable",
+    updatedBy: "System V22.6 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     minimumPriceManual: Boolean(minimumPriceManual),
@@ -677,7 +630,7 @@ async function updatePromotionSettingsFastV185(promotion) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V28.3 Stable",
+    updatedBy: "System V22.6 Stable",
     promotion: promotion || null
   });
   if (data.conflict) throw new Error(data.message || "云端资料已改变，请同步后重试。");
@@ -703,12 +656,11 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V28.3 Stable",
+    updatedBy: "System V22.6 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
-    batches: snapshot.batches,
-    deleted: queue.deleted || { products: [], imports: [], batches: [] }
+    batches: snapshot.batches
   });
 
   if (data.conflict) {
@@ -737,7 +689,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     saveCloudQueue({
       dirty: false,
       changedAt: "",
-      deleted: { products: [], imports: [], batches: [], importNumbers: [], batchIds: [] }
+      deleted: { products: [], imports: [], batches: [] }
     });
   }
 
@@ -746,49 +698,12 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
 }
 
 function mergeSnapshots(remote, local, queue) {
-  const deletedImportNumbers = new Set((queue.deleted?.importNumbers || []).map(value => String(value || "").trim().toLowerCase()).filter(Boolean));
-  const deletedBatchIds = new Set((queue.deleted?.batchIds || []).map(value => String(value || "").trim()).filter(Boolean));
-  const keepImport = item => {
-    const importNumber = String(item?.importNumber || "").trim().toLowerCase();
-    const batchId = String(item?.batchId || "").trim();
-    return !(deletedImportNumbers.has(importNumber) || deletedBatchIds.has(batchId));
-  };
-  const keepBatch = item => {
-    const importNumber = String(item?.importNumber || "").trim().toLowerCase();
-    const batchId = String(item?.id || "").trim();
-    return !(deletedImportNumbers.has(importNumber) || deletedBatchIds.has(batchId));
-  };
-  const remoteSettings = remote.settings || {};
-  const localSettings = local.settings || {};
-  const draftDeletedIdsV250 = [...new Set([
-    ...(Array.isArray(remoteSettings.importDraftDeletedIdsV250) ? remoteSettings.importDraftDeletedIdsV250 : []),
-    ...(Array.isArray(localSettings.importDraftDeletedIdsV250) ? localSettings.importDraftDeletedIdsV250 : [])
-  ].map(String).filter(Boolean))].slice(0, 100);
-  const mergedDraftsV242 = mergeImportDraftsV242(
-    remoteSettings.importDraftsV242,
-    localSettings.importDraftsV242,
-    draftDeletedIdsV250
-  );
   return {
-    settings: { ...remoteSettings, ...localSettings, importDraftsV242: mergedDraftsV242, importDraftDeletedIdsV250: draftDeletedIdsV250 },
+    settings: { ...(remote.settings || {}), ...(local.settings || {}) },
     products: mergeCollection(remote.products, local.products, queue.deleted.products),
-    imports: mergeCollection((remote.imports || []).filter(keepImport), (local.imports || []).filter(keepImport), queue.deleted.imports),
-    batches: mergeCollection((remote.batches || []).filter(keepBatch), (local.batches || []).filter(keepBatch), queue.deleted.batches)
+    imports: mergeCollection(remote.imports, local.imports, queue.deleted.imports),
+    batches: mergeCollection(remote.batches, local.batches, queue.deleted.batches)
   };
-}
-
-function mergeImportDraftsV242(remoteDrafts = [], localDrafts = [], deletedIdsV250 = []) {
-  const deleted = new Set((Array.isArray(deletedIdsV250) ? deletedIdsV250 : []).map(String));
-  const merged = new Map();
-  [...(Array.isArray(remoteDrafts) ? remoteDrafts : []), ...(Array.isArray(localDrafts) ? localDrafts : [])].forEach(draft => {
-    const id = String(draft?.id || "").trim();
-    if (!id || deleted.has(id)) return;
-    const current = merged.get(id);
-    const nextTime = Date.parse(draft?.updatedAt || draft?.createdAt || "") || 0;
-    const currentTime = Date.parse(current?.updatedAt || current?.createdAt || "") || 0;
-    if (!current || nextTime >= currentTime) merged.set(id, draft);
-  });
-  return [...merged.values()].sort((a, b) => (Date.parse(b?.updatedAt || "") || 0) - (Date.parse(a?.updatedAt || "") || 0)).slice(0, 30);
 }
 
 function mergeCollection(remoteItems = [], localItems = [], deletedIds = []) {
@@ -823,13 +738,6 @@ function applyRemoteData(data) {
   if (!Array.isArray(data.products) || !Array.isArray(data.imports) || !Array.isArray(data.batches)) {
     throw new Error("云端资料不完整，已停止覆盖本机资料");
   }
-  // V28.3 safety: a transient/abnormal empty Products response must never wipe a
-  // device that already has the real inventory. Keep Local-First data and fail the
-  // sync visibly instead of showing 0 inventory as "已同步".
-  const localProductsBeforeV275=loadJSON("importSystemProducts",[]);
-  if(Array.isArray(localProductsBeforeV275)&&localProductsBeforeV275.length>0&&data.products.length===0){
-    throw new Error("云端暂时返回空产品资料，已保留本机库存");
-  }
 
   cloudApplyingRemote = true;
   try {
@@ -843,7 +751,6 @@ function applyRemoteData(data) {
   } finally {
     cloudApplyingRemote = false;
   }
-  try { window.dispatchEvent(new Event("loverLegendCloudDataAppliedV277")); } catch (_) {}
 
   // V21.4 corrected build: after a canonical Pull, repair only deterministic
   // stale batch-cost snapshots. The repair is idempotent and queues one normal
@@ -855,34 +762,19 @@ function applyRemoteData(data) {
 }
 
 function refreshSystemViewsAfterSync() {
-  // V28.3: keep the light page-only refresh, but call the dashboard renderers
-  // directly. This prevents a stale 0-item inventory panel if a global lookup is
-  // unavailable while the top dashboard has already refreshed from cloud data.
-  const activePage = document.querySelector(".page.active")?.id || "dashboardPage";
-  window.requestAnimationFrame(() => {
+  [
+    "renderDashboard",
+    "renderProductList",
+    "renderBatchSuggestions",
+    "renderBatchList",
+    "renderInventoryManagementList",
+    "refreshPromotionUiV183",
+    "updatePasswordHintDisplays"
+  ].forEach(name => {
     try {
-      if (activePage === "dashboardPage") {
-        if (typeof renderDashboard === "function") renderDashboard();
-        if (typeof renderInventoryManagementList === "function") renderInventoryManagementList();
-        return;
-      }
-      if (activePage === "importPage") {
-        if (typeof renderBatchSuggestions === "function") renderBatchSuggestions();
-        if (typeof renderBatchList === "function") renderBatchList();
-        if (typeof renderImportDraftsV242 === "function") renderImportDraftsV242();
-        return;
-      }
-      if (activePage === "productManagementPage") {
-        if (typeof renderProductList === "function") renderProductList();
-        return;
-      }
-      if (activePage === "settingsPage") {
-        if (typeof renderProductList === "function") renderProductList();
-        if (typeof refreshPromotionUiV183 === "function") refreshPromotionUiV183();
-        if (typeof updatePasswordHintDisplays === "function") updatePasswordHintDisplays();
-      }
+      if (typeof window[name] === "function") window[name]();
     } catch (error) {
-      console.warn("V28.3 page refresh skipped:", error);
+      console.warn(`${name} refresh skipped:`, error);
     }
   });
 }
