@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=26.9" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=26.9" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=26.9" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=26.9" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=26.9" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=26.9" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=26.9" />
+  <link rel="manifest" href="./manifest.json?v=27.0" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=27.0" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=27.0" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=27.0" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=27.0" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=27.0" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=27.0" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=26.9" />
-  <link rel="stylesheet" href="./css/style.css?v=26.9" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=27.0" />
+  <link rel="stylesheet" href="./css/style.css?v=27.0" />
 </head>
 <body>
   <div id="accessLock"
@@ -84,7 +84,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 26.9 Stable</div>
+          <div class="app-header-version">正式版 27.0 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -155,6 +155,10 @@
             </div>
           </div>
           <div class="inventory-toolbar">
+            <select id="inventoryWarehouseV270" class="warehouse-select-v270" aria-label="选择库存仓库">
+              <option value="bonsai" selected>盆栽仓库</option>
+              <option value="wood">杂木仓库</option>
+            </select>
             <input id="inventorySearch" class="search-input text-left-input" placeholder="搜索产品名称、编号、类别、进口编号或原成本" />
             <select id="inventorySort">
               <option value="latest">最近进口</option>
@@ -440,6 +444,13 @@
       <section id="historyPage" class="page">
         <h2>History Search / 历史查询</h2>
         <section class="panel">
+          <div class="warehouse-switch-row-v270">
+            <strong>仓库</strong>
+            <select id="historyWarehouseV270" class="warehouse-select-v270" aria-label="选择历史查询仓库">
+              <option value="bonsai" selected>盆栽仓库</option>
+              <option value="wood">杂木仓库</option>
+            </select>
+          </div>
           <div class="history-lookup-row">
             <input id="historyLookupInput"
                    class="search-input text-left-input"
@@ -541,6 +552,7 @@
         <section class="panel product-master-query-v267">
           <h3>产品查询与修改</h3>
           <p class="settings-help">输入产品名称、产品编号或原成本查询。产品主名称不能为空；英文名可长按修改或清空。</p>
+          <div class="warehouse-switch-row-v270"><strong>仓库</strong><select id="productManagementWarehouseV270" class="warehouse-select-v270"><option value="bonsai" selected>盆栽仓库</option><option value="wood">杂木仓库</option></select></div>
           <input id="batchProductStockSearch" class="search-input text-left-input batch-product-search" type="text" placeholder="输入产品或原成本可查询" autocomplete="off" />
           <div id="batchProductStockResults" class="product-stock-search-results" hidden></div>
           <div id="batchProductStockStatus" class="status-text"></div>
@@ -586,6 +598,7 @@
             <button id="exportInventoryMasterExcelV261" class="secondary-btn" type="button">导出库存 Excel</button>
           </div>
           <div class="inventory-master-toolbar-v264">
+            <select id="inventoryMasterWarehouseV270" class="warehouse-select-v270"><option value="bonsai" selected>盆栽仓库</option><option value="wood">杂木仓库</option></select>
             <input id="inventoryMasterSearchV261" class="search-input text-left-input" type="search" placeholder="搜索产品名称、编号、英文名、进口编号或原成本" autocomplete="off" />
             <select id="inventoryMasterSortV264">
               <option value="latest">最近进口</option><option value="latest-sold">最近售出</option><option value="name">产品名称</option><option value="bestseller-desc">畅销商品</option><option value="profit-desc">利润最高</option><option value="stock-desc">库存最多</option><option value="stock-asc">库存最少</option><option value="value-desc">库存成本最高</option><option value="cost-desc">平均成本最高</option>
@@ -600,7 +613,7 @@
           </div>
         </details>
 
-        <details class="panel virtual-warehouse-panel-v240" id="virtualWarehousePanelV240">
+        <details class="panel virtual-warehouse-panel-v240" id="virtualWarehousePanelV240" hidden>
           <summary>
             <span>虚拟仓库 / 产品参考库</span>
             <small id="virtualWarehouseCountV240">载入中…</small>
@@ -959,7 +972,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 26.9 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 27.0 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
@@ -994,9 +1007,9 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=26.9"></script>
-  <script src="./js/sync.js?v=26.9"></script>
-  <script src="./js/virtual-warehouse.js?v=26.9"></script>
-  <script src="./js/app.js?v=26.9"></script>
+  <script src="./js/common.js?v=27.0"></script>
+  <script src="./js/sync.js?v=27.0"></script>
+  <script src="./js/virtual-warehouse.js?v=27.0"></script>
+  <script src="./js/app.js?v=27.0"></script>
 </body>
 </html>
