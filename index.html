@@ -5,25 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=29.6" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=29.6" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=29.6" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=29.6" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=29.6" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=29.6" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=29.6" />
+  <link rel="manifest" href="./manifest.json?v=29.7" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=29.7" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=29.7" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=29.7" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=29.7" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=29.7" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=29.7" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=29.6" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=29.7" />
 
   <style id="accessLockCriticalV296">
     #accessLock{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(244,249,245,.94);padding:16px;box-sizing:border-box}
     #accessLock[hidden]{display:none!important}
     #accessLock .access-lock-card{width:min(360px,calc(100vw - 32px));background:#fff;border:1px solid #d7e5db;border-radius:18px;padding:26px 22px;box-shadow:0 18px 48px rgba(0,0,0,.12);text-align:center}
   </style>
-  <link rel="stylesheet" href="./css/style.css?v=29.6" />
+  <link rel="stylesheet" href="./css/style.css?v=29.7" />
 </head>
 <body>
   <div id="accessLock"
@@ -90,7 +90,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 29.6 Stable</div>
+          <div class="app-header-version">正式版 29.7 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -209,7 +209,7 @@
       <section id="importPage" class="page">
         <section class="panel">
           <div class="section-title-row batch-products-topbar">
-            <h2>同批进口产品</h2>
+            <h2>进口管理</h2>
             <div class="batch-lookup-group">
               <div class="batch-inline-lookup">
                 <label for="batchLookupInput">进口编号</label>
@@ -406,14 +406,14 @@
         <details class="panel product-prefix-settings-v181">
           <summary><span>产品编号前缀管理</span><small>只影响以后新增产品</small></summary>
           <p class="settings-help">中文关键词与英文 Alias 都可以匹配产品名称；英文大小写不敏感。修改或删除按整组处理，只影响以后新增产品，不修改现有编号、进口、历史、库存或成本。</p>
-          <div class="product-prefix-locked-head-v181 product-prefix-head-v295"><span>中文关键词</span><span>英文关键词 / Alias</span><span>现有产品前缀</span><span></span></div>
+          <div class="product-prefix-locked-head-v181 product-prefix-head-v295"><span>中文关键词</span><span>英文关键词 / Alias</span><span>编号前缀</span><span></span></div>
           <div id="productPrefixRulesList" class="product-prefix-locked-list-v181"></div>
           <div class="product-prefix-add-v181 product-prefix-add-v295">
             <label>中文关键词<input id="newProductPrefixKeyword" maxlength="30" autocomplete="off" placeholder="例如：榕树" /></label>
             <label>英文关键词 / Alias<input id="newProductPrefixEnglishV295" maxlength="100" autocomplete="off" placeholder="例如：Ficus / Banyan" /></label>
             <label>编号前缀<input id="newProductPrefixCode" maxlength="2" autocomplete="off" autocapitalize="characters" placeholder="例如：RS" /></label>
           </div>
-          <button id="addProductPrefixRuleBtn" class="primary-btn" type="button">新增并锁定产品前缀</button>
+          <div class="product-prefix-action-row-v297"><button id="addProductPrefixRuleBtn" class="primary-btn" type="button">新增并锁定产品前缀</button><button id="cancelProductPrefixEditV297" class="secondary-btn" type="button" hidden>取消修改</button></div>
           <div id="productPrefixRulesStatus" class="status-text"></div>
           <p class="settings-help">无法识别但明确为盆栽的产品使用 PZ；“盆栽 / Bonsai”本身也匹配 PZ。中文与英文 Alias 不能重复。</p>
         </details>
@@ -858,7 +858,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 29.6 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 29.7 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
@@ -879,7 +879,7 @@
         <span>🏠</span><small>首页</small>
       </a>
       <a class="nav-btn" data-page="importPage" href="./?page=import">
-        <span>📦</span><small>产品/进口</small>
+        <span>📦</span><small>入库管理</small>
       </a>
       <a class="nav-btn" data-page="productManagementPage" href="./?page=products">
         <span>🏷️</span><small>产品管理</small>
@@ -893,8 +893,8 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=29.6"></script>
-  <script src="./js/sync.js?v=29.6"></script>
-  <script src="./js/app.js?v=29.6"></script>
+  <script defer src="./js/common.js?v=29.7"></script>
+  <script defer src="./js/sync.js?v=29.7"></script>
+  <script defer src="./js/app.js?v=29.7"></script>
 </body>
 </html>

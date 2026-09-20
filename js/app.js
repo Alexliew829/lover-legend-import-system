@@ -1,30 +1,37 @@
+let appUiInitializedV297 = false;
+let appUiInitScheduledV297 = false;
+function initializeAppUiAfterAccessV297(){
+  if(appUiInitializedV297 || appUiInitScheduledV297) return;
+  appUiInitScheduledV297 = true;
+  window.setTimeout(()=>{
+    if(appUiInitializedV297) return;
+    appUiInitializedV297 = true;
+    repairLegacyImportDates();
+    setupNavigation();
+    setupSettings();
+    const requestedPageV210 = String(new URLSearchParams(window.location.search).get("page") || "").trim().toLowerCase();
+    const deepLinkPageMapV210 = {home:"dashboardPage",dashboard:"dashboardPage",import:"importPage",products:"productManagementPage",history:"historyPage",settings:"settingsPage"};
+    setupDashboard();
+    setupImportModule();
+    setupImportHistory();
+    setupInventoryModule();
+    setupGlobalMobilePullDownClear();
+    setupSalesInventoryReminder();
+    setupDataOperationSafety();
+    try { setupV294Features(); } catch (_) {}
+    try { renderProductPrefixRulesV181(); setupPromotionModeV295(); setupProductManagementV295(); syncPromotionModeUiV295(); } catch (_) {}
+    const requestedTargetV210 = deepLinkPageMapV210[requestedPageV210];
+    if(requestedTargetV210) window.setTimeout(()=>document.querySelector(`.nav-btn[data-page="${requestedTargetV210}"]`)?.click(),0);
+    if(window.__cloudRefreshDeferredV297 && typeof refreshSystemViewsAfterSync==='function'){ window.__cloudRefreshDeferredV297=false; refreshSystemViewsAfterSync(); }
+  },0);
+}
+window.initializeAppUiAfterAccessV297=initializeAppUiAfterAccessV297;
 document.addEventListener("DOMContentLoaded", () => {
   setupAccessLock();
-  repairLegacyImportDates();
-  setupNavigation();
-  setupSettings();
-  const requestedPageV210 = String(new URLSearchParams(window.location.search).get("page") || "").trim().toLowerCase();
-  const deepLinkPageMapV210 = {
-    home: "dashboardPage",
-    dashboard: "dashboardPage",
-    import: "importPage",
-    products: "productManagementPage",
-    history: "historyPage",
-    settings: "settingsPage"
-  };
-  const requestedTargetV210 = deepLinkPageMapV210[requestedPageV210];
-  if (requestedTargetV210) {
-    window.setTimeout(() => document.querySelector(`.nav-btn[data-page="${requestedTargetV210}"]`)?.click(), 0);
-  }
-  setupDashboard();
-  setupImportModule();
-  setupImportHistory();
-  setupInventoryModule();
-  setupGlobalMobilePullDownClear();
   registerServiceWorker();
   setupCloudSync();
-  setupSalesInventoryReminder();
-  setupDataOperationSafety();
+  const lock=document.getElementById('accessLock');
+  if(!lock || lock.hidden) initializeAppUiAfterAccessV297();
 });
 
 
@@ -976,7 +983,7 @@ async function executeSalesInventoryCardBatchV125(lines) {
   const freshLines = (Array.isArray(lines) ? lines : []).filter(x => x && !x.legacy);
   if (!freshLines.length) return { ok: true, qty: 0, lineCount: 0, alreadyProcessed: false };
   if (typeof commitSalesInventoryBatchToCloudV125 !== "function") {
-    throw new Error("V29.6 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
+    throw new Error("V29.7 整张销售卡批量库存模块未载入，请强制刷新网页后再试。");
   }
 
   const saleId = String(freshLines[0]?.item?.saleId || freshLines[0]?.item?.transactionId || "").trim();
@@ -1345,7 +1352,7 @@ function salesItemAlreadyProcessedLocallyV104(item, product) {
     }
   }
 
-  // V29.6: batch commits store a unique commit key plus the stable Sales
+  // V29.7: batch commits store a unique commit key plus the stable Sales
   // accounting key.  Either one proves that inventory was already committed.
   // This keeps a still-pending Sales card visible as ACK-only after a timeout
   // instead of silently dropping it and risking a later duplicate deduction.
@@ -1604,7 +1611,7 @@ function showStartupSalesInventoryReminderV80() {
       const restorePrecheckFailed=/Sales Restore 状态读取超时|无法连接 Sales System 读取 Restore 状态|无法读取 Sales Restore 状态/i.test(message);
 
       if(restorePrecheckFailed){
-        // V29.6: prepareSalesInventoryOperationV117 runs before any inventory
+        // V29.7: prepareSalesInventoryOperationV117 runs before any inventory
         // commit.  If that read-only Restore precheck times out, nothing has been
         // deducted yet, so keep the frozen reminder exactly as-is.  Do not replace
         // it with a transient/empty feed result and make the card disappear.
@@ -2100,6 +2107,9 @@ function unlockAccessLock(lock, input, status) {
   if (lock) lock.hidden = true;
 
   document.body.classList.remove("access-locked");
+  if (typeof window.initializeAppUiAfterAccessV297 === "function") {
+    window.initializeAppUiAfterAccessV297();
+  }
 }
 
 function setupDeviceBiometricSettings() {
@@ -2596,7 +2606,7 @@ function setupNavigation() {
 
       if (target === "importPage") {
         const batchSearch = document.getElementById("batchSearch");
-        const productSearch = null; // V29.6 moved to Product Management
+        const productSearch = null; // V29.7 moved to Product Management
         const batchList = document.getElementById("batchList");
         const productResults =
           document.getElementById("batchProductStockResults");
@@ -2604,7 +2614,7 @@ function setupNavigation() {
           document.getElementById("batchProductStockStatus");
         const recentBatchArea =
           document.getElementById("recentBatchResultsArea");
-        const countElement = null; // V29.6 batch count display removed
+        const countElement = null; // V29.7 batch count display removed
         const toggleButton =
           document.getElementById("toggleBatchListBtn");
 
@@ -2736,7 +2746,7 @@ function collapseSettingsPanelsV196() {
   document.querySelectorAll('#settingsPage details.collapsible-settings-v181').forEach(details => {
     const transient = [...details.querySelectorAll('input[type="search"], #newProductPrefixKeyword, #newProductPrefixEnglishV295, #newProductPrefixCode')]
       .some(input => String(input?.value || "").trim() !== "");
-    // V29.6: a panel normally closes after switching pages. If the user left
+    // V29.7: a panel normally closes after switching pages. If the user left
     // transient search/input text inside that panel, keep it open so the text is not hidden.
     details.open = transient;
   });
@@ -3119,7 +3129,7 @@ function applyBatchCostEditability() {
   const repairEnabled = getCostRepairModeEnabled();
   const lockedSaved = isEditing && !repairEnabled;
 
-  // V29.6: China-side/core import facts are immutable once saved, even when
+  // V29.7: China-side/core import facts are immutable once saved, even when
   // Data Repair is ON. If they are wrong, copy the whole import as a new draft,
   // save the corrected new import number, then delete the wrong old import.
   [
@@ -5314,7 +5324,7 @@ function sequentialSearchMatches(searchableValue, queryValue) {
   return source.includes(query);
 }
 
-// V29.6: shared read-only Original Cost matcher for every product-search surface.
+// V29.7: shared read-only Original Cost matcher for every product-search surface.
 // Pure numeric queries (commas/spaces/decimals allowed) match unitPrice exactly,
 // regardless of currency. This helper only reads already-loaded local collections.
 function parseOriginalCostSearchQueryV216(queryValue) {
@@ -5345,14 +5355,14 @@ function originalCostMatchesProductV216(product, queryValue, imports = null) {
   });
 }
 
-// V29.6: record/batch-level searches must match the Original Cost stored on
+// V29.7: record/batch-level searches must match the Original Cost stored on
 // that exact row. Never fall back to another import row of the same Product ID,
 // otherwise a 320 search can incorrectly pull in a 200 batch for the same product.
 function originalCostMatchesBatchItemV216(item, queryValue) {
   return originalCostNumberMatchesV216(item?.unitPrice, queryValue);
 }
 
-// V29.6: a pure numeric product-search query is reserved exclusively for
+// V29.7: a pure numeric product-search query is reserved exclusively for
 // exact Original Cost matching. It must never fall through to product names,
 // IDs, import numbers, tracking numbers, dates, quantities, or other numeric text.
 function isOriginalCostOnlySearchV218(queryValue) {
@@ -7676,7 +7686,7 @@ function setupImportHistory() {
     });
   });
 
-  // V29.6: typing a product keyword must not make date buttons / clear buttons
+  // V29.7: typing a product keyword must not make date buttons / clear buttons
   // wait behind a heavy history render. Search runs only on 查看历史 / Enter /
   // an explicit date change; blur/change of the keyword field is intentionally light.
   input?.addEventListener("change", () => {
@@ -10111,7 +10121,7 @@ function renderImportHistoryNowV134() {
   const exactHistoryProduct = String(
     input.dataset.exactHistoryProduct || ""
   ).trim().toLowerCase();
-  // V29.6: stable Product ID linkage is only for the original text/product search.
+  // V29.7: stable Product ID linkage is only for the original text/product search.
   // A numeric Original Cost hit must remain row/batch-specific; it must not turn
   // into a Product ID hit that automatically includes every historical batch.
   const matchedProductIds = new Set(
@@ -10364,7 +10374,7 @@ function renderImportHistoryNowV134() {
 async function renderImportHistory() {
   const token = ++historyLookupRenderTokenV134;
   hydrateHistorySalesCacheV179();
-  // V29.6: first paint uses one in-memory snapshot so repeated localStorage JSON
+  // V29.7: first paint uses one in-memory snapshot so repeated localStorage JSON
   // parsing cannot block date/clear controls. Sales financial enrichment runs later.
   const baseGetProducts=getProducts, baseGetBatches=getBatches, baseGetImports=getImports;
   const productsSnapshot=baseGetProducts(), batchesSnapshot=baseGetBatches(), importsSnapshot=baseGetImports();
@@ -10377,7 +10387,7 @@ async function renderImportHistory() {
       const gp=getProducts,gb=getBatches,gi=getImports;
       getProducts=()=>productsSnapshot; getBatches=()=>batchesSnapshot; getImports=()=>importsSnapshot;
       try{renderImportHistoryNowV134();}finally{getProducts=gp;getBatches=gb;getImports=gi;}
-    } catch(error){ console.warn('V29.6 history enrichment skipped',error); }
+    } catch(error){ console.warn('V29.7 history enrichment skipped',error); }
   },30);
 }
 
@@ -10907,8 +10917,8 @@ function renderBatchRowSuggestionBox(id) {
               data-batch-suggestion="${escapeHTML(product.name)}">
         <strong>${escapeHTML(product.name)}</strong>
         <small class="batch-suggestion-secondary-v296">
-          ${escapeHTML(getProductEnglishNameV294(product) || "")}
-          ${getProductEnglishNameV294(product) ? " · " : ""}${escapeHTML(product.id || "-")}
+          ${escapeHTML(product.id || "-")}
+          ${getProductEnglishNameV294(product) ? "　" + escapeHTML(getProductEnglishNameV294(product)) : ""}
         </small>
       </button>
     `).join("");
@@ -11570,7 +11580,7 @@ function saveBatchImport() {
       transitDays: updateTransitDays()
     };
 
-    // V29.6: revision history records every allowed Data Repair field, not only costs.
+    // V29.7: revision history records every allowed Data Repair field, not only costs.
     const repairLogTimeV222 = new Date().toLocaleString("zh-MY", { hour12: false });
     const addRepairLogV222 = (fieldLabel, before, after) => {
       if (String(before ?? "") === String(after ?? "")) return;
@@ -11593,7 +11603,7 @@ function saveBatchImport() {
     let updatedCostSnapshot = {};
     let repairChangesCostV206 = false;
     if (repairEnabled) {
-      // V29.6 Data Repair may change only the Malaysia-side overseas freight
+      // V29.7 Data Repair may change only the Malaysia-side overseas freight
       // among cost-bearing fields. China-side costs, original prices, currency
       // and exchange rate are immutable here.
       const nextChina = Number(oldBatch.chinaTransportCost) || 0;
@@ -12016,7 +12026,7 @@ function renderBatchList() {
 
   const searchInput = document.getElementById("batchSearch");
   const toggleButton = document.getElementById("toggleBatchListBtn");
-  const countElement = null; // V29.6 batch count display removed
+  const countElement = null; // V29.7 batch count display removed
   const listElement = document.getElementById("batchList");
   const keyword = String(searchInput?.value || "").trim().toLowerCase();
 
@@ -12147,7 +12157,7 @@ function renderBatchList() {
   }).join("");
 }
 
-// ================= V29.6 Dedicated Original Cost Correction =================
+// ================= V29.7 Dedicated Original Cost Correction =================
 let originalCostEditPendingV219 = null;
 
 function getPreferredOriginalCostRecordV219(product, queryValue = "", explicitImportId = "") {
@@ -14476,7 +14486,7 @@ function renderInventoryManagementList() {
         )
       ).join(" ");
 
-      // V29.6: cache original import-cost numbers while matching imports are
+      // V29.7: cache original import-cost numbers while matching imports are
       // already in memory. This adds no save/sync/delete calls and leaves the
       // existing smart-search pipeline untouched.
       const originalCostValuesV216 = matchingImports
@@ -14558,7 +14568,7 @@ function renderInventoryManagementList() {
           keyword
         );
 
-      // V29.6: when the query is purely numeric (commas and decimals allowed),
+      // V29.7: when the query is purely numeric (commas and decimals allowed),
       // match the numeric Original Cost exactly, regardless of currency.
       // Existing product/import/tracking searches continue to run unchanged.
       const originalCostQueryTextV216 = String(keyword || "")
@@ -15552,7 +15562,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "29.6",
+      version: "29.7",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -15919,7 +15929,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V29.6 Stable",
+      updatedBy: "System V29.7 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -16034,7 +16044,7 @@ function registerServiceWorker() {
 })();
 
 
-// ================= V29.6 SELECTED STABLE FEATURE LAYER =================
+// ================= V29.7 SELECTED STABLE FEATURE LAYER =================
 const IMPORT_DRAFTS_KEY_V294 = "importSystemDraftsV294";
 let activeImportDraftIdV294 = "";
 let mediaSaveBusyV294 = false;
@@ -16182,10 +16192,10 @@ function setupV294Features(){
 }
 
 document.addEventListener('click',event=>{if(!window.__mediaUploadBusyV294)return;const nav=event.target.closest?.('.nav-btn,[data-page]');if(!nav)return;if(!confirm('照片/视频仍在上传，离开可能导致上传失败。确定离开？')){event.preventDefault();event.stopPropagation();event.stopImmediatePropagation?.();}},true);
-document.addEventListener('DOMContentLoaded',()=>window.setTimeout(setupV294Features,20));
+// V29.7: setupV294Features runs after access unlock inside initializeAppUiAfterAccessV297.
 
 
-// V29.6 grouped prefix editor: edit/delete an entire alias group sharing a prefix.
+// V29.7 grouped prefix editor: edit/delete an entire alias group sharing a prefix.
 function renderProductPrefixRulesV181(){
   const list=document.getElementById('productPrefixRulesList'); if(!list)return;
   const groups=new Map(); getProductPrefixRulesV181().forEach(([k,p])=>{if(!groups.has(p))groups.set(p,[]);groups.get(p).push(k);});
@@ -16195,7 +16205,7 @@ function editPrefixAliasGroupV294(aliases,prefix){const current=(aliases||[]).jo
 function deletePrefixAliasGroupV294(aliases,prefix){if(!confirm(`删除整组 ${prefix}：${(aliases||[]).join(' / ')}？\n中英文 Alias 会一起删除。`))return;const settings=loadJSON('importSystemSettings',{}),ov={...(settings.productPrefixOverridesV294||{})};(aliases||[]).forEach(a=>ov[normalizeProductPrefixKeywordV181(a)]={keyword:a,prefix:'',deleted:true,updatedAt:new Date().toISOString()});const additional=Array.isArray(settings.productPrefixAdditionalRules)?settings.productPrefixAdditionalRules.filter(r=>!(aliases||[]).includes(String(Array.isArray(r)?r[0]:r?.keyword||''))):[];saveJSON('importSystemSettings',{...settings,productPrefixOverridesV294:ov,productPrefixAdditionalRules:additional});markCloudSettingsSaved?.();renderProductPrefixRulesV181();}
 window.editPrefixAliasGroupV294=editPrefixAliasGroupV294;window.deletePrefixAliasGroupV294=deletePrefixAliasGroupV294;
 
-// V29.6 promotion custom-margin bulk tools.
+// V29.7 promotion custom-margin bulk tools.
 let promotionMarginSelectionV294=new Set();
 function renderPromotionCustomMarginsV294(){
   const host=document.getElementById('promotionExcludedListV183');if(!host)return;
@@ -16207,7 +16217,7 @@ function renderPromotionCustomMarginsV294(){
 }
 
 
-// ================= V29.6 UX + MANAGEMENT LAYER =================
+// ================= V29.7 UX + MANAGEMENT LAYER =================
 function copyMediaLinkV295(productId, type) {
   const url = String(getProductMediaV294(productId)?.[type] || "").trim();
   if (!url) { showHistoryCopyToast?.("没有可复制的链接"); return; }
@@ -16355,10 +16365,10 @@ function setupProductManagementV295(){
 const _refreshPromotionUiV295Base=refreshPromotionUiV183;
 refreshPromotionUiV183=function(){_refreshPromotionUiV295Base();const active=getPromotionSettingsV183();const mode=document.getElementById('promotionModeV295');if(mode&&!promotionDraftTouchedV209)mode.value=active?.modeV295==='selected'?'selected':'all';if(!promotionDraftTouchedV209)promotionSelectedDraftV295=new Set(active?.selectedProductIdsV295||[]);syncPromotionModeUiV295();};
 
-document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>{renderProductPrefixRulesV181();setupPromotionModeV295();setupProductManagementV295();syncPromotionModeUiV295();},60));
+// V29.7: Product Management/Promotion setup runs after access unlock.
 
 
-// ================= V29.6 UX / performance refinements =================
+// ================= V29.7 UX / performance refinements =================
 function inferProductEnglishNameV296(name){
   const text=String(name||'').trim(); if(!text)return '';
   const groups=typeof getDisplayPrefixGroupsV295==='function'?getDisplayPrefixGroupsV295():[];
@@ -16455,10 +16465,10 @@ renderImportHistoryNowV134=function(){_renderImportHistoryNowV296Base();decorate
 // Page navigation hook for settings collapse and lazy product-management tables.
 document.addEventListener('click',e=>{const nav=e.target.closest?.('.nav-btn');if(!nav)return;const current=document.querySelector('.page.active')?.id;if(current==='settingsPage'&&nav.dataset.page!=='settingsPage')collapseSettingsOnLeaveV296();if(nav.dataset.page==='productManagementPage')setTimeout(()=>{renderProductPrefixRulesV181();const d=document.getElementById('inventorySummaryTableV294');if(d?.open)renderInventorySummaryTableV294();},0);},true);
 
-// V29.6 media labels/colors and category removal are presentation-only.
+// V29.7 media labels/colors and category removal are presentation-only.
 
 
-// V29.6 final media layout: two aligned rows, state colors follow status dots.
+// V29.7 final media layout: two aligned rows, state colors follow status dots.
 enhanceInventoryCardsV294=function(){
   document.querySelectorAll('.inventory-manage-card[data-product-id]').forEach(card=>{
     const id=String(card.dataset.productId||''), product=getProducts().find(p=>String(p.id||'')===id); if(!product)return;
@@ -16487,3 +16497,100 @@ addBatchRow=function(prefill={}){
   const refresh=()=>{const p=getProducts().find(x=>String(x.id||'')===String(pid?.value||''))||getProducts().find(x=>String(x.name||'').toLowerCase()===String(name?.value||'').trim().toLowerCase());const e=String(p?.englishName||english.value||inferProductEnglishNameV296(name?.value)||'').trim();english.value=e;display.textContent=e?`${e}${p?.id?` · ${p.id}`:''}`:'';display.hidden=!e;};
   name?.addEventListener('input',()=>setTimeout(refresh,0));tr.querySelector(`#batchSuggestionBox-${id}`)?.addEventListener('click',()=>setTimeout(refresh,0));refresh();
 };
+
+
+// ================= V29.7 HIGH-PRIORITY PERFORMANCE + UI =================
+// Avoid heavy redraws behind the password screen. Cloud data may still sync in background.
+if (typeof refreshSystemViewsAfterSync === 'function') {
+  const _refreshSystemViewsAfterSyncV297Base = refreshSystemViewsAfterSync;
+  refreshSystemViewsAfterSync = function(){
+    const lock=document.getElementById('accessLock');
+    if(lock && !lock.hidden){ window.__cloudRefreshDeferredV297=true; try{renderCloudMeta?.(getCloudConfig?.());}catch(_){} return; }
+    return _refreshSystemViewsAfterSyncV297Base();
+  };
+}
+
+// Fast product maps used by History to avoid repeated Products.find() loops.
+const _renderImportHistoryNowV297Base = renderImportHistoryNowV134;
+renderImportHistoryNowV134 = function(){
+  const products=getProducts();
+  const byId=new Map(products.map(p=>[String(p.id||''),p]));
+  const byName=new Map(products.map(p=>[String(p.name||'').trim().toLowerCase(),p]));
+  const originalGetProducts=getProducts;
+  getProducts=()=>products;
+  window.__historyProductByIdV297=byId; window.__historyProductByNameV297=byName;
+  try{return _renderImportHistoryNowV297Base();}finally{getProducts=originalGetProducts;}
+};
+
+// Prefix editor: edit directly in the lower fields; same prefix may be shared by different products.
+let prefixEditKeyV297='';
+function splitPrefixZhV297(v){return String(v||'').split('/').map(x=>x.trim()).filter(Boolean)}
+function splitPrefixEnV297(v){return String(v||'').split('/').map(x=>x.trim()).filter(Boolean)}
+function getCustomPrefixGroupsV297(){const s=loadJSON('importSystemSettings',{});return Array.isArray(s.productPrefixCustomGroupsV297)?s.productPrefixCustomGroupsV297.filter(g=>!g.deleted):[];}
+const _getDisplayPrefixGroupsV297Base=getDisplayPrefixGroupsV295;
+getDisplayPrefixGroupsV295=function(){return _getDisplayPrefixGroupsV297Base().concat(getCustomPrefixGroupsV297().map((g,i)=>({...g,key:g.key||`custom:${i}:${g.zh}`})));};
+function prefixGroupMatchesProductV297(g,p){
+  const name=`${p?.name||''} ${getProductEnglishNameV294(p)||''}`.toLowerCase();
+  return splitPrefixZhV297(g.zh).concat(g.en||[]).some(a=>a && name.includes(String(a).toLowerCase()));
+}
+function prefixGroupInUseV297(g){return getProducts().some(p=>String(p.id||'').toUpperCase().startsWith(String(g.prefix||'').toUpperCase()) && prefixGroupMatchesProductV297(g,p));}
+renderProductPrefixRulesV181=function(){
+ const list=document.getElementById('productPrefixRulesList');if(!list)return;
+ list.innerHTML=getDisplayPrefixGroupsV295().map(g=>{const used=prefixGroupInUseV297(g);return `<div class="product-prefix-locked-row-v181 product-prefix-row-v295 product-prefix-row-v296"><span>${escapeHTML(g.zh)}</span><span>${escapeHTML((g.en||[]).join(' / '))}</span><strong>${escapeHTML(g.prefix)}</strong><span class="prefix-status-v296">${used?'已使用 · 删除锁定':'未使用'}</span><span class="prefix-actions-v295"><button type="button" onclick='editPrefixGroupV295(${JSON.stringify(g.key)})'>修改</button>${used?'':`<button type="button" onclick='deletePrefixGroupV295(${JSON.stringify(g.key)})'>删除</button>`}</span></div>`}).join('');
+};
+editPrefixGroupV295=function(key){
+  const g=getDisplayPrefixGroupsV295().find(x=>x.key===key);if(!g)return;
+  prefixEditKeyV297=key;
+  const zh=document.getElementById('newProductPrefixKeyword'),en=document.getElementById('newProductPrefixEnglishV295'),pc=document.getElementById('newProductPrefixCode'),btn=document.getElementById('addProductPrefixRuleBtn'),cancel=document.getElementById('cancelProductPrefixEditV297');
+  if(zh)zh.value=g.zh||''; if(en)en.value=(g.en||[]).join(' / '); if(pc)pc.value=g.prefix||'';
+  if(btn)btn.textContent='保存修改'; if(cancel)cancel.hidden=false;
+  zh?.focus(); document.getElementById('productPrefixRulesStatus').textContent=`正在修改：${g.zh} → ${g.prefix}`;
+};
+window.editPrefixGroupV295=editPrefixGroupV295;
+function resetPrefixEditorV297(){prefixEditKeyV297='';['newProductPrefixKeyword','newProductPrefixEnglishV295','newProductPrefixCode'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});const b=document.getElementById('addProductPrefixRuleBtn');if(b)b.textContent='新增并锁定产品前缀';const c=document.getElementById('cancelProductPrefixEditV297');if(c)c.hidden=true;}
+document.getElementById('cancelProductPrefixEditV297')?.addEventListener('click',()=>{resetPrefixEditorV297();const s=document.getElementById('productPrefixRulesStatus');if(s)s.textContent='';});
+
+// Capture Save/Add and replace previous V29.5 handler. Alias/product uniqueness is enforced; prefix uniqueness is NOT.
+document.addEventListener('click',event=>{
+ const b=event.target.closest?.('#addProductPrefixRuleBtn');if(!b)return;
+ event.preventDefault();event.stopPropagation();event.stopImmediatePropagation?.();
+ const zh=String(document.getElementById('newProductPrefixKeyword')?.value||'').trim(), enText=String(document.getElementById('newProductPrefixEnglishV295')?.value||'').trim(), prefix=String(document.getElementById('newProductPrefixCode')?.value||'').trim().toUpperCase(), status=document.getElementById('productPrefixRulesStatus');
+ if(!zh&&!enText){if(status)status.textContent='请输入中文关键词或英文 Alias';return;} if(!/^[A-Z]{2}$/.test(prefix)){if(status)status.textContent='编号前缀必须是2个英文字母';return;}
+ const z=splitPrefixZhV297(zh), e=splitPrefixEnV297(enText), aliases=z.concat(e), current=getDisplayPrefixGroupsV295(), norm=a=>normalizeProductPrefixKeywordV181(a);
+ const conflict=aliases.find(a=>current.some(g=>g.key!==prefixEditKeyV297 && splitPrefixZhV297(g.zh).concat(g.en||[]).some(x=>norm(x)===norm(a))));
+ if(conflict){if(status)status.textContent=`关键词 / Alias “${conflict}” 已对应其他产品规则；一个产品不能有两个前缀。`;return;}
+ const settings=loadJSON('importSystemSettings',{});
+ if(prefixEditKeyV297){
+   if(prefixEditKeyV297.startsWith('custom:')){
+     const arr=Array.isArray(settings.productPrefixCustomGroupsV297)?settings.productPrefixCustomGroupsV297.slice():[];const old=current.find(g=>g.key===prefixEditKeyV297);const i=arr.findIndex(g=>String(g.key||'')===String(old?.key||''));const obj={key:old?.key||`custom:${Date.now()}`,zh:z.join(' / '),en:e,prefix,updatedAt:new Date().toISOString()}; if(i>=0)arr[i]=obj;else arr.push(obj);saveJSON('importSystemSettings',{...settings,productPrefixCustomGroupsV297:arr});
+   } else {const ov={...(settings.productPrefixGroupsV295||{})};ov[prefixEditKeyV297]={zh:z.join(' / '),en:e,prefix,updatedAt:new Date().toISOString()};saveJSON('importSystemSettings',{...settings,productPrefixGroupsV295:ov});}
+   markCloudSettingsSaved?.(); if(status)status.textContent=`已修改：${z.join(' / ')} → ${prefix}`;
+ } else {
+   const arr=Array.isArray(settings.productPrefixCustomGroupsV297)?settings.productPrefixCustomGroupsV297.slice():[];arr.push({key:`custom:${Date.now()}`,zh:z.join(' / '),en:e,prefix,createdAt:new Date().toISOString()});saveJSON('importSystemSettings',{...settings,productPrefixCustomGroupsV297:arr});markCloudSettingsSaved?.();if(status)status.textContent=`已新增：${aliases.join(' / ')} → ${prefix}`;
+ }
+ resetPrefixEditorV297();renderProductPrefixRulesV181();
+},true);
+
+// Delete custom/default group safely. A shared prefix alone does not lock another unused group.
+const _deletePrefixGroupV297Base=deletePrefixGroupV295;
+deletePrefixGroupV295=function(key){const g=getDisplayPrefixGroupsV295().find(x=>x.key===key);if(!g)return;if(prefixGroupInUseV297(g)){alert(`这组 ${g.zh} 已有关联产品，不能删除。`);return;}if(!confirm(`删除整组 ${g.zh} / ${(g.en||[]).join(' / ')} → ${g.prefix}？`))return;const settings=loadJSON('importSystemSettings',{});if(String(key).startsWith('custom:')){const arr=(settings.productPrefixCustomGroupsV297||[]).filter(x=>String(x.key||'')!==String(key));saveJSON('importSystemSettings',{...settings,productPrefixCustomGroupsV297:arr});markCloudSettingsSaved?.();renderProductPrefixRulesV181();return;}return _deletePrefixGroupV297Base(key);};window.deletePrefixGroupV295=deletePrefixGroupV295;
+
+// Inventory summary: same compact two-line visual language as Inventory Management.
+renderInventorySummaryTableV294=function(){
+ const body=document.getElementById('inventorySummaryBodyV294'),stats=document.getElementById('inventorySummaryStatsV294');if(!body)return;
+ const q=String(document.getElementById('inventorySummarySearchV294')?.value||'').trim(),sort=String(document.getElementById('inventorySummarySortV294')?.value||'latest');
+ const imports=getImports();let rows=getProducts().filter(p=>Number(p.stock)>0).filter(p=>!q||productSearchEverywhereV294(p,q));
+ const importLatest=new Map();for(const r of imports){const id=String(r.productId||'');const t=Date.parse(r.createdAt||'')||0;if(t>(importLatest.get(id)||0))importLatest.set(id,t);} const sales=getInventorySalesAnalyticsV146?.();
+ rows.sort((a,b)=>{if(sort==='name')return String(a.name||'').localeCompare(String(b.name||''),'zh');if(sort==='stock-desc')return Number(b.stock)-Number(a.stock);if(sort==='stock-asc')return Number(a.stock)-Number(b.stock);if(sort==='value-desc')return Number(b.stock)*Number(b.averageCost)-Number(a.stock)*Number(a.averageCost);if(sort==='cost-desc')return Number(b.averageCost)-Number(a.averageCost);if(sort==='bestseller-desc')return Number(sales?.quantityById?.get?.(b.id)||0)-Number(sales?.quantityById?.get?.(a.id)||0);if(sort==='profit-desc')return Number(sales?.profitById?.get?.(b.id)||0)-Number(sales?.profitById?.get?.(a.id)||0);if(sort==='latest-sold')return Number(sales?.latestById?.get?.(b.id)||0)-Number(sales?.latestById?.get?.(a.id)||0);return Number(importLatest.get(b.id)||0)-Number(importLatest.get(a.id)||0);});
+ const stock=rows.reduce((n,p)=>n+Math.max(0,Number(p.stock)||0),0),value=rows.reduce((n,p)=>n+Math.max(0,Number(p.stock)||0)*Math.max(0,Number(p.averageCost)||0),0);if(stats)stats.innerHTML=`当前库存：<strong>${formatNumber(stock)}</strong>　库存成本：<strong>${formatMoney(value,'RM ')}</strong>　${rows.length} 项`;
+ body.innerHTML=rows.map(p=>{const en=getProductEnglishNameV294(p)||'',avg=Math.max(0,Number(p.averageCost)||0),min=getEffectiveProductMinimumPriceV183(p),qty=Math.max(0,Number(p.stock)||0);return `<tr class="inventory-summary-main-v297"><td><button class="inventory-summary-copy-v296" onclick="copyV294(${JSON.stringify(String(p.id||''))},'已复制产品编号')">${escapeHTML(p.id||'')}</button></td><td colspan="3"><button class="inventory-summary-copy-v296 inventory-summary-name-v297" onclick="copyV294(${JSON.stringify(String(p.name||''))},'已复制中文名')">${escapeHTML(p.name||'')}</button></td></tr><tr class="inventory-summary-sub-v297"><td><button class="inventory-summary-copy-v296" onclick="copyV294(${JSON.stringify(en)},'已复制英文名')">${escapeHTML(en||'-')}</button></td><td>${formatNumber(qty)}</td><td colspan="2"><span class="summary-cost-pair-v297">${formatMoney(avg)} / <b class="${min<avg?'summary-price-loss-v296':'summary-price-ok-v296'}">${formatMoney(min)}</b></span></td></tr>`}).join('')||'<tr><td colspan="4" class="empty-state">没有符合的库存资料</td></tr>';
+};
+
+// All collapsible Product Management / Settings panels close on leave unless they contain transient text.
+function panelHasTransientInputV297(panel){return [...panel.querySelectorAll('input,textarea')].some(el=>String(el.value||'').trim());}
+function collapseManagementPanelsV297(page){page?.querySelectorAll('details[open]').forEach(d=>{if(!panelHasTransientInputV297(d))d.open=false;});}
+document.addEventListener('click',e=>{const nav=e.target.closest?.('.nav-btn');if(!nav)return;const active=document.querySelector('.page.active');if(active && nav.dataset.page!==active.id && (active.id==='settingsPage'||active.id==='productManagementPage'))collapseManagementPanelsV297(active);},true);
+
+// Inventory card visual order and equal typography.
+const _enhanceInventoryCardsV297Base=enhanceInventoryCardsV294;
+enhanceInventoryCardsV294=function(){_enhanceInventoryCardsV297Base();document.querySelectorAll('.inventory-manage-card').forEach(card=>{const sold=card.querySelector('.inventory-sold-quantity'),media=card.querySelector('.product-media-controls-v294');if(sold&&media){sold.classList.add('inventory-sold-align-v297');} });};
