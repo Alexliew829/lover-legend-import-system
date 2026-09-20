@@ -5,19 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=29.5" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=29.5" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=29.5" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=29.5" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=29.5" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=29.5" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=29.5" />
+  <link rel="manifest" href="./manifest.json?v=29.6" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=29.6" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=29.6" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=29.6" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=29.6" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=29.6" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=29.6" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=29.5" />
-  <link rel="stylesheet" href="./css/style.css?v=29.5" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=29.6" />
+
+  <style id="accessLockCriticalV296">
+    #accessLock{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(244,249,245,.94);padding:16px;box-sizing:border-box}
+    #accessLock[hidden]{display:none!important}
+    #accessLock .access-lock-card{width:min(360px,calc(100vw - 32px));background:#fff;border:1px solid #d7e5db;border-radius:18px;padding:26px 22px;box-shadow:0 18px 48px rgba(0,0,0,.12);text-align:center}
+  </style>
+  <link rel="stylesheet" href="./css/style.css?v=29.6" />
 </head>
 <body>
   <div id="accessLock"
@@ -84,7 +90,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 29.5 Stable</div>
+          <div class="app-header-version">正式版 29.6 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -198,15 +204,6 @@
             <div class="empty-state">暂无库存资料</div>
           </div>
         </section>
-        <details id="inventorySummaryTableV294" class="panel inventory-summary-table-v294">
-          <summary><span>库存资料总表</span><small>点击打开 / 收起</small></summary>
-          <div class="inventory-summary-table-tools-v294">
-            <input id="inventorySummarySearchV294" class="search-input text-left-input" placeholder="搜索中文 / 英文 / 产品编号" />
-            <select id="inventorySummarySortV294"><option value="name">产品名称</option><option value="stock-desc">库存最多</option><option value="stock-asc">库存最少</option><option value="value-desc">库存成本最高</option><option value="cost-desc">平均成本最高</option></select>
-          </div>
-          <div id="inventorySummaryStatsV294" class="inventory-summary-stats-v294"></div>
-          <div class="inventory-summary-table-wrap-v294"><table class="inventory-summary-table-v294"><thead><tr><th>产品</th><th>当前库存</th><th>平均成本</th><th>最低售价</th><th>库存成本</th></tr></thead><tbody id="inventorySummaryBodyV294"></tbody></table></div>
-        </details>
       </section>
 
       <section id="importPage" class="page">
@@ -241,7 +238,7 @@
                     <th>数量</th>
                     <th>单价</th>
                     <th>货款总额</th>
-                    <th>类别</th>
+                    <th class="batch-category-col-v296">类别</th>
                     <th>入库</th>
                     <th>每棵成本</th>
                     <th></th>
@@ -373,8 +370,6 @@
     type="button">
     显示全部
   </button>
-
-  <span class="muted" id="batchListCount">0 批</span>
 </div>
 
 
@@ -406,6 +401,35 @@
           <div id="batchProductStockResults" class="product-stock-search-results" hidden></div>
           <div id="batchProductStockStatus" class="status-text"></div>
         </section>
+
+
+        <details class="panel product-prefix-settings-v181">
+          <summary><span>产品编号前缀管理</span><small>只影响以后新增产品</small></summary>
+          <p class="settings-help">中文关键词与英文 Alias 都可以匹配产品名称；英文大小写不敏感。修改或删除按整组处理，只影响以后新增产品，不修改现有编号、进口、历史、库存或成本。</p>
+          <div class="product-prefix-locked-head-v181 product-prefix-head-v295"><span>中文关键词</span><span>英文关键词 / Alias</span><span>现有产品前缀</span><span></span></div>
+          <div id="productPrefixRulesList" class="product-prefix-locked-list-v181"></div>
+          <div class="product-prefix-add-v181 product-prefix-add-v295">
+            <label>中文关键词<input id="newProductPrefixKeyword" maxlength="30" autocomplete="off" placeholder="例如：榕树" /></label>
+            <label>英文关键词 / Alias<input id="newProductPrefixEnglishV295" maxlength="100" autocomplete="off" placeholder="例如：Ficus / Banyan" /></label>
+            <label>编号前缀<input id="newProductPrefixCode" maxlength="2" autocomplete="off" autocapitalize="characters" placeholder="例如：RS" /></label>
+          </div>
+          <button id="addProductPrefixRuleBtn" class="primary-btn" type="button">新增并锁定产品前缀</button>
+          <div id="productPrefixRulesStatus" class="status-text"></div>
+          <p class="settings-help">无法识别但明确为盆栽的产品使用 PZ；“盆栽 / Bonsai”本身也匹配 PZ。中文与英文 Alias 不能重复。</p>
+        </details>
+
+        <details id="inventorySummaryTableV294" class="panel inventory-summary-table-v294">
+          <summary><span>库存资料总表</span><small>点击打开 / 收起</small></summary>
+          <div class="inventory-summary-table-tools-v294">
+            <input id="inventorySummarySearchV294" class="search-input text-left-input" placeholder="搜索中文 / 英文 / 产品编号 / 进口编号 / 运输单号 / 原成本" />
+            <select id="inventorySummarySortV294">
+<option value="latest">最近进口</option><option value="latest-sold">最近售出</option><option value="name">产品名称</option><option value="bestseller-desc">畅销商品</option><option value="profit-desc">利润最高</option><option value="stock-desc">库存最多</option><option value="stock-asc">库存最少</option><option value="value-desc">库存成本最高</option><option value="cost-desc">平均成本最高</option>
+</select>
+          </div>
+          <div id="inventorySummaryStatsV294" class="inventory-summary-stats-v294"></div>
+          <div class="inventory-summary-table-wrap-v294"><table class="inventory-summary-table-v294"><thead><tr><th>产品编号</th><th>中文名</th><th>英文名</th><th>当前库存</th><th>平均成本</th><th>最低售价</th><th>库存成本</th></tr></thead><tbody id="inventorySummaryBodyV294"></tbody></table></div>
+        </details>
+
       </section>
 
       <section id="historyPage" class="page">
@@ -623,21 +647,6 @@
           <div id="promotionStatusV183" class="status-text"></div>
         </details>
 
-        <details class="panel collapsible-settings-v181 product-prefix-settings-v181">
-          <summary><span>产品编号前缀管理</span><small>只影响以后新增产品</small></summary>
-          <p class="settings-help">中文关键词与英文 Alias 都可以匹配产品名称；英文大小写不敏感。修改或删除按整组处理，只影响以后新增产品，不修改现有编号、进口、历史、库存或成本。</p>
-          <div class="product-prefix-locked-head-v181 product-prefix-head-v295"><span>中文关键词</span><span>英文关键词 / Alias</span><span>现有产品前缀</span><span></span></div>
-          <div id="productPrefixRulesList" class="product-prefix-locked-list-v181"></div>
-          <div class="product-prefix-add-v181 product-prefix-add-v295">
-            <label>中文关键词<input id="newProductPrefixKeyword" maxlength="30" autocomplete="off" placeholder="例如：榕树" /></label>
-            <label>英文关键词 / Alias<input id="newProductPrefixEnglishV295" maxlength="100" autocomplete="off" placeholder="例如：Ficus / Banyan" /></label>
-            <label>编号前缀<input id="newProductPrefixCode" maxlength="2" autocomplete="off" autocapitalize="characters" placeholder="例如：RS" /></label>
-          </div>
-          <button id="addProductPrefixRuleBtn" class="primary-btn" type="button">新增并锁定产品前缀</button>
-          <div id="productPrefixRulesStatus" class="status-text"></div>
-          <p class="settings-help">无法识别但明确为盆栽的产品使用 PZ；“盆栽 / Bonsai”本身也匹配 PZ。中文与英文 Alias 不能重复。</p>
-        </details>
-
         <section class="panel">
           <h3>更改系统密码</h3>
           <p class="settings-help">
@@ -849,7 +858,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 29.5 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 29.6 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
@@ -870,7 +879,7 @@
         <span>🏠</span><small>首页</small>
       </a>
       <a class="nav-btn" data-page="importPage" href="./?page=import">
-        <span>📦</span><small>产品/进口<br>查询/新增</small>
+        <span>📦</span><small>产品/进口</small>
       </a>
       <a class="nav-btn" data-page="productManagementPage" href="./?page=products">
         <span>🏷️</span><small>产品管理</small>
@@ -884,8 +893,8 @@
     </nav>
   </div>
 
-  <script src="./js/common.js?v=29.5"></script>
-  <script src="./js/sync.js?v=29.5"></script>
-  <script src="./js/app.js?v=29.5"></script>
+  <script src="./js/common.js?v=29.6"></script>
+  <script src="./js/sync.js?v=29.6"></script>
+  <script src="./js/app.js?v=29.6"></script>
 </body>
 </html>
