@@ -51,9 +51,7 @@ function getCloudQueue() {
     deleted: {
       products: Array.isArray(saved.deleted?.products) ? saved.deleted.products : [],
       imports: Array.isArray(saved.deleted?.imports) ? saved.deleted.imports : [],
-      batches: Array.isArray(saved.deleted?.batches) ? saved.deleted.batches : [],
-      importNumbers: Array.isArray(saved.deleted?.importNumbers) ? saved.deleted.importNumbers : [],
-      batchIds: Array.isArray(saved.deleted?.batchIds) ? saved.deleted.batchIds : []
+      batches: Array.isArray(saved.deleted?.batches) ? saved.deleted.batches : []
     }
   };
 }
@@ -72,7 +70,7 @@ function clearLegacyPendingCloudState() {
   saveCloudQueue({
     dirty: false,
     changedAt: "",
-    deleted: { products: [], imports: [], batches: [], importNumbers: [], batchIds: [] }
+    deleted: { products: [], imports: [], batches: [] }
   });
 }
 
@@ -241,33 +239,6 @@ function makeLocalSnapshot() {
   };
 }
 
-function markCloudImportNumberDeletedV232(importNumber, batchId = "") {
-  if (cloudApplyingRemote || !isCloudBootstrapComplete()) return;
-  const queue = getCloudQueue();
-  const importNumbers = new Set(queue.deleted.importNumbers || []);
-  const batchIds = new Set(queue.deleted.batchIds || []);
-  const normalizedImportNumber = String(importNumber || "").trim();
-  const normalizedBatchId = String(batchId || "").trim();
-  if (normalizedImportNumber) importNumbers.add(normalizedImportNumber);
-  if (normalizedBatchId) batchIds.add(normalizedBatchId);
-  queue.deleted.importNumbers = [...importNumbers];
-  queue.deleted.batchIds = [...batchIds];
-  queue.dirty = true;
-  queue.changedAt = new Date().toISOString();
-  saveCloudQueue(queue);
-}
-window.markCloudImportNumberDeletedV232 = markCloudImportNumberDeletedV232;
-
-function cancelCloudImportNumberDeletionV232(importNumber, batchId = "") {
-  const queue = getCloudQueue();
-  const normalizedImportNumber = String(importNumber || "").trim().toLowerCase();
-  const normalizedBatchId = String(batchId || "").trim();
-  queue.deleted.importNumbers = (queue.deleted.importNumbers || []).filter(value => String(value || "").trim().toLowerCase() !== normalizedImportNumber);
-  queue.deleted.batchIds = (queue.deleted.batchIds || []).filter(value => String(value || "").trim() !== normalizedBatchId);
-  saveCloudQueue(queue);
-}
-window.cancelCloudImportNumberDeletionV232 = cancelCloudImportNumberDeletionV232;
-
 function markCloudCollectionSaved(collection, previousItems, nextItems) {
   if (cloudApplyingRemote || !isCloudBootstrapComplete()) return;
   if (JSON.stringify(previousItems || []) === JSON.stringify(nextItems || [])) return;
@@ -351,8 +322,6 @@ async function flushCloudQueueStrictV83() {
   }
 }
 
-window.flushCloudQueueStrictV228 = flushCloudQueueStrictV83;
-
 async function commitSalesInventoryToCloudV83(payload) {
   await flushCloudQueueStrictV83();
   const config = getCloudConfig();
@@ -366,7 +335,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V26.8 Stable",
+      updatedBy: "System V29.2 Stable",
       ...payload
     });
 
@@ -401,7 +370,7 @@ async function commitSalesInventoryBatchToCloudV125(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V26.8 Stable",
+      updatedBy: "System V29.2 Stable",
       ...payload
     });
     if (data.conflict || data.stockChanged) {
@@ -424,7 +393,7 @@ window.commitSalesInventoryBatchToCloudV125 = commitSalesInventoryBatchToCloudV1
 
 async function commitSalesCorrectionBatchToCloudV110(payload) {
   await flushCloudQueueStrictV83(); const config=getCloudConfig(); setCloudState("syncing");
-  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V26.8 Stable",...payload});
+  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V29.2 Stable",...payload});
     if(data.conflict||data.stockChanged) throw new Error(data.message||"Google Sheet 资料已改变，全部库存差异没有处理。请同步后重试。");
     config.revision=Number(data.revision)||Number(config.revision)||0; config.lastSyncAt=new Date().toISOString(); config.bootstrapToken=String(data.bootstrapToken||config.bootstrapToken||""); config.bootstrapRevision=Number(data.revision)||Number(config.bootstrapRevision)||0; saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced"); return data;
   } catch(error){setCloudState("failed");throw error;}
@@ -438,7 +407,7 @@ async function migrateProductPrefixesV164() {
     action: "migrateProductPrefixesV164", clientVersion: APP_VERSION,
     schemaVersion: CLOUD_SCHEMA_VERSION, baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""), bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V26.8 Stable"
+    updatedBy: "System V29.2 Stable"
   });
   if (data.conflict) throw new Error(data.message || "资料已改变，请同步后重试。");
   config.revision = Number(data.revision) || Number(config.revision) || 0;
@@ -491,7 +460,7 @@ async function runCloudSync() {
       saveCloudQueue({
         dirty: false,
         changedAt: "",
-        deleted: { products: [], imports: [], batches: [], importNumbers: [], batchIds: [] }
+        deleted: { products: [], imports: [], batches: [] }
       });
       remoteUpdated = await pullLatestSnapshot();
     } else if (queue.dirty) {
@@ -618,7 +587,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V26.8 Stable",
+    updatedBy: "System V29.2 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     minimumPriceManual: Boolean(minimumPriceManual),
@@ -661,7 +630,7 @@ async function updatePromotionSettingsFastV185(promotion) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V26.8 Stable",
+    updatedBy: "System V29.2 Stable",
     promotion: promotion || null
   });
   if (data.conflict) throw new Error(data.message || "云端资料已改变，请同步后重试。");
@@ -687,12 +656,11 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V26.8 Stable",
+    updatedBy: "System V29.2 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
-    batches: snapshot.batches,
-    deleted: queue.deleted || { products: [], imports: [], batches: [] }
+    batches: snapshot.batches
   });
 
   if (data.conflict) {
@@ -721,7 +689,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     saveCloudQueue({
       dirty: false,
       changedAt: "",
-      deleted: { products: [], imports: [], batches: [], importNumbers: [], batchIds: [] }
+      deleted: { products: [], imports: [], batches: [] }
     });
   }
 
@@ -730,49 +698,12 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
 }
 
 function mergeSnapshots(remote, local, queue) {
-  const deletedImportNumbers = new Set((queue.deleted?.importNumbers || []).map(value => String(value || "").trim().toLowerCase()).filter(Boolean));
-  const deletedBatchIds = new Set((queue.deleted?.batchIds || []).map(value => String(value || "").trim()).filter(Boolean));
-  const keepImport = item => {
-    const importNumber = String(item?.importNumber || "").trim().toLowerCase();
-    const batchId = String(item?.batchId || "").trim();
-    return !(deletedImportNumbers.has(importNumber) || deletedBatchIds.has(batchId));
-  };
-  const keepBatch = item => {
-    const importNumber = String(item?.importNumber || "").trim().toLowerCase();
-    const batchId = String(item?.id || "").trim();
-    return !(deletedImportNumbers.has(importNumber) || deletedBatchIds.has(batchId));
-  };
-  const remoteSettings = remote.settings || {};
-  const localSettings = local.settings || {};
-  const draftDeletedIdsV250 = [...new Set([
-    ...(Array.isArray(remoteSettings.importDraftDeletedIdsV250) ? remoteSettings.importDraftDeletedIdsV250 : []),
-    ...(Array.isArray(localSettings.importDraftDeletedIdsV250) ? localSettings.importDraftDeletedIdsV250 : [])
-  ].map(String).filter(Boolean))].slice(0, 100);
-  const mergedDraftsV242 = mergeImportDraftsV242(
-    remoteSettings.importDraftsV242,
-    localSettings.importDraftsV242,
-    draftDeletedIdsV250
-  );
   return {
-    settings: { ...remoteSettings, ...localSettings, importDraftsV242: mergedDraftsV242, importDraftDeletedIdsV250: draftDeletedIdsV250 },
+    settings: { ...(remote.settings || {}), ...(local.settings || {}) },
     products: mergeCollection(remote.products, local.products, queue.deleted.products),
-    imports: mergeCollection((remote.imports || []).filter(keepImport), (local.imports || []).filter(keepImport), queue.deleted.imports),
-    batches: mergeCollection((remote.batches || []).filter(keepBatch), (local.batches || []).filter(keepBatch), queue.deleted.batches)
+    imports: mergeCollection(remote.imports, local.imports, queue.deleted.imports),
+    batches: mergeCollection(remote.batches, local.batches, queue.deleted.batches)
   };
-}
-
-function mergeImportDraftsV242(remoteDrafts = [], localDrafts = [], deletedIdsV250 = []) {
-  const deleted = new Set((Array.isArray(deletedIdsV250) ? deletedIdsV250 : []).map(String));
-  const merged = new Map();
-  [...(Array.isArray(remoteDrafts) ? remoteDrafts : []), ...(Array.isArray(localDrafts) ? localDrafts : [])].forEach(draft => {
-    const id = String(draft?.id || "").trim();
-    if (!id || deleted.has(id)) return;
-    const current = merged.get(id);
-    const nextTime = Date.parse(draft?.updatedAt || draft?.createdAt || "") || 0;
-    const currentTime = Date.parse(current?.updatedAt || current?.createdAt || "") || 0;
-    if (!current || nextTime >= currentTime) merged.set(id, draft);
-  });
-  return [...merged.values()].sort((a, b) => (Date.parse(b?.updatedAt || "") || 0) - (Date.parse(a?.updatedAt || "") || 0)).slice(0, 30);
 }
 
 function mergeCollection(remoteItems = [], localItems = [], deletedIds = []) {
@@ -830,23 +761,44 @@ function applyRemoteData(data) {
   refreshSystemViewsAfterSync();
 }
 
+let cloudPostSyncRefreshTimerV292 = null;
 function refreshSystemViewsAfterSync() {
-  [
-    "renderDashboard",
-    "renderProductList",
-    "renderBatchSuggestions",
-    "renderBatchList",
-    "renderInventoryManagementList",
-    "renderImportDraftsV242",
-    "refreshPromotionUiV183",
-    "updatePasswordHintDisplays"
-  ].forEach(name => {
+  // V29.2 performance fix: the Google Pull is already complete at this point.
+  // Do not keep the yellow “同步中” state waiting for heavy list rendering.
+  // Refresh only the cheap, visible summary synchronously, then render the
+  // active page after the current task yields back to the browser.
+  ["renderDashboard", "refreshPromotionUiV183", "updatePasswordHintDisplays"].forEach(name => {
     try {
       if (typeof window[name] === "function") window[name]();
     } catch (error) {
       console.warn(`${name} refresh skipped:`, error);
     }
   });
+
+  window.clearTimeout(cloudPostSyncRefreshTimerV292);
+  cloudPostSyncRefreshTimerV292 = window.setTimeout(() => {
+    const activePage = document.querySelector(".page.active")?.id || "dashboardPage";
+    const run = name => {
+      try {
+        if (typeof window[name] === "function") window[name]();
+      } catch (error) {
+        console.warn(`${name} deferred refresh skipped:`, error);
+      }
+    };
+
+    if (activePage === "dashboardPage") {
+      run("renderInventoryManagementList");
+      return;
+    }
+    if (activePage === "importPage") {
+      run("renderProductList");
+      run("renderBatchSuggestions");
+      run("renderBatchList");
+      return;
+    }
+    // Product Management, History and Settings are demand-rendered by their
+    // existing page handlers. Avoid rebuilding hidden lists after every Pull.
+  }, 0);
 }
 
 function renderCloudMeta(config = getCloudConfig()) {
@@ -902,3 +854,6 @@ function setCloudState(state, error = null) {
     if (text) text.textContent = "同步中...";
   }
 }
+
+// V29.2 UI compatibility alias only; canonical sync algorithm remains V22.6.
+window.flushCloudQueueStrictV228 = flushCloudQueueStrictV83;
