@@ -117,7 +117,7 @@ const historySalesDetailsByLinkV134 = new Map();
 const historySalesContextLoadedV134 = new Set();
 const historySalesContextLoadingV134 = new Map();
 let historyLookupRenderTokenV134 = 0;
-// V31.2: keep keystroke painting separate from expensive filtering/rendering.
+// V31.3: keep keystroke painting separate from expensive filtering/rendering.
 // No network request is added; only the latest pending local render is executed.
 const searchRenderTimersV302 = new Map();
 function scheduleSearchRenderV302(key, fn, delay = 34) {
@@ -2339,7 +2339,7 @@ function setupAccessLock() {
     document.documentElement.classList.remove("access-lock-ready");
 
     const startAutomaticLoginV304 = async () => {
-      // V31.2: no network request is added. A phone with an existing local
+      // V31.3: no network request is added. A phone with an existing local
       // passkey starts WebAuthn immediately; the password card stays hidden
       // only during that local check so it does not flash before Face ID.
       const biometricUsed = await tryBiometricLogin({ automatic: true });
@@ -4209,7 +4209,7 @@ function parsePromotionPercentV211(value) {
 }
 
 function parsePromotionMarginIntegerV305(value, fallback = 30) {
-  // V31.2: target margin may be positive/negative and may contain decimals.
+  // V31.3: target margin may be positive/negative and may contain decimals.
   // Only ambiguous leading-zero forms are rejected: 06, 09, -05, 00.5.
   // Valid examples: -5, -1, -0.6, 0, 0.5, 1, 30, 40.
   const normalized = String(value ?? "").trim().replace(/[％%]/g, "").replace(/，/g, ".").replace(/,/g, ".").replace(/\s+/g, "");
@@ -4480,7 +4480,7 @@ async function refreshPromotionCloudStateV209(force = false) {
   if (!force && (promotionCloudRefreshBusyV209 || now - promotionCloudRefreshLastAtV209 < 1500)) return false;
   promotionCloudRefreshBusyV209 = true; promotionCloudRefreshLastAtV209 = now;
   try { await pullLatestAfterSalesCommitV83(false); if (!promotionDraftTouchedV209) resetPromotionDraftV183(); refreshPromotionUiV183(); renderDashboard(); renderInventoryManagementList(); return true; }
-  catch (error) { console.warn("V31.2 profit management cloud refresh skipped:", error); return false; }
+  catch (error) { console.warn("V31.3 profit management cloud refresh skipped:", error); return false; }
   finally { promotionCloudRefreshBusyV209 = false; }
 }
 window.refreshPromotionCloudStateV209 = refreshPromotionCloudStateV209;
@@ -4643,17 +4643,16 @@ function saveMinimumPriceManualOverridesV160(overrides) {
 }
 
 function isPromotionManualProtectedV312(product, configuredOverrides = null) {
-  // V31.2: only a genuine manual minimum-price edit is protected from promotion.
-  // Older saves could mark every non-zero legacy price as manual, so the boolean
-  // flag alone is not enough. Cross-check the existing revision history, which is
-  // written by the manual minimum-price editor. The derived set is cached so
-  // inventory/search rendering does not repeatedly scan the history.
+  // V31.3: protect only genuine manual prices. Legacy builds marked many stored
+  // automatic prices as manual, which caused promotion pricing to appear enabled
+  // while inventory cards continued showing the old automatic price.
   const settings = loadJSON("importSystemSettings", {});
   const overrides = configuredOverrides || (settings.minimumPriceManualOverrides && typeof settings.minimumPriceManualOverrides === "object" ? settings.minimumPriceManualOverrides : {});
   const productId = String(product?.id || "").trim().toUpperCase();
   if (!productId) return false;
   const explicitFlag = typeof overrides[productId] === "boolean" ? overrides[productId] : (typeof product?.minimumPriceManual === "boolean" ? product.minimumPriceManual : false);
   if (explicitFlag !== true) return false;
+
   const history = Array.isArray(settings.costRevisionHistory) ? settings.costRevisionHistory : [];
   const first = history[0] || {};
   const signature = `${history.length}|${String(first.id||"")}|${String(first.timestamp||"")}`;
@@ -4666,7 +4665,14 @@ function isPromotionManualProtectedV312(product, configuredOverrides = null) {
     });
     window._promotionManualHistoryCacheV312 = { signature, ids };
   }
-  return window._promotionManualHistoryCacheV312.ids.has(productId);
+  if (window._promotionManualHistoryCacheV312.ids.has(productId)) return true;
+
+  // Safe legacy fallback: if the stored price is materially different from what
+  // today's automatic-price rules produce, treat it as a genuine custom price.
+  // If it matches the automatic result, promotion is allowed to override it.
+  const stored = Math.max(0, Number(product?.minimumPrice) || 0);
+  const auto = getAutomaticMinimumPriceV160(product?.averageCost, getMinimumPriceRulesV160(), product, getMinimumPriceOriginIndexV160());
+  return stored > 0 && auto > 0 && Math.abs(stored - auto) > 0.005;
 }
 
 function isMinimumPriceManualV160(product, configuredOverrides = null) {
@@ -5717,8 +5723,8 @@ function renderProductList() {
   const searchNode = document.getElementById("productSearch");
   const list = document.getElementById("productList");
   const count = document.getElementById("productListCount");
-  // V31.2: legacy Product List UI was removed; callers may still refresh it.
-  // Exit quietly instead of turning a successful Promotion Management save into an error.
+  // V31.3: legacy Product List UI was removed; callers may still refresh it.
+  // Exit quietly instead of turning a successful Profit Management save into an error.
   if (!searchNode || !list || !count) return;
   const products = getProducts();
   const keyword = String(searchNode.value || "").trim().toLowerCase();
@@ -8757,7 +8763,7 @@ function setupImportHistory() {
   };
 
   button?.addEventListener("click", () => {
-    // V31.2: let the tap/typed text paint first, then run the existing local history scan.
+    // V31.3: let the tap/typed text paint first, then run the existing local history scan.
     normalizeHistoryDateField(startInput, startPicker);
     normalizeHistoryDateField(endInput, endPicker);
     lastCompletedHistoryLookup = "";
@@ -15221,8 +15227,8 @@ function normalizeMinimumPriceInput(value) {
 }
 
 async function editDisplayedMinimumPriceV199(productId) {
-  // V31.2: direct minimum-price edits are always the product's manual minimum price.
-  // Manual prices have highest priority and are never changed by Promotion Management.
+  // V31.3: direct minimum-price edits are always the product's manual minimum price.
+  // Manual prices have highest priority and are never changed by Profit Management.
   return editProductMinimumPrice(String(productId || "").trim());
 }
 
@@ -16429,7 +16435,7 @@ function renderInventoryManagementList() {
 
 
 
-// V31.2: permanent local-only helper for Google Drive media filenames.
+// V31.3: permanent local-only helper for Google Drive media filenames.
 // It does not write data or touch the sync queue; it only builds text and copies it.
 function buildInventoryProductCopyNameV306(product) {
   const id = String(product?.id || product?.productId || "").trim().toUpperCase();
@@ -16647,17 +16653,19 @@ function openSystemMediaPreviewV305(type, url, label = "") {
   const originalUrl = String(url || "").trim();
   const source = getSystemMediaSourceV305(originalUrl);
   const drivePreview = getGoogleDrivePreviewSourceV308(originalUrl);
-  const driveFileId = getGoogleDriveFileIdV305(originalUrl);
-  const desktopFinePointer = Boolean(window.matchMedia && window.matchMedia("(min-width: 821px) and (pointer: fine)").matches);
+  const directVideoSources = getGoogleDriveDirectSourcesV310(originalUrl);
   if (!source) { window.alert("尚未上传"); return; }
 
-  // V31.2 regression protection:
-  // Desktop video is already proven stable in V31.1, so keep that exact path.
-  if (mediaType === "video" && driveFileId && desktopFinePointer) {
-    const opened = window.open(originalUrl, "_blank", "noopener");
-    if (opened) return;
+  // V31.3 desktop: use exactly one layer. Open the original Google Drive link in
+  // one browser tab for both photos and videos. Closing that tab returns directly
+  // to Import System; no second system modal remains underneath.
+  const desktopFinePointer = window.matchMedia("(hover:hover) and (pointer:fine)").matches && window.innerWidth >= 720;
+  if (desktopFinePointer && /^https?:\/\/(?:drive\.google\.com|docs\.google\.com)\//i.test(originalUrl)) {
+    window.open(originalUrl, "_blank", "noopener");
+    return;
   }
 
+  // Mobile keeps the V31.0 path that was actually verified on-device.
   const modal = document.createElement("div");
   modal.id = "systemMediaPreviewV305";
   modal.className = "system-media-preview-v305";
@@ -16671,97 +16679,63 @@ function openSystemMediaPreviewV305(type, url, label = "") {
   document.body.appendChild(modal);
   document.body.classList.add("system-media-preview-open-v305");
 
-  // Critical layout is also applied inline. This avoids a stale desktop CSS cache
-  // turning the modal into the tiny bottom-left photo/X seen during V31.1 testing.
-  const shell = modal.querySelector(".system-media-shell-v305");
-  const closeBtn = modal.querySelector(".system-media-close-v305");
   const stage = modal.querySelector(".system-media-stage-v305");
   const message = modal.querySelector(".system-media-message-v305");
-  Object.assign(modal.style,{position:"fixed",inset:"0",zIndex:"100000",display:"flex",alignItems:"center",justifyContent:"center",padding:desktopFinePointer?"18px":"0",background:"rgba(0,0,0,.92)"});
-  if(shell) Object.assign(shell.style,{position:"relative",width:desktopFinePointer?"min(1100px,100%)":"100%",height:desktopFinePointer?"min(86vh,820px)":"100%",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:desktopFinePointer?"16px":"0",background:"#050705",overflow:"hidden"});
-  if(closeBtn) Object.assign(closeBtn.style,{position:"absolute",top:desktopFinePointer?"10px":"max(10px, env(safe-area-inset-top))",right:"12px",zIndex:"20",width:"44px",height:"44px",border:"0",borderRadius:"50%",background:"rgba(255,255,255,.94)",color:"#111",fontSize:"32px",lineHeight:"1",fontWeight:"500",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"});
-  if(stage) Object.assign(stage.style,{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",background:"#000"});
-  if(message) Object.assign(message.style,{position:"absolute",left:"18px",right:"18px",bottom:"18px",padding:"10px 12px",borderRadius:"10px",background:"rgba(255,255,255,.94)",color:"#8b1e1e",fontWeight:"700",textAlign:"center",zIndex:"12"});
-
-  let timer = 0;
+  let directTimer = 0;
   let disposed = false;
-  const clearTimer = () => { if(timer){ clearTimeout(timer); timer=0; } };
+  let sourceIndex = 0;
+
+  const clearDirectTimer = () => { if (directTimer) { window.clearTimeout(directTimer); directTimer = 0; } };
+  const setMessage = (text, allowDriveOpen = false) => {
+    if (!message) return;
+    message.hidden = false; message.innerHTML = "";
+    const textNode = document.createElement("span"); textNode.textContent = text; message.appendChild(textNode);
+    if (allowDriveOpen && originalUrl) {
+      const btn = document.createElement("button"); btn.type = "button"; btn.className = "system-media-open-drive-v310"; btn.textContent = "Google Drive 打开";
+      btn.addEventListener("click", () => window.open(originalUrl, "_blank", "noopener")); message.appendChild(btn);
+    }
+  };
   const clearStageMedia = () => {
-    clearTimer();
-    if (!stage) return;
-    const video = stage.querySelector("video");
-    if (video) { try { video.pause(); } catch (_) {} video.removeAttribute("src"); try { video.load(); } catch (_) {} }
+    clearDirectTimer(); if (!stage) return;
+    const video = stage.querySelector("video"); if (video) { try { video.pause(); } catch (_) {} video.removeAttribute("src"); try { video.load(); } catch (_) {} }
     const image = stage.querySelector("img"); if (image) image.removeAttribute("src");
     const frame = stage.querySelector("iframe"); if (frame) frame.removeAttribute("src");
     stage.replaceChildren();
   };
-  const showDriveFallback = (text) => {
-    if (!message || disposed) return;
-    message.hidden = false; message.innerHTML = "";
-    const span=document.createElement("span"); span.textContent=text; message.appendChild(span);
-    const btn=document.createElement("button"); btn.type="button"; btn.textContent="Google Drive 打开"; btn.className="system-media-open-drive-v310";
-    btn.addEventListener("click",()=>window.open(originalUrl,"_blank","noopener")); message.appendChild(btn);
-  };
-  const addFrame = () => {
-    if (!drivePreview || !stage || disposed) { showDriveFallback(`无法显示${mediaType === "video" ? "视频" : "照片"}。`); return; }
+  const useDrivePreview = () => {
+    if (disposed || !drivePreview || !stage) { setMessage(`无法显示${mediaType === "video" ? "视频" : "照片"}。`, true); return; }
     clearStageMedia();
-    const frame=document.createElement("iframe");
-    frame.className="system-media-drive-frame-v308";
-    Object.assign(frame.style,{display:"block",width:"100%",height:"100%",border:"0",background:"#000"});
-    frame.src=drivePreview; frame.title=label || (mediaType === "video" ? "视频预览" : "照片预览");
-    frame.allow="autoplay; fullscreen; picture-in-picture"; frame.allowFullscreen=true;
-    frame.referrerPolicy="no-referrer-when-downgrade";
-    stage.appendChild(frame); if(message) message.hidden=true;
+    const frame = document.createElement("iframe"); frame.className = "system-media-drive-frame-v308"; frame.src = drivePreview;
+    frame.title = label || (mediaType === "video" ? "视频预览" : "照片预览"); frame.allow = "autoplay; fullscreen; picture-in-picture"; frame.allowFullscreen = true;
+    frame.referrerPolicy = "no-referrer-when-downgrade"; stage.appendChild(frame); if (message) message.hidden = true;
+    directTimer = window.setTimeout(() => { if (!disposed && frame.isConnected) setMessage("如果媒体没有出现，可使用 Google Drive 打开。", true); }, 9000);
+  };
+  const tryNextVideoSource = () => {
+    if (disposed || !stage) return; clearStageMedia();
+    if (sourceIndex >= directVideoSources.length) { useDrivePreview(); return; }
+    const candidate = directVideoSources[sourceIndex++];
+    const video = document.createElement("video"); video.className = "system-media-video-v305"; video.controls = true; video.playsInline = true; video.preload = "metadata"; video.src = candidate;
+    video.setAttribute("aria-label", label || "视频预览");
+    const success = () => { clearDirectTimer(); if (message) message.hidden = true; const p = video.play(); if (p?.catch) p.catch(() => {}); };
+    const fail = () => { if (disposed || !video.isConnected) return; tryNextVideoSource(); };
+    video.addEventListener("loadedmetadata", success, { once:true }); video.addEventListener("canplay", success, { once:true }); video.addEventListener("error", fail, { once:true });
+    stage.appendChild(video); directTimer = window.setTimeout(fail, 8000);
   };
 
   if (mediaType === "video") {
-    if (driveFileId && !desktopFinePointer) {
-      // V31.2 mobile video: restore the only path that was actually verified to play
-      // in V31.0 — Drive preview inside our modal. No extra Play/Pause UI or timed
-      // fallback message is added by the Import System; only Drive's player + X remain.
-      addFrame();
-    } else if (!driveFileId) {
-      const video=document.createElement("video");
-      video.className="system-media-video-v305"; video.controls=true; video.playsInline=true; video.preload="metadata"; video.src=source;
-      Object.assign(video.style,{display:"block",width:"100%",height:"100%",objectFit:"contain",background:"#000"});
-      video.addEventListener("error",()=>showDriveFallback("无法在系统内播放这个视频。"),{once:true});
-      stage.appendChild(video);
-    } else {
-      addFrame();
-    }
+    if (directVideoSources.length) tryNextVideoSource();
+    else { const video = document.createElement("video"); video.className="system-media-video-v305"; video.controls=true; video.playsInline=true; video.preload="metadata"; video.src=source; video.addEventListener("error",()=>setMessage("无法播放视频。",true),{once:true}); stage.appendChild(video); }
   } else {
-    // V31.2 photo path is independent from video. Mobile keeps the V31.1 direct
-    // source that already passed. Desktop tries Drive's thumbnail endpoint first,
-    // then direct sources, then preview. This cannot affect video behavior.
-    const photoSources=[];
-    if (driveFileId) {
-      const id=encodeURIComponent(driveFileId);
-      if (desktopFinePointer) photoSources.push(`https://drive.google.com/thumbnail?id=${id}&sz=w2000`);
-      photoSources.push(source,`https://drive.google.com/uc?export=view&id=${id}`,`https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t`);
-    } else photoSources.push(source);
-    let photoIndex=0;
-    const tryPhoto=()=>{
-      if(disposed||!stage)return;
-      clearStageMedia();
-      if(photoIndex>=photoSources.length){ addFrame(); return; }
-      const img=document.createElement("img");
-      img.className="system-media-photo-v305"; img.alt=label||"照片预览"; img.decoding="async";
-      Object.assign(img.style,{display:"block",maxWidth:"100%",maxHeight:"100%",width:"auto",height:"auto",objectFit:"contain",background:"#000"});
-      const fail=()=>{ if(!disposed&&img.isConnected)tryPhoto(); };
-      img.addEventListener("load",()=>{ clearTimer(); if(message)message.hidden=true; },{once:true});
-      img.addEventListener("error",fail,{once:true});
-      img.src=photoSources[photoIndex++]; stage.appendChild(img);
-      timer=setTimeout(fail,6000);
-    };
-    tryPhoto();
+    const image = document.createElement("img"); image.className="system-media-photo-v305"; image.alt=label||"照片预览"; image.decoding="async"; image.src=source;
+    image.addEventListener("load", clearDirectTimer, { once:true }); image.addEventListener("error", useDrivePreview, { once:true }); stage.appendChild(image);
+    if (drivePreview) directTimer = window.setTimeout(useDrivePreview, 4500);
   }
 
-  modal._systemMediaCleanupV308 = () => { disposed=true; clearTimer(); clearStageMedia(); };
-  closeBtn?.addEventListener("click", closeSystemMediaPreviewV305);
+  modal._systemMediaCleanupV308 = () => { disposed = true; clearDirectTimer(); clearStageMedia(); };
+  modal.querySelector(".system-media-close-v305")?.addEventListener("click", closeSystemMediaPreviewV305);
   modal.addEventListener("click", event => { if (event.target === modal) closeSystemMediaPreviewV305(); });
   const onKey = event => { if (event.key === "Escape") closeSystemMediaPreviewV305(); };
-  modal._systemMediaKeyHandlerV305 = onKey;
-  document.addEventListener("keydown", onKey);
+  modal._systemMediaKeyHandlerV305 = onKey; document.addEventListener("keydown", onKey);
 }
 window.openSystemMediaPreviewV305 = openSystemMediaPreviewV305;
 
@@ -17673,7 +17647,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "31.2",
+      version: "31.3",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18040,7 +18014,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V31.2 Stable",
+      updatedBy: "System V31.3 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -18186,7 +18160,7 @@ function productNameWithEnglishV262(product){const en=productEnglishNameV262(pro
 function rememberProductLanguageV262(productId, chineseName, englishName){const id=String(productId||"").toUpperCase();if(!id)return;const meta=getProductLanguageMetaV262();meta[id]={chineseName:String(chineseName||"").trim(),englishName:String(englishName||"").trim()};saveProductLanguageMetaV262(meta)}
 function inferSimpleBilingualV262(text){const raw=String(text||"").trim();const rule=speciesRuleV262(raw);return{chineseName:rule?.cn||(/[\u3400-\u9fff]/.test(raw)?raw:""),englishName:rule?.en||(!/[\u3400-\u9fff]/.test(raw)?raw.replace(/\b(?:P?\d{2,4}|\d+(?:\.\d+)?C|\d+[xX]\d+)\b.*$/i,"").trim():""),prefix:rule?.prefix||""}}
 
-// ================= V31.2 Product Inventory Master =================
+// ================= V31.3 Product Inventory Master =================
 const SUPPLIER_ALIASES_V261 = Object.freeze([
   {names:["Ocean Landscaping","Ocean Landscaping Nursery"],prefix:"OLN",currency:"MYR"},{names:["JM Gardening","JM Landscape","JM Nursery"],prefix:"JMG",currency:"MYR"},{names:["Soong Huat Enterprise","Soong Huat Cameron"],prefix:"SHE",currency:"MYR"},{names:["Tan Ah Hwang Nursery"],prefix:"TAH",currency:"MYR"},{names:["Tan Kok Leyong","Tan Kok Leyong Nursery"],prefix:"TKL",currency:"MYR"},{names:["Wong Wan Choi"],prefix:"WWC",currency:"MYR"},{names:["忠盛"],prefix:"忠盛",currency:"CNY"},{names:["大厚"],prefix:"大厚",currency:"CNY"},{names:["游小北"],prefix:"游小北",currency:"CNY"},{names:["昊杨"],prefix:"昊杨",currency:"CNY"},{names:["松美轩"],prefix:"松美轩",currency:"CNY"}
 ]);
