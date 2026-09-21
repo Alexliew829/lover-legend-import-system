@@ -117,7 +117,7 @@ const historySalesDetailsByLinkV134 = new Map();
 const historySalesContextLoadedV134 = new Set();
 const historySalesContextLoadingV134 = new Map();
 let historyLookupRenderTokenV134 = 0;
-// V31.5: keep keystroke painting separate from expensive filtering/rendering.
+// V31.6: keep keystroke painting separate from expensive filtering/rendering.
 // No network request is added; only the latest pending local render is executed.
 const searchRenderTimersV302 = new Map();
 function scheduleSearchRenderV302(key, fn, delay = 34) {
@@ -2251,13 +2251,13 @@ function setupAccessLock() {
   updatePasswordHintDisplays();
   updateDeviceBiometricStatus();
 
-  // Desktop password cache only prefills the field. It must never auto-submit
-  // or auto-unlock a newly opened tab.
+  // V31.6 desktop: if a saved password is still valid, verify locally and enter
+  // immediately. No network request and no password/logo flash. Invalid saved
+  // passwords are cleared and the normal password card is shown.
+  let savedDesktopPasswordV316 = "";
   if (!isMobileOrTabletDevice()) {
-    const savedDesktopPassword = String(
-      localStorage.getItem(DESKTOP_SAVED_PASSWORD_KEY) || ""
-    );
-    if (savedDesktopPassword) input.value = savedDesktopPassword;
+    savedDesktopPasswordV316 = String(localStorage.getItem(DESKTOP_SAVED_PASSWORD_KEY) || "");
+    if (savedDesktopPasswordV316) input.value = savedDesktopPasswordV316;
   }
 
   hintButton?.addEventListener("click", () => {
@@ -2331,22 +2331,35 @@ function setupAccessLock() {
   if (alreadyUnlocked) {
     lock.hidden = true;
     document.body.classList.remove("access-locked");
-    document.documentElement.classList.remove("biometric-auto-pending-v304");
+    document.documentElement.classList.remove("biometric-auto-pending-v304", "desktop-auto-pending-v316");
     document.documentElement.classList.add("access-lock-ready");
   } else {
     lock.hidden = false;
     document.body.classList.add("access-locked");
     document.documentElement.classList.remove("access-lock-ready");
 
-    const startAutomaticLoginV304 = async () => {
-      // V31.5: no network request is added. A phone with an existing local
-      // passkey starts WebAuthn immediately; the password card stays hidden
-      // only during that local check so it does not flash before Face ID.
-      const biometricUsed = await tryBiometricLogin({ automatic: true });
-      document.documentElement.classList.remove("biometric-auto-pending-v304");
-      if (!biometricUsed) input.focus();
+    const startAutomaticLoginV316 = async () => {
+      if (!isMobileOrTabletDevice() && savedDesktopPasswordV316) {
+        document.documentElement.classList.add("desktop-auto-pending-v316");
+        const hash = await hashAccessPassword(savedDesktopPasswordV316);
+        if (hash === getAccessPasswordSettings().hash) {
+          unlockAccessLock(lock, input, status);
+          document.documentElement.classList.remove("desktop-auto-pending-v316");
+          return;
+        }
+        localStorage.removeItem(DESKTOP_SAVED_PASSWORD_KEY);
+        input.value = "";
+        document.documentElement.classList.remove("desktop-auto-pending-v316");
+      }
+      if (isMobileOrTabletDevice()) {
+        const biometricUsed = await tryBiometricLogin({ automatic: true });
+        document.documentElement.classList.remove("biometric-auto-pending-v304");
+        if (!biometricUsed) input.focus();
+      } else {
+        input.focus();
+      }
     };
-    void startAutomaticLoginV304();
+    void startAutomaticLoginV316();
   }
 
   form.addEventListener("submit", async event => {
@@ -4210,7 +4223,7 @@ function parsePromotionPercentV211(value) {
 }
 
 function parsePromotionMarginIntegerV305(value, fallback = 30) {
-  // V31.5: target margin may be positive/negative and may contain decimals.
+  // V31.6: target margin may be positive/negative and may contain decimals.
   // Only ambiguous leading-zero forms are rejected: 06, 09, -05, 00.5.
   // Valid examples: -5, -1, -0.6, 0, 0.5, 1, 30, 40.
   const normalized = String(value ?? "").trim().replace(/[％%]/g, "").replace(/，/g, ".").replace(/,/g, ".").replace(/\s+/g, "");
@@ -4281,38 +4294,47 @@ function promotionProductMatchesV183(product, query) {
     normalizeSmartSearchText(row?.importNumber).includes(normalized));
 }
 
+let promotionSearchCacheV316 = { signature: "", rows: [] };
 function getPromotionSearchProductsV185(query, sortMode = "latest") {
   const keyword = String(query || "").trim().toLowerCase();
   const imports = getImports();
+  const productsRaw = getProducts().filter(product => Number(product?.stock) > 0);
   const sales = getInventorySalesAnalyticsV146();
-  const products = getProducts().filter(product => Number(product?.stock) > 0).map(product => {
-    const rows = imports.filter(row => String(row?.productId || "") === String(product?.id || "") ||
-      String(row?.productName || "").trim().toLowerCase() === String(product?.name || "").trim().toLowerCase());
-    const importNumbers = rows.map(row => String(row?.importNumber || "")).join(" ");
-    const trackingNumbers = rows.map(row => `${row?.trackingNumber || ""} ${row?.overseasTrackingNumber || ""}`).join(" ");
-    const id = String(product?.id || "").trim();
-    const name = String(product?.name || "").trim();
-    const originalCostValuesV216 = rows.map(row => Number(row?.unitPrice)).filter(Number.isFinite);
-    return {
-      ...product, importNumbers, trackingNumbers, originalCostValuesV216,
-      displayLastImport: getLatestImportDateByProduct(id) || String(product?.lastImport || ""),
-      latestSoldAt: Number(sales.latestById.get(id) || sales.latestByName.get(name.toLowerCase()) || 0),
-      netSoldQuantity: Number(sales.quantityById.get(id) || sales.quantityByName.get(name.toLowerCase()) || 0),
-      cumulativeSoldProfit: Number(sales.profitById.get(id) || sales.profitByName.get(name.toLowerCase()) || 0)
+  const signature = `${productsRaw.length}|${imports.length}|${String(productsRaw[0]?.updatedAt||"")}|${String(productsRaw[productsRaw.length-1]?.updatedAt||"")}|${String(imports[0]?.createdAt||"")}|${String(imports[imports.length-1]?.createdAt||"")}`;
+  if (promotionSearchCacheV316.signature !== signature) {
+    const rowsById = new Map();
+    const rowsByName = new Map();
+    imports.forEach(row => {
+      const id = String(row?.productId || "").trim();
+      const name = String(row?.productName || "").trim().toLowerCase();
+      if (id) { if (!rowsById.has(id)) rowsById.set(id, []); rowsById.get(id).push(row); }
+      if (name) { if (!rowsByName.has(name)) rowsByName.set(name, []); rowsByName.get(name).push(row); }
+    });
+    promotionSearchCacheV316 = {
+      signature,
+      rows: productsRaw.map(product => {
+        const id = String(product?.id || "").trim();
+        const name = String(product?.name || "").trim();
+        const rows = rowsById.get(id) || rowsByName.get(name.toLowerCase()) || [];
+        const importNumbers = rows.map(row => String(row?.importNumber || "")).join(" ");
+        const trackingNumbers = rows.map(row => `${row?.trackingNumber || ""} ${row?.overseasTrackingNumber || ""}`).join(" ");
+        const originalCostValuesV216 = rows.map(row => Number(row?.unitPrice)).filter(Number.isFinite);
+        return {
+          ...product, importNumbers, trackingNumbers, originalCostValuesV216,
+          displayLastImport: getLatestImportDateByProduct(id) || String(product?.lastImport || ""),
+          latestSoldAt: Number(sales.latestById.get(id) || sales.latestByName.get(name.toLowerCase()) || 0),
+          netSoldQuantity: Number(sales.quantityById.get(id) || sales.quantityByName.get(name.toLowerCase()) || 0),
+          cumulativeSoldProfit: Number(sales.profitById.get(id) || sales.profitByName.get(name.toLowerCase()) || 0)
+        };
+      })
     };
-  }).filter(product => {
+  }
+  const products = promotionSearchCacheV316.rows.filter(product => {
     if (!keyword) return true;
-    if (isOriginalCostOnlySearchV218(keyword)) {
-      return product.originalCostValuesV216.some(value => originalCostNumberMatchesV216(value, keyword));
-    }
-    return productSearchMatchesWithShipmentV235(
-      `${product.id} ${product.name} ${productEnglishNameV262(product)} ${product.category}`,
-      product,
-      keyword,
-      imports
-    ) || sequentialSearchMatches(product.importNumbers, keyword) ||
-      sequentialSearchMatches(product.trackingNumbers, keyword);
-  });
+    if (isOriginalCostOnlySearchV218(keyword)) return product.originalCostValuesV216.some(value => originalCostNumberMatchesV216(value, keyword));
+    return productSearchMatchesWithShipmentV235(`${product.id} ${product.name} ${productEnglishNameV262(product)} ${product.category}`, product, keyword, imports) ||
+      sequentialSearchMatches(product.importNumbers, keyword) || sequentialSearchMatches(product.trackingNumbers, keyword);
+  }).slice();
   products.sort((a, b) => {
     const stockA=Number(a.stock)||0,stockB=Number(b.stock)||0,costA=Number(a.averageCost)||0,costB=Number(b.averageCost)||0;
     if(sortMode==="name")return String(a.name).localeCompare(String(b.name),"zh");
@@ -4368,7 +4390,7 @@ function updatePromotionDraftStatusV186() {
   const save = document.getElementById("savePromotionV183");
   const changed = hasPromotionDraftChangesV183();
   if (save) {
-    save.textContent = active ? "更新促销设置" : "确认并开启促销管理";
+    save.textContent = active ? "更新促销设置" : "确认并开启促销";
     save.disabled = Boolean(active) && !changed;
   }
   if (!notice) return;
@@ -4489,7 +4511,7 @@ async function refreshPromotionCloudStateV209(force = false) {
   if (!force && (promotionCloudRefreshBusyV209 || now - promotionCloudRefreshLastAtV209 < 1500)) return false;
   promotionCloudRefreshBusyV209 = true; promotionCloudRefreshLastAtV209 = now;
   try { await pullLatestAfterSalesCommitV83(false); if (!promotionDraftTouchedV209) resetPromotionDraftV183(); refreshPromotionUiV183(); renderDashboard(); renderInventoryManagementList(); return true; }
-  catch (error) { console.warn("V31.5 profit management cloud refresh skipped:", error); return false; }
+  catch (error) { console.warn("V31.6 profit management cloud refresh skipped:", error); return false; }
   finally { promotionCloudRefreshBusyV209 = false; }
 }
 window.refreshPromotionCloudStateV209 = refreshPromotionCloudStateV209;
@@ -4592,6 +4614,7 @@ function setupPromotionSettingsV183() {
     renderPromotionExcludeSearchV183();
   });
   searchResults?.addEventListener("change", event => { const box=event.target.closest("[data-select-search-v184]"); if(!box||box.disabled)return; const id=String(box.dataset.selectSearchV184||"").toUpperCase(); if(box.checked)promotionSearchSelectionV184.add(id);else promotionSearchSelectionV184.delete(id); updatePromotionBatchControlsV184(); });
+  searchResults?.addEventListener("click", event => { if (event.target.closest("button,a,input")) return; const row=event.target.closest(".promotion-search-result-v183"); const box=row?.querySelector("[data-select-search-v184]"); if(!box||box.disabled)return; box.checked=!box.checked; box.dispatchEvent(new Event("change", {bubbles:true})); });
   document.getElementById("promotionPendingSelectionV193")?.addEventListener("click", event => { const button=event.target.closest("[data-remove-pending-v193]"); if(!button)return; promotionSearchSelectionV184.delete(String(button.dataset.removePendingV193||"").toUpperCase()); renderPromotionExcludeSearchV183(); });
   stageSelected?.addEventListener("click", () => {
     const commission = parsePromotionPercentV211(commissionInput?.value);
@@ -4618,7 +4641,7 @@ function setupPromotionSettingsV183() {
     const customCount = Object.keys(promotion.productMarginOverrides).length;
     if (!confirm(`确认${currentActive ? "更新促销设置" : "开启促销管理"}？\n\n活动名称：${promotion.name}\n主播佣金：${promotion.commissionRate}%\n默认目标利润率：${formatProfitTargetV303(promotion.targetMarginRate)}\n自定义产品：${customCount} 项\n手动最低售价保护：${manualCount} 项\n\n手动最低售价不会受影响；其余产品立即按默认或自定义利润率计算。`)) return;
     const now=new Date().toISOString(); const payload={...promotion,active:true,createdAt:currentActive?.createdAt||now,updatedAt:now};
-    saveButton.disabled=true; if(deleteButton)deleteButton.disabled=true; if(status)status.textContent=currentActive?"正在更新促销设置并同步…":"正在确认并同步促销管理…";
+    saveButton.disabled=true; if(deleteButton)deleteButton.disabled=true; if(status)status.textContent=currentActive?"正在更新促销设置并同步…":"正在确认并同步促销…";
     try { await updatePromotionSettingsFastV185(payload); const settings=loadJSON("importSystemSettings",{}); saveJSON("importSystemSettings",{...settings,promotionV183:payload}); promotionDraftTouchedV209=false; resetPromotionDraftV183(); refreshPromotionUiV183(); renderDashboard(); renderInventoryManagementList(); renderProductList(); if(pricePanel&&!pricePanel.hidden)renderPromotionPriceListV183(); }
     catch(error){ if(status)status.textContent=`促销管理没有保存：${String(error?.message||error)}`; }
     finally{ saveButton.disabled=false; if(deleteButton)deleteButton.disabled=false; }
@@ -4652,36 +4675,30 @@ function saveMinimumPriceManualOverridesV160(overrides) {
 }
 
 function isPromotionManualProtectedV312(product, configuredOverrides = null) {
-  // V31.5: protect only genuine manual prices. Legacy builds marked many stored
-  // automatic prices as manual, which caused promotion pricing to appear enabled
-  // while inventory cards continued showing the old automatic price.
+  // V31.6: one canonical meaning of “manual protected price”.
+  // Explicit local/cloud override TRUE or the product's persisted manual flag TRUE wins.
+  // Explicit FALSE means automatic. Historical edit records are only a fallback for older data.
   const settings = loadJSON("importSystemSettings", {});
   const overrides = configuredOverrides || (settings.minimumPriceManualOverrides && typeof settings.minimumPriceManualOverrides === "object" ? settings.minimumPriceManualOverrides : {});
   const productId = String(product?.id || "").trim().toUpperCase();
   if (!productId) return false;
-  const explicitFlag = typeof overrides[productId] === "boolean" ? overrides[productId] : (typeof product?.minimumPriceManual === "boolean" ? product.minimumPriceManual : false);
-  if (explicitFlag !== true) return false;
+  const overrideFlag = Object.prototype.hasOwnProperty.call(overrides, productId) ? overrides[productId] : undefined;
+  if (overrideFlag === true || product?.minimumPriceManual === true) return true;
+  if (overrideFlag === false && product?.minimumPriceManual === false) return false;
 
   const history = Array.isArray(settings.costRevisionHistory) ? settings.costRevisionHistory : [];
   const first = history[0] || {};
   const signature = `${history.length}|${String(first.id||"")}|${String(first.timestamp||"")}`;
-  if (!window._promotionManualHistoryCacheV312 || window._promotionManualHistoryCacheV312.signature !== signature) {
+  if (!window._promotionManualHistoryCacheV316 || window._promotionManualHistoryCacheV316.signature !== signature) {
     const ids = new Set();
     history.forEach(entry => {
       const label = String(entry?.fieldLabel || "").trim();
       const id = String(entry?.importNumber || "").trim().toUpperCase();
       if (id && label.startsWith("最低售价")) ids.add(id);
     });
-    window._promotionManualHistoryCacheV312 = { signature, ids };
+    window._promotionManualHistoryCacheV316 = { signature, ids };
   }
-  if (window._promotionManualHistoryCacheV312.ids.has(productId)) return true;
-
-  // Safe legacy fallback: if the stored price is materially different from what
-  // today's automatic-price rules produce, treat it as a genuine custom price.
-  // If it matches the automatic result, promotion is allowed to override it.
-  const stored = Math.max(0, Number(product?.minimumPrice) || 0);
-  const auto = getAutomaticMinimumPriceV160(product?.averageCost, getMinimumPriceRulesV160(), product, getMinimumPriceOriginIndexV160());
-  return stored > 0 && auto > 0 && Math.abs(stored - auto) > 0.005;
+  return window._promotionManualHistoryCacheV316.ids.has(productId);
 }
 
 function isMinimumPriceManualV160(product, configuredOverrides = null) {
@@ -5732,7 +5749,7 @@ function renderProductList() {
   const searchNode = document.getElementById("productSearch");
   const list = document.getElementById("productList");
   const count = document.getElementById("productListCount");
-  // V31.5: legacy Product List UI was removed; callers may still refresh it.
+  // V31.6: legacy Product List UI was removed; callers may still refresh it.
   // Exit quietly instead of turning a successful Profit Management save into an error.
   if (!searchNode || !list || !count) return;
   const products = getProducts();
@@ -8772,7 +8789,7 @@ function setupImportHistory() {
   };
 
   button?.addEventListener("click", () => {
-    // V31.5: let the tap/typed text paint first, then run the existing local history scan.
+    // V31.6: let the tap/typed text paint first, then run the existing local history scan.
     normalizeHistoryDateField(startInput, startPicker);
     normalizeHistoryDateField(endInput, endPicker);
     lastCompletedHistoryLookup = "";
@@ -15236,7 +15253,7 @@ function normalizeMinimumPriceInput(value) {
 }
 
 async function editDisplayedMinimumPriceV199(productId) {
-  // V31.5: direct minimum-price edits are always the product's manual minimum price.
+  // V31.6: direct minimum-price edits are always the product's manual minimum price.
   // Manual prices have highest priority and are never changed by Profit Management.
   return editProductMinimumPrice(String(productId || "").trim());
 }
@@ -16386,9 +16403,9 @@ function renderInventoryManagementList() {
                 title="点击复制产品名称">
                 ${escapeHTML(product.name)}
               </button>
+              ${renderProductMediaStatusV236(product.id, productMediaLinksV229)}
               ${buildProductIdCopyButtonV166(product.id, "inventory-product-id-v166")}
               ${buildInventoryProductCopyButtonV306(product.id)}
-              ${renderProductMediaStatusV236(product.id, productMediaLinksV229)}
               </span>
             </div>
             <div class="inventory-product-secondary-v314">
@@ -16437,7 +16454,7 @@ function renderInventoryManagementList() {
 
 
 
-// V31.5: permanent local-only helper for Google Drive media filenames.
+// V31.6: permanent local-only helper for Google Drive media filenames.
 // It does not write data or touch the sync queue; it only builds text and copies it.
 function buildInventoryProductCopyNameV306(product) {
   const id = String(product?.id || product?.productId || "").trim().toUpperCase();
@@ -16658,7 +16675,7 @@ function openSystemMediaPreviewV305(type, url, label = "") {
   const directVideoSources = getGoogleDriveDirectSourcesV310(originalUrl);
   if (!source) { window.alert("尚未上传"); return; }
 
-  // V31.5 desktop: use exactly one layer. Open the original Google Drive link in
+  // V31.6 desktop: use exactly one layer. Open the original Google Drive link in
   // one browser tab for both photos and videos. Closing that tab returns directly
   // to Import System; no second system modal remains underneath.
   const desktopFinePointer = window.matchMedia("(hover:hover) and (pointer:fine)").matches && window.innerWidth >= 720;
@@ -16667,29 +16684,45 @@ function openSystemMediaPreviewV305(type, url, label = "") {
     return;
   }
 
-  // V31.5 mobile video: use Google Drive's own preview engine, not the custom <video> player.
-  // The preview stays inside one system shell so the single visible X always returns to Import System.
-  // A small top-left mask blocks Drive's own close control to avoid the previous two-X flow.
-  if (!desktopFinePointer && mediaType === "video" && drivePreview) {
+  // V31.6 mobile video: try a minimal in-system player first. Only X, one
+  // play/pause button and a slim progress bar are rendered by us. If Google
+  // blocks the direct stream, silently switch to Drive Preview with no message.
+  if (!desktopFinePointer && mediaType === "video") {
     const modal = document.createElement("div");
     modal.id = "systemMediaPreviewV305";
-    modal.className = "system-media-preview-v305 system-media-drive-mobile-v314";
-    modal.setAttribute("role", "dialog");
-    modal.setAttribute("aria-modal", "true");
+    modal.className = "system-media-preview-v305 system-media-simple-video-v316";
+    modal.setAttribute("role", "dialog"); modal.setAttribute("aria-modal", "true");
     modal.innerHTML = `<div class="system-media-shell-v305">
       <button type="button" class="system-media-close-v305" aria-label="关闭预览">×</button>
-      <div class="system-media-stage-v305"><iframe class="system-media-drive-frame-v308" title="${escapeHTML(label || "视频预览")}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div>
+      <div class="system-media-stage-v305"></div>
     </div>`;
-    document.body.appendChild(modal);
-    document.body.classList.add("system-media-preview-open-v305");
-    const frame = modal.querySelector("iframe");
-    if (frame) frame.src = drivePreview;
-    modal._systemMediaCleanupV308 = () => { if (frame) frame.removeAttribute("src"); };
+    document.body.appendChild(modal); document.body.classList.add("system-media-preview-open-v305");
+    const stage = modal.querySelector(".system-media-stage-v305");
+    let disposed = false, timer = 0, sourceIndex = 0;
+    const cleanupStage = () => { if(timer)window.clearTimeout(timer); timer=0; const v=stage?.querySelector("video"); if(v){try{v.pause()}catch(_){} v.removeAttribute("src"); try{v.load()}catch(_){}} const f=stage?.querySelector("iframe"); if(f)f.removeAttribute("src"); stage?.replaceChildren(); };
+    const useDriveSilently = () => { if(disposed||!stage||!drivePreview)return; cleanupStage(); const frame=document.createElement("iframe"); frame.className="system-media-drive-frame-v308"; frame.src=drivePreview; frame.title=label||"视频预览"; frame.allow="autoplay; fullscreen; picture-in-picture"; frame.allowFullscreen=true; frame.referrerPolicy="no-referrer-when-downgrade"; stage.appendChild(frame); };
+    const tryDirect = () => {
+      if(disposed||!stage)return; cleanupStage();
+      const candidate = directVideoSources[sourceIndex++] || source;
+      if(!candidate){ useDriveSilently(); return; }
+      const wrap=document.createElement("div"); wrap.className="simple-video-wrap-v316";
+      const video=document.createElement("video"); video.className="system-media-video-v305 simple-video-element-v316"; video.playsInline=true; video.preload="metadata"; video.src=candidate; video.setAttribute("webkit-playsinline","");
+      const play=document.createElement("button"); play.type="button"; play.className="simple-video-play-v316"; play.textContent="▶"; play.setAttribute("aria-label","播放/暂停");
+      const progress=document.createElement("input"); progress.type="range"; progress.min="0"; progress.max="1000"; progress.value="0"; progress.className="simple-video-progress-v316"; progress.setAttribute("aria-label","视频进度");
+      wrap.append(video,play,progress); stage.appendChild(wrap);
+      const update=()=>{ if(Number.isFinite(video.duration)&&video.duration>0)progress.value=String(Math.round(video.currentTime/video.duration*1000)); play.textContent=video.paused?"▶":"❚❚"; };
+      play.addEventListener("click",()=>{ if(video.paused){const p=video.play(); if(p?.catch)p.catch(()=>{});} else video.pause(); });
+      video.addEventListener("click",()=>play.click()); video.addEventListener("play",update); video.addEventListener("pause",update); video.addEventListener("timeupdate",update); video.addEventListener("ended",()=>{video.currentTime=0;update();});
+      progress.addEventListener("input",()=>{ if(Number.isFinite(video.duration)&&video.duration>0)video.currentTime=Number(progress.value)/1000*video.duration; });
+      let ready=false; const success=()=>{ready=true;if(timer)window.clearTimeout(timer);timer=0;update();};
+      const fail=()=>{ if(disposed||ready)return; if(sourceIndex<directVideoSources.length)tryDirect(); else useDriveSilently(); };
+      video.addEventListener("loadedmetadata",success,{once:true}); video.addEventListener("canplay",success,{once:true}); video.addEventListener("error",fail,{once:true}); timer=window.setTimeout(fail,5500);
+    };
+    tryDirect();
+    modal._systemMediaCleanupV308=()=>{disposed=true;cleanupStage();};
     modal.querySelector(".system-media-close-v305")?.addEventListener("click", closeSystemMediaPreviewV305);
-    modal.addEventListener("click", event => { if (event.target === modal) closeSystemMediaPreviewV305(); });
-    const onKey = event => { if (event.key === "Escape") closeSystemMediaPreviewV305(); };
-    modal._systemMediaKeyHandlerV305 = onKey;
-    document.addEventListener("keydown", onKey);
+    modal.addEventListener("click", event=>{if(event.target===modal)closeSystemMediaPreviewV305();});
+    const onKey=event=>{if(event.key==="Escape")closeSystemMediaPreviewV305();}; modal._systemMediaKeyHandlerV305=onKey; document.addEventListener("keydown",onKey);
     return;
   }
 
@@ -16736,7 +16769,7 @@ function openSystemMediaPreviewV305(type, url, label = "") {
     const frame = document.createElement("iframe"); frame.className = "system-media-drive-frame-v308"; frame.src = drivePreview;
     frame.title = label || (mediaType === "video" ? "视频预览" : "照片预览"); frame.allow = "autoplay; fullscreen; picture-in-picture"; frame.allowFullscreen = true;
     frame.referrerPolicy = "no-referrer-when-downgrade"; stage.appendChild(frame); if (message) message.hidden = true;
-    directTimer = window.setTimeout(() => { if (!disposed && frame.isConnected) setMessage("如果媒体没有出现，可使用 Google Drive 打开。", true); }, 9000);
+    
   };
   const tryNextVideoSource = () => {
     if (disposed || !stage) return; clearStageMedia();
@@ -17691,7 +17724,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "31.5",
+      version: "31.6",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18058,7 +18091,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V31.5 Stable",
+      updatedBy: "System V31.6 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -18204,7 +18237,7 @@ function productNameWithEnglishV262(product){const en=productEnglishNameV262(pro
 function rememberProductLanguageV262(productId, chineseName, englishName){const id=String(productId||"").toUpperCase();if(!id)return;const meta=getProductLanguageMetaV262();meta[id]={chineseName:String(chineseName||"").trim(),englishName:String(englishName||"").trim()};saveProductLanguageMetaV262(meta)}
 function inferSimpleBilingualV262(text){const raw=String(text||"").trim();const rule=speciesRuleV262(raw);return{chineseName:rule?.cn||(/[\u3400-\u9fff]/.test(raw)?raw:""),englishName:rule?.en||(!/[\u3400-\u9fff]/.test(raw)?raw.replace(/\b(?:P?\d{2,4}|\d+(?:\.\d+)?C|\d+[xX]\d+)\b.*$/i,"").trim():""),prefix:rule?.prefix||""}}
 
-// ================= V31.5 Product Inventory Master =================
+// ================= V31.6 Product Inventory Master =================
 const SUPPLIER_ALIASES_V261 = Object.freeze([
   {names:["Ocean Landscaping","Ocean Landscaping Nursery"],prefix:"OLN",currency:"MYR"},{names:["JM Gardening","JM Landscape","JM Nursery"],prefix:"JMG",currency:"MYR"},{names:["Soong Huat Enterprise","Soong Huat Cameron"],prefix:"SHE",currency:"MYR"},{names:["Tan Ah Hwang Nursery"],prefix:"TAH",currency:"MYR"},{names:["Tan Kok Leyong","Tan Kok Leyong Nursery"],prefix:"TKL",currency:"MYR"},{names:["Wong Wan Choi"],prefix:"WWC",currency:"MYR"},{names:["忠盛"],prefix:"忠盛",currency:"CNY"},{names:["大厚"],prefix:"大厚",currency:"CNY"},{names:["游小北"],prefix:"游小北",currency:"CNY"},{names:["昊杨"],prefix:"昊杨",currency:"CNY"},{names:["松美轩"],prefix:"松美轩",currency:"CNY"}
 ]);
