@@ -6079,3 +6079,27 @@ body.system-media-preview-open-v305{overflow:hidden}
 #batchStatusText.draft-saved-status-v322{display:block!important;background:#e9f7ee!important;border:1px solid #8bc7a0!important;color:#145f35!important;border-radius:10px!important;padding:10px 12px!important;font-weight:800!important}
 .minimum-price-manual-v315,.minimum-price-manual-v315 strong,.master-price-manual-v315,.master-price-manual-v315 .master-price-main-v266,.original-cost-minimum-price-btn.minimum-price-manual-v315{color:#0b68c9!important}
 .system-media-drive-minimal-v322{background:#000!important}
+
+
+/* V32.3 desktop-only cleanup: keep the approved mobile layout unchanged. */
+@media (min-width: 720px) {
+  .product-prefix-three-head-v319,.product-prefix-three-v319 {
+    grid-template-columns:minmax(190px,1fr) minmax(260px,1.35fr) 90px minmax(230px,1fr)!important;
+    gap:16px!important;
+  }
+  .product-prefix-three-head-v319{font-size:17px!important;font-weight:800!important;padding:10px 12px!important;}
+  .product-prefix-three-v319{font-size:18px!important;line-height:1.5!important;min-height:66px!important;padding:11px 12px!important;align-items:center!important;}
+  .product-prefix-three-v319 .prefix-english-v319{font-size:17px!important;line-height:1.45!important;}
+  .product-prefix-three-v319>strong{font-size:19px!important;font-weight:900!important;}
+  .product-prefix-three-v319 .rule-actions-v231{justify-content:flex-start!important;flex-wrap:nowrap!important;gap:10px!important;}
+  .product-prefix-three-v319 .rule-actions-v231 button{font-size:15px!important;padding:9px 14px!important;min-width:92px!important;}
+  .product-prefix-three-v319 .rule-actions-v231 em{font-size:14px!important;white-space:nowrap!important;}
+  .prefix-fallback-note-v319{font-size:15px!important;line-height:1.5!important;padding:8px 12px 12px!important;}
+}
+/* Manual minimum price is the single highest-priority visual state on every surface. */
+.minimum-price-manual-v315,.minimum-price-manual-v315 strong,
+.original-cost-minimum-price-btn.minimum-price-manual-v315,
+.master-price-manual-v315,.master-price-manual-v315 .master-price-main-v266,
+.product-stock-minimum-price-manual-v268,.product-stock-minimum-price-manual-v268 strong{color:#0b68c9!important;}
+#saveBatchBtn.draft-saved-button-v323{background:#1d7a47!important;color:#fff!important;border-color:#1d7a47!important;font-weight:900!important;}
+#saveBatchBtn.draft-dirty-button-v323{background:#fff3cd!important;color:#7a5200!important;border-color:#e3b341!important;font-weight:900!important;}

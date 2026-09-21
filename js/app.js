@@ -39,9 +39,73 @@ window.addEventListener("pageshow", () => {
   }, 0);
 });
 
+// V32.3 one-time live-settings cleanup: remove obsolete ZZ / 杂花杂木 / invoice-recognition / two-warehouse residue.
+// Current Products / Imports / Batches are never deleted here. Only settings/drafts that are not part of the
+// current authoritative product collection are pruned, so a restored formal inventory cannot be polluted again.
+function cleanupLegacySettingsResidueV323() {
+  const settings = loadJSON("importSystemSettings", {});
+  const rawProducts = loadJSON("importSystemProducts", []);
+  const validIds = new Set((Array.isArray(rawProducts) ? rawProducts : [])
+    .map(p => String(p?.id || "").trim().toUpperCase()).filter(Boolean));
+  let changed = false;
+  const next = { ...settings };
+
+  ["invoiceRecognitionDraftsV259","invoiceRecognitionHistoryV259","warehousePublicCatalogV275",
+   "supplierDirectoryV261","testSupplierCleanupV268","twoWarehouseMigrationV270","twoWarehouseMigrationAddedV270",
+   "warehouseRepairV276","warehouseRepairAddedV276","invoiceRecognitionSharedStatusV277"].forEach(key => {
+    if (Object.prototype.hasOwnProperty.call(next, key)) { delete next[key]; changed = true; }
+  });
+
+  const pruneByLiveProductId = key => {
+    const source = next[key];
+    if (!source || typeof source !== "object" || Array.isArray(source)) return;
+    const pruned = {};
+    Object.entries(source).forEach(([id, value]) => {
+      const upper = String(id || "").trim().toUpperCase();
+      if (upper && validIds.has(upper)) pruned[id] = value;
+    });
+    if (Object.keys(pruned).length !== Object.keys(source).length) { next[key] = pruned; changed = true; }
+  };
+  if (validIds.size) {
+    pruneByLiveProductId("minimumPriceManualOverrides");
+    pruneByLiveProductId("productLanguageMetaV262");
+    pruneByLiveProductId("productMediaLinksV229");
+  }
+
+  if (validIds.size && next.promotionV183 && typeof next.promotionV183 === "object") {
+    const cleanExcluded = (Array.isArray(next.promotionV183.excludedProductIds) ? next.promotionV183.excludedProductIds : [])
+      .map(id => String(id || "").trim().toUpperCase()).filter(id => validIds.has(id));
+    if (JSON.stringify(cleanExcluded) !== JSON.stringify(next.promotionV183.excludedProductIds || [])) {
+      next.promotionV183 = { ...next.promotionV183, excludedProductIds: cleanExcluded };
+      changed = true;
+    }
+  }
+
+  const isLegacyDraft = draft => {
+    const rows = Array.isArray(draft?.rows) ? draft.rows : [];
+    return rows.some(row => {
+      const id = String(row?.productId || "").trim().toUpperCase();
+      const category = String(row?.category || "").trim();
+      const warehouse = String(row?.warehouseV270 || row?.warehouse || "").trim().toLowerCase();
+      return category === "杂花杂木" || /^ZZ\d+$/i.test(id) || warehouse === "wood";
+    }) || /^AIR|invoice/i.test(String(draft?.source || draft?.type || ""));
+  };
+  if (Array.isArray(next.importDraftsV242)) {
+    const cleanDrafts = next.importDraftsV242.filter(draft => !isLegacyDraft(draft));
+    if (cleanDrafts.length !== next.importDraftsV242.length) { next.importDraftsV242 = cleanDrafts; changed = true; }
+  }
+
+  if (changed) {
+    saveJSON("importSystemSettings", next);
+    if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
+  }
+  return changed;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   clearTransientSearchInputsOnReloadV304();
   setupAccessLock();
+  cleanupLegacySettingsResidueV323();
   repairLegacyImportDates();
   setupNavigation();
   setupSettings();
@@ -116,7 +180,7 @@ const historySalesDetailsByLinkV134 = new Map();
 const historySalesContextLoadedV134 = new Set();
 const historySalesContextLoadingV134 = new Map();
 let historyLookupRenderTokenV134 = 0;
-// V32.2: keep keystroke painting separate from expensive filtering/rendering.
+// V32.3: keep keystroke painting separate from expensive filtering/rendering.
 // No network request is added; only the latest pending local render is executed.
 const searchRenderTimersV302 = new Map();
 function scheduleSearchRenderV302(key, fn, delay = 70) {
@@ -2149,7 +2213,7 @@ function unlockAccessLock(lock, input, status) {
     "1"
   );
 
-  // V32.2: bind unlock to this exact history entry on both desktop and mobile.
+  // V32.3: bind unlock to this exact history entry on both desktop and mobile.
   // Refreshing the same tab stays unlocked; a newly opened page/tab must authenticate again.
   try {
     history.replaceState({
@@ -2252,7 +2316,7 @@ function setupAccessLock() {
   updatePasswordHintDisplays();
   updateDeviceBiometricStatus();
 
-  // V32.2 desktop: if a saved password is still valid, verify locally and enter
+  // V32.3 desktop: if a saved password is still valid, verify locally and enter
   // immediately. No network request and no password/logo flash. Invalid saved
   // passwords are cleared and the normal password card is shown.
   let savedDesktopPasswordV316 = "";
@@ -3185,6 +3249,22 @@ function clearCostRevisionHistoryV222() {
   if (status) status.textContent = "修改历史已清除；进口资料、库存和成本没有改变。";
 }
 
+function updateImportDraftSaveButtonV323() {
+  const button = document.getElementById("saveBatchBtn");
+  if (!button || currentEditingImportNumber) return;
+  const active = getActiveImportDraftV243();
+  if (!active) { button.textContent = "保存草稿"; button.classList.remove("draft-saved-button-v323","draft-dirty-button-v323"); return; }
+  if (hasUnsavedImportDraftChangesV243()) {
+    button.textContent = "资料已修改 · 重新保存草稿";
+    button.classList.remove("draft-saved-button-v323");
+    button.classList.add("draft-dirty-button-v323");
+  } else {
+    button.textContent = "✓ 草稿已保存";
+    button.classList.remove("draft-dirty-button-v323");
+    button.classList.add("draft-saved-button-v323");
+  }
+}
+
 function applyBatchCostEditability() {
   const isEditing = Boolean(currentEditingImportNumber);
   const repairEnabled = getCostRepairModeEnabled();
@@ -3278,6 +3358,7 @@ function applyBatchCostEditability() {
   }
   if (formalButtonV247) formalButtonV247.hidden = isEditing;
   if (deleteDraftButtonV247) deleteDraftButtonV247.hidden = isEditing || !getActiveImportDraftV243();
+  if (!isEditing) updateImportDraftSaveButtonV323();
 }
 function renderCostRepairModeStatus() {
   const enabled = getCostRepairModeEnabled();
@@ -4196,7 +4277,7 @@ function getEffectiveProductMinimumPriceV183(product, promotion = null, rules = 
   const originalPrice = Math.max(0, Number(product?.minimumPrice) || 0);
   const active = promotion || getPromotionSettingsV183();
   const productId = String(product?.id || "").trim().toUpperCase();
-  // V32.2 single-source rule: explicit manual minimum price is always protected.
+  // V32.3 single-source rule: explicit manual minimum price is always protected.
   // Promotion participation is never allowed to override it.
   if (isMinimumPriceManualV160(product)) return originalPrice;
   if (!active || active.excludedProductIds.includes(productId)) return originalPrice;
@@ -4255,7 +4336,6 @@ function resetPromotionDraftV183() {
   if (commissionInput) commissionInput.value = String(active?.commissionRate ?? 10);
   if (marginInput) marginInput.value = String(active?.targetMarginRate ?? 30);
   promotionExcludedDraftV183 = new Set(active?.excludedProductIds || []);
-  ensurePromotionProtectedExclusionsV320(promotionExcludedDraftV183);
   promotionPriceOverridesDraftV193 = { ...(active?.priceOverrides || {}) };
   promotionSearchSelectionV184 = new Set();
   promotionExcludedSelectionV184 = new Set();
@@ -4357,7 +4437,7 @@ function getPromotionProtectedProductIdsV320() {
 
 function ensurePromotionProtectedExclusionsV320(targetSet = promotionExcludedDraftV183) {
   const protectedIds = getPromotionProtectedProductIdsV320();
-  // V32.2: manual-price protection is implicit and global, not persisted as hundreds
+  // V32.3: manual-price protection is implicit and global, not persisted as hundreds
   // of explicit exclusions. Strip legacy auto-added IDs from the editable list.
   protectedIds.forEach(id => targetSet.delete(id));
   return protectedIds;
@@ -4479,17 +4559,17 @@ function renderPromotionExcludeSearchV183() {
     return;
   }
   const allMatches = getPromotionSearchProductsV185(query, filterMode)
+    .filter(product => !isMinimumPriceManualV160(product))
     .filter(product => !promotionExcludedDraftV183.has(String(product.id || "").toUpperCase()));
   const matches = allMatches;
   results.innerHTML = matches.length ? matches.map(product => {
     const id = String(product.id || "").toUpperCase();
-    const manualProtected = isMinimumPriceManualV160(product);
-    const promoPrice = manualProtected ? Math.max(0, Number(product.minimumPrice) || 0) : getPromotionPriceBreakdownV183(product, promotion, rules, originIndex).price;
-    return `<div class="promotion-search-result-v183 ${manualProtected ? "promotion-protected-v320" : ""}">
-      <input class="promotion-row-check-v184" type="checkbox" data-select-search-v184="${escapeHTML(id)}" ${manualProtected ? "disabled" : ""} ${promotionSearchSelectionV184.has(id) ? "checked" : ""} aria-label="选择 ${escapeHTML(product.name)}" />
+    const promoPrice = getPromotionPriceBreakdownV183(product, promotion, rules, originIndex).price;
+    return `<div class="promotion-search-result-v183">
+      <input class="promotion-row-check-v184" type="checkbox" data-select-search-v184="${escapeHTML(id)}" ${promotionSearchSelectionV184.has(id) ? "checked" : ""} aria-label="选择 ${escapeHTML(product.name)}" />
       <div><button type="button" class="inventory-product-name-copy promotion-search-name-v186" data-product-name="${escapeHTML(product.name)}" onclick="copyInventoryProductName(this)" title="点击复制产品名称">${escapeHTML(product.name)}</button>${buildProductIdCopyButtonV166(id, "promotion-product-id-v183")}
-      <span>库存 ${formatNumber(product.stock)} · ${getAverageCostLabelV205(product, originIndex)} ${formatMoney(product.averageCost, "RM ")} · 最低售价 ${formatMoney(product.minimumPrice, "RM ")}${manualProtected ? " · 手动保护" : ` · 促销最低售价 ${formatMoney(promoPrice, "RM ")}`}</span></div>
-      ${manualProtected ? `<em class="promotion-protected-note-v320">自动保护</em>` : `<button type="button" data-add-promotion-exclusion="${escapeHTML(id)}">加入排除</button>`}
+      <span>库存 ${formatNumber(product.stock)} · ${getAverageCostLabelV205(product, originIndex)} ${formatMoney(product.averageCost, "RM ")} · 最低售价 ${formatMoney(product.minimumPrice, "RM ")} · 促销最低售价 ${formatMoney(promoPrice, "RM ")}</span></div>
+      <button type="button" data-add-promotion-exclusion="${escapeHTML(id)}">加入排除</button>
     </div>`;
   }).join("") : `<div class="promotion-empty-v183">${query ? "当前搜索没有更多可加入产品" : "当前筛选下没有更多可加入产品"}</div>`;
   updatePromotionBatchControlsV184();
@@ -4628,7 +4708,6 @@ function refreshPromotionUiV183() {
     if (commissionInput) commissionInput.value = String(promotion?.commissionRate ?? 10);
     if (marginInput) marginInput.value = String(promotion?.targetMarginRate ?? 30);
     promotionExcludedDraftV183 = new Set(promotion?.excludedProductIds || []);
-    ensurePromotionProtectedExclusionsV320(promotionExcludedDraftV183);
     promotionPriceOverridesDraftV193 = { ...(promotion?.priceOverrides || {}) };
   }
   const summary = document.getElementById("promotionSummaryStatusV183");
@@ -4711,9 +4790,8 @@ function setupPromotionSettingsV183() {
     promotionExcludedDraftV183 = new Set();
     promotionPriceOverridesDraftV193 = {};
   }
-  // V32.2: explicit manual minimum-price products are always protected by the
-  // simple V22.6 exclusion model. No historical/price-difference guessing.
-  ensurePromotionProtectedExclusionsV320(promotionExcludedDraftV183);
+  // V32.3: manual minimum-price products bypass promotion globally and are not
+  // inserted into the editable V22.6 exclusion list.
   renderPromotionExcludedListV183();
   refreshPromotionUiV183();
   [nameInput, commissionInput, marginInput].forEach(input => input?.addEventListener("input", () => {
@@ -4812,8 +4890,7 @@ function setupPromotionSettingsV183() {
     updatePromotionBatchControlsV184();
   });
   excludeSelected?.addEventListener("click", () => {
-    const protectedIdsV321 = getPromotionProtectedProductIdsV320();
-    const ids = [...promotionSearchSelectionV184].filter(id => !protectedIdsV321.has(id) && !promotionExcludedDraftV183.has(id));
+    const ids = [...promotionSearchSelectionV184].filter(id => !promotionExcludedDraftV183.has(id));
     if (!ids.length || !window.confirm(`确认批量排除已选择的 ${ids.length} 项产品？\n\n保存促销后，这些产品会继续使用原最低售价。`)) return;
     ids.forEach(id => promotionExcludedDraftV183.add(id));
     promotionDraftTouchedV209 = true;
@@ -4844,8 +4921,7 @@ function setupPromotionSettingsV183() {
     renderPromotionExcludedListV183();
   });
   removeSelected?.addEventListener("click", () => {
-    const protectedIdsV320 = getPromotionProtectedProductIdsV320();
-    const ids = [...promotionExcludedSelectionV184].filter(id => promotionExcludedDraftV183.has(id) && !protectedIdsV320.has(id));
+    const ids = [...promotionExcludedSelectionV184].filter(id => promotionExcludedDraftV183.has(id));
     if (!ids.length || !window.confirm(`确认批量移除 ${ids.length} 项排除产品？\n\n保存促销后，这些产品将重新采用促销最低售价。`)) return;
     ids.forEach(id => promotionExcludedDraftV183.delete(id));
     promotionDraftTouchedV209 = true;
@@ -4889,7 +4965,6 @@ function setupPromotionSettingsV183() {
         renderPromotionExcludedListV183();
       }
     }
-    ensurePromotionProtectedExclusionsV320(promotionExcludedDraftV183);
     const promotion = getPromotionDraftV183();
     if (!promotion.name) { if (status) status.textContent = "请输入促销名称"; return; }
     if (!Number.isFinite(promotion.commissionRate) || promotion.commissionRate < 0 || promotion.commissionRate >= 100) {
@@ -4902,7 +4977,7 @@ function setupPromotionSettingsV183() {
     const products = getProducts();
     const rules = getMinimumPriceRulesV160();
     const originIndex = getMinimumPriceOriginIndexV160();
-    const affected = products.filter(product => !promotion.excludedProductIds.includes(String(product.id || "").toUpperCase()));
+    const affected = products.filter(product => !isMinimumPriceManualV160(product) && !promotion.excludedProductIds.includes(String(product.id || "").toUpperCase()));
     const losses = affected.filter(product => getPromotionPriceBreakdownV183(product, promotion, rules, originIndex).profit < -0.005);
     const warning = promotion.targetMarginRate < 0 || losses.length
       ? `\n\n⚠️ 其中 ${losses.length} 项预计亏损；你设置的目标净利率为 ${promotion.targetMarginRate}%。` : "";
@@ -5022,7 +5097,7 @@ function isMinimumPriceManualV160(product, configuredOverrides = null) {
   const overrides = configuredOverrides || getMinimumPriceManualOverridesV160();
   const productId = String(product?.id || "").trim();
   const productIdUpper = productId.toUpperCase();
-  // V32.2: one single manual-price truth for every desktop/mobile/table renderer.
+  // V32.3: one single manual-price truth for every desktop/mobile/table renderer.
   // Older settings may contain a differently-cased Product ID, so normalize once here
   // instead of letting each page infer protection differently.
   if (productId) {
@@ -5060,7 +5135,7 @@ function getOperationalProductsV256(products = getProducts()) {
   );
 }
 
-// V32.2: obsolete virtual-reference residue sweeper removed. Historical ID migration/safety remains below.
+// V32.3: obsolete virtual-reference residue sweeper removed. Historical ID migration/safety remains below.
 
 function getProducts() {
   const rules = getMinimumPriceRulesV160();
@@ -5884,7 +5959,7 @@ function renderProductList() {
   const searchNode = document.getElementById("productSearch");
   const list = document.getElementById("productList");
   const count = document.getElementById("productListCount");
-  // V32.2: legacy Product List UI was removed; callers may still refresh it.
+  // V32.3: legacy Product List UI was removed; callers may still refresh it.
   // Exit quietly instead of turning a successful Profit Management save into an error.
   if (!searchNode || !list || !count) return;
   const products = getProducts();
@@ -6620,6 +6695,7 @@ function saveImportDraftV242() {
     status.classList.add("draft-saved-status-v322");
   }
   renderImportDraftsV242();
+  updateImportDraftSaveButtonV323();
 }
 
 function applyImportDraftV242(draftId) {
@@ -6825,6 +6901,7 @@ function setupImportDraftV247() {
       statusV322.classList.remove("draft-saved-status-v322");
       statusV322.textContent = "草稿保存后资料已有修改 · 请重新保存草稿后再确认正式保存。";
     }
+    updateImportDraftSaveButtonV323();
   });
   draftFormV249?.addEventListener("input", refreshDraftStateV249);
   draftFormV249?.addEventListener("change", refreshDraftStateV249);
@@ -6835,6 +6912,7 @@ function setupImportDraftV247() {
   });
   window.addEventListener("focus", checkImportDraftRemindersV243);
   renderImportDraftsV242();
+  updateImportDraftSaveButtonV323();
   window.setTimeout(checkImportDraftRemindersV243, 700);
 }
 
@@ -8288,6 +8366,14 @@ async function deleteBatchByNumber(importNumber) {
   if (typeof window.markCloudImportNumberDeletedV232 === "function") {
     window.markCloudImportNumberDeletedV232(batch.importNumber, batch.id);
   }
+  // V32.3: also tombstone concrete row IDs so a later Pull cannot resurrect a deleted test import/product.
+  if (typeof window.markCloudExplicitDeletedIdsV323 === "function") {
+    window.markCloudExplicitDeletedIdsV323({
+      imports: batchItems.map(item => String(item?.id || "")).filter(Boolean),
+      batches: [String(batch?.id || "")].filter(Boolean),
+      products: removedOrphanProductIdsV249
+    });
+  }
   saveProducts(nextProductsV234);
   purgeDeletedProductMetadataV249(removedOrphanProductIdsV249);
   saveImports(remainingImports);
@@ -8303,7 +8389,7 @@ async function deleteBatchByNumber(importNumber) {
     if (typeof getCloudQueue === "function" && getCloudQueue()?.dirty) {
       throw new Error("云端仍有资料等待同步");
     }
-    // V32.2: pushAll_ writes the exact canonical Imports/Batches snapshot when an
+    // V32.3: pushAll_ writes the exact canonical Imports/Batches snapshot when an
     // explicit import-number tombstone is present. A successful strict flush is the
     // server-side confirmation; do not block the UI with one or two full Pulls.
     if (deleteStatusV228) deleteStatusV228.textContent = `云端已确认删除 ${batch.importNumber}，正在整理画面…`;
@@ -8936,7 +9022,7 @@ function setupImportHistory() {
   };
 
   button?.addEventListener("click", () => {
-    // V32.2: let the tap/typed text paint first, then run the existing local history scan.
+    // V32.3: let the tap/typed text paint first, then run the existing local history scan.
     normalizeHistoryDateField(startInput, startPicker);
     normalizeHistoryDateField(endInput, endPicker);
     lastCompletedHistoryLookup = "";
@@ -8975,7 +9061,7 @@ function setupImportHistory() {
     startInput.classList.remove("date-error");
     lastCompletedHistoryLookup = "";
     historyManualLookupReadyV246 = true;
-    // V32.2: let the date paint first; run the existing query only after the UI is free.
+    // V32.3: let the date paint first; run the existing query only after the UI is free.
     scheduleSearchRenderV302("history-date", renderImportHistory, 60);
   });
 
@@ -11502,11 +11588,19 @@ function renderImportHistoryNowV134() {
     });
 
   if (!productMatches.length) {
-    // V32.2: one matched dataset drives BOTH rows and totals. Never show unrelated
-    // sales/cost totals when the main product/import lookup itself found nothing.
-    output.innerHTML =
-      '<div class="empty-state">找不到这个进口编号、海外运输单号 / 本地单号、产品名称、地点或人员</div>' +
-      '<div class="history-summary-box history-sold-cost-summary"><div><span>卖出所有产品总数量</span><strong>0</strong></div><div><span>销售总额</span><strong>RM 0.00</strong></div><div><span>卖出成本总值</span><strong>RM 0.00</strong></div><div><span>卖出总成本</span><strong>RM 0.00</strong></div><div><span>销售总利润</span><strong>RM 0.00</strong></div></div>';
+    // V32.3: no-date history uses the same result layout as date-range history.
+    output.innerHTML = `
+      <div class="history-date-summary">
+        <strong>全部历史</strong>
+        <span>没有符合的历史资料 · 产品筛选：${escapeHTML(keyword)}</span>
+      </div>
+      <div class="history-summary-box history-sold-cost-summary">
+        <div><span>卖出所有产品总数量</span><strong>0</strong></div>
+        <div><span>销售总额</span><strong>RM 0.00</strong></div>
+        <div><span>卖出成本总值</span><strong>RM 0.00</strong></div>
+        <div><span>卖出总成本</span><strong>RM 0.00</strong></div>
+        <div><span>销售总利润</span><strong>RM 0.00</strong></div>
+      </div>`;
     return;
   }
 
@@ -12272,7 +12366,7 @@ function maybeApplySuggestedBatchCurrencyV231(rowId, suggestedCurrency, label = 
 }
 
 function applyExistingProductCurrencyV232(rowId, product, { commitCurrency = false } = {}) {
-  // V32.2: historical currency is never scanned/applied during typing or selection.
+  // V32.3: historical currency is never scanned/applied during typing or selection.
   // Current purchase currency is decided only by explicit MYR selection or price threshold.
   return;
 }
@@ -12319,7 +12413,7 @@ function setAutoOriginalCostV249(rowId, record, { force = false } = {}) {
   const sourceCurrency = String(record?.currency || "").trim().toUpperCase();
   if (!(sourceValue > 0)) return false;
 
-  // V32.2: selecting a real existing product restores its historical unit price
+  // V32.3: selecting a real existing product restores its historical unit price
   // exactly as stored. Never convert VND<->CNY amounts. Currency is then chosen
   // by the proven V22.6 price rule, except explicit local MYR purchases stay MYR.
   row.dataset.settingAutoPriceV249 = "1";
@@ -12415,7 +12509,7 @@ function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, c
   tr.dataset.lastIdentityNameV231 = normalizedName;
 
   if (!commitCurrency) return;
-  // V32.2: prefix rules generate product IDs only; they never decide purchase currency.
+  // V32.3: prefix rules generate product IDs only; they never decide purchase currency.
 }
 
 function addBatchRow(prefill = {}){
@@ -15423,7 +15517,7 @@ function normalizeMinimumPriceInput(value) {
 }
 
 async function editDisplayedMinimumPriceV199(productId) {
-  // V32.2: direct minimum-price edits are always the product's manual minimum price.
+  // V32.3: direct minimum-price edits are always the product's manual minimum price.
   // Manual prices have highest priority and are never changed by Profit Management.
   return editProductMinimumPrice(String(productId || "").trim());
 }
@@ -16012,7 +16106,7 @@ function setupInventoryModule() {
   document
     .getElementById("inventorySort")
     .addEventListener("change", event => {
-      // V32.2: sorting must respond immediately. Profit data already uses the local
+      // V32.3: sorting must respond immediately. Profit data already uses the local
       // persisted Sales cache; a cloud refresh runs in the background and redraws only
       // when fresh data arrives. The profit formula/order itself is unchanged.
       renderInventoryManagementList();
@@ -16056,7 +16150,7 @@ function setupInventoryModule() {
 
   bindInventoryMinimumPriceLongPress();
   renderInventoryManagementList();
-  // V32.2 performance: do NOT preload the complete Sales history in the background.
+  // V32.3 performance: do NOT preload the complete Sales history in the background.
   // The persisted local analytics are enough for normal browsing; full Sales links are
   // fetched only when the user explicitly chooses Profit Highest or runs History.
 }
@@ -16238,7 +16332,7 @@ function getInventorySalesAnalyticsV146() {
 let inventoryVisibleProductsV153 = [];
 
 
-// V32.2: prepare the expensive inventory/import joins once per unchanged data snapshot.
+// V32.3: prepare the expensive inventory/import joins once per unchanged data snapshot.
 // Search and sort now operate on these prepared rows without rebuilding all import maps.
 let inventoryPreparedRowsCacheV321 = {
   rawProducts: null, settings: null, imports: null, batches: null, sales: null,
@@ -16545,7 +16639,7 @@ function renderInventoryManagementList() {
 
 
 
-// V32.2: permanent local-only helper for Google Drive media filenames.
+// V32.3: permanent local-only helper for Google Drive media filenames.
 // It does not write data or touch the sync queue; it only builds text and copies it.
 function buildInventoryProductCopyNameV306(product) {
   const id = String(product?.id || product?.productId || "").trim().toUpperCase();
@@ -16766,7 +16860,7 @@ function openSystemMediaPreviewV305(type, url, label = "") {
   const directVideoSources = getGoogleDriveDirectSourcesV310(originalUrl);
   if (!source) { window.alert("尚未上传"); return; }
 
-  // V32.2 desktop: use exactly one layer. Open the original Google Drive link in
+  // V32.3 desktop: use exactly one layer. Open the original Google Drive link in
   // one browser tab for both photos and videos. Closing that tab returns directly
   // to Import System; no second system modal remains underneath.
   const desktopFinePointer = window.matchMedia("(hover:hover) and (pointer:fine)").matches && window.innerWidth >= 720;
@@ -16775,7 +16869,7 @@ function openSystemMediaPreviewV305(type, url, label = "") {
     return;
   }
 
-  // V32.2 mobile video: try a minimal in-system player first. Only X, one
+  // V32.3 mobile video: try a minimal in-system player first. Only X, one
   // play/pause button and a slim progress bar are rendered by us. If Google
   // blocks the direct stream, silently switch to Drive Preview with no message.
   if (!desktopFinePointer && mediaType === "video") {
@@ -17824,7 +17918,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "32.2",
+      version: "32.3",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18191,7 +18285,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V32.2 Stable",
+      updatedBy: "System V32.3 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -18337,7 +18431,7 @@ function productNameWithEnglishV262(product){const en=productEnglishNameV262(pro
 function rememberProductLanguageV262(productId, chineseName, englishName){const id=String(productId||"").toUpperCase();if(!id)return;const meta=getProductLanguageMetaV262();meta[id]={chineseName:String(chineseName||"").trim(),englishName:String(englishName||"").trim()};saveProductLanguageMetaV262(meta)}
 function inferSimpleBilingualV262(text){const raw=String(text||"").trim();const rule=speciesRuleV262(raw);return{chineseName:rule?.cn||(/[\u3400-\u9fff]/.test(raw)?raw:""),englishName:rule?.en||(!/[\u3400-\u9fff]/.test(raw)?raw.replace(/\b(?:P?\d{2,4}|\d+(?:\.\d+)?C|\d+[xX]\d+)\b.*$/i,"").trim():""),prefix:rule?.prefix||""}}
 
-// ================= V32.2 Product Inventory Master =================
+// ================= V32.3 Product Inventory Master =================
 const SUPPLIER_ALIASES_V261 = Object.freeze([
   {names:["Ocean Landscaping","Ocean Landscaping Nursery"],prefix:"OLN",currency:"MYR"},{names:["JM Gardening","JM Landscape","JM Nursery"],prefix:"JMG",currency:"MYR"},{names:["Soong Huat Enterprise","Soong Huat Cameron"],prefix:"SHE",currency:"MYR"},{names:["Tan Ah Hwang Nursery"],prefix:"TAH",currency:"MYR"},{names:["Tan Kok Leyong","Tan Kok Leyong Nursery"],prefix:"TKL",currency:"MYR"},{names:["Wong Wan Choi"],prefix:"WWC",currency:"MYR"},{names:["忠盛"],prefix:"忠盛",currency:"CNY"},{names:["大厚"],prefix:"大厚",currency:"CNY"},{names:["游小北"],prefix:"游小北",currency:"CNY"},{names:["昊杨"],prefix:"昊杨",currency:"CNY"},{names:["松美轩"],prefix:"松美轩",currency:"CNY"}
 ]);
