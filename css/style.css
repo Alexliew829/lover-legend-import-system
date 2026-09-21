@@ -6103,3 +6103,79 @@ body.system-media-preview-open-v305{overflow:hidden}
 .product-stock-minimum-price-manual-v268,.product-stock-minimum-price-manual-v268 strong{color:#0b68c9!important;}
 #saveBatchBtn.draft-saved-button-v323{background:#1d7a47!important;color:#fff!important;border-color:#1d7a47!important;font-weight:900!important;}
 #saveBatchBtn.draft-dirty-button-v323{background:#fff3cd!important;color:#7a5200!important;border-color:#e3b341!important;font-weight:900!important;}
+
+
+/* V32.4 — canonical minimum-price color state. One state, every surface, desktop + mobile. */
+[data-minimum-price-state-v324="manual"],
+[data-minimum-price-state-v324="manual"] * { color:#0b68c9 !important; }
+[data-minimum-price-state-v324="gain"],
+[data-minimum-price-state-v324="gain"] * { color:#087a43 !important; }
+[data-minimum-price-state-v324="loss"],
+[data-minimum-price-state-v324="loss"] * { color:#c62828 !important; }
+[data-minimum-price-state-v324="neutral"],
+[data-minimum-price-state-v324="neutral"] * { color:inherit !important; }
+
+/* V32.4 — desktop prefix rules rebuilt as a stable four-column grid. Mobile keeps the approved layout. */
+@media (min-width:720px) {
+  .product-prefix-three-head-v319,
+  .product-prefix-three-v319 {
+    display:grid !important;
+    grid-template-columns:170px minmax(300px,1fr) 90px 285px !important;
+    column-gap:18px !important;
+    align-items:center !important;
+    width:100% !important;
+    box-sizing:border-box !important;
+  }
+  .product-prefix-three-head-v319 {
+    padding:11px 14px !important;
+    font-size:17px !important;
+    font-weight:900 !important;
+  }
+  .product-prefix-three-v319 {
+    padding:12px 14px !important;
+    min-height:62px !important;
+    font-size:18px !important;
+    line-height:1.35 !important;
+  }
+  .product-prefix-three-v319 > .rule-copy-label-v232,
+  .product-prefix-three-v319 > .prefix-english-v319,
+  .product-prefix-three-v319 > strong,
+  .product-prefix-three-v319 > .prefix-operation-v324 {
+    grid-column:auto !important;
+    min-width:0 !important;
+    margin:0 !important;
+  }
+  .product-prefix-three-v319 > .prefix-english-v319 {
+    font-size:17px !important;
+    overflow-wrap:normal !important;
+    word-break:normal !important;
+  }
+  .product-prefix-three-v319 > strong { font-size:19px !important; font-weight:900 !important; }
+  .product-prefix-three-v319 .prefix-operation-v324 {
+    display:flex !important;
+    flex-flow:row nowrap !important;
+    justify-content:flex-start !important;
+    align-items:center !important;
+    gap:12px !important;
+    min-width:285px !important;
+  }
+  .product-prefix-three-v319 .prefix-operation-v324 button {
+    flex:0 0 auto !important;
+    min-width:96px !important;
+    font-size:15px !important;
+    padding:9px 14px !important;
+    white-space:nowrap !important;
+  }
+  .product-prefix-three-v319 .prefix-operation-v324 em {
+    flex:0 0 auto !important;
+    font-size:14px !important;
+    white-space:nowrap !important;
+  }
+  .prefix-fallback-note-v319 {
+    display:block !important;
+    width:100% !important;
+    box-sizing:border-box !important;
+    padding:8px 14px 13px !important;
+    font-size:15px !important;
+  }
+}
