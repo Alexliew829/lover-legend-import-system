@@ -117,7 +117,7 @@ const historySalesDetailsByLinkV134 = new Map();
 const historySalesContextLoadedV134 = new Set();
 const historySalesContextLoadingV134 = new Map();
 let historyLookupRenderTokenV134 = 0;
-// V31.0: keep keystroke painting separate from expensive filtering/rendering.
+// V31.1: keep keystroke painting separate from expensive filtering/rendering.
 // No network request is added; only the latest pending local render is executed.
 const searchRenderTimersV302 = new Map();
 function scheduleSearchRenderV302(key, fn, delay = 34) {
@@ -2339,7 +2339,7 @@ function setupAccessLock() {
     document.documentElement.classList.remove("access-lock-ready");
 
     const startAutomaticLoginV304 = async () => {
-      // V31.0: no network request is added. A phone with an existing local
+      // V31.1: no network request is added. A phone with an existing local
       // passkey starts WebAuthn immediately; the password card stays hidden
       // only during that local check so it does not flash before Face ID.
       const biometricUsed = await tryBiometricLogin({ automatic: true });
@@ -4477,7 +4477,7 @@ async function refreshPromotionCloudStateV209(force = false) {
   if (!force && (promotionCloudRefreshBusyV209 || now - promotionCloudRefreshLastAtV209 < 1500)) return false;
   promotionCloudRefreshBusyV209 = true; promotionCloudRefreshLastAtV209 = now;
   try { await pullLatestAfterSalesCommitV83(false); if (!promotionDraftTouchedV209) resetPromotionDraftV183(); refreshPromotionUiV183(); renderDashboard(); renderInventoryManagementList(); return true; }
-  catch (error) { console.warn("V31.0 profit management cloud refresh skipped:", error); return false; }
+  catch (error) { console.warn("V31.1 profit management cloud refresh skipped:", error); return false; }
   finally { promotionCloudRefreshBusyV209 = false; }
 }
 window.refreshPromotionCloudStateV209 = refreshPromotionCloudStateV209;
@@ -5687,7 +5687,7 @@ function renderProductList() {
   const searchNode = document.getElementById("productSearch");
   const list = document.getElementById("productList");
   const count = document.getElementById("productListCount");
-  // V31.0: legacy Product List UI was removed; callers may still refresh it.
+  // V31.1: legacy Product List UI was removed; callers may still refresh it.
   // Exit quietly instead of turning a successful Profit Management save into an error.
   if (!searchNode || !list || !count) return;
   const products = getProducts();
@@ -8727,7 +8727,7 @@ function setupImportHistory() {
   };
 
   button?.addEventListener("click", () => {
-    // V31.0: let the tap/typed text paint first, then run the existing local history scan.
+    // V31.1: let the tap/typed text paint first, then run the existing local history scan.
     normalizeHistoryDateField(startInput, startPicker);
     normalizeHistoryDateField(endInput, endPicker);
     lastCompletedHistoryLookup = "";
@@ -15191,7 +15191,7 @@ function normalizeMinimumPriceInput(value) {
 }
 
 async function editDisplayedMinimumPriceV199(productId) {
-  // V31.0: direct minimum-price edits are always the product's manual minimum price.
+  // V31.1: direct minimum-price edits are always the product's manual minimum price.
   // Manual prices have highest priority and are never changed by Profit Management.
   return editProductMinimumPrice(String(productId || "").trim());
 }
@@ -16399,7 +16399,7 @@ function renderInventoryManagementList() {
 
 
 
-// V31.0: permanent local-only helper for Google Drive media filenames.
+// V31.1: permanent local-only helper for Google Drive media filenames.
 // It does not write data or touch the sync queue; it only builds text and copies it.
 function buildInventoryProductCopyNameV306(product) {
   const id = String(product?.id || product?.productId || "").trim().toUpperCase();
@@ -16618,7 +16618,18 @@ function openSystemMediaPreviewV305(type, url, label = "") {
   const source = getSystemMediaSourceV305(originalUrl);
   const drivePreview = getGoogleDrivePreviewSourceV308(originalUrl);
   const directVideoSources = getGoogleDriveDirectSourcesV310(originalUrl);
+  const driveFileId = getGoogleDriveFileIdV305(originalUrl);
+  const desktopFinePointer = Boolean(window.matchMedia && window.matchMedia("(min-width: 821px) and (pointer: fine)").matches);
   if (!source) { window.alert("尚未上传"); return; }
+
+  // V31.1: desktop Chrome is less reliable with Google Drive media inside <video>/iframe.
+  // Open the original Drive file directly from the user's click so the browser can play it
+  // with first-party Drive permissions/cookies. This does not add sync requests or preload media.
+  if (mediaType === "video" && driveFileId && desktopFinePointer) {
+    const opened = window.open(originalUrl, "_blank", "noopener");
+    if (opened) return;
+    // If a popup policy blocks the new tab, continue to the in-system fallback below.
+  }
 
   const modal = document.createElement("div");
   modal.id = "systemMediaPreviewV305";
@@ -16684,6 +16695,13 @@ function openSystemMediaPreviewV305(type, url, label = "") {
       setMessage(`无法显示${mediaType === "video" ? "视频" : "照片"}。`, true);
       return;
     }
+    // V31.1: do not show Drive's embedded player on phones. It duplicates play/pause UI
+    // and adds Drive chrome. If both native sources fail, show only the clean fallback button.
+    if (mediaType === "video" && !desktopFinePointer) {
+      clearStageMedia();
+      setMessage("无法在系统内播放这个视频。", true);
+      return;
+    }
     clearStageMedia();
     const frame = document.createElement("iframe");
     frame.className = "system-media-drive-frame-v308";
@@ -16694,11 +16712,6 @@ function openSystemMediaPreviewV305(type, url, label = "") {
     frame.referrerPolicy = "no-referrer-when-downgrade";
     stage.appendChild(frame);
     if (message) message.hidden = true;
-    // iframe load only means the preview page loaded. If Drive itself blocks playback,
-    // the user can still use the explicit original-link fallback from the message.
-    directTimer = window.setTimeout(() => {
-      if (!disposed && frame.isConnected) setMessage("如果视频没有出现，可使用 Google Drive 打开。", true);
-    }, 9000);
   };
 
   const tryNextVideoSource = () => {
@@ -16735,11 +16748,10 @@ function openSystemMediaPreviewV305(type, url, label = "") {
   };
 
   if (mediaType === "video") {
-    // V31.0 high-priority video compatibility:
-    // 1) Google Drive uc download route -> native HTML5 video
-    // 2) drive.usercontent route -> native HTML5 video
-    // 3) Drive /preview fallback inside the same modal
-    // All are on-demand only; no preload, polling or sync requests are added.
+    // V31.1 high-priority video compatibility:
+    // Mobile: native HTML5 video using two Drive direct sources; only show a simple
+    // Drive-open fallback if both fail. Desktop Drive videos are opened directly above.
+    // All media remains on-demand only; no preload, polling or sync requests are added.
     if (directVideoSources.length) tryNextVideoSource();
     else {
       const video = document.createElement("video");
@@ -17686,7 +17698,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "31.0",
+      version: "31.1",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18053,7 +18065,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V31.0 Stable",
+      updatedBy: "System V31.1 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -18199,7 +18211,7 @@ function productNameWithEnglishV262(product){const en=productEnglishNameV262(pro
 function rememberProductLanguageV262(productId, chineseName, englishName){const id=String(productId||"").toUpperCase();if(!id)return;const meta=getProductLanguageMetaV262();meta[id]={chineseName:String(chineseName||"").trim(),englishName:String(englishName||"").trim()};saveProductLanguageMetaV262(meta)}
 function inferSimpleBilingualV262(text){const raw=String(text||"").trim();const rule=speciesRuleV262(raw);return{chineseName:rule?.cn||(/[\u3400-\u9fff]/.test(raw)?raw:""),englishName:rule?.en||(!/[\u3400-\u9fff]/.test(raw)?raw.replace(/\b(?:P?\d{2,4}|\d+(?:\.\d+)?C|\d+[xX]\d+)\b.*$/i,"").trim():""),prefix:rule?.prefix||""}}
 
-// ================= V31.0 Product Inventory Master =================
+// ================= V31.1 Product Inventory Master =================
 const SUPPLIER_ALIASES_V261 = Object.freeze([
   {names:["Ocean Landscaping","Ocean Landscaping Nursery"],prefix:"OLN",currency:"MYR"},{names:["JM Gardening","JM Landscape","JM Nursery"],prefix:"JMG",currency:"MYR"},{names:["Soong Huat Enterprise","Soong Huat Cameron"],prefix:"SHE",currency:"MYR"},{names:["Tan Ah Hwang Nursery"],prefix:"TAH",currency:"MYR"},{names:["Tan Kok Leyong","Tan Kok Leyong Nursery"],prefix:"TKL",currency:"MYR"},{names:["Wong Wan Choi"],prefix:"WWC",currency:"MYR"},{names:["忠盛"],prefix:"忠盛",currency:"CNY"},{names:["大厚"],prefix:"大厚",currency:"CNY"},{names:["游小北"],prefix:"游小北",currency:"CNY"},{names:["昊杨"],prefix:"昊杨",currency:"CNY"},{names:["松美轩"],prefix:"松美轩",currency:"CNY"}
 ]);
