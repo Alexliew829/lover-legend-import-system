@@ -6105,7 +6105,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 #saveBatchBtn.draft-dirty-button-v323{background:#fff3cd!important;color:#7a5200!important;border-color:#e3b341!important;font-weight:900!important;}
 
 
-/* V32.4 — canonical minimum-price color state. One state, every surface, desktop + mobile. */
+/* V32.5 — canonical minimum-price color state. One state, every surface, desktop + mobile. */
 [data-minimum-price-state-v324="manual"],
 [data-minimum-price-state-v324="manual"] * { color:#0b68c9 !important; }
 [data-minimum-price-state-v324="gain"],
@@ -6115,7 +6115,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 [data-minimum-price-state-v324="neutral"],
 [data-minimum-price-state-v324="neutral"] * { color:inherit !important; }
 
-/* V32.4 — desktop prefix rules rebuilt as a stable four-column grid. Mobile keeps the approved layout. */
+/* V32.5 — desktop prefix rules rebuilt as a stable four-column grid. Mobile keeps the approved layout. */
 @media (min-width:720px) {
   .product-prefix-three-head-v319,
   .product-prefix-three-v319 {
@@ -6178,4 +6178,37 @@ body.system-media-preview-open-v305{overflow:hidden}
     padding:8px 14px 13px !important;
     font-size:15px !important;
   }
+}
+
+
+/* V32.5 — prefix rules: remove lock-status text, reclaim space, keep desktop/mobile tidy. */
+@media (min-width:720px) {
+  .product-prefix-three-head-v319,
+  .product-prefix-three-v319 {
+    grid-template-columns:170px minmax(320px,1fr) 82px 150px !important;
+    column-gap:18px !important;
+    align-items:center !important;
+  }
+  .product-prefix-three-v319 .prefix-operation-v324 {
+    min-width:0 !important;
+    width:150px !important;
+    justify-content:flex-start !important;
+    gap:8px !important;
+  }
+  .product-prefix-three-v319 .prefix-operation-v324 button {
+    min-width:104px !important;
+    font-size:16px !important;
+    padding:9px 14px !important;
+  }
+}
+@media (max-width:719px) {
+  .product-prefix-three-v319 > .rule-copy-label-v232,
+  .product-prefix-three-v319 > .prefix-english-v319,
+  .product-prefix-three-v319 .prefix-operation-v324 button {
+    font-size:16px !important;
+    line-height:1.35 !important;
+  }
+  .product-prefix-three-v319 > .rule-copy-label-v232,
+  .product-prefix-three-v319 > .prefix-english-v319 { font-weight:600 !important; }
+  .product-prefix-three-v319 .prefix-operation-v324 { gap:6px !important; }
 }
