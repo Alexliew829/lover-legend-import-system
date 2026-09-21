@@ -116,7 +116,7 @@ const historySalesDetailsByLinkV134 = new Map();
 const historySalesContextLoadedV134 = new Set();
 const historySalesContextLoadingV134 = new Map();
 let historyLookupRenderTokenV134 = 0;
-// V32.0: keep keystroke painting separate from expensive filtering/rendering.
+// V32.1: keep keystroke painting separate from expensive filtering/rendering.
 // No network request is added; only the latest pending local render is executed.
 const searchRenderTimersV302 = new Map();
 function scheduleSearchRenderV302(key, fn, delay = 70) {
@@ -2149,7 +2149,7 @@ function unlockAccessLock(lock, input, status) {
     "1"
   );
 
-  // V32.0: bind unlock to this exact history entry on both desktop and mobile.
+  // V32.1: bind unlock to this exact history entry on both desktop and mobile.
   // Refreshing the same tab stays unlocked; a newly opened page/tab must authenticate again.
   try {
     history.replaceState({
@@ -2252,7 +2252,7 @@ function setupAccessLock() {
   updatePasswordHintDisplays();
   updateDeviceBiometricStatus();
 
-  // V32.0 desktop: if a saved password is still valid, verify locally and enter
+  // V32.1 desktop: if a saved password is still valid, verify locally and enter
   // immediately. No network request and no password/logo flash. Invalid saved
   // passwords are cleared and the normal password card is shown.
   let savedDesktopPasswordV316 = "";
@@ -4085,7 +4085,7 @@ function getProductMinimumProfitV205(product, promotion = null, rules = null, or
   const index = originIndex || getMinimumPriceOriginIndexV160();
   const active = promotion || getPromotionSettingsV183();
   const productId = String(product?.id || "").trim().toUpperCase();
-  const promotionApplies = Boolean(active && !active.excludedProductIds.includes(productId));
+  const promotionApplies = Boolean(active && !isMinimumPriceManualV160(product) && !active.excludedProductIds.includes(productId));
   const price = getEffectiveProductMinimumPriceV183(product, active, configuredRules, index);
   const averageCost = Math.max(0, Number(product?.averageCost) || 0);
   const potCost = getVndPotCostV160(product, configuredRules, index);
@@ -4196,6 +4196,9 @@ function getEffectiveProductMinimumPriceV183(product, promotion = null, rules = 
   const originalPrice = Math.max(0, Number(product?.minimumPrice) || 0);
   const active = promotion || getPromotionSettingsV183();
   const productId = String(product?.id || "").trim().toUpperCase();
+  // V32.1 single-source rule: explicit manual minimum price is always protected.
+  // Promotion participation is never allowed to override it.
+  if (isMinimumPriceManualV160(product)) return originalPrice;
   if (!active || active.excludedProductIds.includes(productId)) return originalPrice;
   const override = Math.max(0, Number(active.priceOverrides?.[productId]) || 0);
   return override > 0 ? override : getPromotionPriceBreakdownV183(product, active, rules, originIndex).price;
@@ -4354,7 +4357,9 @@ function getPromotionProtectedProductIdsV320() {
 
 function ensurePromotionProtectedExclusionsV320(targetSet = promotionExcludedDraftV183) {
   const protectedIds = getPromotionProtectedProductIdsV320();
-  protectedIds.forEach(id => targetSet.add(id));
+  // V32.1: manual-price protection is implicit and global, not persisted as hundreds
+  // of explicit exclusions. Strip legacy auto-added IDs from the editable list.
+  protectedIds.forEach(id => targetSet.delete(id));
   return protectedIds;
 }
 
@@ -4363,7 +4368,7 @@ function renderPromotionExcludedListV183() {
   if (!list) return;
   const products = getProducts();
   const protectedIds = getPromotionProtectedProductIdsV320();
-  protectedIds.forEach(id => promotionExcludedDraftV183.add(id));
+  protectedIds.forEach(id => promotionExcludedDraftV183.delete(id));
   const rows = Array.from(promotionExcludedDraftV183).map(id => products.find(product => String(product.id).toUpperCase() === id)).filter(Boolean);
   list.innerHTML = rows.length ? rows.map(product => {
     const id = String(product.id || "").toUpperCase();
@@ -4419,7 +4424,7 @@ function updatePromotionBatchControlsV184() {
   const filterMode = String(document.getElementById("promotionExcludeFilterV184")?.value || "latest");
   const matches = (query || filterMode !== "latest") ? getPromotionSearchProductsV185(query, filterMode) : [];
   const selectableIds = matches
-    .filter(product => !promotionExcludedDraftV183.has(String(product.id || "").toUpperCase()))
+    .filter(product => !isMinimumPriceManualV160(product) && !promotionExcludedDraftV183.has(String(product.id || "").toUpperCase()))
     .map(product => String(product.id || "").toUpperCase());
   // V19.8: keep pending selections across different search keywords.
   // Only confirmed exclusions are removed from the pending selection set.
@@ -4478,12 +4483,13 @@ function renderPromotionExcludeSearchV183() {
   const matches = allMatches;
   results.innerHTML = matches.length ? matches.map(product => {
     const id = String(product.id || "").toUpperCase();
-    const promoPrice = getPromotionPriceBreakdownV183(product, promotion, rules, originIndex).price;
-    return `<div class="promotion-search-result-v183">
-      <input class="promotion-row-check-v184" type="checkbox" data-select-search-v184="${escapeHTML(id)}" ${promotionSearchSelectionV184.has(id) ? "checked" : ""} aria-label="选择 ${escapeHTML(product.name)}" />
+    const manualProtected = isMinimumPriceManualV160(product);
+    const promoPrice = manualProtected ? Math.max(0, Number(product.minimumPrice) || 0) : getPromotionPriceBreakdownV183(product, promotion, rules, originIndex).price;
+    return `<div class="promotion-search-result-v183 ${manualProtected ? "promotion-protected-v320" : ""}">
+      <input class="promotion-row-check-v184" type="checkbox" data-select-search-v184="${escapeHTML(id)}" ${manualProtected ? "disabled" : ""} ${promotionSearchSelectionV184.has(id) ? "checked" : ""} aria-label="选择 ${escapeHTML(product.name)}" />
       <div><button type="button" class="inventory-product-name-copy promotion-search-name-v186" data-product-name="${escapeHTML(product.name)}" onclick="copyInventoryProductName(this)" title="点击复制产品名称">${escapeHTML(product.name)}</button>${buildProductIdCopyButtonV166(id, "promotion-product-id-v183")}
-      <span>库存 ${formatNumber(product.stock)} · ${getAverageCostLabelV205(product, originIndex)} ${formatMoney(product.averageCost, "RM ")} · 原最低售价 ${formatMoney(product.minimumPrice, "RM ")} · 促销最低售价 ${formatMoney(promoPrice, "RM ")}</span></div>
-      <button type="button" data-add-promotion-exclusion="${escapeHTML(id)}">加入排除</button>
+      <span>库存 ${formatNumber(product.stock)} · ${getAverageCostLabelV205(product, originIndex)} ${formatMoney(product.averageCost, "RM ")} · 最低售价 ${formatMoney(product.minimumPrice, "RM ")}${manualProtected ? " · 手动保护" : ` · 促销最低售价 ${formatMoney(promoPrice, "RM ")}`}</span></div>
+      ${manualProtected ? `<em class="promotion-protected-note-v320">自动保护</em>` : `<button type="button" data-add-promotion-exclusion="${escapeHTML(id)}">加入排除</button>`}
     </div>`;
   }).join("") : `<div class="promotion-empty-v183">${query ? "当前搜索没有更多可加入产品" : "当前筛选下没有更多可加入产品"}</div>`;
   updatePromotionBatchControlsV184();
@@ -4514,18 +4520,19 @@ function renderPromotionPriceListV183() {
     list.className = "promotion-mobile-cards-v195";
     list.innerHTML = products.map(product => {
       const id = String(product.id || "").toUpperCase();
-      const excluded = promotion.excludedProductIds.includes(id);
+      const manualProtected = isMinimumPriceManualV160(product);
+      const excluded = manualProtected || promotion.excludedProductIds.includes(id);
       const originalPrice = Math.max(0, Number(product.minimumPrice) || 0);
       const autoPromo = getPromotionPriceBreakdownV183(product, promotion, rules, originIndex).price;
       const override = Math.max(0, Number(promotion.priceOverrides?.[id]) || 0);
       const effectivePrice = excluded ? originalPrice : (override || autoPromo);
-      const profit = promotionCurrentProfitV183(product, effectivePrice, promotion, rules, originIndex);
+      const profit = getProductMinimumProfitV205(product, promotion, rules, originIndex).profit;
       return `<article class="promotion-mobile-card-v195 ${excluded ? "excluded" : ""}">
         <div class="promotion-mobile-card-title-v195">
           <button type="button" class="inventory-product-name-copy" data-product-name="${escapeHTML(product.name)}" onclick="copyInventoryProductName(this)" title="点击复制产品名称">${escapeHTML(product.name)}</button>
           ${buildProductIdCopyButtonV166(product.id, "promotion-product-id-v183")}
         </div>
-        ${excluded ? `<div class="promotion-mobile-excluded-v195">已排除 · 使用原最低售价</div>` : ""}
+        ${excluded ? `<div class="promotion-mobile-excluded-v195">${manualProtected ? "手动保护 · 使用原最低售价" : "已排除 · 使用原最低售价"}</div>` : ""}
         <div class="promotion-mobile-grid-v195">
           <div><span>库存</span><strong>${formatNumber(product.stock)}</strong></div>
           <div><span>${getAverageCostLabelV205(product, originIndex)}</span><strong>${formatMoney(product.averageCost, "RM ")}</strong></div>
@@ -4539,12 +4546,13 @@ function renderPromotionPriceListV183() {
     list.className = "promotion-compact-list-v193";
     list.innerHTML = `<div class="promotion-compact-head-v193"><span>产品名</span><span>库存</span><span>平均成本</span><span>原最低售价</span><span>促销最低售价</span><span>预计利润</span></div>` + products.map(product => {
       const id = String(product.id || "").toUpperCase();
-      const excluded = promotion.excludedProductIds.includes(id);
+      const manualProtected = isMinimumPriceManualV160(product);
+      const excluded = manualProtected || promotion.excludedProductIds.includes(id);
       const originalPrice = Math.max(0, Number(product.minimumPrice) || 0);
       const autoPromo = getPromotionPriceBreakdownV183(product, promotion, rules, originIndex).price;
       const override = Math.max(0, Number(promotion.priceOverrides?.[id]) || 0);
       const effectivePrice = excluded ? originalPrice : (override || autoPromo);
-      const profit = promotionCurrentProfitV183(product, effectivePrice, promotion, rules, originIndex);
+      const profit = getProductMinimumProfitV205(product, promotion, rules, originIndex).profit;
       return `<div class="promotion-compact-row-v193 ${excluded ? "excluded" : ""}">
         <span class="promotion-compact-product-v193"><button type="button" class="promotion-compact-name-v193" data-product-name="${escapeHTML(product.name)}" onclick="copyInventoryProductName(this)">${escapeHTML(product.name)}</button>${buildProductIdCopyButtonV166(product.id, "promotion-product-id-v183")}</span>
         <span>${formatNumber(product.stock)}</span><span>${formatPromotionMoneyV194(product.averageCost)}${isVndProductV205(product, originIndex) ? `<small class="average-cost-vnd-note-v207">（VND不含盆）</small>` : ""}</span><span>${formatPromotionMoneyV194(originalPrice)}</span>
@@ -4703,7 +4711,7 @@ function setupPromotionSettingsV183() {
     promotionExcludedDraftV183 = new Set();
     promotionPriceOverridesDraftV193 = {};
   }
-  // V32.0: explicit manual minimum-price products are always protected by the
+  // V32.1: explicit manual minimum-price products are always protected by the
   // simple V22.6 exclusion model. No historical/price-difference guessing.
   ensurePromotionProtectedExclusionsV320(promotionExcludedDraftV183);
   renderPromotionExcludedListV183();
@@ -4720,7 +4728,7 @@ function setupPromotionSettingsV183() {
   filterInput?.addEventListener("change", () => { renderPromotionExcludeSearchV183(); });
   selectAllSearch?.addEventListener("change", () => {
     const ids = getPromotionExcludeMatchesV183(searchInput?.value || "")
-      .filter(product => !promotionExcludedDraftV183.has(String(product.id || "").toUpperCase()))
+      .filter(product => !isMinimumPriceManualV160(product) && !promotionExcludedDraftV183.has(String(product.id || "").toUpperCase()))
       .map(product => String(product.id || "").toUpperCase());
     // V19.8: select-all affects only the current search, preserving choices from prior searches.
     if (selectAllSearch.checked) ids.forEach(id => promotionSearchSelectionV184.add(id));
@@ -4794,7 +4802,8 @@ function setupPromotionSettingsV183() {
     updatePromotionBatchControlsV184();
   });
   excludeSelected?.addEventListener("click", () => {
-    const ids = [...promotionSearchSelectionV184].filter(id => !promotionExcludedDraftV183.has(id));
+    const protectedIdsV321 = getPromotionProtectedProductIdsV320();
+    const ids = [...promotionSearchSelectionV184].filter(id => !protectedIdsV321.has(id) && !promotionExcludedDraftV183.has(id));
     if (!ids.length || !window.confirm(`确认批量排除已选择的 ${ids.length} 项产品？\n\n保存促销后，这些产品会继续使用原最低售价。`)) return;
     ids.forEach(id => promotionExcludedDraftV183.add(id));
     promotionDraftTouchedV209 = true;
@@ -5032,7 +5041,7 @@ function getOperationalProductsV256(products = getProducts()) {
   );
 }
 
-// V32.0: obsolete virtual-reference residue sweeper removed. Historical ID migration/safety remains below.
+// V32.1: obsolete virtual-reference residue sweeper removed. Historical ID migration/safety remains below.
 
 function getProducts() {
   const rules = getMinimumPriceRulesV160();
@@ -5854,7 +5863,7 @@ function renderProductList() {
   const searchNode = document.getElementById("productSearch");
   const list = document.getElementById("productList");
   const count = document.getElementById("productListCount");
-  // V32.0: legacy Product List UI was removed; callers may still refresh it.
+  // V32.1: legacy Product List UI was removed; callers may still refresh it.
   // Exit quietly instead of turning a successful Profit Management save into an error.
   if (!searchNode || !list || !count) return;
   const products = getProducts();
@@ -8894,7 +8903,7 @@ function setupImportHistory() {
   };
 
   button?.addEventListener("click", () => {
-    // V32.0: let the tap/typed text paint first, then run the existing local history scan.
+    // V32.1: let the tap/typed text paint first, then run the existing local history scan.
     normalizeHistoryDateField(startInput, startPicker);
     normalizeHistoryDateField(endInput, endPicker);
     lastCompletedHistoryLookup = "";
@@ -12220,7 +12229,7 @@ function maybeApplySuggestedBatchCurrencyV231(rowId, suggestedCurrency, label = 
 }
 
 function applyExistingProductCurrencyV232(rowId, product, { commitCurrency = false } = {}) {
-  // V32.0: historical currency is never scanned/applied during typing or selection.
+  // V32.1: historical currency is never scanned/applied during typing or selection.
   // Current purchase currency is decided only by explicit MYR selection or price threshold.
   return;
 }
@@ -12267,7 +12276,7 @@ function setAutoOriginalCostV249(rowId, record, { force = false } = {}) {
   const sourceCurrency = String(record?.currency || "").trim().toUpperCase();
   if (!(sourceValue > 0)) return false;
 
-  // V32.0: selecting a real existing product restores its historical unit price
+  // V32.1: selecting a real existing product restores its historical unit price
   // exactly as stored. Never convert VND<->CNY amounts. Currency is then chosen
   // by the proven V22.6 price rule, except explicit local MYR purchases stay MYR.
   row.dataset.settingAutoPriceV249 = "1";
@@ -12363,7 +12372,7 @@ function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, c
   tr.dataset.lastIdentityNameV231 = normalizedName;
 
   if (!commitCurrency) return;
-  // V32.0: prefix rules generate product IDs only; they never decide purchase currency.
+  // V32.1: prefix rules generate product IDs only; they never decide purchase currency.
 }
 
 function addBatchRow(prefill = {}){
@@ -15371,7 +15380,7 @@ function normalizeMinimumPriceInput(value) {
 }
 
 async function editDisplayedMinimumPriceV199(productId) {
-  // V32.0: direct minimum-price edits are always the product's manual minimum price.
+  // V32.1: direct minimum-price edits are always the product's manual minimum price.
   // Manual prices have highest priority and are never changed by Profit Management.
   return editProductMinimumPrice(String(productId || "").trim());
 }
@@ -15959,11 +15968,18 @@ function setupInventoryModule() {
     .addEventListener("input", () => scheduleSearchRenderV302("inventory", renderInventoryManagementList, 80));
   document
     .getElementById("inventorySort")
-    .addEventListener("change", async event => {
-      if (event.target.value === "profit-desc") {
-        await ensureVisibleHistorySalesDetailsV134();
-      }
+    .addEventListener("change", event => {
+      // V32.1: sorting must respond immediately. Profit data already uses the local
+      // persisted Sales cache; a cloud refresh runs in the background and redraws only
+      // when fresh data arrives. The profit formula/order itself is unchanged.
       renderInventoryManagementList();
+      if (event.target.value === "profit-desc" && !historyAllSalesLinksLoadedV136 && navigator.onLine) {
+        Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(() => {
+          inventorySalesAnalyticsCacheV146 = { signature: "", value: null };
+          inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
+          if (String(document.getElementById("inventorySort")?.value || "") === "profit-desc") renderInventoryManagementList();
+        });
+      }
     });
 
   const inventoryList = document.getElementById("inventoryManagementList");
@@ -15997,12 +16013,13 @@ function setupInventoryModule() {
 
   bindInventoryMinimumPriceLongPress();
   renderInventoryManagementList();
-  // V32.0 performance: keep the first screen responsive. Preload full sales-profit
+  // V32.1 performance: keep the first screen responsive. Preload full sales-profit
   // analytics only when the browser is idle; business logic and final values are unchanged.
   const preloadSalesAnalyticsV318=()=>Promise.resolve()
     .then(() => ensureVisibleHistorySalesDetailsV134())
     .then(() => {
       inventorySalesAnalyticsCacheV146 = { signature: "", value: null };
+      inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
       if(document.getElementById("dashboardPage")?.classList.contains("active")) renderInventoryManagementList();
     });
   if(typeof requestIdleCallback==="function") requestIdleCallback(()=>preloadSalesAnalyticsV318(),{timeout:1800});
@@ -16185,23 +16202,31 @@ function getInventorySalesAnalyticsV146() {
 
 let inventoryVisibleProductsV153 = [];
 
-function renderInventoryManagementList() {
-  const keyword = document.getElementById("inventorySearch").value.trim().toLowerCase();
-  const sortMode = document.getElementById("inventorySort").value;
+
+// V32.1: prepare the expensive inventory/import joins once per unchanged data snapshot.
+// Search and sort now operate on these prepared rows without rebuilding all import maps.
+let inventoryPreparedRowsCacheV321 = {
+  rawProducts: null, settings: null, imports: null, batches: null, sales: null,
+  rows: []
+};
+function getInventoryPreparedRowsV321() {
+  const rawProducts = typeof loadJSONReadOnlyV317 === "function"
+    ? loadJSONReadOnlyV317("importSystemProducts", [])
+    : loadJSON("importSystemProducts", []);
+  const settings = getCachedSettingsV317();
   const imports = getImports();
   const batches = getBatches();
   const salesAnalyticsV146 = getInventorySalesAnalyticsV146();
+  const cache = inventoryPreparedRowsCacheV321;
+  if (cache.rawProducts === rawProducts && cache.settings === settings &&
+      cache.imports === imports && cache.batches === batches && cache.sales === salesAnalyticsV146 &&
+      Array.isArray(cache.rows)) return cache.rows;
 
   const batchByImportNumber = new Map(
-    batches
-      .filter(batch => String(batch.importNumber || "").trim())
-      .map(batch => [
-        String(batch.importNumber || "").trim().toLowerCase(),
-        batch
-      ])
+    batches.filter(batch => String(batch.importNumber || "").trim()).map(batch => [
+      String(batch.importNumber || "").trim().toLowerCase(), batch
+    ])
   );
-  // V32.0 performance: index imports once per render instead of scanning the
-  // entire import history again for every inventory product.
   const importsByProductIdV317 = new Map();
   const importsByProductNameV317 = new Map();
   imports.forEach(record => {
@@ -16211,196 +16236,82 @@ function renderInventoryManagementList() {
     if (name) { if (!importsByProductNameV317.has(name)) importsByProductNameV317.set(name, []); importsByProductNameV317.get(name).push(record); }
   });
 
-  const products = getOperationalProductsV256()
-    // 首页以实际库存为准；避免旧的 inventoryArchived 标记
-    // 把删除新批次后仍剩旧库存的产品错误隐藏。
+  const rows = getOperationalProductsV256()
     .filter(product => (Number(product.stock) || 0) > 0)
     .map(product => {
       const productName = String(product.name || "").trim().toLowerCase();
-      const byIdV317 = product.id ? (importsByProductIdV317.get(String(product.id).trim()) || []) : [];
-      const byNameV317 = importsByProductNameV317.get(productName) || [];
-      const matchingImports = Array.from(new Set([...byIdV317, ...byNameV317]))
-        .sort((a, b) => {
-          const batchA = batchByImportNumber.get(
-            String(a.importNumber || "").trim().toLowerCase()
-          );
-          const batchB = batchByImportNumber.get(
-            String(b.importNumber || "").trim().toLowerCase()
-          );
-          const dateA = getImportDisplayDate(a, batchA);
-          const dateB = getImportDisplayDate(b, batchB);
-          const dateDiff =
-            parseDDMMYYYY(dateB) - parseDDMMYYYY(dateA);
-
-          if (dateDiff) return dateDiff;
-
-          return String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
-        });
-
+      const byId = product.id ? (importsByProductIdV317.get(String(product.id).trim()) || []) : [];
+      const byName = importsByProductNameV317.get(productName) || [];
+      const matchingImports = Array.from(new Set([...byId, ...byName])).sort((a, b) => {
+        const batchA = batchByImportNumber.get(String(a.importNumber || "").trim().toLowerCase());
+        const batchB = batchByImportNumber.get(String(b.importNumber || "").trim().toLowerCase());
+        const dateDiff = parseDDMMYYYY(getImportDisplayDate(b, batchB)) - parseDDMMYYYY(getImportDisplayDate(a, batchA));
+        return dateDiff || String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
+      });
       const batchStockMap = new Map();
-
       matchingImports.forEach(record => {
         const importNumber = String(record.importNumber || "").trim();
         if (!importNumber) return;
-
         const key = importNumber.toLowerCase();
-        const originalQuantity =
-          getSafeDisplayOriginalQuantity(record);
-        const remainingRaw = Number(
-          record.remainingQuantity ?? record.quantity
-        );
+        const originalQuantity = getSafeDisplayOriginalQuantity(record);
+        const remainingRaw = Number(record.remainingQuantity ?? record.quantity);
         const remainingQuantity = Number.isFinite(remainingRaw)
-          ? Math.min(
-              originalQuantity,
-              Math.max(0, Math.floor(remainingRaw))
-            )
-          : originalQuantity;
-
-        const current = batchStockMap.get(key) || {
-          importNumber,
-          originalQuantity: 0,
-          remainingQuantity: 0
-        };
-
+          ? Math.min(originalQuantity, Math.max(0, Math.floor(remainingRaw))) : originalQuantity;
+        const current = batchStockMap.get(key) || { importNumber, originalQuantity:0, remainingQuantity:0 };
         current.originalQuantity += originalQuantity;
         current.remainingQuantity += remainingQuantity;
         batchStockMap.set(key, current);
       });
-
-      const batchStocks = Array.from(batchStockMap.values())
-        .filter(item => item.remainingQuantity > 0);
-
-      const importNumbers = batchStocks
-        .map(item => item.importNumber)
-        .join(" ");
-
-      const overseasTrackingNumbers = Array.from(
-        new Set(
-          matchingImports
-            .map(record => {
-              const relatedBatch = batchByImportNumber.get(
-                String(record.importNumber || "")
-                  .trim()
-                  .toLowerCase()
-              );
-
-              return String(
-                record.overseasTrackingNumber ||
-                relatedBatch?.overseasTrackingNumber ||
-                ""
-              ).trim();
-            })
-            .filter(Boolean)
-        )
-      ).join(" ");
-
-      // V24.6: cache original import-cost numbers while matching imports are
-      // already in memory. This adds no save/sync/delete calls and leaves the
-      // existing smart-search pipeline untouched.
-      const originalCostValuesV216 = matchingImports
-        .map(record => Number(record?.unitPrice))
-        .filter(value => Number.isFinite(value) && value >= 0);
-
+      const batchStocks = Array.from(batchStockMap.values()).filter(item => item.remainingQuantity > 0);
+      const importNumbers = batchStocks.map(item => item.importNumber).join(" ");
+      const overseasTrackingNumbers = Array.from(new Set(matchingImports.map(record => {
+        const relatedBatch = batchByImportNumber.get(String(record.importNumber || "").trim().toLowerCase());
+        return String(record.overseasTrackingNumber || relatedBatch?.overseasTrackingNumber || "").trim();
+      }).filter(Boolean))).join(" ");
+      const originalCostValuesV216 = matchingImports.map(record => Number(record?.unitPrice)).filter(value => Number.isFinite(value) && value >= 0);
       const latestActiveImportNumber = String(batchStocks[0]?.importNumber || "").trim().toLowerCase();
-      const latestOriginalCostRecord =
-        (latestActiveImportNumber
-          ? matchingImports.find(record =>
-              String(record.importNumber || "").trim().toLowerCase() === latestActiveImportNumber
-            )
-          : null) ||
-        matchingImports[0] ||
-        null;
-      const latestOriginalCost = Math.max(
-        0,
-        Number(latestOriginalCostRecord?.unitPrice) || 0
-      );
-      const latestOriginalCurrency = String(
-        latestOriginalCostRecord?.currency ||
-        batchByImportNumber.get(
-          String(latestOriginalCostRecord?.importNumber || "").trim().toLowerCase()
-        )?.currency ||
-        ""
-      ).trim().toUpperCase();
-
+      const latestOriginalCostRecord = (latestActiveImportNumber
+        ? matchingImports.find(record => String(record.importNumber || "").trim().toLowerCase() === latestActiveImportNumber)
+        : null) || matchingImports[0] || null;
+      const latestOriginalCost = Math.max(0, Number(latestOriginalCostRecord?.unitPrice) || 0);
+      const latestOriginalCurrency = String(latestOriginalCostRecord?.currency ||
+        batchByImportNumber.get(String(latestOriginalCostRecord?.importNumber || "").trim().toLowerCase())?.currency || "").trim().toUpperCase();
+      const latestRecord = matchingImports[0] || null;
+      const latestBatch = latestRecord ? batchByImportNumber.get(String(latestRecord.importNumber || "").trim().toLowerCase()) : null;
       return {
         ...product,
-        importNumbers,
-        overseasTrackingNumbers,
-        originalCostValuesV216,
-        batchStocks,
-        latestOriginalCost,
-        latestOriginalCurrency,
-        latestImportNumber:
-          String(batchStocks[0]?.importNumber || matchingImports[0]?.importNumber || "").trim(),
-        latestSoldAt:
-          Number(salesAnalyticsV146.latestById.get(String(product.id || "").trim()) || 0) ||
-          Number(salesAnalyticsV146.latestByName.get(String(product.name || "").trim().toLowerCase()) || 0),
-        netSoldQuantity:
-          Number(salesAnalyticsV146.quantityById.get(String(product.id || "").trim()) || 0) ||
-          Number(salesAnalyticsV146.quantityByName.get(String(product.name || "").trim().toLowerCase()) || 0),
-        cumulativeSoldProfit:
-          Number(salesAnalyticsV146.profitById.get(String(product.id || "").trim()) || 0) ||
-          Number(salesAnalyticsV146.profitByName.get(String(product.name || "").trim().toLowerCase()) || 0),
-        displayLastImport:
-          (() => {
-            const latestRecord = matchingImports[0];
-            const latestBatch = latestRecord
-              ? batchByImportNumber.get(
-                  String(latestRecord.importNumber || "")
-                    .trim()
-                    .toLowerCase()
-                )
-              : null;
-
-            return (
-              getImportDisplayDate(latestRecord, latestBatch) ||
-              getLatestImportDateByProduct(product.id) ||
-              ""
-            );
-          })()
+        importNumbers, overseasTrackingNumbers, originalCostValuesV216, batchStocks,
+        latestOriginalCost, latestOriginalCurrency,
+        latestImportNumber: String(batchStocks[0]?.importNumber || matchingImports[0]?.importNumber || "").trim(),
+        latestSoldAt: Number(salesAnalyticsV146.latestById.get(String(product.id || "").trim()) || 0) || Number(salesAnalyticsV146.latestByName.get(productName) || 0),
+        netSoldQuantity: Number(salesAnalyticsV146.quantityById.get(String(product.id || "").trim()) || 0) || Number(salesAnalyticsV146.quantityByName.get(productName) || 0),
+        cumulativeSoldProfit: Number(salesAnalyticsV146.profitById.get(String(product.id || "").trim()) || 0) || Number(salesAnalyticsV146.profitByName.get(productName) || 0),
+        displayLastImport: getImportDisplayDate(latestRecord, latestBatch) || normalizeDateToDDMMYYYY(product.lastImport) || ""
       };
-    })
-    .filter(product => {
-      const productTarget =
-        `${product.id} ${product.name} ${productEnglishNameV262(product)} ${product.category}`;
-
-      const productMatch =
-        smartSearchMatches(productTarget, keyword);
-
-      const importNumberMatch =
-        sequentialSearchMatches(product.importNumbers, keyword);
-
-      const overseasTrackingMatch =
-        sequentialSearchMatches(
-          product.overseasTrackingNumbers,
-          keyword
-        );
-
-      // V24.6: when the query is purely numeric (commas and decimals allowed),
-      // match the numeric Original Cost exactly, regardless of currency.
-      // Existing product/import/tracking searches continue to run unchanged.
-      const originalCostQueryTextV216 = String(keyword || "")
-        .normalize("NFKC")
-        .replace(/[,，\s]/g, "");
-      const originalCostQueryV216 = /^\d+(?:\.\d+)?$/.test(originalCostQueryTextV216)
-        ? Number(originalCostQueryTextV216)
-        : null;
-      const originalCostMatchV216 =
-        originalCostQueryV216 !== null &&
-        product.originalCostValuesV216.some(value =>
-          Math.abs(Number(value) - originalCostQueryV216) < 0.000001
-        );
-
-      if (isOriginalCostOnlySearchV218(keyword)) {
-        return originalCostMatchV216;
-      }
-
-      return (
-        productMatch ||
-        importNumberMatch ||
-        overseasTrackingMatch
-      );
     });
+  inventoryPreparedRowsCacheV321 = { rawProducts, settings, imports, batches, sales:salesAnalyticsV146, rows };
+  return rows;
+}
+
+let inventoryLastRenderedPreparedRowsV321 = null;
+let inventoryLastRenderedKeywordV321 = "";
+
+function renderInventoryManagementList() {
+  const keyword = document.getElementById("inventorySearch").value.trim().toLowerCase();
+  const sortMode = document.getElementById("inventorySort").value;
+  const preparedProductsV321 = getInventoryPreparedRowsV321();
+  const products = preparedProductsV321.filter(product => {
+    if (!keyword) return true;
+    const productTarget = `${product.id} ${product.name} ${productEnglishNameV262(product)} ${product.category}`;
+    const productMatch = smartSearchMatches(productTarget, keyword);
+    const importNumberMatch = sequentialSearchMatches(product.importNumbers, keyword);
+    const overseasTrackingMatch = sequentialSearchMatches(product.overseasTrackingNumbers, keyword);
+    const q = String(keyword || "").normalize("NFKC").replace(/[,，\s]/g, "");
+    const numeric = /^\d+(?:\.\d+)?$/.test(q) ? Number(q) : null;
+    const originalCostMatch = numeric !== null && product.originalCostValuesV216.some(value => Math.abs(Number(value) - numeric) < 0.000001);
+    if (isOriginalCostOnlySearchV218(keyword)) return originalCostMatch;
+    return productMatch || importNumberMatch || overseasTrackingMatch;
+  }).slice();
 
   products.sort((a, b) => {
     const stockA = Number(a.stock) || 0;
@@ -16488,8 +16399,27 @@ function renderInventoryManagementList() {
   }
 
   const list = document.getElementById("inventoryManagementList");
+  const existingCardsV321 = list ? Array.from(list.querySelectorAll(".inventory-manage-card[data-product-id]")) : [];
+  const canFastReorderV321 = Boolean(
+    list && products.length &&
+    inventoryLastRenderedPreparedRowsV321 === preparedProductsV321 &&
+    inventoryLastRenderedKeywordV321 === keyword &&
+    existingCardsV321.length === products.length
+  );
+  if (canFastReorderV321) {
+    const cardByIdV321 = new Map(existingCardsV321.map(card => [String(card.dataset.productId || ""), card]));
+    const completeV321 = products.every(product => cardByIdV321.has(String(product.id || "")));
+    if (completeV321) {
+      products.forEach(product => list.appendChild(cardByIdV321.get(String(product.id || ""))));
+      const originalCostPanel = document.getElementById("originalCostPanel");
+      if (originalCostPanel && !originalCostPanel.hidden) renderOriginalCostPanel(products);
+      return;
+    }
+  }
   if (!products.length) {
     list.innerHTML = '<div class="empty-state">暂无符合的库存资料</div>';
+    inventoryLastRenderedPreparedRowsV321 = null;
+    inventoryLastRenderedKeywordV321 = keyword;
     const originalCostPanel = document.getElementById("originalCostPanel");
     if (originalCostPanel && !originalCostPanel.hidden) renderOriginalCostPanel([]);
     return;
@@ -16500,15 +16430,15 @@ function renderInventoryManagementList() {
   list.innerHTML = products.map(product => {
     const stock = Number(product.stock) || 0;
     const averageCost = Number(product.averageCost) || 0;
-    const minimumPrice = getEffectiveProductMinimumPriceV183(product);
+    const minimumDisplayV315 = getMinimumPriceDisplayStateV315(product);
+    const minimumPrice = minimumDisplayV315.price;
     const originalCost = Math.max(0, Number(product.latestOriginalCost) || 0);
     const originalCurrency = String(product.latestOriginalCurrency || "").trim().toUpperCase();
     const originalCostText = originalCost > 0
       ? `${formatMoney(originalCost)}${originalCurrency ? ` ${escapeHTML(originalCurrency)}` : ""}`
       : `0.00${originalCurrency ? ` ${escapeHTML(originalCurrency)}` : ""}`;
     const inventoryValue = stock * averageCost;
-    const profitInfoV205 = getProductMinimumProfitV205(product);
-    const minimumDisplayV315 = getMinimumPriceDisplayStateV315(product);
+    const profitInfoV205 = minimumDisplayV315.profitInfo;
     const averageCostLabelV205 = getAverageCostLabelV205(product);
     const soldQuantity = Number(product.netSoldQuantity) || 0;
     const cumulativeProfit = Number(product.cumulativeSoldProfit) || 0;
@@ -16563,6 +16493,8 @@ function renderInventoryManagementList() {
     `;
   }).join("");
 
+  inventoryLastRenderedPreparedRowsV321 = preparedProductsV321;
+  inventoryLastRenderedKeywordV321 = keyword;
   bindInventoryMediaLinksV229();
 
   const originalCostPanel = document.getElementById("originalCostPanel");
@@ -16578,7 +16510,7 @@ function renderInventoryManagementList() {
 
 
 
-// V32.0: permanent local-only helper for Google Drive media filenames.
+// V32.1: permanent local-only helper for Google Drive media filenames.
 // It does not write data or touch the sync queue; it only builds text and copies it.
 function buildInventoryProductCopyNameV306(product) {
   const id = String(product?.id || product?.productId || "").trim().toUpperCase();
@@ -16799,7 +16731,7 @@ function openSystemMediaPreviewV305(type, url, label = "") {
   const directVideoSources = getGoogleDriveDirectSourcesV310(originalUrl);
   if (!source) { window.alert("尚未上传"); return; }
 
-  // V32.0 desktop: use exactly one layer. Open the original Google Drive link in
+  // V32.1 desktop: use exactly one layer. Open the original Google Drive link in
   // one browser tab for both photos and videos. Closing that tab returns directly
   // to Import System; no second system modal remains underneath.
   const desktopFinePointer = window.matchMedia("(hover:hover) and (pointer:fine)").matches && window.innerWidth >= 720;
@@ -16808,7 +16740,7 @@ function openSystemMediaPreviewV305(type, url, label = "") {
     return;
   }
 
-  // V32.0 mobile video: try a minimal in-system player first. Only X, one
+  // V32.1 mobile video: try a minimal in-system player first. Only X, one
   // play/pause button and a slim progress bar are rendered by us. If Google
   // blocks the direct stream, silently switch to Drive Preview with no message.
   if (!desktopFinePointer && mediaType === "video") {
@@ -17010,28 +16942,39 @@ function bindInventoryMediaLinksV229() {
 function getOriginalCostSummaryRows() {
   // V19.8: these are the actual objects just rendered by Inventory Management.
   // There is deliberately no second independent filter pass here.
-  return inventoryVisibleProductsV153.map(product => ({
-    id: String(product.id || ""),
-    name: String(product.name || ""),
-    stock: Math.max(0, Number(product.stock) || 0),
-    originalCost: Math.max(0, Number(product.latestOriginalCost) || 0),
-    originalCurrency: String(product.latestOriginalCurrency || "").trim().toUpperCase(),
-    averageCost: Math.max(0, Number(product.averageCost) || 0),
-    minimumPrice: getEffectiveProductMinimumPriceV183(product),
-    profitInfo: getProductMinimumProfitV205(product),
-    englishName: productEnglishNameV262(product),
-    product
-  }));
+  return inventoryVisibleProductsV153.map(product => {
+    const stateV315 = getMinimumPriceDisplayStateV315(product);
+    return {
+      id: String(product.id || ""),
+      name: String(product.name || ""),
+      stock: Math.max(0, Number(product.stock) || 0),
+      originalCost: Math.max(0, Number(product.latestOriginalCost) || 0),
+      originalCurrency: String(product.latestOriginalCurrency || "").trim().toUpperCase(),
+      averageCost: Math.max(0, Number(product.averageCost) || 0),
+      minimumPrice: stateV315.price,
+      profitInfo: stateV315.profitInfo,
+      englishName: productEnglishNameV262(product),
+      product
+    };
+  });
 }
 
 function getMinimumPriceDisplayStateV315(product) {
   const activePromotion = getPromotionSettingsV183();
   const productId = String(product?.id || "").trim().toUpperCase();
   const manual = isMinimumPriceManualV160(product);
-  const info = getProductMinimumProfitV205(product, activePromotion);
   const excluded = Boolean(activePromotion?.excludedProductIds?.includes(productId));
-  const className = manual ? "minimum-price-manual-v315" : (info.profit < -0.005 ? "minimum-price-loss-v302" : info.profit > 0.005 ? "minimum-price-gain-v302" : "minimum-price-neutral-v302");
-  return { manual, excluded, className, label: activePromotion && !excluded ? "促销最低售价" : "最低售价", profitInfo: info };
+  const promotionApplies = Boolean(activePromotion && !manual && !excluded);
+  const info = getProductMinimumProfitV205(product, activePromotion);
+  const className = manual
+    ? "minimum-price-manual-v315"
+    : (info.profit < -0.005 ? "minimum-price-loss-v302" : info.profit > 0.005 ? "minimum-price-gain-v302" : "minimum-price-neutral-v302");
+  return {
+    manual, excluded, promotionApplies, className,
+    label: promotionApplies ? "促销最低售价" : "最低售价",
+    price: info.price,
+    profitInfo: info
+  };
 }
 
 function renderOriginalCostPanel(visibleProducts = inventoryVisibleProductsV153) {
@@ -17076,7 +17019,7 @@ function renderOriginalCostPanel(visibleProducts = inventoryVisibleProductsV153)
         <td class="money-cell minimum-price-cell">
           <button class="original-cost-minimum-price-btn ${displayStateV315.className}" type="button"
                   data-product-id="${escapeHTML(row.id)}"
-                  aria-label="长按修改最低售价" title="长按修改最低售价">${formatMoney(row.minimumPrice, "RM ")}</button>
+                  aria-label="长按修改最低售价" title="长按修改最低售价">${formatMoney(displayStateV315.price, "RM ")}</button>
         </td>
       </tr>
     `;
@@ -17846,7 +17789,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "32.0",
+      version: "32.1",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18213,7 +18156,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V32.0 Stable",
+      updatedBy: "System V32.1 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -18359,49 +18302,21 @@ function productNameWithEnglishV262(product){const en=productEnglishNameV262(pro
 function rememberProductLanguageV262(productId, chineseName, englishName){const id=String(productId||"").toUpperCase();if(!id)return;const meta=getProductLanguageMetaV262();meta[id]={chineseName:String(chineseName||"").trim(),englishName:String(englishName||"").trim()};saveProductLanguageMetaV262(meta)}
 function inferSimpleBilingualV262(text){const raw=String(text||"").trim();const rule=speciesRuleV262(raw);return{chineseName:rule?.cn||(/[\u3400-\u9fff]/.test(raw)?raw:""),englishName:rule?.en||(!/[\u3400-\u9fff]/.test(raw)?raw.replace(/\b(?:P?\d{2,4}|\d+(?:\.\d+)?C|\d+[xX]\d+)\b.*$/i,"").trim():""),prefix:rule?.prefix||""}}
 
-// ================= V32.0 Product Inventory Master =================
+// ================= V32.1 Product Inventory Master =================
 const SUPPLIER_ALIASES_V261 = Object.freeze([
   {names:["Ocean Landscaping","Ocean Landscaping Nursery"],prefix:"OLN",currency:"MYR"},{names:["JM Gardening","JM Landscape","JM Nursery"],prefix:"JMG",currency:"MYR"},{names:["Soong Huat Enterprise","Soong Huat Cameron"],prefix:"SHE",currency:"MYR"},{names:["Tan Ah Hwang Nursery"],prefix:"TAH",currency:"MYR"},{names:["Tan Kok Leyong","Tan Kok Leyong Nursery"],prefix:"TKL",currency:"MYR"},{names:["Wong Wan Choi"],prefix:"WWC",currency:"MYR"},{names:["忠盛"],prefix:"忠盛",currency:"CNY"},{names:["大厚"],prefix:"大厚",currency:"CNY"},{names:["游小北"],prefix:"游小北",currency:"CNY"},{names:["昊杨"],prefix:"昊杨",currency:"CNY"},{names:["松美轩"],prefix:"松美轩",currency:"CNY"}
 ]);
 function supplierPrefixV261(prefix){let p=String(prefix||"").normalize("NFKC").trim();if(/^OLS$/i.test(p))p="OLN";if(/[\u3400-\u9fff]/.test(p))return (p.match(/[\u3400-\u9fff]/g)||[]).join("").slice(0,4);return p.toUpperCase().replace(/[^A-Z]/g,"").slice(0,3)}
 function inferSupplierFromProductV261(product){const name=String(product?.name||"").trim().toLowerCase();for(const x of SUPPLIER_ALIASES_V261){for(const label of [x.prefix,...x.names].filter(Boolean).sort((a,b)=>b.length-a.length)){if(name.startsWith(String(label).toLowerCase()))return{name:x.names[0],aliases:x.names.slice(1),prefix:x.prefix,currency:x.currency}}}return null}
 function inventoryMasterRowsV261(){
-  const sales=getInventorySalesAnalyticsV146(),imports=getImports(),batches=getBatches();
-  const batchByImportNumber=new Map(batches.filter(b=>String(b.importNumber||"").trim()).map(b=>[String(b.importNumber||"").trim().toLowerCase(),b]));
-  const importsByProductIdV317=new Map(),importsByProductNameV317=new Map();
-  imports.forEach(row=>{const id=String(row?.productId||"").trim(),name=String(row?.productName||"").trim().toLowerCase();if(id){if(!importsByProductIdV317.has(id))importsByProductIdV317.set(id,[]);importsByProductIdV317.get(id).push(row)}if(name){if(!importsByProductNameV317.has(name))importsByProductNameV317.set(name,[]);importsByProductNameV317.get(name).push(row)}});
-  return getOperationalProductsV256().filter(p=>(Number(p.stock)||0)>0).map(p=>{
-    const productName=String(p.name||"").trim().toLowerCase();
-    const matchingImports=Array.from(new Set([...(importsByProductIdV317.get(String(p.id||"").trim())||[]),...(importsByProductNameV317.get(productName)||[])])).sort((a,b)=>{
-      const ba=batchByImportNumber.get(String(a.importNumber||"").trim().toLowerCase()),bb=batchByImportNumber.get(String(b.importNumber||"").trim().toLowerCase());
-      const dd=parseDDMMYYYY(getImportDisplayDate(b,bb))-parseDDMMYYYY(getImportDisplayDate(a,ba));
-      return dd||String(b.createdAt||"").localeCompare(String(a.createdAt||""));
-    });
-    const batchStockMap=new Map();
-    matchingImports.forEach(record=>{
-      const importNumber=String(record.importNumber||"").trim(); if(!importNumber)return;
-      const originalQuantity=getSafeDisplayOriginalQuantity(record),remainingRaw=Number(record.remainingQuantity??record.quantity);
-      const remainingQuantity=Number.isFinite(remainingRaw)?Math.min(originalQuantity,Math.max(0,Math.floor(remainingRaw))):originalQuantity;
-      const key=importNumber.toLowerCase(),current=batchStockMap.get(key)||{importNumber,originalQuantity:0,remainingQuantity:0};
-      current.originalQuantity+=originalQuantity; current.remainingQuantity+=remainingQuantity; batchStockMap.set(key,current);
-    });
-    const batchStocks=Array.from(batchStockMap.values()).filter(x=>x.remainingQuantity>0);
-    const importNumbers=batchStocks.map(x=>x.importNumber).join(" ");
-    const overseasTrackingNumbers=Array.from(new Set(matchingImports.map(record=>{
-      const related=batchByImportNumber.get(String(record.importNumber||"").trim().toLowerCase());
-      return String(record.overseasTrackingNumber||related?.overseasTrackingNumber||"").trim();
-    }).filter(Boolean))).join(" ");
-    const originalCostValuesV216=matchingImports.map(row=>Number(row?.unitPrice)).filter(v=>Number.isFinite(v)&&v>=0);
-    const latest=matchingImports[0]||null;
+  return getInventoryPreparedRowsV321().map(p=>{
     const sup=inferSupplierFromProductV261(p);
+    const state=getMinimumPriceDisplayStateV315(p);
     return {
       product:p,productId:p.id||"",cnName:p.name||"",enName:productEnglishNameV262(p),supplierPrefix:supplierPrefixV261(sup?.prefix||""),category:p.category||"",
-      stock:Number(p.stock)||0,originalCost:latest?Math.max(0,Number(latest.unitPrice)||0):0,averageCost:Number(p.averageCost)||0,inventoryValue:(Number(p.stock)||0)*(Number(p.averageCost)||0),minimumPrice:getEffectiveProductMinimumPriceV183(p),
-      lastImportDate:(()=>{const related=latest?batchByImportNumber.get(String(latest.importNumber||"").trim().toLowerCase()):null;return getImportDisplayDate(latest,related)||getLatestImportDateByProduct(p.id)||""})(),
-      lastImportNumber:String(batchStocks[0]?.importNumber||latest?.importNumber||""),remark:String(p.remark||""),importNumbers,overseasTrackingNumbers,originalCostValuesV216,
-      latestSoldAt:Number(sales.latestById.get(String(p.id||"").trim())||sales.latestByName.get(String(p.name||"").trim().toLowerCase())||0),
-      netSoldQuantity:Number(sales.quantityById.get(String(p.id||"").trim())||sales.quantityByName.get(String(p.name||"").trim().toLowerCase())||0),
-      cumulativeSoldProfit:Number(sales.profitById.get(String(p.id||"").trim())||sales.profitByName.get(String(p.name||"").trim().toLowerCase())||0)
+      stock:Number(p.stock)||0,originalCost:Math.max(0,Number(p.latestOriginalCost)||0),averageCost:Number(p.averageCost)||0,inventoryValue:(Number(p.stock)||0)*(Number(p.averageCost)||0),minimumPrice:state.price,
+      lastImportDate:p.displayLastImport||"",lastImportNumber:String(p.latestImportNumber||""),remark:String(p.remark||""),importNumbers:String(p.importNumbers||""),overseasTrackingNumbers:String(p.overseasTrackingNumbers||""),originalCostValuesV216:Array.isArray(p.originalCostValuesV216)?p.originalCostValuesV216:[],
+      latestSoldAt:Number(p.latestSoldAt)||0,netSoldQuantity:Number(p.netSoldQuantity)||0,cumulativeSoldProfit:Number(p.cumulativeSoldProfit)||0
     };
   });
 }
@@ -18445,7 +18360,16 @@ function setupInventoryMasterV299(){
   const search=document.getElementById("inventoryMasterSearchV261"),exp=document.getElementById("exportInventoryMasterExcelV261"),panel=document.getElementById("inventoryMasterPanelV264");
   const renderIfOpenV318=()=>{if(panel?.open)renderInventoryMasterV261()};
   search?.addEventListener("input",()=>{if(panel?.open)scheduleSearchRenderV302("inventory-master",renderInventoryMasterV261,90)});
-  document.getElementById("inventoryMasterSortV264")?.addEventListener("change",renderIfOpenV318);
+  document.getElementById("inventoryMasterSortV264")?.addEventListener("change",event=>{
+    renderIfOpenV318();
+    if(event.target.value==="profit-desc"&&!historyAllSalesLinksLoadedV136&&navigator.onLine){
+      Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(()=>{
+        inventorySalesAnalyticsCacheV146={signature:"",value:null};
+        inventoryPreparedRowsCacheV321={rawProducts:null,settings:null,imports:null,batches:null,sales:null,rows:[]};
+        if(panel?.open&&String(document.getElementById("inventoryMasterSortV264")?.value||"")==="profit-desc")renderInventoryMasterV261();
+      });
+    }
+  });
   panel?.addEventListener("toggle",e=>{if(e.currentTarget.open)renderInventoryMasterV261()});
   exp?.addEventListener("click",exportInventoryMasterExcelV261);
 }
