@@ -117,7 +117,7 @@ const historySalesDetailsByLinkV134 = new Map();
 const historySalesContextLoadedV134 = new Set();
 const historySalesContextLoadingV134 = new Map();
 let historyLookupRenderTokenV134 = 0;
-// V30.5: keep keystroke painting separate from expensive filtering/rendering.
+// V30.6: keep keystroke painting separate from expensive filtering/rendering.
 // No network request is added; only the latest pending local render is executed.
 const searchRenderTimersV302 = new Map();
 function scheduleSearchRenderV302(key, fn, delay = 34) {
@@ -2339,7 +2339,7 @@ function setupAccessLock() {
     document.documentElement.classList.remove("access-lock-ready");
 
     const startAutomaticLoginV304 = async () => {
-      // V30.5: no network request is added. A phone with an existing local
+      // V30.6: no network request is added. A phone with an existing local
       // passkey starts WebAuthn immediately; the password card stays hidden
       // only during that local check so it does not flash before Face ID.
       const biometricUsed = await tryBiometricLogin({ automatic: true });
@@ -4364,7 +4364,7 @@ function updatePromotionDraftStatusV186() {
   const save = document.getElementById("savePromotionV183");
   const changed = hasPromotionDraftChangesV183();
   if (save) {
-    save.textContent = active ? "更新促销设置" : "确认并开启利润管理";
+    save.textContent = active ? "更新促销设置" : "确认并开启促销管理";
     save.disabled = Boolean(active) && !changed;
   }
   if (!notice) return;
@@ -4424,7 +4424,7 @@ function renderPromotionExcludeSearchV183() {
     return `<div class="promotion-search-result-v183 ${manual ? 'excluded' : ''}">
       <input class="promotion-row-check-v184" type="checkbox" data-select-search-v184="${escapeHTML(id)}" ${promotionSearchSelectionV184.has(id) ? "checked" : ""} ${manual ? "disabled" : ""} aria-label="选择 ${escapeHTML(product.name)}" />
       <div><button type="button" class="inventory-product-name-copy promotion-search-name-v186" data-product-name="${escapeHTML(product.name)}" onclick="copyInventoryProductName(this)" title="点击复制产品名称">${escapeHTML(product.name)}</button>${buildProductIdCopyButtonV166(id, "promotion-product-id-v183")}
-      <span>库存 ${formatNumber(product.stock)} · 最低售价 ${formatMoney(product.minimumPrice, "RM ")}${manual ? " · 手动最低售价保护，不受利润管理影响" : customText}</span></div>
+      <span>库存 ${formatNumber(product.stock)} · 最低售价 ${formatMoney(product.minimumPrice, "RM ")}${manual ? " · 手动最低售价保护，不受促销管理影响" : customText}</span></div>
     </div>`;
   }).join("") : `<div class="promotion-empty-v183">没有符合的产品</div>`;
   updatePromotionBatchControlsV184();
@@ -4453,7 +4453,7 @@ function renderPromotionPriceListV183() {
       const target = manual ? null : getPromotionTargetMarginV303(product, savedPromotion);
       return `<article class="promotion-mobile-card-v195 ${manual ? 'excluded' : ''}">
         <div class="promotion-mobile-card-title-v195"><button type="button" class="inventory-product-name-copy" data-product-name="${escapeHTML(product.name)}" onclick="copyInventoryProductName(this)">${escapeHTML(product.name)}</button>${buildProductIdCopyButtonV166(product.id, "promotion-product-id-v183")}</div>
-        ${manual ? `<div class="promotion-mobile-excluded-v195">手动最低售价保护 · 不受利润管理影响</div>` : `<div class="promotion-mobile-excluded-v195">目标利润率 ${escapeHTML(formatProfitTargetV303(target))}</div>`}
+        ${manual ? `<div class="promotion-mobile-excluded-v195">手动最低售价保护 · 不受促销管理影响</div>` : `<div class="promotion-mobile-excluded-v195">目标利润率 ${escapeHTML(formatProfitTargetV303(target))}</div>`}
         <div class="promotion-mobile-grid-v195"><div><span>库存</span><strong>${formatNumber(product.stock)}</strong></div><div><span>${getAverageCostLabelV205(product, originIndex)}</span><strong>${formatMoney(product.averageCost, "RM ")}</strong></div><div><span>原最低售价</span><strong>${formatMoney(originalPrice, "RM ")}</strong></div><div><span>${manual ? '最低售价' : '促销最低售价'}</span><strong>${formatMoney(effectivePrice, "RM ")}</strong></div><div class="promotion-mobile-profit-v195 ${info.profit < 0 ? 'loss' : 'gain'}"><span>实际利润率</span><strong>${escapeHTML(formatProfitTargetV303(info.profitRate))}</strong></div></div>
       </article>`;
     }).join("") || `<div class="promotion-empty-v183">没有符合的产品</div>`;
@@ -4477,7 +4477,7 @@ async function refreshPromotionCloudStateV209(force = false) {
   if (!force && (promotionCloudRefreshBusyV209 || now - promotionCloudRefreshLastAtV209 < 1500)) return false;
   promotionCloudRefreshBusyV209 = true; promotionCloudRefreshLastAtV209 = now;
   try { await pullLatestAfterSalesCommitV83(false); if (!promotionDraftTouchedV209) resetPromotionDraftV183(); refreshPromotionUiV183(); renderDashboard(); renderInventoryManagementList(); return true; }
-  catch (error) { console.warn("V30.5 profit management cloud refresh skipped:", error); return false; }
+  catch (error) { console.warn("V30.6 profit management cloud refresh skipped:", error); return false; }
   finally { promotionCloudRefreshBusyV209 = false; }
 }
 window.refreshPromotionCloudStateV209 = refreshPromotionCloudStateV209;
@@ -4604,18 +4604,18 @@ function setupPromotionSettingsV183() {
     const currentActive = getPromotionSettingsV183();
     const manualCount = getProducts().filter(p => isMinimumPriceManualV160(p)).length;
     const customCount = Object.keys(promotion.productMarginOverrides).length;
-    if (!confirm(`确认${currentActive ? "更新促销设置" : "开启利润管理"}？\n\n活动名称：${promotion.name}\n主播佣金：${promotion.commissionRate}%\n默认目标利润率：${formatProfitTargetV303(promotion.targetMarginRate)}\n自定义产品：${customCount} 项\n手动最低售价保护：${manualCount} 项\n\n手动最低售价不会受影响；其余产品立即按默认或自定义利润率计算。`)) return;
+    if (!confirm(`确认${currentActive ? "更新促销设置" : "开启促销管理"}？\n\n活动名称：${promotion.name}\n主播佣金：${promotion.commissionRate}%\n默认目标利润率：${formatProfitTargetV303(promotion.targetMarginRate)}\n自定义产品：${customCount} 项\n手动最低售价保护：${manualCount} 项\n\n手动最低售价不会受影响；其余产品立即按默认或自定义利润率计算。`)) return;
     const now=new Date().toISOString(); const payload={...promotion,active:true,createdAt:currentActive?.createdAt||now,updatedAt:now};
-    saveButton.disabled=true; if(deleteButton)deleteButton.disabled=true; if(status)status.textContent=currentActive?"正在更新促销设置并同步…":"正在确认并同步利润管理…";
+    saveButton.disabled=true; if(deleteButton)deleteButton.disabled=true; if(status)status.textContent=currentActive?"正在更新促销设置并同步…":"正在确认并同步促销管理…";
     try { await updatePromotionSettingsFastV185(payload); const settings=loadJSON("importSystemSettings",{}); saveJSON("importSystemSettings",{...settings,promotionV183:payload}); promotionDraftTouchedV209=false; resetPromotionDraftV183(); refreshPromotionUiV183(); renderDashboard(); renderInventoryManagementList(); renderProductList(); if(pricePanel&&!pricePanel.hidden)renderPromotionPriceListV183(); }
-    catch(error){ if(status)status.textContent=`利润管理没有保存：${String(error?.message||error)}`; }
+    catch(error){ if(status)status.textContent=`促销管理没有保存：${String(error?.message||error)}`; }
     finally{ saveButton.disabled=false; if(deleteButton)deleteButton.disabled=false; }
   });
   deleteButton?.addEventListener("click", async () => {
-    const promotion=getPromotionSettingsV183(); if(!promotion||!confirm("确认关闭利润管理？\n\n手动最低售价保持不变；其他产品立即恢复原本自动最低售价。"))return;
-    promotionDeleteInProgressV184=true; deleteButton.disabled=true; saveButton.disabled=true; if(status)status.textContent="正在关闭利润管理并同步…";
-    try { await updatePromotionSettingsFastV185(null); const settings=loadJSON("importSystemSettings",{}); const next={...settings}; delete next.promotionV183; saveJSON("importSystemSettings",next); promotionMarginOverridesDraftV303={}; promotionSearchSelectionV184=new Set(); promotionDraftTouchedV209=false; resetPromotionDraftV183(); clearPromotionSearchStateV212(); if(pricePanel)pricePanel.hidden=true; refreshPromotionUiV183(); renderDashboard(); renderInventoryManagementList(); renderProductList(); if(status)status.textContent="利润管理已关闭，已恢复原本最低售价"; }
-    catch(error){ if(status)status.textContent=`利润管理没有关闭：${String(error?.message||error)}`; }
+    const promotion=getPromotionSettingsV183(); if(!promotion||!confirm("确认关闭促销管理？\n\n手动最低售价保持不变；其他产品立即恢复原本自动最低售价。"))return;
+    promotionDeleteInProgressV184=true; deleteButton.disabled=true; saveButton.disabled=true; if(status)status.textContent="正在关闭促销管理并同步…";
+    try { await updatePromotionSettingsFastV185(null); const settings=loadJSON("importSystemSettings",{}); const next={...settings}; delete next.promotionV183; saveJSON("importSystemSettings",next); promotionMarginOverridesDraftV303={}; promotionSearchSelectionV184=new Set(); promotionDraftTouchedV209=false; resetPromotionDraftV183(); clearPromotionSearchStateV212(); if(pricePanel)pricePanel.hidden=true; refreshPromotionUiV183(); renderDashboard(); renderInventoryManagementList(); renderProductList(); if(status)status.textContent="促销管理已关闭，已恢复默认最低售价"; }
+    catch(error){ if(status)status.textContent=`促销管理没有关闭：${String(error?.message||error)}`; }
     finally{ promotionDeleteInProgressV184=false; deleteButton.disabled=false; saveButton.disabled=false; }
   });
   toggleButton?.addEventListener("click", () => { if(!pricePanel)return; pricePanel.hidden=!pricePanel.hidden; toggleButton.textContent=pricePanel.hidden?"查看全部最低售价":"收起全部最低售价"; if(!pricePanel.hidden)renderPromotionPriceListV183(); });
@@ -5687,7 +5687,7 @@ function renderProductList() {
   const searchNode = document.getElementById("productSearch");
   const list = document.getElementById("productList");
   const count = document.getElementById("productListCount");
-  // V30.5: legacy Product List UI was removed; callers may still refresh it.
+  // V30.6: legacy Product List UI was removed; callers may still refresh it.
   // Exit quietly instead of turning a successful Profit Management save into an error.
   if (!searchNode || !list || !count) return;
   const products = getProducts();
@@ -8727,7 +8727,7 @@ function setupImportHistory() {
   };
 
   button?.addEventListener("click", () => {
-    // V30.5: let the tap/typed text paint first, then run the existing local history scan.
+    // V30.6: let the tap/typed text paint first, then run the existing local history scan.
     normalizeHistoryDateField(startInput, startPicker);
     normalizeHistoryDateField(endInput, endPicker);
     lastCompletedHistoryLookup = "";
@@ -15191,7 +15191,7 @@ function normalizeMinimumPriceInput(value) {
 }
 
 async function editDisplayedMinimumPriceV199(productId) {
-  // V30.5: direct minimum-price edits are always the product's manual minimum price.
+  // V30.6: direct minimum-price edits are always the product's manual minimum price.
   // Manual prices have highest priority and are never changed by Profit Management.
   return editProductMinimumPrice(String(productId || "").trim());
 }
@@ -16341,6 +16341,7 @@ function renderInventoryManagementList() {
                 ${escapeHTML(product.name)}
               </button>
               ${buildProductIdCopyButtonV166(product.id, "inventory-product-id-v166")}
+              ${buildInventoryProductCopyButtonV306(product.id)}
               ${productEnglishNameV262(product)?`<small class="product-english-name-v262 inventory-english-secondline-v265">${escapeHTML(productEnglishNameV262(product))}</small>`:""}
               ${renderProductMediaStatusV236(product.id, productMediaLinksV229)}
               </span>
@@ -16396,6 +16397,67 @@ function renderInventoryManagementList() {
 
 
 
+
+
+// V30.6: permanent local-only helper for Google Drive media filenames.
+// It does not write data or touch the sync queue; it only builds text and copies it.
+function buildInventoryProductCopyNameV306(product) {
+  const id = String(product?.id || product?.productId || "").trim().toUpperCase();
+  let name = String(product?.name || "").normalize("NFKC").trim();
+  if (!id || !name) return `${id}${name}`.trim();
+
+  // Remove supplier text by starting at the earliest known bonsai/species keyword.
+  // Prefer Chinese/CJK keywords so English aliases never cut a Chinese product name incorrectly.
+  const rules = typeof getProductPrefixRulesV181 === "function" ? getProductPrefixRulesV181() : [];
+  const chineseKeywords = rules
+    .map(row => String(Array.isArray(row) ? row[0] : "").trim())
+    .filter(keyword => keyword && /[\u3400-\u9fff]/.test(keyword));
+  let start = -1;
+  for (const keyword of chineseKeywords) {
+    const index = name.indexOf(keyword);
+    if (index >= 0 && (start < 0 || index < start)) start = index;
+  }
+  if (start > 0) name = name.slice(start);
+
+  // Remove the trailing supplier price/model data after the useful species/form name.
+  // Examples: 450, 6000, BX1280, SPK1780, 210P, BBM298.
+  name = name
+    .replace(/[\s\u3000]+/g, "")
+    .replace(/(?:[A-Za-z]{1,8})?\d+(?:\.\d+)?[A-Za-z]{0,3}$/u, "")
+    .replace(/[\-_\/]+$/g, "")
+    .trim();
+
+  return `${id}${name}`;
+}
+
+async function copyInventoryProductForDriveV306(button) {
+  const productId = String(button?.dataset?.productIdV306 || "").trim();
+  const products = typeof getProducts === "function" ? getProducts() : [];
+  const product = products.find(item => String(item?.id || item?.productId || "").trim() === productId);
+  if (!product) {
+    window.alert("找不到产品资料，无法复制。");
+    return;
+  }
+  const value = buildInventoryProductCopyNameV306(product);
+  if (!value) return;
+  const copied = await copyHistoryText(value, `✓ 已复制产品：${value}`);
+  if (!copied || !button) return;
+  const original = button.textContent;
+  button.textContent = "已复制";
+  button.classList.add("copied");
+  window.clearTimeout(button._copyProductV306Timer);
+  button._copyProductV306Timer = window.setTimeout(() => {
+    button.textContent = original || "复制产品";
+    button.classList.remove("copied");
+  }, 1200);
+}
+window.copyInventoryProductForDriveV306 = copyInventoryProductForDriveV306;
+
+function buildInventoryProductCopyButtonV306(productId) {
+  const id = String(productId || "").trim();
+  if (!id) return "";
+  return `<button type="button" class="inventory-product-file-copy-v306" data-product-id-v306="${escapeHTML(id)}" onclick="copyInventoryProductForDriveV306(this)" title="复制 Google Drive 产品文件名">复制产品</button>`;
+}
 
 function getProductMediaLinksV229() {
   const settings = loadJSON("importSystemSettings", {});
@@ -17500,7 +17562,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "30.5",
+      version: "30.6",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -17867,7 +17929,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V30.5 Stable",
+      updatedBy: "System V30.6 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -18013,7 +18075,7 @@ function productNameWithEnglishV262(product){const en=productEnglishNameV262(pro
 function rememberProductLanguageV262(productId, chineseName, englishName){const id=String(productId||"").toUpperCase();if(!id)return;const meta=getProductLanguageMetaV262();meta[id]={chineseName:String(chineseName||"").trim(),englishName:String(englishName||"").trim()};saveProductLanguageMetaV262(meta)}
 function inferSimpleBilingualV262(text){const raw=String(text||"").trim();const rule=speciesRuleV262(raw);return{chineseName:rule?.cn||(/[\u3400-\u9fff]/.test(raw)?raw:""),englishName:rule?.en||(!/[\u3400-\u9fff]/.test(raw)?raw.replace(/\b(?:P?\d{2,4}|\d+(?:\.\d+)?C|\d+[xX]\d+)\b.*$/i,"").trim():""),prefix:rule?.prefix||""}}
 
-// ================= V30.5 Product Inventory Master =================
+// ================= V30.6 Product Inventory Master =================
 const SUPPLIER_ALIASES_V261 = Object.freeze([
   {names:["Ocean Landscaping","Ocean Landscaping Nursery"],prefix:"OLN",currency:"MYR"},{names:["JM Gardening","JM Landscape","JM Nursery"],prefix:"JMG",currency:"MYR"},{names:["Soong Huat Enterprise","Soong Huat Cameron"],prefix:"SHE",currency:"MYR"},{names:["Tan Ah Hwang Nursery"],prefix:"TAH",currency:"MYR"},{names:["Tan Kok Leyong","Tan Kok Leyong Nursery"],prefix:"TKL",currency:"MYR"},{names:["Wong Wan Choi"],prefix:"WWC",currency:"MYR"},{names:["忠盛"],prefix:"忠盛",currency:"CNY"},{names:["大厚"],prefix:"大厚",currency:"CNY"},{names:["游小北"],prefix:"游小北",currency:"CNY"},{names:["昊杨"],prefix:"昊杨",currency:"CNY"},{names:["松美轩"],prefix:"松美轩",currency:"CNY"}
 ]);
