@@ -117,7 +117,7 @@ const historySalesDetailsByLinkV134 = new Map();
 const historySalesContextLoadedV134 = new Set();
 const historySalesContextLoadingV134 = new Map();
 let historyLookupRenderTokenV134 = 0;
-// V30.8: keep keystroke painting separate from expensive filtering/rendering.
+// V30.9: keep keystroke painting separate from expensive filtering/rendering.
 // No network request is added; only the latest pending local render is executed.
 const searchRenderTimersV302 = new Map();
 function scheduleSearchRenderV302(key, fn, delay = 34) {
@@ -2339,7 +2339,7 @@ function setupAccessLock() {
     document.documentElement.classList.remove("access-lock-ready");
 
     const startAutomaticLoginV304 = async () => {
-      // V30.8: no network request is added. A phone with an existing local
+      // V30.9: no network request is added. A phone with an existing local
       // passkey starts WebAuthn immediately; the password card stays hidden
       // only during that local check so it does not flash before Face ID.
       const biometricUsed = await tryBiometricLogin({ automatic: true });
@@ -4477,7 +4477,7 @@ async function refreshPromotionCloudStateV209(force = false) {
   if (!force && (promotionCloudRefreshBusyV209 || now - promotionCloudRefreshLastAtV209 < 1500)) return false;
   promotionCloudRefreshBusyV209 = true; promotionCloudRefreshLastAtV209 = now;
   try { await pullLatestAfterSalesCommitV83(false); if (!promotionDraftTouchedV209) resetPromotionDraftV183(); refreshPromotionUiV183(); renderDashboard(); renderInventoryManagementList(); return true; }
-  catch (error) { console.warn("V30.8 profit management cloud refresh skipped:", error); return false; }
+  catch (error) { console.warn("V30.9 profit management cloud refresh skipped:", error); return false; }
   finally { promotionCloudRefreshBusyV209 = false; }
 }
 window.refreshPromotionCloudStateV209 = refreshPromotionCloudStateV209;
@@ -5687,7 +5687,7 @@ function renderProductList() {
   const searchNode = document.getElementById("productSearch");
   const list = document.getElementById("productList");
   const count = document.getElementById("productListCount");
-  // V30.8: legacy Product List UI was removed; callers may still refresh it.
+  // V30.9: legacy Product List UI was removed; callers may still refresh it.
   // Exit quietly instead of turning a successful Profit Management save into an error.
   if (!searchNode || !list || !count) return;
   const products = getProducts();
@@ -8727,7 +8727,7 @@ function setupImportHistory() {
   };
 
   button?.addEventListener("click", () => {
-    // V30.8: let the tap/typed text paint first, then run the existing local history scan.
+    // V30.9: let the tap/typed text paint first, then run the existing local history scan.
     normalizeHistoryDateField(startInput, startPicker);
     normalizeHistoryDateField(endInput, endPicker);
     lastCompletedHistoryLookup = "";
@@ -15191,7 +15191,7 @@ function normalizeMinimumPriceInput(value) {
 }
 
 async function editDisplayedMinimumPriceV199(productId) {
-  // V30.8: direct minimum-price edits are always the product's manual minimum price.
+  // V30.9: direct minimum-price edits are always the product's manual minimum price.
   // Manual prices have highest priority and are never changed by Profit Management.
   return editProductMinimumPrice(String(productId || "").trim());
 }
@@ -16399,7 +16399,7 @@ function renderInventoryManagementList() {
 
 
 
-// V30.8: permanent local-only helper for Google Drive media filenames.
+// V30.9: permanent local-only helper for Google Drive media filenames.
 // It does not write data or touch the sync queue; it only builds text and copies it.
 function buildInventoryProductCopyNameV306(product) {
   const id = String(product?.id || product?.productId || "").trim().toUpperCase();
@@ -16427,7 +16427,7 @@ function buildInventoryProductCopyNameV306(product) {
     .replace(/[\-_\/]+$/g, "")
     .trim();
 
-  return `${id}${name}`;
+  return `${id}-${name}`;
 }
 
 async function copyInventoryProductForDriveV306(button) {
@@ -16572,7 +16572,7 @@ function getSystemMediaSourceV305(url) {
   const original = String(url || "").trim();
   const fileId = getGoogleDriveFileIdV305(original);
   if (!fileId) return original;
-  // V30.8: keep the direct original-file route first for best available quality.
+  // V30.9: keep the direct original-file route first for best available quality.
   // If Google Drive refuses direct streaming, openSystemMediaPreviewV305 falls back
   // to the embedded Drive preview inside this same system modal.
   return `https://drive.usercontent.google.com/download?id=${encodeURIComponent(fileId)}&export=download&confirm=t`;
@@ -16672,23 +16672,29 @@ function openSystemMediaPreviewV305(type, url, label = "") {
   };
 
   if (mediaType === "video") {
-    const video = document.createElement("video");
-    video.className = "system-media-video-v305";
-    video.controls = true;
-    video.playsInline = true;
-    video.preload = "metadata";
-    video.autoplay = true;
-    video.src = source;
-    video.setAttribute("aria-label", label || "视频预览");
-    video.addEventListener("loadedmetadata", clearDirectTimer, { once:true });
-    video.addEventListener("canplay", clearDirectTimer, { once:true });
-    video.addEventListener("error", useDrivePreview, { once:true });
-    stage.appendChild(video);
-    // Some Drive direct-download responses stall instead of firing an error.
-    // Fall back to Drive's embedded preview after a short wait, only after click.
-    if (drivePreview) directTimer = window.setTimeout(useDrivePreview, 4500);
-    const playPromise = video.play();
-    if (playPromise?.catch) playPromise.catch(() => {});
+    // V30.9 high-priority Drive video fix:
+    // Google Drive share links are reliably playable through /preview, while the
+    // direct download host may reject/stall HTML5 range requests on iOS/Chrome.
+    // For Drive videos, go straight to the embedded preview inside our modal.
+    // This is still on-demand only: no preload, no polling and no sync request.
+    if (drivePreview) {
+      useDrivePreview();
+    } else {
+      const video = document.createElement("video");
+      video.className = "system-media-video-v305";
+      video.controls = true;
+      video.playsInline = true;
+      video.preload = "metadata";
+      video.autoplay = true;
+      video.src = source;
+      video.setAttribute("aria-label", label || "视频预览");
+      video.addEventListener("loadedmetadata", clearDirectTimer, { once:true });
+      video.addEventListener("canplay", clearDirectTimer, { once:true });
+      video.addEventListener("error", showFailure, { once:true });
+      stage.appendChild(video);
+      const playPromise = video.play();
+      if (playPromise?.catch) playPromise.catch(() => {});
+    }
   } else {
     const image = document.createElement("img");
     image.className = "system-media-photo-v305";
@@ -17620,7 +17626,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "30.8",
+      version: "30.9",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -17987,7 +17993,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V30.8 Stable",
+      updatedBy: "System V30.9 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -18133,7 +18139,7 @@ function productNameWithEnglishV262(product){const en=productEnglishNameV262(pro
 function rememberProductLanguageV262(productId, chineseName, englishName){const id=String(productId||"").toUpperCase();if(!id)return;const meta=getProductLanguageMetaV262();meta[id]={chineseName:String(chineseName||"").trim(),englishName:String(englishName||"").trim()};saveProductLanguageMetaV262(meta)}
 function inferSimpleBilingualV262(text){const raw=String(text||"").trim();const rule=speciesRuleV262(raw);return{chineseName:rule?.cn||(/[\u3400-\u9fff]/.test(raw)?raw:""),englishName:rule?.en||(!/[\u3400-\u9fff]/.test(raw)?raw.replace(/\b(?:P?\d{2,4}|\d+(?:\.\d+)?C|\d+[xX]\d+)\b.*$/i,"").trim():""),prefix:rule?.prefix||""}}
 
-// ================= V30.8 Product Inventory Master =================
+// ================= V30.9 Product Inventory Master =================
 const SUPPLIER_ALIASES_V261 = Object.freeze([
   {names:["Ocean Landscaping","Ocean Landscaping Nursery"],prefix:"OLN",currency:"MYR"},{names:["JM Gardening","JM Landscape","JM Nursery"],prefix:"JMG",currency:"MYR"},{names:["Soong Huat Enterprise","Soong Huat Cameron"],prefix:"SHE",currency:"MYR"},{names:["Tan Ah Hwang Nursery"],prefix:"TAH",currency:"MYR"},{names:["Tan Kok Leyong","Tan Kok Leyong Nursery"],prefix:"TKL",currency:"MYR"},{names:["Wong Wan Choi"],prefix:"WWC",currency:"MYR"},{names:["忠盛"],prefix:"忠盛",currency:"CNY"},{names:["大厚"],prefix:"大厚",currency:"CNY"},{names:["游小北"],prefix:"游小北",currency:"CNY"},{names:["昊杨"],prefix:"昊杨",currency:"CNY"},{names:["松美轩"],prefix:"松美轩",currency:"CNY"}
 ]);
