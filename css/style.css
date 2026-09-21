@@ -4873,7 +4873,31 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
   .promotion-price-card-head-v187{flex-wrap:wrap;overflow:visible}.promotion-price-card-head-v187 .promotion-product-name-v183{flex:1 1 100%;white-space:normal!important;overflow-wrap:anywhere}
   .promotion-price-metrics-v187{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.promotion-price-metrics-v187>div{padding:7px 6px}.promotion-price-metrics-v187 small,.promotion-price-metrics-v187 b{white-space:normal;overflow-wrap:anywhere}
 }
-\n\n/* V19.5 — promotion list keeps the compact legacy row layout; names wrap fully. */\n.minimum-freight-tier-grid-v188{grid-template-columns:repeat(2,minmax(0,1fr))}\n#promotionPriceListV183{display:grid;gap:0;min-width:0}\n.promotion-price-row-v183{display:grid;grid-template-columns:minmax(250px,1.6fr) minmax(150px,.85fr) repeat(4,minmax(105px,.72fr));gap:8px;align-items:center;padding:9px 8px;border-bottom:1px solid #e7ece9;background:#fff;font-size:13px;min-width:0}\n.promotion-price-row-v183.excluded{background:#fff9e9}\n.promotion-price-row-v183>span,.promotion-sales-stats-v188>span{display:grid;min-width:0;border:1px solid #cbe5d3;border-radius:8px;background:#edf8f0;padding:6px 7px;gap:2px}\n.promotion-price-row-v183.excluded>span,.promotion-price-row-v183.excluded .promotion-sales-stats-v188>span{background:#fffaf0;border-color:#ecd99d}\n.promotion-price-row-v183 small{font-size:11px;color:#66736b}\n.promotion-price-row-v183 b{font-size:13px;color:#17211b;white-space:nowrap}\n.promotion-price-row-v183.loss .promotion-profit-v188 b{color:#c52525}.promotion-price-row-v183.gain .promotion-profit-v188 b{color:#16733b}\n.promotion-product-copy-v183{display:flex!important;flex-wrap:wrap;align-items:center;gap:5px 7px;min-width:0}\n.promotion-product-copy-v183 .promotion-product-name-v183{flex:1 1 100%;display:block!important;width:100%!important;max-width:100%!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:anywhere;border:0!important;background:transparent!important;padding:0!important;color:#17211b!important;font:inherit!important;font-weight:800!important;text-align:left!important;text-decoration:underline dotted;cursor:pointer}\n.promotion-excluded-note-v188{flex:1 1 100%;color:#7b5700!important;font-weight:800}\n.promotion-sales-stats-v188{display:grid;grid-template-columns:1fr;gap:5px;min-width:0}\n@media(max-width:719px){\n  .minimum-freight-tier-grid-v188{grid-template-columns:1fr}\n  .promotion-price-row-v183{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;padding:8px}\n  .promotion-product-copy-v183{grid-column:1/-1}\n  .promotion-sales-stats-v188{grid-column:1/-1;grid-template-columns:1fr 1fr}\n  .promotion-price-row-v183>span{min-width:0}\n  .promotion-price-row-v183 b{white-space:normal;overflow-wrap:anywhere}\n}\n
+
+
+/* V19.5 — promotion list keeps the compact legacy row layout; names wrap fully. */
+.minimum-freight-tier-grid-v188{grid-template-columns:repeat(2,minmax(0,1fr))}
+#promotionPriceListV183{display:grid;gap:0;min-width:0}
+.promotion-price-row-v183{display:grid;grid-template-columns:minmax(250px,1.6fr) minmax(150px,.85fr) repeat(4,minmax(105px,.72fr));gap:8px;align-items:center;padding:9px 8px;border-bottom:1px solid #e7ece9;background:#fff;font-size:13px;min-width:0}
+.promotion-price-row-v183.excluded{background:#fff9e9}
+.promotion-price-row-v183>span,.promotion-sales-stats-v188>span{display:grid;min-width:0;border:1px solid #cbe5d3;border-radius:8px;background:#edf8f0;padding:6px 7px;gap:2px}
+.promotion-price-row-v183.excluded>span,.promotion-price-row-v183.excluded .promotion-sales-stats-v188>span{background:#fffaf0;border-color:#ecd99d}
+.promotion-price-row-v183 small{font-size:11px;color:#66736b}
+.promotion-price-row-v183 b{font-size:13px;color:#17211b;white-space:nowrap}
+.promotion-price-row-v183.loss .promotion-profit-v188 b{color:#c52525}.promotion-price-row-v183.gain .promotion-profit-v188 b{color:#16733b}
+.promotion-product-copy-v183{display:flex!important;flex-wrap:wrap;align-items:center;gap:5px 7px;min-width:0}
+.promotion-product-copy-v183 .promotion-product-name-v183{flex:1 1 100%;display:block!important;width:100%!important;max-width:100%!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:anywhere;border:0!important;background:transparent!important;padding:0!important;color:#17211b!important;font:inherit!important;font-weight:800!important;text-align:left!important;text-decoration:underline dotted;cursor:pointer}
+.promotion-excluded-note-v188{flex:1 1 100%;color:#7b5700!important;font-weight:800}
+.promotion-sales-stats-v188{display:grid;grid-template-columns:1fr;gap:5px;min-width:0}
+@media(max-width:719px){
+  .minimum-freight-tier-grid-v188{grid-template-columns:1fr}
+  .promotion-price-row-v183{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;padding:8px}
+  .promotion-product-copy-v183{grid-column:1/-1}
+  .promotion-sales-stats-v188{grid-column:1/-1;grid-template-columns:1fr 1fr}
+  .promotion-price-row-v183>span{min-width:0}
+  .promotion-price-row-v183 b{white-space:normal;overflow-wrap:anywhere}
+}
+
 /* V19.5 — promotion price list: desktop stays one row; sales stats match Inventory Management. */
 .promotion-price-row-v183{
   grid-template-columns:minmax(230px,1.55fr) 108px repeat(4,minmax(96px,.68fr));
@@ -4946,7 +4970,9 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
   .promotion-sales-stats-v188{grid-column:2/3;grid-row:1/2;width:104px;justify-self:end}
   .promotion-price-row-v183>span{grid-column:auto}
 }
-\n\n/* V19.5 — Promotion price list uses the exact Inventory Management card language on desktop and mobile. */
+
+
+/* V19.5 — Promotion price list uses the exact Inventory Management card language on desktop and mobile. */
 #promotionPriceListV183.promotion-inventory-list-v190{display:grid;gap:10px;min-width:0}
 .promotion-inventory-card-v190{min-width:0}
 .promotion-inventory-card-v190.excluded{background:#fff9e9;border-color:#e9c56e}
@@ -5820,7 +5846,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .master-price-main-v266{display:block;text-align:right;white-space:nowrap}.master-price-badge-v266{display:block;text-align:right;font-size:11px;line-height:1.1;margin-top:2px}.master-price-badge-v266 .inventory-promotion-margin-v209{margin:0}
 @media(max-width:700px){.inventory-sales-summary-v146{transform:translateY(10px)}.product-stock-english-edit-btn-v266{font-size:17px;font-weight:800}}
 
-/* V30.0 UI-only refinements; no sync-path changes. */
+/* V30.1 UI-only refinements; no sync-path changes. */
 .product-master-query-v267{margin-bottom:14px}
 .product-master-query-v267 .batch-product-search{width:100%;max-width:none}
 .master-price-loss-v264 .master-price-main-v266,.master-price-loss-v264 .master-price-badge-v266{color:#d11b1b!important;font-weight:800}
@@ -5832,6 +5858,32 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
   .bottom-nav .nav-btn small{line-height:1.05}
 }
 
-/* V30.0 product-management minimum price follows homepage profit color. */
+/* V30.1 product-management minimum price follows homepage profit color. */
 .product-stock-minimum-price-loss-v268 strong,.product-stock-minimum-price-loss-v268 .inventory-promotion-margin-v209{color:#c62828!important}
 .product-stock-minimum-price-gain-v268 strong,.product-stock-minimum-price-gain-v268 .inventory-promotion-margin-v209{color:#177245!important}
+
+
+/* V30.3 focused performance/UI refinements; no extra sync requests. */
+.minimum-price-gain-v302 strong,.minimum-price-gain-v302{color:#087a43!important;}
+.minimum-price-loss-v302 strong,.minimum-price-loss-v302{color:#c62828!important;}
+.minimum-price-neutral-v302 strong,.minimum-price-neutral-v302{color:inherit;}
+.original-cost-minimum-price-btn.minimum-price-gain-v302{color:#087a43!important;}
+.original-cost-minimum-price-btn.minimum-price-loss-v302{color:#c62828!important;}
+.product-stock-english-edit-btn-v266{-webkit-appearance:none!important;appearance:none!important;border:0!important;border-radius:0!important;box-shadow:none!important;outline:0;background:transparent!important;padding-left:0!important;padding-right:0!important;}
+.media-label-mobile-v302{display:none;}
+.media-label-desktop-v302{display:inline;}
+@media(max-width:719px){
+  .inventory-manage-head{grid-template-areas:"identity identity" "batches batches" "media sold"!important;}
+  .inventory-media-links-v229{grid-area:media!important;margin-top:6px!important;align-self:start;}
+  .inventory-sold-quantity{grid-area:sold!important;align-self:start!important;margin-top:6px!important;}
+  .media-label-mobile-v302{display:inline;}
+  .media-label-desktop-v302{display:none;}
+  .inventory-media-item-v229{grid-template-columns:minmax(0,1fr) 64px 64px!important;}
+  .inventory-media-add-v229,.inventory-media-open-v230{min-height:44px!important;display:flex!important;align-items:center!important;justify-content:flex-start!important;font-size:1.08rem!important;font-weight:800!important;}
+  .inventory-media-item-v229.no-media-v302 .inventory-media-add-v229{background:#f7fbf8!important;color:#486257!important;border-color:#d6e2da!important;}
+  .original-cost-table-wrap{width:100%;max-width:100%;overflow-x:auto!important;overscroll-behavior-x:contain;}
+  .original-cost-table{min-width:860px!important;width:860px!important;}
+}
+
+/* V30.3 Profit Management — local draft only; one cloud write on final confirm. */
+.profit-batch-rate-v303{display:flex;align-items:end;gap:8px;margin:8px 0}.profit-batch-rate-v303 label{display:grid;gap:5px;font-weight:700}.profit-batch-rate-v303 input{max-width:150px}.profit-override-actions-v303{display:flex;gap:6px;flex-wrap:wrap}.promotion-excluded-row-v183 .loss{color:#c52525}.promotion-excluded-row-v183 .gain{color:#16733b}@media(max-width:719px){.profit-batch-rate-v303 input{max-width:120px}.profit-override-actions-v303{justify-content:flex-end}}
