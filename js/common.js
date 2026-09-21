@@ -1,4 +1,4 @@
-const APP_VERSION = "31.6";
+const APP_VERSION = "31.8";
 
 function formatMoney(value, prefix = "") {
   const number = Number(value) || 0;
@@ -22,6 +22,26 @@ function loadJSON(key, fallback) {
     return raw ? JSON.parse(raw) : fallback;
   } catch (error) {
     console.error("Unable to read local data:", error);
+    return fallback;
+  }
+}
+
+
+// V31.8: read-only JSON cache. It compares the raw localStorage string on every
+// read, so direct writes from sync/restore are picked up immediately while
+// repeated settings reads during large renders avoid repeated JSON.parse work.
+const readOnlyJsonCacheV317 = new Map();
+function loadJSONReadOnlyV317(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const cached = readOnlyJsonCacheV317.get(key);
+    if (cached && cached.raw === raw) return cached.value;
+    const value = JSON.parse(raw);
+    readOnlyJsonCacheV317.set(key, { raw, value });
+    return value;
+  } catch (error) {
+    console.error("Unable to read cached local data:", error);
     return fallback;
   }
 }
