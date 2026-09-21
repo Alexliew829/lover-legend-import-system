@@ -5863,7 +5863,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .product-stock-minimum-price-gain-v268 strong,.product-stock-minimum-price-gain-v268 .inventory-promotion-margin-v209{color:#177245!important}
 
 
-/* V30.3 focused performance/UI refinements; no extra sync requests. */
+/* V30.4 focused performance/UI refinements; no extra sync requests. */
 .minimum-price-gain-v302 strong,.minimum-price-gain-v302{color:#087a43!important;}
 .minimum-price-loss-v302 strong,.minimum-price-loss-v302{color:#c62828!important;}
 .minimum-price-neutral-v302 strong,.minimum-price-neutral-v302{color:inherit;}
@@ -5885,5 +5885,5 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
   .original-cost-table{min-width:860px!important;width:860px!important;}
 }
 
-/* V30.3 Profit Management — local draft only; one cloud write on final confirm. */
+/* V30.4 Profit Management — local draft only; one cloud write on final confirm. */
 .profit-batch-rate-v303{display:flex;align-items:end;gap:8px;margin:8px 0}.profit-batch-rate-v303 label{display:grid;gap:5px;font-weight:700}.profit-batch-rate-v303 input{max-width:150px}.profit-override-actions-v303{display:flex;gap:6px;flex-wrap:wrap}.promotion-excluded-row-v183 .loss{color:#c52525}.promotion-excluded-row-v183 .gain{color:#16733b}@media(max-width:719px){.profit-batch-rate-v303 input{max-width:120px}.profit-override-actions-v303{justify-content:flex-end}}
