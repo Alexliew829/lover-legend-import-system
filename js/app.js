@@ -117,7 +117,7 @@ const historySalesDetailsByLinkV134 = new Map();
 const historySalesContextLoadedV134 = new Set();
 const historySalesContextLoadingV134 = new Map();
 let historyLookupRenderTokenV134 = 0;
-// V30.4: keep keystroke painting separate from expensive filtering/rendering.
+// V30.5: keep keystroke painting separate from expensive filtering/rendering.
 // No network request is added; only the latest pending local render is executed.
 const searchRenderTimersV302 = new Map();
 function scheduleSearchRenderV302(key, fn, delay = 34) {
@@ -2339,7 +2339,7 @@ function setupAccessLock() {
     document.documentElement.classList.remove("access-lock-ready");
 
     const startAutomaticLoginV304 = async () => {
-      // V30.4: no network request is added. A phone with an existing local
+      // V30.5: no network request is added. A phone with an existing local
       // passkey starts WebAuthn immediately; the password card stays hidden
       // only during that local check so it does not flash before Face ID.
       const biometricUsed = await tryBiometricLogin({ automatic: true });
@@ -3401,7 +3401,7 @@ function renderDashboardPromotionStatusV208() {
     return;
   }
   const day = getPromotionRunningDayV208(promotion.createdAt);
-  target.textContent = `利润管理已开启 · 第${day}天`;
+  target.textContent = `“${String(promotion.name || "年尾清货").trim() || "年尾清货"}”第${day}天`;
   target.hidden = false;
 }
 
@@ -4208,12 +4208,27 @@ function parsePromotionPercentV211(value) {
   return Number.isFinite(parsed) ? parsed : NaN;
 }
 
+function parsePromotionMarginIntegerV305(value, fallback = 30) {
+  const normalized = String(value ?? "").trim().replace(/[％%]/g, "").replace(/\s+/g, "");
+  if (!normalized) return Number(fallback);
+  if (!/^-?(?:0|[1-9]\d*)$/.test(normalized)) return NaN;
+  const parsed = Number(normalized);
+  return Number.isInteger(parsed) ? parsed : NaN;
+}
+
+function normalizePromotionMarginInputV305(input, fallback = 30) {
+  if (!input) return Number(fallback);
+  const parsed = parsePromotionMarginIntegerV305(input.value, fallback);
+  if (Number.isFinite(parsed)) input.value = String(parsed);
+  return parsed;
+}
+
 function getPromotionDraftV183() {
   return {
     active: true,
     name: String(document.getElementById("promotionNameV183")?.value || "年尾清货").trim() || "年尾清货",
     commissionRate: parsePromotionPercentV211(document.getElementById("promotionCommissionV183")?.value),
-    targetMarginRate: parsePromotionPercentV211(document.getElementById("promotionMarginV183")?.value),
+    targetMarginRate: parsePromotionMarginIntegerV305(document.getElementById("promotionMarginV183")?.value, 30),
     productMarginOverrides: { ...promotionMarginOverridesDraftV303 }
   };
 }
@@ -4243,7 +4258,7 @@ function resetPromotionDraftV183() {
   if (nameInput) nameInput.value = String(active?.name || "年尾清货");
   if (commissionInput) commissionInput.value = String(active?.commissionRate ?? 10);
   if (marginInput) marginInput.value = String(active?.targetMarginRate ?? 30);
-  if (batchInput && !batchInput.value.trim()) batchInput.value = String(active?.targetMarginRate ?? 30);
+  if (batchInput) batchInput.value = String(active?.targetMarginRate ?? 30);
   promotionMarginOverridesDraftV303 = { ...(active?.productMarginOverrides || {}) };
   promotionSearchSelectionV184 = new Set();
   renderPromotionExcludedListV183();
@@ -4349,7 +4364,7 @@ function updatePromotionDraftStatusV186() {
   const save = document.getElementById("savePromotionV183");
   const changed = hasPromotionDraftChangesV183();
   if (save) {
-    save.textContent = active ? "确认更新利润管理" : "确认并开启利润管理";
+    save.textContent = active ? "更新促销设置" : "确认并开启利润管理";
     save.disabled = Boolean(active) && !changed;
   }
   if (!notice) return;
@@ -4462,7 +4477,7 @@ async function refreshPromotionCloudStateV209(force = false) {
   if (!force && (promotionCloudRefreshBusyV209 || now - promotionCloudRefreshLastAtV209 < 1500)) return false;
   promotionCloudRefreshBusyV209 = true; promotionCloudRefreshLastAtV209 = now;
   try { await pullLatestAfterSalesCommitV83(false); if (!promotionDraftTouchedV209) resetPromotionDraftV183(); refreshPromotionUiV183(); renderDashboard(); renderInventoryManagementList(); return true; }
-  catch (error) { console.warn("V30.4 profit management cloud refresh skipped:", error); return false; }
+  catch (error) { console.warn("V30.5 profit management cloud refresh skipped:", error); return false; }
   finally { promotionCloudRefreshBusyV209 = false; }
 }
 window.refreshPromotionCloudStateV209 = refreshPromotionCloudStateV209;
@@ -4491,8 +4506,17 @@ function refreshPromotionUiV183() {
   const deleteButton = document.getElementById("deletePromotionV183");
   const toggleButton = document.getElementById("togglePromotionPriceListV183");
   const status = document.getElementById("promotionStatusV183");
-  if (summary) { summary.textContent = promotion ? `已开启 · 默认 ${formatProfitTargetV303(promotion.targetMarginRate)}` : ""; summary.hidden = !promotion; summary.classList.toggle("promotion-active-summary-v191", Boolean(promotion)); }
-  if (status) { status.textContent = promotion ? `利润管理已开启：默认 ${formatProfitTargetV303(promotion.targetMarginRate)} · 自定义 ${Object.keys(promotion.productMarginOverrides || {}).length} 项` : ""; status.classList.toggle("promotion-status-active-v193", Boolean(promotion)); }
+  if (summary) {
+    const name = String(promotion?.name || "年尾清货").trim() || "年尾清货";
+    summary.textContent = promotion ? `已开启“${name}” · 默认 ${formatProfitTargetV303(promotion.targetMarginRate)}` : "";
+    summary.hidden = !promotion;
+    summary.classList.toggle("promotion-active-summary-v191", Boolean(promotion));
+  }
+  if (status) {
+    const name = String(promotion?.name || "年尾清货").trim() || "年尾清货";
+    status.textContent = promotion ? `“${name}”已开启：默认 ${formatProfitTargetV303(promotion.targetMarginRate)} · 自定义 ${Object.keys(promotion.productMarginOverrides || {}).length} 项` : "";
+    status.classList.toggle("promotion-status-active-v193", Boolean(promotion));
+  }
   if (deleteButton) deleteButton.hidden = !promotion;
   if (toggleButton) toggleButton.hidden = !promotion;
 }
@@ -4539,6 +4563,15 @@ function setupPromotionSettingsV183() {
   if (!window.promotionCloudRefreshBoundV209) { window.promotionCloudRefreshBoundV209 = true; window.addEventListener("focus", () => refreshPromotionCloudStateV209(false)); document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshPromotionCloudStateV209(false); }); }
   resetPromotionDraftV183(); refreshPromotionUiV183();
   [nameInput, commissionInput, marginInput].forEach(input => input?.addEventListener("input", () => { promotionDraftTouchedV209 = true; updatePromotionDraftStatusV186(); if (pricePanel && !pricePanel.hidden) renderPromotionPriceListV183(); }));
+  marginInput?.addEventListener("blur", () => {
+    const parsed = normalizePromotionMarginInputV305(marginInput, 30);
+    if (!Number.isFinite(parsed)) { window.alert("目标利润率请输入完整整数，例如 9、30、40 或 -5；不要输入 09 或小数。留空会使用默认 30%。"); marginInput.value = "30"; }
+    promotionDraftTouchedV209 = true; updatePromotionDraftStatusV186();
+  });
+  batchMarginInput?.addEventListener("blur", () => {
+    const parsed = normalizePromotionMarginInputV305(batchMarginInput, 30);
+    if (!Number.isFinite(parsed)) { window.alert("这批目标利润率请输入完整整数，例如 9、30、40 或 -5；不要输入 09 或小数。留空会使用默认 30%。"); batchMarginInput.value = "30"; }
+  });
   searchInput?.addEventListener("input", () => scheduleSearchRenderV302("profit-management", renderPromotionExcludeSearchV183));
   filterInput?.addEventListener("change", renderPromotionExcludeSearchV183);
   selectAllSearch?.addEventListener("change", () => {
@@ -4550,8 +4583,8 @@ function setupPromotionSettingsV183() {
   document.getElementById("promotionPendingSelectionV193")?.addEventListener("click", event => { const button=event.target.closest("[data-remove-pending-v193]"); if(!button)return; promotionSearchSelectionV184.delete(String(button.dataset.removePendingV193||"").toUpperCase()); renderPromotionExcludeSearchV183(); });
   stageSelected?.addEventListener("click", () => {
     const commission = parsePromotionPercentV211(commissionInput?.value);
-    const margin = parsePromotionPercentV211(batchMarginInput?.value);
-    if (!Number.isFinite(commission) || commission < 0 || commission >= 100 || !validateProfitMarginV303(margin, commission)) { alert("这批目标利润率与主播佣金组合无效，请重新输入。"); return; }
+    const margin = parsePromotionMarginIntegerV305(batchMarginInput?.value, 30);
+    if (!Number.isFinite(commission) || commission < 0 || commission >= 100 || !validateProfitMarginV303(margin, commission)) { alert("这批目标利润率请输入完整整数（例如 9、30、40、-5；不能 09 或小数），并确认与主播佣金组合有效。留空默认 30%。"); return; }
     const ids = [...promotionSearchSelectionV184]; if (!ids.length) return;
     ids.forEach(id => { promotionMarginOverridesDraftV303[id] = margin; });
     promotionSearchSelectionV184.clear(); promotionDraftTouchedV209 = true;
@@ -4561,19 +4594,19 @@ function setupPromotionSettingsV183() {
     const remove = event.target.closest("[data-remove-promotion-exclusion]");
     if (remove) { delete promotionMarginOverridesDraftV303[String(remove.dataset.removePromotionExclusion||"").toUpperCase()]; promotionDraftTouchedV209=true; renderPromotionExcludedListV183(); renderPromotionExcludeSearchV183(); return; }
     const edit = event.target.closest("[data-edit-profit-margin-v303]");
-    if (edit) { const id=String(edit.dataset.editProfitMarginV303||"").toUpperCase(); const old=promotionMarginOverridesDraftV303[id]; const entered=prompt("输入这个产品的目标利润率（可输入负数，例如 -5）", String(old ?? 30)); if(entered===null)return; const commission=parsePromotionPercentV211(commissionInput?.value); const margin=parsePromotionPercentV211(entered); if(!validateProfitMarginV303(margin,commission)){alert("目标利润率与主播佣金组合无效。");return;} promotionMarginOverridesDraftV303[id]=margin; promotionDraftTouchedV209=true; renderPromotionExcludedListV183(); }
+    if (edit) { const id=String(edit.dataset.editProfitMarginV303||"").toUpperCase(); const old=promotionMarginOverridesDraftV303[id]; const entered=prompt("输入这个产品的目标利润率（可输入负数，例如 -5）", String(old ?? 30)); if(entered===null)return; const commission=parsePromotionPercentV211(commissionInput?.value); const margin=parsePromotionMarginIntegerV305(entered, 30); if(!validateProfitMarginV303(margin,commission)){alert("目标利润率请输入完整整数（例如 9、30、40、-5；不能 09 或小数），并确认与主播佣金组合有效。留空默认 30%。");return;} promotionMarginOverridesDraftV303[id]=margin; promotionDraftTouchedV209=true; renderPromotionExcludedListV183(); }
   });
   saveButton.addEventListener("click", async () => {
     const promotion = getPromotionDraftV183();
     if (!Number.isFinite(promotion.commissionRate) || promotion.commissionRate < 0 || promotion.commissionRate >= 100) { if(status)status.textContent="主播佣金必须是0至99.99之间"; return; }
-    if (!validateProfitMarginV303(promotion.targetMarginRate, promotion.commissionRate)) { if(status)status.textContent="默认目标利润率与佣金组合无效"; return; }
+    if (!validateProfitMarginV303(promotion.targetMarginRate, promotion.commissionRate)) { if(status)status.textContent="默认目标利润率请输入完整整数（不能 09 或小数）；留空使用 30%，并确认与佣金组合有效"; return; }
     for (const [id, margin] of Object.entries(promotion.productMarginOverrides)) { if (!validateProfitMarginV303(Number(margin), promotion.commissionRate)) { if(status)status.textContent=`${id} 的自定义目标利润率无效`; return; } }
     const currentActive = getPromotionSettingsV183();
     const manualCount = getProducts().filter(p => isMinimumPriceManualV160(p)).length;
     const customCount = Object.keys(promotion.productMarginOverrides).length;
-    if (!confirm(`确认${currentActive ? "更新" : "开启"}利润管理？\n\n活动名称：${promotion.name}\n主播佣金：${promotion.commissionRate}%\n默认目标利润率：${formatProfitTargetV303(promotion.targetMarginRate)}\n自定义产品：${customCount} 项\n手动最低售价保护：${manualCount} 项\n\n手动最低售价不会受影响；其余产品立即按默认或自定义利润率计算。`)) return;
+    if (!confirm(`确认${currentActive ? "更新促销设置" : "开启利润管理"}？\n\n活动名称：${promotion.name}\n主播佣金：${promotion.commissionRate}%\n默认目标利润率：${formatProfitTargetV303(promotion.targetMarginRate)}\n自定义产品：${customCount} 项\n手动最低售价保护：${manualCount} 项\n\n手动最低售价不会受影响；其余产品立即按默认或自定义利润率计算。`)) return;
     const now=new Date().toISOString(); const payload={...promotion,active:true,createdAt:currentActive?.createdAt||now,updatedAt:now};
-    saveButton.disabled=true; if(deleteButton)deleteButton.disabled=true; if(status)status.textContent="正在确认并同步利润管理…";
+    saveButton.disabled=true; if(deleteButton)deleteButton.disabled=true; if(status)status.textContent=currentActive?"正在更新促销设置并同步…":"正在确认并同步利润管理…";
     try { await updatePromotionSettingsFastV185(payload); const settings=loadJSON("importSystemSettings",{}); saveJSON("importSystemSettings",{...settings,promotionV183:payload}); promotionDraftTouchedV209=false; resetPromotionDraftV183(); refreshPromotionUiV183(); renderDashboard(); renderInventoryManagementList(); renderProductList(); if(pricePanel&&!pricePanel.hidden)renderPromotionPriceListV183(); }
     catch(error){ if(status)status.textContent=`利润管理没有保存：${String(error?.message||error)}`; }
     finally{ saveButton.disabled=false; if(deleteButton)deleteButton.disabled=false; }
@@ -5654,7 +5687,7 @@ function renderProductList() {
   const searchNode = document.getElementById("productSearch");
   const list = document.getElementById("productList");
   const count = document.getElementById("productListCount");
-  // V30.4: legacy Product List UI was removed; callers may still refresh it.
+  // V30.5: legacy Product List UI was removed; callers may still refresh it.
   // Exit quietly instead of turning a successful Profit Management save into an error.
   if (!searchNode || !list || !count) return;
   const products = getProducts();
@@ -8694,7 +8727,7 @@ function setupImportHistory() {
   };
 
   button?.addEventListener("click", () => {
-    // V30.4: let the tap/typed text paint first, then run the existing local history scan.
+    // V30.5: let the tap/typed text paint first, then run the existing local history scan.
     normalizeHistoryDateField(startInput, startPicker);
     normalizeHistoryDateField(endInput, endPicker);
     lastCompletedHistoryLookup = "";
@@ -15158,7 +15191,7 @@ function normalizeMinimumPriceInput(value) {
 }
 
 async function editDisplayedMinimumPriceV199(productId) {
-  // V30.4: direct minimum-price edits are always the product's manual minimum price.
+  // V30.5: direct minimum-price edits are always the product's manual minimum price.
   // Manual prices have highest priority and are never changed by Profit Management.
   return editProductMinimumPrice(String(productId || "").trim());
 }
@@ -16458,12 +16491,113 @@ async function saveProductMediaLinkWithStatusV252(productId, type, url, triggerB
   }
 }
 
+function getGoogleDriveFileIdV305(url) {
+  const text = String(url || "").trim();
+  if (!text) return "";
+  const patterns = [
+    /\/file\/d\/([^/?#]+)/i,
+    /[?&]id=([^&#]+)/i,
+    /\/d\/([^/?#]+)/i
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) return decodeURIComponent(match[1]);
+  }
+  return "";
+}
+
+function getSystemMediaSourceV305(url) {
+  const original = String(url || "").trim();
+  const fileId = getGoogleDriveFileIdV305(original);
+  if (!fileId) return original;
+  // Direct file content avoids the Google Drive viewer UI (Gemini / Summarize).
+  return `https://drive.usercontent.google.com/download?id=${encodeURIComponent(fileId)}&export=download&confirm=t`;
+}
+
+function closeSystemMediaPreviewV305() {
+  const modal = document.getElementById("systemMediaPreviewV305");
+  if (!modal) return;
+  if (modal._systemMediaKeyHandlerV305) document.removeEventListener("keydown", modal._systemMediaKeyHandlerV305);
+  const video = modal.querySelector("video");
+  if (video) {
+    try { video.pause(); } catch (_) {}
+    video.removeAttribute("src");
+    try { video.load(); } catch (_) {}
+  }
+  const image = modal.querySelector("img");
+  if (image) image.removeAttribute("src");
+  modal.remove();
+  document.body.classList.remove("system-media-preview-open-v305");
+}
+window.closeSystemMediaPreviewV305 = closeSystemMediaPreviewV305;
+
+function openSystemMediaPreviewV305(type, url, label = "") {
+  closeSystemMediaPreviewV305();
+  const mediaType = type === "video" ? "video" : "photo";
+  const source = getSystemMediaSourceV305(url);
+  if (!source) { window.alert("尚未上传"); return; }
+
+  const modal = document.createElement("div");
+  modal.id = "systemMediaPreviewV305";
+  modal.className = "system-media-preview-v305";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.innerHTML = `<div class="system-media-shell-v305">
+    <button type="button" class="system-media-close-v305" aria-label="关闭预览">×</button>
+    <div class="system-media-stage-v305"></div>
+    <div class="system-media-message-v305" hidden></div>
+  </div>`;
+  document.body.appendChild(modal);
+  document.body.classList.add("system-media-preview-open-v305");
+
+  const stage = modal.querySelector(".system-media-stage-v305");
+  const message = modal.querySelector(".system-media-message-v305");
+  const fail = () => {
+    if (message) {
+      message.hidden = false;
+      message.textContent = `无法直接显示${mediaType === "video" ? "视频" : "照片"}。请确认 Google Drive 分享权限允许使用链接查看。`;
+    }
+  };
+
+  if (mediaType === "video") {
+    const video = document.createElement("video");
+    video.className = "system-media-video-v305";
+    video.controls = true;
+    video.playsInline = true;
+    video.preload = "metadata";
+    video.autoplay = true;
+    video.src = source;
+    video.setAttribute("aria-label", label || "视频预览");
+    video.addEventListener("error", fail, { once:true });
+    stage.appendChild(video);
+    const playPromise = video.play();
+    if (playPromise?.catch) playPromise.catch(() => {});
+  } else {
+    const image = document.createElement("img");
+    image.className = "system-media-photo-v305";
+    image.alt = label || "照片预览";
+    image.decoding = "async";
+    image.src = source;
+    image.addEventListener("error", fail, { once:true });
+    stage.appendChild(image);
+  }
+
+  modal.querySelector(".system-media-close-v305")?.addEventListener("click", closeSystemMediaPreviewV305);
+  modal.addEventListener("click", event => { if (event.target === modal) closeSystemMediaPreviewV305(); });
+  const onKey = event => {
+    if (event.key === "Escape") closeSystemMediaPreviewV305();
+  };
+  modal._systemMediaKeyHandlerV305 = onKey;
+  document.addEventListener("keydown", onKey);
+}
+window.openSystemMediaPreviewV305 = openSystemMediaPreviewV305;
+
 function renderProductMediaButtonsV229(productId, mediaMap = null) {
   const media = (mediaMap || getProductMediaLinksV229())[String(productId || "")] || {};
   const item = (type, label) => {
     const url = String(media[type] || "").trim();
     const main = url
-      ? `<a class="inventory-media-open-v230 inventory-media-saved-v254 inventory-media-${type}-v254" href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer" aria-label="打开${label}">${label}</a>`
+      ? `<button type="button" class="inventory-media-open-v230 inventory-media-saved-v254 inventory-media-${type}-v254" data-media-open-product-v305="${escapeHTML(productId)}" data-media-open-type-v305="${type}" data-media-open-url-v305="${escapeHTML(url)}" aria-label="打开${label}">${label}</button>`
       : `<button type="button" class="inventory-media-add-v229" data-media-add-product-v229="${escapeHTML(productId)}" data-media-add-type-v229="${type}">${label}</button>`;
     return `<span class="inventory-media-item-v229 ${url ? "has-media-v302" : "no-media-v302"}">${main}<button type="button" class="inventory-media-copy-v229" data-media-product-v229="${escapeHTML(productId)}" data-media-type-v229="${type}">复制</button><button type="button" class="inventory-media-delete-v229" data-media-delete-product-v229="${escapeHTML(productId)}" data-media-delete-type-v229="${type}" aria-label="删除${label}链接">删除</button></span>`;
   };
@@ -16481,6 +16615,13 @@ function bindInventoryMediaLinksV229() {
   if (!list || list.dataset.mediaBoundV229 === "1") return;
   list.dataset.mediaBoundV229 = "1";
   list.addEventListener("click", async event => {
+    const open = event.target.closest("[data-media-open-product-v305]");
+    if (open) {
+      const type = String(open.dataset.mediaOpenTypeV305 || "").trim();
+      const url = String(open.dataset.mediaOpenUrlV305 || "").trim();
+      openSystemMediaPreviewV305(type, url, type === "video" ? "视频" : "照片");
+      return;
+    }
     const add = event.target.closest("[data-media-add-product-v229]");
     if (add) {
       if (isInventoryMediaSaveInProgressV252()) {
@@ -17359,7 +17500,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "30.4",
+      version: "30.5",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -17726,7 +17867,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V30.4 Stable",
+      updatedBy: "System V30.5 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -17872,7 +18013,7 @@ function productNameWithEnglishV262(product){const en=productEnglishNameV262(pro
 function rememberProductLanguageV262(productId, chineseName, englishName){const id=String(productId||"").toUpperCase();if(!id)return;const meta=getProductLanguageMetaV262();meta[id]={chineseName:String(chineseName||"").trim(),englishName:String(englishName||"").trim()};saveProductLanguageMetaV262(meta)}
 function inferSimpleBilingualV262(text){const raw=String(text||"").trim();const rule=speciesRuleV262(raw);return{chineseName:rule?.cn||(/[\u3400-\u9fff]/.test(raw)?raw:""),englishName:rule?.en||(!/[\u3400-\u9fff]/.test(raw)?raw.replace(/\b(?:P?\d{2,4}|\d+(?:\.\d+)?C|\d+[xX]\d+)\b.*$/i,"").trim():""),prefix:rule?.prefix||""}}
 
-// ================= V30.4 Product Inventory Master =================
+// ================= V30.5 Product Inventory Master =================
 const SUPPLIER_ALIASES_V261 = Object.freeze([
   {names:["Ocean Landscaping","Ocean Landscaping Nursery"],prefix:"OLN",currency:"MYR"},{names:["JM Gardening","JM Landscape","JM Nursery"],prefix:"JMG",currency:"MYR"},{names:["Soong Huat Enterprise","Soong Huat Cameron"],prefix:"SHE",currency:"MYR"},{names:["Tan Ah Hwang Nursery"],prefix:"TAH",currency:"MYR"},{names:["Tan Kok Leyong","Tan Kok Leyong Nursery"],prefix:"TKL",currency:"MYR"},{names:["Wong Wan Choi"],prefix:"WWC",currency:"MYR"},{names:["忠盛"],prefix:"忠盛",currency:"CNY"},{names:["大厚"],prefix:"大厚",currency:"CNY"},{names:["游小北"],prefix:"游小北",currency:"CNY"},{names:["昊杨"],prefix:"昊杨",currency:"CNY"},{names:["松美轩"],prefix:"松美轩",currency:"CNY"}
 ]);
