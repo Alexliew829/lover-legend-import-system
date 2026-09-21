@@ -117,7 +117,7 @@ const historySalesDetailsByLinkV134 = new Map();
 const historySalesContextLoadedV134 = new Set();
 const historySalesContextLoadingV134 = new Map();
 let historyLookupRenderTokenV134 = 0;
-// V30.9: keep keystroke painting separate from expensive filtering/rendering.
+// V31.0: keep keystroke painting separate from expensive filtering/rendering.
 // No network request is added; only the latest pending local render is executed.
 const searchRenderTimersV302 = new Map();
 function scheduleSearchRenderV302(key, fn, delay = 34) {
@@ -2339,7 +2339,7 @@ function setupAccessLock() {
     document.documentElement.classList.remove("access-lock-ready");
 
     const startAutomaticLoginV304 = async () => {
-      // V30.9: no network request is added. A phone with an existing local
+      // V31.0: no network request is added. A phone with an existing local
       // passkey starts WebAuthn immediately; the password card stays hidden
       // only during that local check so it does not flash before Face ID.
       const biometricUsed = await tryBiometricLogin({ automatic: true });
@@ -4477,7 +4477,7 @@ async function refreshPromotionCloudStateV209(force = false) {
   if (!force && (promotionCloudRefreshBusyV209 || now - promotionCloudRefreshLastAtV209 < 1500)) return false;
   promotionCloudRefreshBusyV209 = true; promotionCloudRefreshLastAtV209 = now;
   try { await pullLatestAfterSalesCommitV83(false); if (!promotionDraftTouchedV209) resetPromotionDraftV183(); refreshPromotionUiV183(); renderDashboard(); renderInventoryManagementList(); return true; }
-  catch (error) { console.warn("V30.9 profit management cloud refresh skipped:", error); return false; }
+  catch (error) { console.warn("V31.0 profit management cloud refresh skipped:", error); return false; }
   finally { promotionCloudRefreshBusyV209 = false; }
 }
 window.refreshPromotionCloudStateV209 = refreshPromotionCloudStateV209;
@@ -5687,7 +5687,7 @@ function renderProductList() {
   const searchNode = document.getElementById("productSearch");
   const list = document.getElementById("productList");
   const count = document.getElementById("productListCount");
-  // V30.9: legacy Product List UI was removed; callers may still refresh it.
+  // V31.0: legacy Product List UI was removed; callers may still refresh it.
   // Exit quietly instead of turning a successful Profit Management save into an error.
   if (!searchNode || !list || !count) return;
   const products = getProducts();
@@ -8727,7 +8727,7 @@ function setupImportHistory() {
   };
 
   button?.addEventListener("click", () => {
-    // V30.9: let the tap/typed text paint first, then run the existing local history scan.
+    // V31.0: let the tap/typed text paint first, then run the existing local history scan.
     normalizeHistoryDateField(startInput, startPicker);
     normalizeHistoryDateField(endInput, endPicker);
     lastCompletedHistoryLookup = "";
@@ -15191,7 +15191,7 @@ function normalizeMinimumPriceInput(value) {
 }
 
 async function editDisplayedMinimumPriceV199(productId) {
-  // V30.9: direct minimum-price edits are always the product's manual minimum price.
+  // V31.0: direct minimum-price edits are always the product's manual minimum price.
   // Manual prices have highest priority and are never changed by Profit Management.
   return editProductMinimumPrice(String(productId || "").trim());
 }
@@ -16399,7 +16399,7 @@ function renderInventoryManagementList() {
 
 
 
-// V30.9: permanent local-only helper for Google Drive media filenames.
+// V31.0: permanent local-only helper for Google Drive media filenames.
 // It does not write data or touch the sync queue; it only builds text and copies it.
 function buildInventoryProductCopyNameV306(product) {
   const id = String(product?.id || product?.productId || "").trim().toUpperCase();
@@ -16572,10 +16572,17 @@ function getSystemMediaSourceV305(url) {
   const original = String(url || "").trim();
   const fileId = getGoogleDriveFileIdV305(original);
   if (!fileId) return original;
-  // V30.9: keep the direct original-file route first for best available quality.
-  // If Google Drive refuses direct streaming, openSystemMediaPreviewV305 falls back
-  // to the embedded Drive preview inside this same system modal.
-  return `https://drive.usercontent.google.com/download?id=${encodeURIComponent(fileId)}&export=download&confirm=t`;
+  return `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}&confirm=t`;
+}
+
+function getGoogleDriveDirectSourcesV310(url) {
+  const fileId = getGoogleDriveFileIdV305(url);
+  if (!fileId) return [];
+  const id = encodeURIComponent(fileId);
+  return [
+    `https://drive.google.com/uc?export=download&id=${id}&confirm=t`,
+    `https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t`
+  ];
 }
 
 function getGoogleDrivePreviewSourceV308(url) {
@@ -16597,6 +16604,8 @@ function closeSystemMediaPreviewV305() {
   }
   const image = modal.querySelector("img");
   if (image) image.removeAttribute("src");
+  const frame = modal.querySelector("iframe");
+  if (frame) frame.removeAttribute("src");
   modal.remove();
   document.body.classList.remove("system-media-preview-open-v305");
 }
@@ -16608,6 +16617,7 @@ function openSystemMediaPreviewV305(type, url, label = "") {
   const originalUrl = String(url || "").trim();
   const source = getSystemMediaSourceV305(originalUrl);
   const drivePreview = getGoogleDrivePreviewSourceV308(originalUrl);
+  const directVideoSources = getGoogleDriveDirectSourcesV310(originalUrl);
   if (!source) { window.alert("尚未上传"); return; }
 
   const modal = document.createElement("div");
@@ -16625,8 +16635,9 @@ function openSystemMediaPreviewV305(type, url, label = "") {
 
   const stage = modal.querySelector(".system-media-stage-v305");
   const message = modal.querySelector(".system-media-message-v305");
-  let fallbackStarted = false;
   let directTimer = 0;
+  let disposed = false;
+  let sourceIndex = 0;
 
   const clearDirectTimer = () => {
     if (directTimer) {
@@ -16635,30 +16646,45 @@ function openSystemMediaPreviewV305(type, url, label = "") {
     }
   };
 
-  const showFailure = () => {
-    clearDirectTimer();
-    if (message) {
-      message.hidden = false;
-      message.textContent = `无法显示${mediaType === "video" ? "视频" : "照片"}。请确认 Google Drive 文件仍存在，并允许使用链接查看。`;
+  const setMessage = (text, allowDriveOpen = false) => {
+    if (!message) return;
+    message.hidden = false;
+    message.innerHTML = "";
+    const textNode = document.createElement("span");
+    textNode.textContent = text;
+    message.appendChild(textNode);
+    if (allowDriveOpen && originalUrl) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "system-media-open-drive-v310";
+      btn.textContent = "Google Drive 打开";
+      btn.addEventListener("click", () => window.open(originalUrl, "_blank", "noopener"));
+      message.appendChild(btn);
     }
   };
 
-  const useDrivePreview = () => {
-    if (fallbackStarted) return;
-    fallbackStarted = true;
+  const clearStageMedia = () => {
     clearDirectTimer();
-    if (!drivePreview || !stage) { showFailure(); return; }
-
-    const existingVideo = stage.querySelector("video");
-    if (existingVideo) {
-      try { existingVideo.pause(); } catch (_) {}
-      existingVideo.removeAttribute("src");
-      try { existingVideo.load(); } catch (_) {}
+    if (!stage) return;
+    const video = stage.querySelector("video");
+    if (video) {
+      try { video.pause(); } catch (_) {}
+      video.removeAttribute("src");
+      try { video.load(); } catch (_) {}
     }
-    const existingImage = stage.querySelector("img");
-    if (existingImage) existingImage.removeAttribute("src");
+    const image = stage.querySelector("img");
+    if (image) image.removeAttribute("src");
+    const frame = stage.querySelector("iframe");
+    if (frame) frame.removeAttribute("src");
     stage.replaceChildren();
+  };
 
+  const useDrivePreview = () => {
+    if (disposed || !drivePreview || !stage) {
+      setMessage(`无法显示${mediaType === "video" ? "视频" : "照片"}。`, true);
+      return;
+    }
+    clearStageMedia();
     const frame = document.createElement("iframe");
     frame.className = "system-media-drive-frame-v308";
     frame.src = drivePreview;
@@ -16666,34 +16692,64 @@ function openSystemMediaPreviewV305(type, url, label = "") {
     frame.allow = "autoplay; fullscreen; picture-in-picture";
     frame.allowFullscreen = true;
     frame.referrerPolicy = "no-referrer-when-downgrade";
-    frame.addEventListener("error", showFailure, { once:true });
     stage.appendChild(frame);
     if (message) message.hidden = true;
+    // iframe load only means the preview page loaded. If Drive itself blocks playback,
+    // the user can still use the explicit original-link fallback from the message.
+    directTimer = window.setTimeout(() => {
+      if (!disposed && frame.isConnected) setMessage("如果视频没有出现，可使用 Google Drive 打开。", true);
+    }, 9000);
+  };
+
+  const tryNextVideoSource = () => {
+    if (disposed || !stage) return;
+    clearStageMedia();
+    if (sourceIndex >= directVideoSources.length) {
+      useDrivePreview();
+      return;
+    }
+    const candidate = directVideoSources[sourceIndex++];
+    const video = document.createElement("video");
+    video.className = "system-media-video-v305";
+    video.controls = true;
+    video.playsInline = true;
+    video.preload = "metadata";
+    video.src = candidate;
+    video.setAttribute("aria-label", label || "视频预览");
+    const success = () => {
+      clearDirectTimer();
+      if (message) message.hidden = true;
+      const playPromise = video.play();
+      if (playPromise?.catch) playPromise.catch(() => {});
+    };
+    const fail = () => {
+      if (disposed || !video.isConnected) return;
+      tryNextVideoSource();
+    };
+    video.addEventListener("loadedmetadata", success, { once:true });
+    video.addEventListener("canplay", success, { once:true });
+    video.addEventListener("error", fail, { once:true });
+    stage.appendChild(video);
+    // Some Drive responses stall without firing error. Move to the next source automatically.
+    directTimer = window.setTimeout(fail, 8000);
   };
 
   if (mediaType === "video") {
-    // V30.9 high-priority Drive video fix:
-    // Google Drive share links are reliably playable through /preview, while the
-    // direct download host may reject/stall HTML5 range requests on iOS/Chrome.
-    // For Drive videos, go straight to the embedded preview inside our modal.
-    // This is still on-demand only: no preload, no polling and no sync request.
-    if (drivePreview) {
-      useDrivePreview();
-    } else {
+    // V31.0 high-priority video compatibility:
+    // 1) Google Drive uc download route -> native HTML5 video
+    // 2) drive.usercontent route -> native HTML5 video
+    // 3) Drive /preview fallback inside the same modal
+    // All are on-demand only; no preload, polling or sync requests are added.
+    if (directVideoSources.length) tryNextVideoSource();
+    else {
       const video = document.createElement("video");
       video.className = "system-media-video-v305";
       video.controls = true;
       video.playsInline = true;
       video.preload = "metadata";
-      video.autoplay = true;
       video.src = source;
-      video.setAttribute("aria-label", label || "视频预览");
-      video.addEventListener("loadedmetadata", clearDirectTimer, { once:true });
-      video.addEventListener("canplay", clearDirectTimer, { once:true });
-      video.addEventListener("error", showFailure, { once:true });
+      video.addEventListener("error", () => setMessage("无法播放视频。", true), { once:true });
       stage.appendChild(video);
-      const playPromise = video.play();
-      if (playPromise?.catch) playPromise.catch(() => {});
     }
   } else {
     const image = document.createElement("img");
@@ -16707,7 +16763,11 @@ function openSystemMediaPreviewV305(type, url, label = "") {
     if (drivePreview) directTimer = window.setTimeout(useDrivePreview, 4500);
   }
 
-  modal._systemMediaCleanupV308 = clearDirectTimer;
+  modal._systemMediaCleanupV308 = () => {
+    disposed = true;
+    clearDirectTimer();
+    clearStageMedia();
+  };
   modal.querySelector(".system-media-close-v305")?.addEventListener("click", closeSystemMediaPreviewV305);
   modal.addEventListener("click", event => { if (event.target === modal) closeSystemMediaPreviewV305(); });
   const onKey = event => {
@@ -17626,7 +17686,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "30.9",
+      version: "31.0",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -17993,7 +18053,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V30.9 Stable",
+      updatedBy: "System V31.0 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -18139,7 +18199,7 @@ function productNameWithEnglishV262(product){const en=productEnglishNameV262(pro
 function rememberProductLanguageV262(productId, chineseName, englishName){const id=String(productId||"").toUpperCase();if(!id)return;const meta=getProductLanguageMetaV262();meta[id]={chineseName:String(chineseName||"").trim(),englishName:String(englishName||"").trim()};saveProductLanguageMetaV262(meta)}
 function inferSimpleBilingualV262(text){const raw=String(text||"").trim();const rule=speciesRuleV262(raw);return{chineseName:rule?.cn||(/[\u3400-\u9fff]/.test(raw)?raw:""),englishName:rule?.en||(!/[\u3400-\u9fff]/.test(raw)?raw.replace(/\b(?:P?\d{2,4}|\d+(?:\.\d+)?C|\d+[xX]\d+)\b.*$/i,"").trim():""),prefix:rule?.prefix||""}}
 
-// ================= V30.9 Product Inventory Master =================
+// ================= V31.0 Product Inventory Master =================
 const SUPPLIER_ALIASES_V261 = Object.freeze([
   {names:["Ocean Landscaping","Ocean Landscaping Nursery"],prefix:"OLN",currency:"MYR"},{names:["JM Gardening","JM Landscape","JM Nursery"],prefix:"JMG",currency:"MYR"},{names:["Soong Huat Enterprise","Soong Huat Cameron"],prefix:"SHE",currency:"MYR"},{names:["Tan Ah Hwang Nursery"],prefix:"TAH",currency:"MYR"},{names:["Tan Kok Leyong","Tan Kok Leyong Nursery"],prefix:"TKL",currency:"MYR"},{names:["Wong Wan Choi"],prefix:"WWC",currency:"MYR"},{names:["忠盛"],prefix:"忠盛",currency:"CNY"},{names:["大厚"],prefix:"大厚",currency:"CNY"},{names:["游小北"],prefix:"游小北",currency:"CNY"},{names:["昊杨"],prefix:"昊杨",currency:"CNY"},{names:["松美轩"],prefix:"松美轩",currency:"CNY"}
 ]);
