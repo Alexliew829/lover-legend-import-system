@@ -6045,7 +6045,7 @@ body.system-media-preview-open-v305{overflow:hidden}
   .prefix-fallback-note-v319{padding:0 8px 8px 8px!important;font-size:11px}
 }
 
-/* V32.1 desktop readability for three-field bonsai prefix rules. Mobile V32.0 layout stays unchanged. */
+/* V32.2 desktop readability for three-field bonsai prefix rules. Mobile V32.0 layout stays unchanged. */
 @media(min-width:720px){
   .product-prefix-three-head-v319{font-size:15px!important;font-weight:700!important}
   .product-prefix-three-v319{font-size:16px!important;line-height:1.45!important;min-height:54px!important;align-items:center!important}
@@ -6056,7 +6056,26 @@ body.system-media-preview-open-v305{overflow:hidden}
   .product-prefix-three-v319 .rule-actions-v231 em{font-size:13px!important}
   .prefix-fallback-note-v319{font-size:14px!important;line-height:1.5!important;padding:7px 10px 11px 10px!important}
 }
-/* V32.1 desktop prefix-code size correction. */
+/* V32.2 desktop prefix-code size correction. */
 @media(min-width:720px){
   .product-prefix-three-v319>strong{font-size:17px!important;font-weight:800!important;line-height:1.2!important}
 }
+
+
+/* V32.2 - desktop readability, unified minimum-price colors, explicit save states */
+@media(min-width:720px){
+  .product-prefix-three-head-v319,.product-prefix-three-v319{grid-template-columns:minmax(190px,1fr) minmax(260px,1.35fr) 90px minmax(230px,1fr)!important;gap:16px!important}
+  .product-prefix-three-head-v319{font-size:17px!important;line-height:1.4!important;padding:10px 12px!important}
+  .product-prefix-three-v319{font-size:18px!important;line-height:1.5!important;min-height:66px!important;padding:10px 12px!important}
+  .product-prefix-three-v319 .prefix-english-v319{font-size:17px!important;line-height:1.45!important}
+  .product-prefix-three-v319>strong{font-size:19px!important;font-weight:900!important}
+  .product-prefix-three-v319 .rule-actions-v231{justify-content:flex-start!important;flex-wrap:nowrap!important;gap:10px!important}
+  .product-prefix-three-v319 .rule-actions-v231 button{font-size:15px!important;padding:9px 14px!important;min-width:92px!important}
+  .product-prefix-three-v319 .rule-actions-v231 em{font-size:14px!important;white-space:nowrap!important}
+  .prefix-fallback-note-v319{font-size:15px!important;padding:8px 12px 12px!important}
+}
+#confirmFormalImportBtnV247{background:#176b3b!important;color:#fff!important;border-color:#176b3b!important;font-weight:900!important;box-shadow:0 2px 7px rgba(23,107,59,.18)!important}
+#confirmFormalImportBtnV247:disabled{background:#dfe9e3!important;color:#6f7e75!important;border-color:#d3ddd7!important;box-shadow:none!important}
+#batchStatusText.draft-saved-status-v322{display:block!important;background:#e9f7ee!important;border:1px solid #8bc7a0!important;color:#145f35!important;border-radius:10px!important;padding:10px 12px!important;font-weight:800!important}
+.minimum-price-manual-v315,.minimum-price-manual-v315 strong,.master-price-manual-v315,.master-price-manual-v315 .master-price-main-v266,.original-cost-minimum-price-btn.minimum-price-manual-v315{color:#0b68c9!important}
+.system-media-drive-minimal-v322{background:#000!important}
