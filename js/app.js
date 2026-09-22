@@ -4245,7 +4245,7 @@ function getEffectiveProductMinimumPriceV183(product, promotion = null, rules = 
   const originalPrice = Math.max(0, Number(product?.minimumPrice) || 0);
   const active = promotion || getPromotionSettingsV183();
   const productId = String(product?.id || "").trim().toUpperCase();
-  // V34.8: 售价控制是最高优先级。手动最低售价永远保持蓝色，完全不参与促销。
+  // V34.9: 售价控制是最高优先级。手动最低售价永远保持蓝色，完全不参与促销。
   // 一旦解除手动状态，若促销仍开启且产品不在排除清单，会自动重新加入促销。
   if (isMinimumPriceManualV160(product)) return originalPrice;
   if (!active || active.excludedProductIds.includes(productId)) return originalPrice;
@@ -4346,6 +4346,7 @@ function getPromotionSearchProductsV185(query, sortMode = "latest") {
       cumulativeSoldProfit: Number(sales.profitById.get(id) || sales.profitByName.get(name.toLowerCase()) || 0)
     };
   }).filter(product => {
+    if (sortMode === "price-control" && !isMinimumPriceManualV160(product)) return false;
     if (!keyword) return true;
     if (isOriginalCostOnlySearchV218(keyword)) {
       return product.originalCostValuesV216.some(value => originalCostNumberMatchesV216(value, keyword));
@@ -4432,7 +4433,6 @@ function updatePromotionBatchControlsV184() {
   const filterMode = String(document.getElementById("promotionExcludeFilterV184")?.value || "latest");
   const matches = (query || filterMode !== "latest") ? getPromotionSearchProductsV185(query, filterMode) : [];
   const selectableIds = matches
-    .filter(product => !isMinimumPriceManualV160(product))
     .filter(product => !promotionExcludedDraftV183.has(String(product.id || "").toUpperCase()))
     .map(product => String(product.id || "").toUpperCase());
   // V19.8: keep pending selections across different search keywords.
@@ -4495,10 +4495,10 @@ function renderPromotionExcludeSearchV183() {
     const manual = isMinimumPriceManualV160(product);
     const promoPrice = manual ? Math.max(0, Number(product.minimumPrice) || 0) : getPromotionPriceBreakdownV183(product, promotion, rules, originIndex).price;
     return `<div class="promotion-search-result-v183 ${manual ? "price-control" : ""}">
-      ${manual ? `<span class="promotion-price-control-lock-v348" aria-label="售价控制">蓝</span>` : `<input class="promotion-row-check-v184" type="checkbox" data-select-search-v184="${escapeHTML(id)}" ${promotionSearchSelectionV184.has(id) ? "checked" : ""} aria-label="选择 ${escapeHTML(product.name)}" />`}
+      <input class="promotion-row-check-v184" type="checkbox" data-select-search-v184="${escapeHTML(id)}" ${promotionSearchSelectionV184.has(id) ? "checked" : ""} aria-label="选择 ${escapeHTML(product.name)}" />
       <div><button type="button" class="inventory-product-name-copy promotion-search-name-v186" data-product-name="${escapeHTML(product.name)}" onclick="copyInventoryProductName(this)" title="点击复制产品名称">${escapeHTML(product.name)}</button>${buildProductIdCopyButtonV166(id, "promotion-product-id-v183")}
-      <span>库存 ${formatNumber(product.stock)} · ${getAverageCostLabelV205(product, originIndex)} ${formatMoney(product.averageCost, "RM ")} · 原最低售价 ${formatMoney(product.minimumPrice, "RM ")}${manual ? ` · 售价控制（自动不参与促销）` : ` · 促销最低售价 ${formatMoney(promoPrice, "RM ")}`}</span></div>
-      ${manual ? `<span class="promotion-price-control-note-v348">售价控制</span>` : `<button type="button" data-add-promotion-exclusion="${escapeHTML(id)}">加入排除</button>`}
+      <span>库存 ${formatNumber(product.stock)} · ${getAverageCostLabelV205(product, originIndex)} ${formatMoney(product.averageCost, "RM ")} · 原最低售价 ${formatMoney(product.minimumPrice, "RM ")}${manual ? ` · 售价控制（当前自动不参与促销；可加入排除以保留未来解除后的排除状态）` : ` · 促销最低售价 ${formatMoney(promoPrice, "RM ")}`}</span></div>
+      <button type="button" data-add-promotion-exclusion="${escapeHTML(id)}">加入排除</button>
     </div>`;
   }).join("") : `<div class="promotion-empty-v183">${query ? "当前搜索没有更多可加入产品" : "当前筛选下没有更多可加入产品"}</div>`;
   updatePromotionBatchControlsV184();
@@ -4645,13 +4645,20 @@ function refreshPromotionUiV183() {
   const deleteButton = document.getElementById("deletePromotionV183");
   const toggleButton = document.getElementById("togglePromotionPriceListV183");
   if (summary) {
-    summary.textContent = promotion ? `${promotion.name} 促销进行中` : "";
+    summary.textContent = promotion ? `${promotion.name} 促销进行中 · 目标净利率 ${promotion.targetMarginRate}%` : "";
     summary.hidden = !promotion;
     summary.classList.toggle("promotion-active-summary-v191", Boolean(promotion));
   }
   const status = document.getElementById("promotionStatusV183");
-  if (status && promotion) { status.textContent = `促销已开启：${promotion.name}`; status.classList.add("promotion-status-active-v193"); }
+  const activeButtonStatus = document.getElementById("promotionActiveButtonStatusV349");
+  const actions = document.querySelector(".promotion-actions-v183");
+  if (activeButtonStatus) {
+    activeButtonStatus.hidden = !promotion;
+    activeButtonStatus.textContent = promotion ? `促销已开启：${promotion.name} · ${promotion.targetMarginRate}%` : "";
+  }
+  if (status && promotion) { status.textContent = ""; status.classList.remove("promotion-status-active-v193"); }
   else if (status) status.classList.remove("promotion-status-active-v193");
+  if (actions) actions.classList.toggle("promotion-is-active-v349", Boolean(promotion));
   if (deleteButton) deleteButton.hidden = !promotion;
   if (toggleButton) toggleButton.hidden = !promotion;
 }
@@ -4733,7 +4740,6 @@ function setupPromotionSettingsV183() {
   filterInput?.addEventListener("change", () => { renderPromotionExcludeSearchV183(); });
   selectAllSearch?.addEventListener("change", () => {
     const ids = getPromotionExcludeMatchesV183(searchInput?.value || "")
-      .filter(product => !isMinimumPriceManualV160(product))
       .filter(product => !promotionExcludedDraftV183.has(String(product.id || "").toUpperCase()))
       .map(product => String(product.id || "").toUpperCase());
     // V19.8: select-all affects only the current search, preserving choices from prior searches.
@@ -4810,7 +4816,7 @@ function setupPromotionSettingsV183() {
   excludeSelected?.addEventListener("click", () => {
     const ids = [...promotionSearchSelectionV184].filter(id => !promotionExcludedDraftV183.has(id));
     if (!ids.length || !window.confirm(`确认批量排除已选择的 ${ids.length} 项产品？\n\n保存促销后，这些产品会继续使用原最低售价。`)) return;
-    // V34.8: confirmed exclusions accumulate across searches (e.g. 3 水梅 + 3 真柏 = 6).
+    // V34.9: confirmed exclusions accumulate across searches (e.g. 3 水梅 + 3 真柏 = 6).
     ids.forEach(id => promotionExcludedDraftV183.add(id));
     promotionDraftTouchedV209 = true;
     promotionSearchSelectionV184.clear();
@@ -5656,7 +5662,7 @@ function setupProductPrefixSettingsV181() {
       }
       renderProductPrefixRulesV181(); setProductPrefixEditorV333(); setPrefixSaveButtonStateV340("修改成功", true); resetPrefixSaveButtonV340(); return;
     }
-    // V34.8: a bonsai ID prefix may intentionally be shared by different species.
+    // V34.9: a bonsai ID prefix may intentionally be shared by different species.
     // Example: 真柏 / 系鱼川 / 香松 may all use JU; 仙丹 and 人参果矮霸 may both use IX.
     // What is forbidden is redefining the SAME Chinese keyword to another prefix.
     if(getProductPrefixRulesV181().some(([k])=>normalizeProductPrefixKeywordV181(k)===normalizeProductPrefixKeywordV181(keyword))){if(status)status.textContent=`“${keyword}”已经存在，不能再新增另一个前缀`;return;}
@@ -5678,7 +5684,7 @@ function findBestProductPrefixRuleV343(name = "") {
     const key=normalizeProductPrefixKeywordV181(rule[0]);
     return {rule,key,index:key?compact.indexOf(key):-1};
   }).filter(x=>x.index>=0);
-  // V34.8: whichever species keyword appears FIRST in the product name wins.
+  // V34.9: whichever species keyword appears FIRST in the product name wins.
   // Same-position ties prefer the longer/more-specific keyword.
   matched.sort((a,b)=>a.index-b.index || b.key.length-a.key.length);
   return matched[0]?.rule||null;
@@ -6007,7 +6013,7 @@ function getProductSearchPrefixAliasesV238(product) {
 
 function productExactOrPrefixSearchMatchesV238(product, queryValue) {
   const raw = String(queryValue || "").normalize("NFKC").trim();
-  // V34.8: migrated legacy Product IDs (notably PZxxxx / PSxxxx aliases) are
+  // V34.9: migrated legacy Product IDs (notably PZxxxx / PSxxxx aliases) are
   // internal compatibility only and must not produce front-end search hits.
   if (/^(?:PZ|PS)(?:\d{0,4})?$/i.test(raw)) {
     const formalId=String(product?.id||product?.productId||"").trim().toUpperCase();
@@ -6997,7 +7003,7 @@ function renderImportDraftsV242() {
       label.textContent = "未保存 · 当前资料尚未保存为草稿";
       label.dataset.draftStateV249 = "unsaved";
     } else {
-      // V34.8: a completely empty editor should not show a residual "未保存" bar.
+      // V34.9: a completely empty editor should not show a residual "未保存" bar.
       label.textContent = "";
       label.dataset.draftStateV249 = "empty";
     }
@@ -10803,7 +10809,7 @@ function buildHistorySoldCostSummary(options = {}) {
   `;
 }
 
-// V34.8 History import-date rule:
+// V34.9 History import-date rule:
 // Every import record is searched by ARRIVAL DATE only. Container/save/created dates
 // are display/audit metadata and must not decide Date Range results.
 function getHistoryImportTransactionDate(batch, item = null) {
@@ -14133,7 +14139,7 @@ function renderBatchList() {
     const arrival = normalizeDateToDDMMYYYY(batch?.arrivalDate || "");
     if (recentStartDateV345 || recentEndDateV345) {
       const arrivalTime = parseDDMMYYYY(arrival);
-      // V34.8: one selected date means that exact arrival day. Two selected dates
+      // V34.9: one selected date means that exact arrival day. Two selected dates
       // mean an inclusive arrival-date range. Import history never uses container date.
       const singleDate = recentStartDateV345 && !recentEndDateV345
         ? recentStartDateV345
@@ -17237,7 +17243,7 @@ function openSystemMediaPreviewV305(type, url, label = "") {
     return;
   }
 
-  // V34.8 video compatibility: restore the proven Google Drive preview player.
+  // V34.9 video compatibility: restore the proven Google Drive preview player.
   // Direct <video> streaming is unreliable for Drive links on iPhone/Safari.
   // Keep playback inside the Import System shell and show no permission/error banner.
   if (mediaType === "video") {
@@ -17473,7 +17479,7 @@ function getMinimumPriceDisplayStateV315(product) {
     ? "minimum-price-manual-v315"
     : (info.profit < -0.005 ? "minimum-price-loss-v302" : info.profit > 0.005 ? "minimum-price-gain-v302" : "minimum-price-neutral-v302");
   const state = manual ? "manual" : (info.profit < -0.005 ? "loss" : info.profit > 0.005 ? "gain" : "neutral");
-  return { manual, state, className, label:"最低售价", price:info.price, profitInfo:info };
+  return { manual, state, className, label:info.promotionApplies ? "促销最低售价" : "最低售价", price:info.price, profitInfo:info };
 }
 
 // V34.3: one visual state for desktop/mobile/card/original-cost/master table.
@@ -18307,7 +18313,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "34.8",
+      version: "34.9",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),

@@ -5,18 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=34.8" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=34.8" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=34.8" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=34.8" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=34.8" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=34.8" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=34.8" />
+  <link rel="manifest" href="./manifest.json?v=34.9" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=34.9" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=34.9" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=34.9" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=34.9" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=34.9" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=34.9" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=34.8" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=34.9" />
   <style id="access-lock-critical-v299">
     html,body{margin:0;min-height:100%;font-family:Arial,Helvetica,sans-serif}
     .access-lock{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(242,248,244,.96)}
@@ -37,12 +37,12 @@
       }
     } catch (_) {}
   </script>
-  <link rel="preload" href="./css/style.css?v=34.8" as="style" />
-  <link rel="stylesheet" href="./css/style.css?v=34.8" media="print" onload="this.media='all'" />
-  <noscript><link rel="stylesheet" href="./css/style.css?v=34.8" /></noscript>
-  <script defer src="./js/common.js?v=34.8"></script>
-  <script defer src="./js/sync.js?v=34.8"></script>
-  <script defer src="./js/app.js?v=34.8"></script>
+  <link rel="preload" href="./css/style.css?v=34.9" as="style" />
+  <link rel="stylesheet" href="./css/style.css?v=34.9" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="./css/style.css?v=34.9" /></noscript>
+  <script defer src="./js/common.js?v=34.9"></script>
+  <script defer src="./js/sync.js?v=34.9"></script>
+  <script defer src="./js/app.js?v=34.9"></script>
 </head>
 <body>
   <div id="accessLock"
@@ -116,7 +116,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 34.8 Stable</div>
+          <div class="app-header-version">正式版 34.9 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -143,13 +143,13 @@
           <div id="googleSyncStatus" class="dashboard-sync-status syncing">
             <span class="dashboard-sync-icon" aria-hidden="true">↻</span>
             <strong class="dashboard-sync-text">同步中...</strong>
+            <span id="dashboardPromotionStatusV208" class="dashboard-promotion-status-v208" aria-live="polite" hidden></span>
           </div>
           <div class="dashboard-sync-time">
             最后同步：<strong id="googleLastSync">尚未同步</strong>
           </div>
         </section>
 
-        <div id="dashboardPromotionStatusV208" class="dashboard-promotion-status-v208" aria-live="polite" hidden></div>
 
         <div class="stats-grid">
           <article class="stat-card">
@@ -653,6 +653,7 @@
               <select id="promotionExcludeFilterV184" aria-label="促销排除产品筛选">
               <option value="latest">最近进口</option>
               <option value="latest-sold">最近售出</option>
+              <option value="price-control">售价控制</option>
               <option value="name">产品名称</option>
               <option value="bestseller-desc">畅销商品</option>
               <option value="profit-desc">利润最高</option>
@@ -677,6 +678,7 @@
             <div id="promotionExcludedListV183" class="promotion-excluded-list-v183"></div>
           </div>
           <div id="promotionUnsavedV186" class="promotion-unsaved-v186" hidden></div>
+          <button id="promotionActiveButtonStatusV349" class="promotion-active-button-status-v349" type="button" hidden disabled></button>
           <div class="promotion-actions-v183">
             <button id="savePromotionV183" class="primary-btn" type="button">开启促销管理</button>
             <button id="deletePromotionV183" class="danger-action-btn" type="button" hidden>关闭促销管理并恢复默认最低售价</button>
@@ -913,7 +915,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 34.8 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 34.9 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
