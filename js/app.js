@@ -37,11 +37,11 @@ window.addEventListener("pageshow", () => {
   }, 0);
 });
 
-// V34.1 one-time live-settings cleanup: remove obsolete ZZ / 杂花杂木 / invoice-recognition / two-warehouse residue.
+// V34.2 one-time live-settings cleanup: remove obsolete ZZ / 杂花杂木 / invoice-recognition / two-warehouse residue.
 // Current Products / Imports / Batches are never deleted here. Only settings/drafts that are not part of the
 // current authoritative product collection are pruned, so a restored formal inventory cannot be polluted again.
 function cleanupLegacySettingsResidueV323() {
-  // V34.1 hard cleanup. These legacy feature stores must never participate in the current system again.
+  // V34.2 hard cleanup. These legacy feature stores must never participate in the current system again.
   ["invoiceRecognitionDraftsV259","invoiceRecognitionHistoryV259","warehousePublicCatalogV275","supplierDirectoryV261",
    "testSupplierCleanupV268","twoWarehouseMigrationV270","twoWarehouseMigrationAddedV270","warehouseRepairV276",
    "warehouseRepairAddedV276","invoiceRecognitionSharedStatusV277"].forEach(key => {
@@ -91,7 +91,7 @@ function cleanupLegacySettingsResidueV323() {
   }
 
   if (changed) {
-    // V34.1: startup residue cleanup is local-only. Never create a cloud dirty
+    // V34.2: startup residue cleanup is local-only. Never create a cloud dirty
     // queue before the first V32.5-style read check has completed.
     saveJSON("importSystemSettings", next);
   }
@@ -176,7 +176,7 @@ const historySalesDetailsByLinkV134 = new Map();
 const historySalesContextLoadedV134 = new Set();
 const historySalesContextLoadingV134 = new Map();
 let historyLookupRenderTokenV134 = 0;
-// V34.1: keep keystroke painting separate from expensive filtering/rendering.
+// V34.2: keep keystroke painting separate from expensive filtering/rendering.
 // No network request is added; only the latest pending local render is executed.
 const searchRenderTimersV302 = new Map();
 function scheduleSearchRenderV302(key, fn, delay = 70) {
@@ -2209,7 +2209,7 @@ function unlockAccessLock(lock, input, status) {
     "1"
   );
 
-  // V34.1: bind unlock to this exact history entry on both desktop and mobile.
+  // V34.2: bind unlock to this exact history entry on both desktop and mobile.
   // Refreshing the same tab stays unlocked; a newly opened page/tab must authenticate again.
   try {
     history.replaceState({
@@ -2312,7 +2312,7 @@ function setupAccessLock() {
   updatePasswordHintDisplays();
   updateDeviceBiometricStatus();
 
-  // V34.1 desktop: if a saved password is still valid, verify locally and enter
+  // V34.2 desktop: if a saved password is still valid, verify locally and enter
   // immediately. No network request and no password/logo flash. Invalid saved
   // passwords are cleared and the normal password card is shown.
   let savedDesktopPasswordV316 = "";
@@ -3097,6 +3097,7 @@ function setupSettings() {
   setupPasswordChange();
   setupMinimumPriceSettingsV160();
   setupProductPrefixSettingsV181();
+  setupProductCategorySettingsV342();
   setupDeviceBiometricSettings();
   setupDataTools();
   setupHistoricalSalesRepairTools();
@@ -3111,7 +3112,7 @@ let costRepairCountdownTimerV206 = 0;
 let costRepairExpiryPendingV206 = false;
 
 function getCostRepairModeEnabled() {
-  // V34.1: Data Repair is temporarily disabled. Formal imports are permanently read-only.
+  // V34.2: Data Repair is temporarily disabled. Formal imports are permanently read-only.
   return false;
 }
 
@@ -4177,7 +4178,7 @@ function hydrateProductMinimumPriceManualV341(product, configuredOverrides = nul
 }
 
 function isMinimumPriceManualV160(product, configuredOverrides = null) {
-  // V34.1 canonical runtime truth: every renderer reads the Product flag only.
+  // V34.2 canonical runtime truth: every renderer reads the Product flag only.
   // The legacy Settings map is used only to hydrate older/cold-start Products once.
   return hydrateProductMinimumPriceManualV341(product, configuredOverrides)?.minimumPriceManual === true;
 }
@@ -4209,7 +4210,7 @@ function getOperationalProductsV256(products = getProducts()) {
   );
 }
 
-// V34.1: obsolete virtual-reference residue sweeper removed. Historical ID migration/safety remains below.
+// V34.2: obsolete virtual-reference residue sweeper removed. Historical ID migration/safety remains below.
 
 function getProducts() {
   const rules = getMinimumPriceRulesV160();
@@ -4253,23 +4254,26 @@ const PRIMARY_PRODUCT_CATEGORIES_V255 = Object.freeze([
 ]);
 
 const DEFAULT_PRODUCT_CATEGORY_RULES_V228 = Object.freeze([
-  { name: "盆栽", prefix: "BS", mode: "name" },
-  { name: "肥料 / 农药", prefix: "FL", mode: "category" },
-  { name: "泥土 / 介质 Soil", prefix: "NT", mode: "category" },
-  { name: "花盆 Pot", prefix: "PT", mode: "category" },
-  { name: "工具", prefix: "TL", mode: "category" },
-  { name: "其他", prefix: "QT", mode: "category" }
+  { name: "盆栽", english: "Bonsai", prefix: "BS", mode: "name" },
+  { name: "肥料 / 农药", english: "Fertilizer / Pesticide", prefix: "FL", mode: "category" },
+  { name: "泥土 / 介质 Soil", english: "Soil / Growing Media", prefix: "NT", mode: "category" },
+  { name: "花盆 Pot", english: "Pot", prefix: "PT", mode: "category" },
+  { name: "工具", english: "Tools", prefix: "TL", mode: "category" },
+  { name: "其他", english: "Others", prefix: "QT", mode: "category" }
 ]);
 
 function isPrimaryProductCategoryV255(value) {
   const wanted = normalizeProductCategoryNameV227(value);
-  return PRIMARY_PRODUCT_CATEGORIES_V255.includes(wanted);
+  return getProductCategoryRulesV228().some(rule => normalizeProductCategoryNameV227(rule.name) === wanted);
 }
 
 function normalizePrimaryProductCategoryV255(value) {
   const wanted = normalizeProductCategoryNameV227(value);
-  if (PRIMARY_PRODUCT_CATEGORIES_V255.includes(wanted)) return wanted;
-  return wanted ? "其他" : "盆栽";
+  const rules = getProductCategoryRulesV228();
+  const exact = rules.find(rule => normalizeProductCategoryNameV227(rule.name) === wanted);
+  if (exact) return exact.name;
+  const other = rules.find(rule => normalizeProductCategoryNameV227(rule.name) === "其他");
+  return other?.name || rules[0]?.name || "盆栽";
 }
 
 function normalizeProductCategoryNameV227(value) {
@@ -4283,9 +4287,6 @@ function normalizeCategoryPrefixV228(value) {
 function isProductCategoryUsedV229(categoryName) {
   const wanted = normalizeProductCategoryNameV227(categoryName);
   if (!wanted) return false;
-  // V24.6: stock=0 alone MUST NOT unlock a category. As long as the product still
-  // exists in active Products / Imports / Batches, the rule stays locked. Only the
-  // explicit “清理零库存产品” flow removes those active references and can unlock it.
   if (getProducts().some(product => normalizeProductCategoryNameV227(product?.category) === wanted)) return true;
   if (getImports().some(row => normalizeProductCategoryNameV227(row?.category) === wanted)) return true;
   return getBatches().some(batch => (Array.isArray(batch?.items) ? batch.items : [])
@@ -4301,7 +4302,6 @@ function getCategoryPrefixConflictV229(prefix, excludeCategoryName = "") {
   const wanted = normalizeCategoryPrefixV228(prefix);
   if (!wanted) return "";
   const excluded = normalizeProductCategoryNameV227(excludeCategoryName);
-
   for (const [keyword, rulePrefix] of getProductPrefixRulesV181()) {
     if (String(rulePrefix || "").toUpperCase() === wanted) return `盆栽前缀规则“${keyword}”`;
   }
@@ -4309,7 +4309,6 @@ function getCategoryPrefixConflictV229(prefix, excludeCategoryName = "") {
     if (normalizeProductCategoryNameV227(rule.name) === excluded) continue;
     if (normalizeCategoryPrefixV228(rule.prefix) === wanted) return `产品类别“${rule.name}”`;
   }
-
   const settings = loadJSON("importSystemSettings", {});
   const aliases = settings.productIdAliases || {};
   const ids = [
@@ -4324,51 +4323,52 @@ function getCategoryPrefixConflictV229(prefix, excludeCategoryName = "") {
 
 function getProductCategoryRulesV228() {
   const settings = loadJSON("importSystemSettings", {});
+  const v342 = Array.isArray(settings.productCategoryRulesV342) ? settings.productCategoryRulesV342 : [];
   const savedRules = Array.isArray(settings.productCategoryRulesV228) ? settings.productCategoryRulesV228 : [];
   const legacyNames = Array.isArray(settings.productCategoriesV227) ? settings.productCategoriesV227 : [];
-  const source = savedRules.length
-    ? savedRules
-    : (legacyNames.length
-      ? legacyNames.map(name => {
-          const normalized = normalizeProductCategoryNameV227(name);
-          const preset = DEFAULT_PRODUCT_CATEGORY_RULES_V228.find(rule => rule.name === normalized);
-          return preset ? { ...preset } : { name: normalized, prefix: "QT", mode: normalized === "盆栽" ? "name" : "category" };
-        })
-      : DEFAULT_PRODUCT_CATEGORY_RULES_V228.map(rule => ({ ...rule })));
-
-  const result = [];
-  const usedNames = new Set();
-  source.forEach(raw => {
-    const name = normalizeProductCategoryNameV227(raw?.name ?? raw);
-    if (!name || name === "周边产品" || !PRIMARY_PRODUCT_CATEGORIES_V255.includes(name)) return;
-    const key = name.toLocaleLowerCase();
-    if (usedNames.has(key)) return;
-    usedNames.add(key);
-    const preset = DEFAULT_PRODUCT_CATEGORY_RULES_V228.find(rule => rule.name === name);
-    const mode = name === "盆栽" ? "name" : "category";
-    const prefix = mode === "name" ? "BS" : (normalizeCategoryPrefixV228(raw?.prefix) || preset?.prefix || "QT");
-    const lockedByUsageV229 = raw?.lockedByUsageV229 === true;
-    // V24.6: usage lock is derived from current active data, not a permanent flag.
-    // After the user explicitly cleans the last zero-stock product, the rule may unlock.
-    const locked = name === "盆栽" ? true : isProductCategoryUsedV229(name);
-    result.push({ name, prefix, mode, locked, lockedByUsageV229 });
+  const source = v342.length ? v342 : (savedRules.length ? savedRules : (legacyNames.length
+    ? legacyNames.map(name => {
+        const normalized = normalizeProductCategoryNameV227(name);
+        const preset = DEFAULT_PRODUCT_CATEGORY_RULES_V228.find(rule => rule.name === normalized);
+        return preset ? { ...preset } : { name: normalized, english: "", prefix: "QT", mode: normalized === "盆栽" ? "name" : "category" };
+      })
+    : DEFAULT_PRODUCT_CATEGORY_RULES_V228.map(rule => ({ ...rule }))));
+  const result=[]; const usedNames=new Set(); const usedPrefixes=new Set();
+  source.forEach(raw=>{
+    const name=normalizeProductCategoryNameV227(raw?.name ?? raw);
+    if(!name || name === "周边产品") return;
+    const key=name.toLocaleLowerCase(); if(usedNames.has(key)) return;
+    const preset=DEFAULT_PRODUCT_CATEGORY_RULES_V228.find(rule=>rule.name===name);
+    const prefix=normalizeCategoryPrefixV228(raw?.prefix) || preset?.prefix || "QT";
+    if(!prefix || usedPrefixes.has(prefix)) return;
+    usedNames.add(key); usedPrefixes.add(prefix);
+    const mode=name === "盆栽" ? "name" : "category";
+    result.push({
+      name,
+      english:String(raw?.english ?? preset?.english ?? "").trim(),
+      prefix: mode === "name" ? "BS" : prefix,
+      mode,
+      locked:isProductCategoryUsedV229(name)
+    });
   });
-  if (!result.some(rule => rule.name === "盆栽")) result.unshift({ name: "盆栽", prefix: "BS", mode: "name", locked: true });
-  // V26.6: the seven main categories must always be available. This does not
-  // change any existing Product ID or historical record.
-  PRIMARY_PRODUCT_CATEGORIES_V255.forEach(name => {
-    if (result.some(rule => rule.name === name)) return;
-    const preset = DEFAULT_PRODUCT_CATEGORY_RULES_V228.find(rule => rule.name === name);
-    if (!preset) return;
-    result.push({ name, prefix: preset.prefix, mode: preset.mode, locked: name === "盆栽" ? true : isProductCategoryUsedV229(name) });
-  });
+  if(!result.length) return DEFAULT_PRODUCT_CATEGORY_RULES_V228.map(rule=>({...rule,locked:isProductCategoryUsedV229(rule.name)}));
   return result;
 }
 
+function saveProductCategoryRulesV342(rules) {
+  const normalized=(Array.isArray(rules)?rules:[]).map(rule=>({
+    name:normalizeProductCategoryNameV227(rule?.name),
+    english:String(rule?.english||"").trim(),
+    prefix:normalizeCategoryPrefixV228(rule?.prefix),
+    mode:normalizeProductCategoryNameV227(rule?.name)==="盆栽"?"name":"category"
+  })).filter(rule=>rule.name && /^[A-Z]{2}$/.test(rule.prefix));
+  const settings=loadJSON("importSystemSettings",{});
+  saveJSON("importSystemSettings",{...settings,productCategoryRulesV342:normalized,productCategoryRulesV228:normalized});
+  if(typeof markCloudSettingsSaved==="function") markCloudSettingsSaved();
+}
+
 function getProductCategoriesV227() {
-  // V26.6: UI categories are MAIN categories only. Fine-class rules such as
-  // Monstera / Ficus / 虎尾兰 only decide the Product ID prefix.
-  return PRIMARY_PRODUCT_CATEGORIES_V255.slice();
+  return getProductCategoryRulesV228().map(rule=>rule.name);
 }
 
 function productCategoryOptionsHTMLV227(selected = "盆栽") {
@@ -4425,6 +4425,56 @@ function migrateLegacyProductCategoriesV227() {
     saveJSON("importSystemSettings", { ...settings, productCategoryRulesV228: getProductCategoryRulesV228() });
     if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
   }
+}
+
+
+let productCategoryEditorModeV342 = "new";
+let productCategoryEditorOriginalV342 = null;
+function renderProductCategoryRulesV342(){
+  const list=document.getElementById("productCategoryRulesListV342"); if(!list) return;
+  list.innerHTML=getProductCategoryRulesV228().map((row,index)=>`<div class="product-category-prefix-row-v339 product-category-edit-row-v342" role="row">
+    <span>${index+1}</span><strong class="product-category-cn-v340">${escapeHTML(row.name)}</strong><span>${escapeHTML(row.english||"—")}</span><strong>${escapeHTML(row.prefix)}</strong>
+    <div class="product-category-actions-v342"><button type="button" class="secondary-btn" data-category-edit-v342="${escapeHTML(row.name)}">修改</button><button type="button" class="danger-btn" data-category-delete-v342="${escapeHTML(row.name)}" ${row.locked?'disabled title="已有产品关联，不能删除"':''}>删除</button></div>
+  </div>`).join("");
+}
+function setProductCategoryEditorV342(row=null,mode="new"){
+  const cn=document.getElementById("productCategoryKeywordV342"),en=document.getElementById("productCategoryEnglishV342"),pre=document.getElementById("productCategoryPrefixV342"),status=document.getElementById("productCategoryRulesStatusV342");
+  productCategoryEditorModeV342=mode; productCategoryEditorOriginalV342=row?{...row}:null;
+  if(!cn||!en||!pre)return;
+  cn.disabled=false; pre.disabled=false; cn.readOnly=false; pre.readOnly=false;
+  cn.value=row?.name||""; en.value=row?.english||""; pre.value=row?.prefix||"";
+  if(status)status.textContent=row?(mode==="delete"?`准备删除：${row.name} / ${row.prefix}`:`修改：${row.name} / ${row.prefix}`):"";
+}
+function setCategorySaveButtonStateV342(text,busy=false){const b=document.getElementById("saveProductCategoryRuleBtnV342");if(!b)return;b.textContent=text||"保存";b.disabled=Boolean(busy)}
+function resetCategorySaveButtonV342(){window.setTimeout(()=>setCategorySaveButtonStateV342("保存",false),900)}
+function setupProductCategorySettingsV342(){
+  const list=document.getElementById("productCategoryRulesListV342"),cn=document.getElementById("productCategoryKeywordV342"),en=document.getElementById("productCategoryEnglishV342"),pre=document.getElementById("productCategoryPrefixV342"),save=document.getElementById("saveProductCategoryRuleBtnV342"),status=document.getElementById("productCategoryRulesStatusV342");
+  if(!list||!cn||!en||!pre||!save)return; renderProductCategoryRulesV342();
+  pre.addEventListener("input",()=>{pre.value=String(pre.value||"").replace(/[^a-z]/gi,"").toUpperCase().slice(0,2)});
+  list.addEventListener("click",event=>{const eb=event.target.closest("[data-category-edit-v342]"),db=event.target.closest("[data-category-delete-v342]");const key=String(eb?.dataset.categoryEditV342||db?.dataset.categoryDeleteV342||"").trim();if(!key)return;const row=getProductCategoryRulesV228().find(r=>r.name===key);if(!row)return;if(db){if(row.locked){alert("这个产品类别已有产品关联，只允许修改英文，不能删除。");return;}setProductCategoryEditorV342(row,"delete")}else setProductCategoryEditorV342(row,"edit")});
+  document.getElementById("cancelProductCategoryRuleBtnV342")?.addEventListener("click",()=>setProductCategoryEditorV342());
+  document.getElementById("clearProductCategoryRuleBtnV342")?.addEventListener("click",()=>{cn.value="";en.value="";pre.value="";productCategoryEditorModeV342="new";productCategoryEditorOriginalV342=null;if(status)status.textContent="";cn.focus()});
+  save.addEventListener("click",()=>{
+    const name=normalizeProductCategoryNameV227(cn.value),english=String(en.value||"").trim(),prefix=normalizeCategoryPrefixV228(pre.value),row=productCategoryEditorOriginalV342;
+    if(!name){if(status)status.textContent="请输入中文分类";return} if(!/^[A-Z]{2}$/.test(prefix)){if(status)status.textContent="前缀必须是2个英文字母";return}
+    let rules=getProductCategoryRulesV228().map(r=>({name:r.name,english:r.english,prefix:r.prefix,mode:r.mode}));
+    if(productCategoryEditorModeV342==="delete"){
+      if(!row||row.locked){if(status)status.textContent="已有产品关联，不能删除";return} if(!confirm(`确认删除产品类别？\n${row.name} → ${row.prefix}`))return;
+      setCategorySaveButtonStateV342("删除中...",true); rules=rules.filter(r=>r.name!==row.name); saveProductCategoryRulesV342(rules); renderProductCategoryRulesV342();setProductCategoryEditorV342();setCategorySaveButtonStateV342("已经删除",true);resetCategorySaveButtonV342();return;
+    }
+    if(productCategoryEditorModeV342==="edit"&&row){
+      if(row.locked&&(name!==row.name||prefix!==row.prefix)){if(status)status.textContent="这个类别已有产品关联：中文分类和前缀不能保存修改，只允许修改英文。";return}
+      if(row.locked&&english===String(row.english||"").trim()){if(status)status.textContent="英文没有改变";return}
+      if(!row.locked&&rules.some(r=>r.name!==row.name&&normalizeProductCategoryNameV227(r.name).toLowerCase()===name.toLowerCase())){if(status)status.textContent="这个中文分类已经存在";return}
+      const conflict=getCategoryPrefixConflictV229(prefix,row.name); if(!row.locked&&conflict){if(status)status.textContent=`前缀 ${prefix} 已被 ${conflict} 使用`;return}
+      if(!confirm(`确认修改产品类别？\n\n修改前：${row.name} / ${row.english||'—'} / ${row.prefix}\n修改后：${name} / ${english||'—'} / ${prefix}`))return;
+      setCategorySaveButtonStateV342("修改中...",true); rules=rules.map(r=>r.name===row.name?{...r,name,english,prefix,mode:name==="盆栽"?"name":"category"}:r);saveProductCategoryRulesV342(rules);renderProductCategoryRulesV342();setProductCategoryEditorV342();setCategorySaveButtonStateV342("修改成功",true);resetCategorySaveButtonV342();return;
+    }
+    if(rules.some(r=>normalizeProductCategoryNameV227(r.name).toLowerCase()===name.toLowerCase())){if(status)status.textContent="这个中文分类已经存在";return}
+    const conflict=getCategoryPrefixConflictV229(prefix);if(conflict){if(status)status.textContent=`前缀 ${prefix} 已被 ${conflict} 使用`;return}
+    if(!confirm(`确认新增产品类别？\n${name} / ${english||'—'} / ${prefix}`))return;
+    setCategorySaveButtonStateV342("保存中...",true);rules.push({name,english,prefix,mode:"category"});saveProductCategoryRulesV342(rules);renderProductCategoryRulesV342();setProductCategoryEditorV342();setCategorySaveButtonStateV342("保存成功",true);resetCategorySaveButtonV342();
+  });
 }
 
 async function copyRuleLabelV232(element, value) {
@@ -5190,7 +5240,7 @@ function renderProductList() {
   const searchNode = document.getElementById("productSearch");
   const list = document.getElementById("productList");
   const count = document.getElementById("productListCount");
-  // V34.1: legacy Product List UI was removed; callers may still refresh it.
+  // V34.2: legacy Product List UI was removed; callers may still refresh it.
   // Exit quietly instead of turning a successful Profit Management save into an error.
   if (!searchNode || !list || !count) return;
   const products = getProducts();
@@ -7607,7 +7657,7 @@ async function deleteBatchByNumber(importNumber) {
   if (typeof window.markCloudImportNumberDeletedV232 === "function") {
     window.markCloudImportNumberDeletedV232(batch.importNumber, batch.id);
   }
-  // V34.1: also tombstone concrete row IDs so a later Pull cannot resurrect a deleted test import/product.
+  // V34.2: also tombstone concrete row IDs so a later Pull cannot resurrect a deleted test import/product.
   if (typeof window.markCloudExplicitDeletedIdsV323 === "function") {
     window.markCloudExplicitDeletedIdsV323({
       imports: batchItems.map(item => String(item?.id || "")).filter(Boolean),
@@ -7630,7 +7680,7 @@ async function deleteBatchByNumber(importNumber) {
     if (typeof getCloudQueue === "function" && getCloudQueue()?.dirty) {
       throw new Error("云端仍有资料等待同步");
     }
-    // V34.1: pushAll_ writes the exact canonical Imports/Batches snapshot when an
+    // V34.2: pushAll_ writes the exact canonical Imports/Batches snapshot when an
     // explicit import-number tombstone is present. A successful strict flush is the
     // server-side confirmation; do not block the UI with one or two full Pulls.
     if (deleteStatusV228) deleteStatusV228.textContent = `云端已确认删除 ${batch.importNumber}，正在整理画面…`;
@@ -8263,7 +8313,7 @@ function setupImportHistory() {
   };
 
   button?.addEventListener("click", () => {
-    // V34.1: let the tap/typed text paint first, then run the existing local history scan.
+    // V34.2: let the tap/typed text paint first, then run the existing local history scan.
     normalizeHistoryDateField(startInput, startPicker);
     normalizeHistoryDateField(endInput, endPicker);
     lastCompletedHistoryLookup = "";
@@ -8302,7 +8352,7 @@ function setupImportHistory() {
     startInput.classList.remove("date-error");
     lastCompletedHistoryLookup = "";
     historyManualLookupReadyV246 = true;
-    // V34.1: let the date paint first; run the existing query only after the UI is free.
+    // V34.2: let the date paint first; run the existing query only after the UI is free.
     scheduleSearchRenderV302("history-date", renderImportHistory, 60);
   });
 
@@ -11611,7 +11661,7 @@ function maybeApplySuggestedBatchCurrencyV231(rowId, suggestedCurrency, label = 
 }
 
 function applyExistingProductCurrencyV232(rowId, product, { commitCurrency = false } = {}) {
-  // V34.1: historical currency is never scanned/applied during typing or selection.
+  // V34.2: historical currency is never scanned/applied during typing or selection.
   // Current purchase currency is decided only by explicit MYR selection or price threshold.
   return;
 }
@@ -11658,7 +11708,7 @@ function setAutoOriginalCostV249(rowId, record, { force = false } = {}) {
   const sourceCurrency = String(record?.currency || "").trim().toUpperCase();
   if (!(sourceValue > 0)) return false;
 
-  // V34.1: selecting a real existing product restores its historical unit price
+  // V34.2: selecting a real existing product restores its historical unit price
   // exactly as stored. Never convert VND<->CNY amounts. Currency is then chosen
   // by the proven V22.6 price rule, except explicit local MYR purchases stay MYR.
   row.dataset.settingAutoPriceV249 = "1";
@@ -11754,7 +11804,7 @@ function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, c
   tr.dataset.lastIdentityNameV231 = normalizedName;
 
   if (!commitCurrency) return;
-  // V34.1: prefix rules generate product IDs only; they never decide purchase currency.
+  // V34.2: prefix rules generate product IDs only; they never decide purchase currency.
 }
 
 function addBatchRow(prefill = {}){
@@ -14111,9 +14161,19 @@ function editProductNameFromImportPage(productId) {
 }
 
 function editProductEnglishNameFromImportPageV266(productId){
-  const id=String(productId||"").trim();const product=getProducts().find(p=>String(p.id||"")===id);if(!product){alert("找不到这个产品。");return}
-  const oldName=String(productEnglishNameV262(product)||"").trim();const entered=window.prompt(`修改产品英文名 / 第二栏\n\n目前英文名：${oldName||"（空白）"}\n请输入英文名；留空即可删除英文名。`,oldName);if(entered===null)return;const next=String(entered||"").trim();if(next===oldName)return;
-  const meta=getProductLanguageMetaV262(),key=String(id).toUpperCase(),current={...(meta[key]||{})};if(next)current.englishName=next;else delete current.englishName;meta[key]=current;saveProductLanguageMetaV262(meta);renderBatchProductStockResults();renderInventoryManagementList();if(typeof renderInventoryMasterV261==="function")renderInventoryMasterV261();const status=document.getElementById("batchProductStockStatus");if(status)status.textContent=next?`已更新英文名：${product.name} → ${next}`:`已删除英文名：${product.name}`;
+  const id=String(productId||"").trim();const products=getProducts();const index=products.findIndex(p=>String(p.id||"")===id);if(index<0){alert("找不到这个产品。");return}
+  const product=products[index],oldName=String(productEnglishNameV262(product)||"").trim();const entered=window.prompt(`修改产品英文名\n\n目前英文名：${oldName||"（未设置）"}\n请输入新的英文名（英文名不能删除）：`,oldName);if(entered===null)return;
+  const next=String(entered||"").trim();if(!next){alert("英文名不能删除或留空。");return}if(next===oldName)return;
+  if(!window.confirm(`确认修改英文名？\n\n${product.name}\n${oldName||"（未设置）"}\n→ ${next}\n\n只更新产品显示资料；库存、成本、最低售价、销售历史金额不会重算。`))return;
+  const now=new Date().toISOString();
+  const nextProducts=products.map((p,i)=>i===index?{...p,englishName:next,updatedAt:now}:p);
+  const imports=getImports(),nextImports=imports.map(r=>String(r.productId||"")===id?{...r,englishName:next,updatedAt:now}:r);
+  const batches=getBatches(),nextBatches=batches.map(batch=>{let changed=false;const items=(Array.isArray(batch.items)?batch.items:[]).map(item=>{if(String(item.productId||"")!==id)return item;changed=true;return{...item,englishName:next,updatedAt:now}});return changed?{...batch,items,updatedAt:now}:batch});
+  saveInventoryConsistencySnapshot(products,nextProducts,imports,nextImports,batches,nextBatches);
+  const meta=getProductLanguageMetaV262(),key=id.toUpperCase();meta[key]={...(meta[key]||{}),englishName:next};saveProductLanguageMetaV262(meta);
+  appendCostRevisionHistory([{id:`DATAREV${Date.now()}${Math.random().toString(36).slice(2,7)}`,timestamp:new Date().toLocaleString("zh-MY",{hour12:false}),importNumber:id||"-",fieldLabel:`产品英文名 · ${id||"未编号"}`,before:oldName||"—",after:next}]);
+  [renderBatchProductStockResults,renderInventoryManagementList,renderDashboard,renderBatchList,renderImportHistory].forEach(fn=>{try{fn()}catch(_){}});if(typeof renderInventoryMasterV261==="function")try{renderInventoryMasterV261()}catch(_){}
+  const status=document.getElementById("batchProductStockStatus");if(status)status.textContent=`已更新英文名：${product.name} → ${next}`;
 }
 function bindProductEnglishNameEditV266(){const output=document.getElementById("batchProductStockResults");if(!output||output.dataset.englishEditBoundV266==="1")return;output.dataset.englishEditBoundV266="1";let timer=null,btn=null,moved=false,sx=0,sy=0,long=false;const reset=()=>{if(timer)clearTimeout(timer);timer=null;btn=null;moved=false;long=false};output.addEventListener("pointerdown",e=>{const b=e.target.closest(".product-stock-english-edit-btn-v266");if(!b)return;btn=b;sx=e.clientX;sy=e.clientY;moved=false;long=false;timer=setTimeout(()=>{if(!moved&&btn){long=true;editProductEnglishNameFromImportPageV266(btn.dataset.productId)}},650)});output.addEventListener("pointermove",e=>{if(!btn)return;if(Math.abs(e.clientX-sx)>12||Math.abs(e.clientY-sy)>12){moved=true;if(timer)clearTimeout(timer)}});output.addEventListener("pointerup",async e=>{if(!btn)return;const b=btn;if(timer)clearTimeout(timer);if(!moved&&!long){const p=getProducts().find(x=>String(x.id||"")===String(b.dataset.productId||""));const txt=String(productEnglishNameV262(p)||"").trim();if(txt){try{await navigator.clipboard.writeText(txt)}catch(_){}}}reset()});output.addEventListener("contextmenu",e=>{if(e.target.closest(".product-stock-english-edit-btn-v266"))e.preventDefault()})}
 
@@ -14768,7 +14828,7 @@ function normalizeMinimumPriceInput(value) {
 }
 
 async function editDisplayedMinimumPriceV199(productId) {
-  // V34.1: direct minimum-price edits are always the product's manual minimum price.
+  // V34.2: direct minimum-price edits are always the product's manual minimum price.
   // Manual prices have highest priority and are never changed by Profit Management.
   return editProductMinimumPrice(String(productId || "").trim());
 }
@@ -15406,7 +15466,7 @@ function setupInventoryModule() {
 
   bindInventoryMinimumPriceLongPress();
   renderInventoryManagementList();
-  // V34.1 performance: do NOT preload the complete Sales history in the background.
+  // V34.2 performance: do NOT preload the complete Sales history in the background.
   // The persisted local analytics are enough for normal browsing; full Sales links are
   // fetched only when the user explicitly chooses Profit Highest or runs History.
 }
@@ -15588,7 +15648,7 @@ function getInventorySalesAnalyticsV146() {
 let inventoryVisibleProductsV153 = [];
 
 
-// V34.1: prepare the expensive inventory/import joins once per unchanged data snapshot.
+// V34.2: prepare the expensive inventory/import joins once per unchanged data snapshot.
 // Search and sort now operate on these prepared rows without rebuilding all import maps.
 let inventoryPreparedRowsCacheV321 = {
   rawProducts: null, settings: null, imports: null, batches: null, sales: null,
@@ -15693,9 +15753,9 @@ function getMinimumPriceStateSignatureV339(products){
   }).sort().join("|");
 }
 
-// V34.1: one canonical product search/filter/sort path for every inventory-style view.
+// V34.2: one canonical product search/filter/sort path for every inventory-style view.
 // Import product entry intentionally does NOT use this helper.
-// V34.1: generic signed-percentage formatter retained from V32.5.
+// V34.2: generic signed-percentage formatter retained from V32.5.
 // This is shared by inventory profit-rate rendering and is NOT promotion logic.
 function formatProfitTargetV303(value) {
   const n = Number(value);
@@ -15741,7 +15801,7 @@ function filterSortInventoryProductsV324(query = "", sortMode = "latest", source
 }
 
 
-// V34.1: build the original full V32.5 inventory card defensively. Optional
+// V34.2: build the original full V32.5 inventory card defensively. Optional
 // helpers (media, copy button, language metadata, price-state helpers) are
 // isolated so one bad optional field can never blank the entire inventory list.
 // The fallback is still the SAME full card structure, never a simplified card.
@@ -16255,7 +16315,7 @@ function openSystemMediaPreviewV305(type, url, label = "") {
   const directVideoSources = getGoogleDriveDirectSourcesV310(originalUrl);
   if (!source) { window.alert("尚未上传"); return; }
 
-  // V34.1 desktop: use exactly one layer. Open the original Google Drive link in
+  // V34.2 desktop: use exactly one layer. Open the original Google Drive link in
   // one browser tab for both photos and videos. Closing that tab returns directly
   // to Import System; no second system modal remains underneath.
   const desktopFinePointer = window.matchMedia("(hover:hover) and (pointer:fine)").matches && window.innerWidth >= 720;
@@ -16264,7 +16324,7 @@ function openSystemMediaPreviewV305(type, url, label = "") {
     return;
   }
 
-  // V34.1 mobile video: try a minimal in-system player first. Only X, one
+  // V34.2 mobile video: try a minimal in-system player first. Only X, one
   // play/pause button and a slim progress bar are rendered by us. If Google
   // blocks the direct stream, silently switch to Drive Preview with no message.
   if (!desktopFinePointer && mediaType === "video") {
@@ -16493,7 +16553,7 @@ function getMinimumPriceDisplayStateV315(product) {
   return { manual, state, className, label:"最低售价", price:info.price, profitInfo:info };
 }
 
-// V34.1: one visual state for desktop/mobile/card/original-cost/master table.
+// V34.2: one visual state for desktop/mobile/card/original-cost/master table.
 // Inline color is deliberate: it prevents stale desktop DOM/CSS from overriding the
 // canonical state while keeping the same state attribute for every renderer.
 function getMinimumPriceColorV340(state) {
@@ -17324,7 +17384,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "34.1",
+      version: "34.2",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -17691,7 +17751,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V34.1 Stable",
+      updatedBy: "System V34.2 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -17837,7 +17897,7 @@ function productNameWithEnglishV262(product){const en=productEnglishNameV262(pro
 function rememberProductLanguageV262(productId, chineseName, englishName){const id=String(productId||"").toUpperCase();if(!id)return;const meta=getProductLanguageMetaV262();meta[id]={chineseName:String(chineseName||"").trim(),englishName:String(englishName||"").trim()};saveProductLanguageMetaV262(meta)}
 function inferSimpleBilingualV262(text){const raw=String(text||"").trim();const rule=speciesRuleV262(raw);return{chineseName:rule?.cn||(/[\u3400-\u9fff]/.test(raw)?raw:""),englishName:rule?.en||(!/[\u3400-\u9fff]/.test(raw)?raw.replace(/\b(?:P?\d{2,4}|\d+(?:\.\d+)?C|\d+[xX]\d+)\b.*$/i,"").trim():""),prefix:rule?.prefix||""}}
 
-// ================= V34.1 Product Inventory Master =================
+// ================= V34.2 Product Inventory Master =================
 const SUPPLIER_ALIASES_V261 = Object.freeze([
   {names:["Ocean Landscaping","Ocean Landscaping Nursery"],prefix:"OLN",currency:"MYR"},{names:["JM Gardening","JM Landscape","JM Nursery"],prefix:"JMG",currency:"MYR"},{names:["Soong Huat Enterprise","Soong Huat Cameron"],prefix:"SHE",currency:"MYR"},{names:["Tan Ah Hwang Nursery"],prefix:"TAH",currency:"MYR"},{names:["Tan Kok Leyong","Tan Kok Leyong Nursery"],prefix:"TKL",currency:"MYR"},{names:["Wong Wan Choi"],prefix:"WWC",currency:"MYR"},{names:["忠盛"],prefix:"忠盛",currency:"CNY"},{names:["大厚"],prefix:"大厚",currency:"CNY"},{names:["游小北"],prefix:"游小北",currency:"CNY"},{names:["昊杨"],prefix:"昊杨",currency:"CNY"},{names:["松美轩"],prefix:"松美轩",currency:"CNY"}
 ]);

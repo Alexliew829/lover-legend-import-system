@@ -5,18 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=34.1" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=34.1" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=34.1" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=34.1" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=34.1" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=34.1" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=34.1" />
+  <link rel="manifest" href="./manifest.json?v=34.2" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=34.2" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=34.2" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=34.2" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=34.2" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=34.2" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=34.2" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=34.1" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=34.2" />
   <style id="access-lock-critical-v299">
     html,body{margin:0;min-height:100%;font-family:Arial,Helvetica,sans-serif}
     .access-lock{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(242,248,244,.96)}
@@ -37,12 +37,12 @@
       }
     } catch (_) {}
   </script>
-  <link rel="preload" href="./css/style.css?v=34.1" as="style" />
-  <link rel="stylesheet" href="./css/style.css?v=34.1" media="print" onload="this.media='all'" />
-  <noscript><link rel="stylesheet" href="./css/style.css?v=34.1" /></noscript>
-  <script defer src="./js/common.js?v=34.1"></script>
-  <script defer src="./js/sync.js?v=34.1"></script>
-  <script defer src="./js/app.js?v=34.1"></script>
+  <link rel="preload" href="./css/style.css?v=34.2" as="style" />
+  <link rel="stylesheet" href="./css/style.css?v=34.2" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="./css/style.css?v=34.2" /></noscript>
+  <script defer src="./js/common.js?v=34.2"></script>
+  <script defer src="./js/sync.js?v=34.2"></script>
+  <script defer src="./js/app.js?v=34.2"></script>
 </head>
 <body>
   <div id="accessLock"
@@ -116,7 +116,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 34.1 Stable</div>
+          <div class="app-header-version">正式版 34.2 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -503,13 +503,22 @@
                 </div>
               </div>
               <div class="product-category-prefix-table-v339" role="table" aria-label="产品类别">
-                <div class="product-category-prefix-row-v339 is-head" role="row"><span>#</span><span>中文分类</span><span>英文</span><span>前缀</span></div>
-                <div class="product-category-prefix-row-v339" role="row"><span>1</span><strong class="product-category-cn-v340">盆栽</strong><span>Bonsai</span><strong>BS</strong></div>
-                <div class="product-category-prefix-row-v339" role="row"><span>2</span><strong class="product-category-cn-v340">肥料 / 农药</strong><span>Fertilizer / Pesticide</span><strong>FL</strong></div>
-                <div class="product-category-prefix-row-v339" role="row"><span>3</span><strong class="product-category-cn-v340">泥土 / 介质</strong><span>Soil / Growing Media</span><strong>NT</strong></div>
-                <div class="product-category-prefix-row-v339" role="row"><span>4</span><strong class="product-category-cn-v340">花盆</strong><span>Pot</span><strong>PT</strong></div>
-                <div class="product-category-prefix-row-v339" role="row"><span>5</span><strong class="product-category-cn-v340">其他</strong><span>Others</span><strong>QT</strong></div>
-                <div class="product-category-prefix-row-v339" role="row"><span>6</span><strong class="product-category-cn-v340">工具</strong><span>Tools</span><strong>TL</strong></div>
+                <div class="product-category-prefix-row-v339 is-head product-category-edit-row-v342" role="row"><span>#</span><span>中文分类</span><span>英文</span><span>前缀</span><span>操作</span></div>
+                <div id="productCategoryRulesListV342"></div>
+              </div>
+              <div class="product-prefix-editor-v339 product-category-editor-v342">
+                <h4>编辑 / 新增产品类别</h4>
+                <div class="product-prefix-editor-grid-v339">
+                  <label>中文分类<input id="productCategoryKeywordV342" class="text-left-input" maxlength="15" autocomplete="off" placeholder="中文分类" /></label>
+                  <label>英文<input id="productCategoryEnglishV342" class="text-left-input" maxlength="30" autocomplete="off" placeholder="英文名称" /></label>
+                  <label>前缀<input id="productCategoryPrefixV342" class="text-left-input" maxlength="2" autocomplete="off" autocapitalize="characters" placeholder="2个字母" /></label>
+                </div>
+                <div class="product-prefix-editor-actions-v339">
+                  <button id="saveProductCategoryRuleBtnV342" class="primary-btn" type="button">保存</button>
+                  <button id="cancelProductCategoryRuleBtnV342" class="secondary-btn" type="button">取消</button>
+                  <button id="clearProductCategoryRuleBtnV342" class="secondary-btn" type="button">清空</button>
+                </div>
+                <div id="productCategoryRulesStatusV342" class="status-text"></div>
               </div>
             </div>
             <details id="productPrefixSettingsV339" class="collapsible-settings-v181 product-prefix-settings-v181 product-prefix-settings-v339 rules-subpanel-v235">
@@ -840,7 +849,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 34.1 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 34.2 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>

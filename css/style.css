@@ -5815,7 +5815,7 @@ body.system-media-preview-open-v305{overflow:hidden}
   direction:ltr;
 }
 
-/* Legacy product category layout retained below; V34.1 rules at file end override it. */
+/* Legacy product category layout retained below; V34.2 rules at file end override it. */
 .product-prefix-category-panel-v339{margin:0 0 16px;width:100%;}
 .product-rule-section-head-v339{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin:0 0 12px;}
 .product-rule-section-head-v339 h4{margin:0;color:#08705d;font-size:21px;font-weight:900;}
@@ -5873,7 +5873,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 }
 
 
-/* V34.1 — canonical minimum-price colors + refined Product ID & Category Management. */
+/* V34.2 — canonical minimum-price colors + refined Product ID & Category Management. */
 [data-minimum-price-state-v324="manual"],[data-minimum-price-state-v324="manual"] *{color:#0b68c9!important;}
 [data-minimum-price-state-v324="gain"],[data-minimum-price-state-v324="gain"] *{color:#087a43!important;}
 [data-minimum-price-state-v324="loss"],[data-minimum-price-state-v324="loss"] *{color:#c62828!important;}
@@ -5940,7 +5940,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 }
 
 
-/* V34.1 — final minimum-price state and Product ID/Category UI polish. */
+/* V34.2 — final minimum-price state and Product ID/Category UI polish. */
 [data-minimum-price-state-v324="manual"],[data-minimum-price-state-v324="manual"] *{color:#0b68c9!important;}
 [data-minimum-price-state-v324="gain"],[data-minimum-price-state-v324="gain"] *{color:#087a43!important;}
 [data-minimum-price-state-v324="loss"],[data-minimum-price-state-v324="loss"] *{color:#c62828!important;}
@@ -6015,4 +6015,27 @@ body.system-media-preview-open-v305{overflow:hidden}
   .product-prefix-editor-grid-v339 input{min-height:46px!important;font-size:16px!important;text-align:left!important;}
   .product-prefix-editor-actions-v339{display:grid!important;grid-template-columns:1fr 1fr 1fr;gap:8px;}
   .product-prefix-editor-actions-v339 button{min-width:0!important;width:100%!important;min-height:44px!important;font-size:16px!important;}
+}
+
+
+/* V34.2 — editable product categories, tighter prefix UI, larger media status dots. */
+.product-category-prefix-row-v339.product-category-edit-row-v342{grid-template-columns:54px minmax(170px,24%) minmax(250px,38%) 82px minmax(176px,1fr)!important;}
+.product-category-actions-v342{display:flex!important;justify-content:center!important;gap:8px!important;}
+.product-category-actions-v342 button{min-width:72px!important;min-height:36px!important;margin:0!important;}
+.product-category-editor-v342{margin:14px 0 18px!important;}
+.inventory-media-dot-v236{width:13px!important;height:13px!important;}
+.inventory-media-status-v236{gap:5px!important;margin-left:0!important;transform:translateX(-2px);}
+.product-stock-english-edit-btn-v266{appearance:none;border:0;background:transparent!important;padding:0!important;margin:5px 0 10px!important;text-align:left!important;width:auto!important;max-width:100%;font:inherit;color:#33443a;font-weight:700;cursor:pointer;}
+.product-stock-english-edit-btn-v266:hover{text-decoration:underline;}
+@media(max-width:719px){
+  .product-category-prefix-row-v339.product-category-edit-row-v342{grid-template-columns:36px minmax(0,1fr) 54px!important;grid-template-rows:auto auto auto!important;min-height:108px!important;}
+  .product-category-prefix-row-v339.product-category-edit-row-v342>span:first-child{grid-column:1;grid-row:1/3;}
+  .product-category-prefix-row-v339.product-category-edit-row-v342>.product-category-cn-v340{grid-column:2;grid-row:1;}
+  .product-category-prefix-row-v339.product-category-edit-row-v342>span:nth-child(3){grid-column:2;grid-row:2;}
+  .product-category-prefix-row-v339.product-category-edit-row-v342>strong{grid-column:3;grid-row:1/3;}
+  .product-category-actions-v342{grid-column:2/4;grid-row:3;justify-content:flex-start!important;padding:7px 5px 2px!important;}
+  .product-category-actions-v342 button{min-width:84px!important;min-height:40px!important;font-size:16px!important;}
+  .product-category-editor-v342{margin:12px 0 16px!important;}
+  .inventory-media-dot-v236{width:14px!important;height:14px!important;}
+  .inventory-media-status-v236{gap:6px!important;transform:translateX(-4px);}
 }

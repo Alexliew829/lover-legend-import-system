@@ -12,7 +12,7 @@ let cloudInitialSyncComplete = false;
 let cloudSyncTimer = null;
 let cloudSyncRequestedWhileBusy = false;
 let cloudRefreshingViewsV338 = false;
-// V34.1: remember whether a real unsynced queue already existed before any
+// V34.2: remember whether a real unsynced queue already existed before any
 // DOMContentLoaded setup code runs. Startup-only housekeeping must never turn a
 // clean launch into a Push before the first read-only cloud check completes.
 const cloudQueueWasDirtyAtScriptLoadV337 = (() => {
@@ -134,7 +134,7 @@ function setupCloudSync() {
     (startupSnapshotV338.products || []).length > 0 ||
     (startupSnapshotV338.imports || []).length > 0 ||
     (startupSnapshotV338.batches || []).length > 0;
-  // V34.1 Local-First: when a valid V32.5-style bootstrap and cached core data
+  // V34.2 Local-First: when a valid V32.5-style bootstrap and cached core data
   // already exist, show the last successful state immediately while the
   // revision check runs silently in the background.
   if (isCloudBootstrapComplete() && Number(startupConfigV338.revision) > 0 && hasCachedCoreV338 && !getCloudQueue().dirty) {
@@ -411,7 +411,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V34.1 Stable",
+      updatedBy: "System V34.2 Stable",
       ...payload
     });
 
@@ -447,7 +447,7 @@ async function commitSalesInventoryBatchToCloudV125(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V34.1 Stable",
+      updatedBy: "System V34.2 Stable",
       ...payload
     });
     if (data.conflict || data.stockChanged) {
@@ -470,7 +470,7 @@ window.commitSalesInventoryBatchToCloudV125 = commitSalesInventoryBatchToCloudV1
 
 async function commitSalesCorrectionBatchToCloudV110(payload) {
   await flushCloudQueueStrictV83(); const config=getCloudConfig(); setCloudState("syncing");
-  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V34.1 Stable",...payload});
+  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V34.2 Stable",...payload});
     if(data.conflict||data.stockChanged) throw new Error(data.message||"Google Sheet 资料已改变，全部库存差异没有处理。请同步后重试。");
     config.revision=Number(data.revision)||Number(config.revision)||0; config.lastSyncAt=new Date().toISOString(); config.bootstrapToken=String(data.bootstrapToken||config.bootstrapToken||""); config.bootstrapRevision=Number(data.revision)||Number(config.bootstrapRevision)||0; saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced"); return data;
   } catch(error){setCloudState("failed");throw error;}
@@ -484,7 +484,7 @@ async function migrateProductPrefixesV164() {
     action: "migrateProductPrefixesV164", clientVersion: APP_VERSION,
     schemaVersion: CLOUD_SCHEMA_VERSION, baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""), bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V34.1 Stable"
+    updatedBy: "System V34.2 Stable"
   });
   if (data.conflict) throw new Error(data.message || "资料已改变，请同步后重试。");
   config.revision = Number(data.revision) || Number(config.revision) || 0;
@@ -520,7 +520,7 @@ async function runCloudSync() {
 
   try {
     let queue = getCloudQueue();
-    // V34.1: if the queue was clean before this page loaded but became dirty while
+    // V34.2: if the queue was clean before this page loaded but became dirty while
     // setup/render code was running, that dirtiness is startup housekeeping, not
     // a user edit. Clear it before the first cloud operation so V32.5's fast
     // read-first path is preserved. A queue that was already dirty before page
@@ -533,7 +533,7 @@ async function runCloudSync() {
       });
       queue = getCloudQueue();
     }
-    // V34.1: after one successful bootstrap, read-only revision checks stay in the
+    // V34.2: after one successful bootstrap, read-only revision checks stay in the
     // background and must not put the dashboard back into a long "同步中..." state.
     // Real local writes/pushes still show syncing.
     if (!cloudInitialSyncComplete || queue.dirty || !isCloudBootstrapComplete()) {
@@ -550,6 +550,16 @@ async function runCloudSync() {
     // No Push is allowed until the canonical Sheet has been pulled successfully.
     let remoteUpdated = false;
 
+    // V34.2: a bootstrap record from an older cached frontend may be complete but
+    // its write credential is not current. Refresh it with a read-only Pull before
+    // any Push is allowed. This prevents the mobile V8.7 red-flash loop.
+    let credentialRefreshedV342 = false;
+    if (isCloudBootstrapComplete() && !isCloudWriteCredentialCurrentV341() && !queue.dirty) {
+      remoteUpdated = await pullLatestSnapshot(false);
+      queue = getCloudQueue();
+      credentialRefreshedV342 = true;
+    }
+
     if (!isCloudBootstrapComplete()) {
       clearLegacyPendingCloudState();
       remoteUpdated = await pullLatestSnapshot(true);
@@ -565,7 +575,7 @@ async function runCloudSync() {
       // 若电脑已经更新，服务器返回 conflict 后自动合并再重试，
       // 不额外增加一次网络请求。
       await pushPendingSnapshot(queue);
-    } else {
+    } else if (!credentialRefreshedV342) {
       remoteUpdated = await pullLatestSnapshot();
     }
 
@@ -619,6 +629,9 @@ async function pullLatestSnapshot(forceBootstrap = false) {
       config.bootstrapRevision = Number(data.revision) || 0;
     }
     saveCloudConfig(config);
+    // V34.2: even an unchanged Pull can return a fresh bootstrap token. Persist
+    // the current-version credential so mobile caches do not keep using V34.0/V34.1 tokens.
+    if (!isCloudWriteCredentialCurrentV341() && data.bootstrapToken) saveCloudBootstrap(data);
     renderCloudMeta(config);
     setCloudState("synced");
     return false;
@@ -689,7 +702,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V34.1 Stable",
+    updatedBy: "System V34.2 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     minimumPriceManual: Boolean(minimumPriceManual),
@@ -716,7 +729,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
   config.bootstrapRevision = Number(data.revision) || 0;
   saveCloudConfig(config);
 
-  // V34.1: keep this single-product change authoritative locally as well.
+  // V34.2: keep this single-product change authoritative locally as well.
   // A credential-refresh Pull may have happened immediately before the write;
   // re-apply only this product so other protected products never lose their flags.
   try {
@@ -742,7 +755,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
     }
     if (typeof refreshSystemViewsAfterSync === "function") refreshSystemViewsAfterSync();
   } catch (localErrorV341) {
-    console.warn("V34.1 minimum-price local refresh skipped", localErrorV341);
+    console.warn("V34.2 minimum-price local refresh skipped", localErrorV341);
   }
 
   renderCloudMeta(config);
@@ -766,7 +779,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V34.1 Stable",
+    updatedBy: "System V34.2 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
@@ -939,7 +952,7 @@ function applyRemoteData(data) {
 
   cloudApplyingRemote = true;
   try {
-    // V34.1: keep the proven V32.5 Pull/apply path simple.
+    // V34.2: keep the proven V32.5 Pull/apply path simple.
     // Only strip the retired promotion payload locally; do not run any
     // migration/sanitizer during the first cloud Pull.
     const safeRemoteSettingsV336 = { ...(data.settings || {}) };
@@ -952,7 +965,7 @@ function applyRemoteData(data) {
     }
     localStorage.setItem("importSystemImports", JSON.stringify(data.imports));
     localStorage.setItem("importSystemBatches", JSON.stringify(data.batches));
-    // V34.1: direct cloud writes must invalidate the prepared inventory join.
+    // V34.2: direct cloud writes must invalidate the prepared inventory join.
     // Otherwise a previously prepared empty/filtered array can survive the Pull
     // and leave the card area blank even though totals already show live stock.
     if (typeof inventoryPreparedRowsCacheV321 !== "undefined") {
@@ -963,7 +976,7 @@ function applyRemoteData(data) {
     cloudApplyingRemote = false;
   }
 
-  // V34.1: a cloud Pull is read-only. Do not auto-repair/write cost snapshots
+  // V34.2: a cloud Pull is read-only. Do not auto-repair/write cost snapshots
   // during startup or revision checks; this prevents a successful Pull from
   // immediately creating a dirty queue and starting another Push.
   cloudRefreshingViewsV338 = true;
