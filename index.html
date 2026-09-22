@@ -5,18 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=32.6" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=32.6" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=32.6" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=32.6" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=32.6" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=32.6" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=32.6" />
+  <link rel="manifest" href="./manifest.json?v=32.7" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=32.7" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=32.7" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=32.7" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=32.7" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=32.7" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=32.7" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=32.6" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=32.7" />
   <style id="access-lock-critical-v299">
     html,body{margin:0;min-height:100%;font-family:Arial,Helvetica,sans-serif}
     .access-lock{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(242,248,244,.96)}
@@ -37,12 +37,12 @@
       }
     } catch (_) {}
   </script>
-  <link rel="preload" href="./css/style.css?v=32.6" as="style" />
-  <link rel="stylesheet" href="./css/style.css?v=32.6" media="print" onload="this.media='all'" />
-  <noscript><link rel="stylesheet" href="./css/style.css?v=32.6" /></noscript>
-  <script defer src="./js/common.js?v=32.6"></script>
-  <script defer src="./js/sync.js?v=32.6"></script>
-  <script defer src="./js/app.js?v=32.6"></script>
+  <link rel="preload" href="./css/style.css?v=32.7" as="style" />
+  <link rel="stylesheet" href="./css/style.css?v=32.7" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="./css/style.css?v=32.7" /></noscript>
+  <script defer src="./js/common.js?v=32.7"></script>
+  <script defer src="./js/sync.js?v=32.7"></script>
+  <script defer src="./js/app.js?v=32.7"></script>
 </head>
 <body>
   <div id="accessLock"
@@ -116,7 +116,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 32.6 Stable</div>
+          <div class="app-header-version">正式版 32.7 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -129,7 +129,6 @@
       <section id="dashboardPage" class="page active">
         <div class="section-title-row dashboard-title-row-v204">
           <h2>Dashboard / 首页</h2>
-          <div id="dashboardPromotionStatusV208" class="dashboard-promotion-status-v208" aria-live="polite" hidden></div>
           <div class="system-health-row-v204" aria-live="polite">
             <button id="importAnomalyStatusButtonV202" class="import-anomaly-status-button-v202" type="button" aria-expanded="false">
               <span id="importAnomalyStatusDotV202" class="import-anomaly-status-dot-v202 checking" aria-hidden="true"></span>
@@ -499,12 +498,24 @@
         <details class="collapsible-settings-v181 product-prefix-settings-v181 rules-subpanel-v235">
           <summary><span>盆栽前缀规则</span><small>按产品名称关键词生成编号前缀</small></summary>
           <p class="settings-help">
-            系统／历史规则保持锁定。你新增的盆栽名称关键词和前缀，在尚未有真实进口产品使用前可以修改；一旦有进口记录／库存历史就会自动锁定。只影响以后新增产品，现有产品编号永远不会自动改号。
+            规则如果已经有现有产品编号／产品资料使用，只允许修改英文关键词；中文关键词、前缀和删除会自动锁定。没有任何产品关联的规则可自由修改或删除。只影响以后新增产品，现有产品编号永远不会自动改号。
           </p>
-          <div class="product-prefix-simple-head-v326"><span>中文 / 英文 / 马来文</span><span>前缀 / 操作</span></div>
-          <div id="productPrefixRulesList" class="product-prefix-locked-list-v181"></div>
-          <div class="product-prefix-add-v181 product-prefix-add-three-v319"><label>中文关键词<input id="newProductPrefixKeyword" maxlength="20" autocomplete="off" placeholder="例如：榕树" /></label><label>英文 / 马来文（选填）<input id="newProductPrefixEnglishV319" maxlength="60" autocomplete="off" placeholder="没有可留空" /></label><label>编号前缀<input id="newProductPrefixCode" maxlength="2" autocomplete="off" autocapitalize="characters" placeholder="例如：RS" /></label></div>
-          <button id="addProductPrefixRuleBtn" class="primary-btn" type="button">新增产品前缀</button>
+          <div class="product-prefix-table-head-v327"><span>中文关键词</span><span>英文关键词</span><span>前缀</span><span>操作</span></div>
+          <div id="productPrefixRulesList" class="product-prefix-locked-list-v181 product-prefix-table-v327"></div>
+          <div id="productPrefixEditorV327" class="product-prefix-editor-v327">
+            <div class="product-prefix-editor-title-v327">新增 / 修改盆栽前缀规则</div>
+            <div class="product-prefix-add-v181 product-prefix-add-three-v319">
+              <label>中文<input id="newProductPrefixKeyword" maxlength="15" autocomplete="off" placeholder="例如：榕树" /></label>
+              <label>英文<input id="newProductPrefixEnglishV319" maxlength="15" autocomplete="off" placeholder="最多15个字符" /></label>
+              <label>前缀<input id="newProductPrefixCode" maxlength="2" autocomplete="off" autocapitalize="characters" placeholder="例如：RS" /></label>
+            </div>
+            <div class="product-prefix-editor-actions-v327">
+              <button id="addProductPrefixRuleBtn" class="primary-btn" type="button">新增</button>
+              <button id="deleteProductPrefixRuleBtnV327" class="danger-btn" type="button" hidden>删除</button>
+              <button id="cancelProductPrefixEditBtnV327" class="secondary-btn" type="button" hidden>取消</button>
+            </div>
+            <div id="productPrefixEditorLockNoteV327" class="settings-help" hidden></div>
+          </div>
           <div id="productPrefixRulesStatus" class="status-text"></div>
           <p class="settings-help">这里只管理「盆栽」产品的名称关键词前缀；例如黄杨 → BX。盆栽无法识别时使用 PZ。</p>
         </details>
@@ -600,70 +611,7 @@
           <div id="minimumPriceSettingsStatus" class="status-text"></div>
         </details>
 
-        <details class="panel collapsible-settings-v181 promotion-settings-v183">
-          <summary><span class="promotion-summary-title-v192"><span>促销管理</span><small id="promotionSummaryStatusV183"></small></span><small id="promotionToggleHintV192" class="promotion-toggle-hint-v192">点击打开</small></summary>
-          <p class="settings-help">促销开启后，所有未排除产品会临时使用促销最低售价；原最低售价不会被修改。删除促销后立即恢复原价。</p>
-          <div class="form-grid promotion-main-grid-v183">
-            <label>活动名称<input id="promotionNameV183" maxlength="30" value="年尾清货" /></label>
-            <label>主播佣金（%）<input id="promotionCommissionV183" inputmode="decimal" value="10" /></label>
-            <label>默认目标利润率（%）<input id="promotionMarginV183" type="text" inputmode="text" pattern="-?[0-9]*([.][0-9]+)?" autocomplete="off" value="30" /></label>
-          </div>
-          <h4>排除产品</h4>
-          <p class="settings-help">搜索并选择普通产品加入排除；手动最低售价精品由系统自动保护，不参与促销，也不需要加入排除。被排除的普通产品继续使用原最低售价。</p>
-          <div class="promotion-search-box-v186">
-            <div class="promotion-search-tools-v184">
-              <input id="promotionExcludeSearchV183" type="search" autocomplete="off" placeholder="搜索产品编号、名称、进口编号或原成本" />
-              <select id="promotionExcludeFilterV184" aria-label="促销排除产品筛选">
-              <option value="latest">最近进口</option>
-              <option value="latest-sold">最近售出</option>
-              <option value="name">产品名称</option>
-              <option value="bestseller-desc">畅销商品</option>
-              <option value="profit-desc">利润最高</option>
-              <option value="stock-desc">库存最多</option>
-              <option value="stock-asc">库存最少</option>
-              <option value="value-desc">库存成本最高</option>
-              <option value="cost-desc">平均成本最高</option>
-              </select>
-            </div>
-            <div id="promotionSearchBatchToolsV184" class="promotion-batch-tools-v184" hidden>
-              <label><input id="promotionSelectAllSearchV184" type="checkbox" /> 全选当前搜索结果</label>
-              <button id="promotionExcludeSelectedV184" class="secondary-btn" type="button" disabled>确认加入排除（0）</button>
-            </div>
-            <div id="promotionPendingSelectionV193" class="promotion-pending-selection-v193" hidden></div>
-            <div id="promotionExcludeSearchResultsV183" class="promotion-search-results-v183"></div>
-          </div>
-          <div id="promotionExcludedBoxV186" class="promotion-excluded-box-v186">
-            <div id="promotionExcludedBatchToolsV184" class="promotion-batch-tools-v184 promotion-excluded-tools-v186" hidden>
-              <label><input id="promotionSelectAllExcludedV184" type="checkbox" /> 全选排除清单</label>
-              <button id="promotionRemoveSelectedV184" class="secondary-btn" type="button" disabled>确认移除排除（0）</button>
-            </div>
-            <div id="promotionExcludedListV183" class="promotion-excluded-list-v183"></div>
-          </div>
-          <div id="promotionUnsavedV186" class="promotion-unsaved-v186" hidden></div>
-          <div class="promotion-actions-v183">
-            <button id="savePromotionV183" class="primary-btn" type="button">更新促销设置</button>
-            <button id="deletePromotionV183" class="danger-action-btn" type="button" hidden>关闭促销管理并恢复默认最低售价</button>
-          </div>
-          <button id="togglePromotionPriceListV183" class="secondary-btn" type="button" hidden>查看全部促销价格</button>
-          <div id="promotionPriceListPanelV183" class="promotion-price-list-panel-v183" hidden>
-            <div class="promotion-search-tools-v184">
-              <input id="promotionPriceListSearchV183" type="search" autocomplete="off" placeholder="搜索产品名称、编号、类别、进口编号或原成本" />
-              <select id="promotionPriceListSortV185" aria-label="促销价格列表排序">
-                <option value="latest">最近进口</option>
-                <option value="latest-sold">最近售出</option>
-                <option value="name">产品名称</option>
-                <option value="bestseller-desc">畅销商品</option>
-                <option value="profit-desc">利润最高</option>
-                <option value="stock-desc">库存最多</option>
-                <option value="stock-asc">库存最少</option>
-                <option value="value-desc">库存成本最高</option>
-                <option value="cost-desc">平均成本最高</option>
-              </select>
-            </div>
-            <div id="promotionPriceListV183"></div>
-          </div>
-          <div id="promotionStatusV183" class="status-text"></div>
-        </details>
+
 
 
         <section class="panel">
@@ -877,7 +825,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 32.6 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 32.7 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
