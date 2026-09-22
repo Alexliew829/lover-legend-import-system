@@ -11,6 +11,17 @@ let cloudApplyingRemote = false;
 let cloudInitialSyncComplete = false;
 let cloudSyncTimer = null;
 let cloudSyncRequestedWhileBusy = false;
+// V33.7: remember whether a real unsynced queue already existed before any
+// DOMContentLoaded setup code runs. Startup-only housekeeping must never turn a
+// clean launch into a Push before the first read-only cloud check completes.
+const cloudQueueWasDirtyAtScriptLoadV337 = (() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CLOUD_QUEUE_KEY) || "{}");
+    return Boolean(saved && saved.dirty);
+  } catch (_) {
+    return false;
+  }
+})();
 let cloudLastForegroundCheckAt = 0;
 let cloudForegroundCheckTimer = null;
 let cloudLastErrorMessage = "";
@@ -64,7 +75,7 @@ function saveCloudQueue(queue) {
 
 function isCloudBootstrapComplete() {
   const saved = loadJSON(CLOUD_BOOTSTRAP_KEY, {});
-  return saved && saved.version === APP_VERSION && saved.schemaVersion === CLOUD_SCHEMA_VERSION && saved.completed === true;
+  return saved && saved.schemaVersion === CLOUD_SCHEMA_VERSION && saved.completed === true;
 }
 
 function clearLegacyPendingCloudState() {
@@ -269,7 +280,7 @@ function cancelCloudImportNumberDeletionV232(importNumber, batchId = "") {
 window.cancelCloudImportNumberDeletionV232 = cancelCloudImportNumberDeletionV232;
 
 function markCloudCollectionSaved(collection, previousItems, nextItems) {
-  if (cloudApplyingRemote || !isCloudBootstrapComplete()) return;
+  if (cloudApplyingRemote || !isCloudBootstrapComplete() || !cloudInitialSyncComplete) return;
   if (JSON.stringify(previousItems || []) === JSON.stringify(nextItems || [])) return;
 
   const queue = getCloudQueue();
@@ -290,7 +301,7 @@ function markCloudCollectionSaved(collection, previousItems, nextItems) {
 }
 
 function markCloudSettingsSaved() {
-  if (cloudApplyingRemote || !isCloudBootstrapComplete()) return;
+  if (cloudApplyingRemote || !isCloudBootstrapComplete() || !cloudInitialSyncComplete) return;
   const queue = getCloudQueue();
   queue.dirty = true;
   queue.changedAt = new Date().toISOString();
@@ -299,7 +310,7 @@ function markCloudSettingsSaved() {
 }
 
 function scheduleGoogleSync(delay = 25) {
-  if (cloudApplyingRemote || !isCloudBootstrapComplete()) return;
+  if (cloudApplyingRemote || !isCloudBootstrapComplete() || !cloudInitialSyncComplete) return;
 
   const queue = getCloudQueue();
   if (!queue.dirty) {
@@ -366,7 +377,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V33.3 Stable",
+      updatedBy: "System V33.7 Stable",
       ...payload
     });
 
@@ -401,7 +412,7 @@ async function commitSalesInventoryBatchToCloudV125(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V33.3 Stable",
+      updatedBy: "System V33.7 Stable",
       ...payload
     });
     if (data.conflict || data.stockChanged) {
@@ -424,7 +435,7 @@ window.commitSalesInventoryBatchToCloudV125 = commitSalesInventoryBatchToCloudV1
 
 async function commitSalesCorrectionBatchToCloudV110(payload) {
   await flushCloudQueueStrictV83(); const config=getCloudConfig(); setCloudState("syncing");
-  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V33.3 Stable",...payload});
+  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V33.7 Stable",...payload});
     if(data.conflict||data.stockChanged) throw new Error(data.message||"Google Sheet 资料已改变，全部库存差异没有处理。请同步后重试。");
     config.revision=Number(data.revision)||Number(config.revision)||0; config.lastSyncAt=new Date().toISOString(); config.bootstrapToken=String(data.bootstrapToken||config.bootstrapToken||""); config.bootstrapRevision=Number(data.revision)||Number(config.bootstrapRevision)||0; saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced"); return data;
   } catch(error){setCloudState("failed");throw error;}
@@ -438,7 +449,7 @@ async function migrateProductPrefixesV164() {
     action: "migrateProductPrefixesV164", clientVersion: APP_VERSION,
     schemaVersion: CLOUD_SCHEMA_VERSION, baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""), bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V33.3 Stable"
+    updatedBy: "System V33.7 Stable"
   });
   if (data.conflict) throw new Error(data.message || "资料已改变，请同步后重试。");
   config.revision = Number(data.revision) || Number(config.revision) || 0;
@@ -457,22 +468,7 @@ async function pullLatestAfterSalesCommitV83(forceFull = false) {
 window.pullLatestAfterSalesCommitV83 = pullLatestAfterSalesCommitV83;
 
 
-function scheduleLegacyPzToBsMigrationV333() {
-  if (window.legacyPzBsMigrationScheduledV333) return;
-  const wanted = new Set(["PZ0036","PZ0175","PZ0176","PZ0192","PZ0001"]);
-  const products = JSON.parse(localStorage.getItem("importSystemProducts") || "[]");
-  if (!products.some(p => wanted.has(String(p?.id || "").trim().toUpperCase()))) return;
-  window.legacyPzBsMigrationScheduledV333 = true;
-  window.setTimeout(async () => {
-    try {
-      if (!navigator.onLine || !isCloudBootstrapComplete() || cloudSyncBusy || getCloudQueue().dirty) { window.legacyPzBsMigrationScheduledV333=false; return; }
-      await migrateProductPrefixesV164();
-    } catch (error) {
-      console.warn("PZ→BS one-time migration deferred:", error);
-      window.legacyPzBsMigrationScheduledV333=false;
-    }
-  }, 5000);
-}
+
 async function runCloudSync() {
   if (!navigator.onLine) {
     setCloudState("failed");
@@ -486,10 +482,28 @@ async function runCloudSync() {
 
   cloudSyncBusy = true;
   cloudSyncRequestedWhileBusy = false;
-  setCloudState("syncing");
 
   try {
-    const queue = getCloudQueue();
+    let queue = getCloudQueue();
+    // V33.7: if the queue was clean before this page loaded but became dirty while
+    // setup/render code was running, that dirtiness is startup housekeeping, not
+    // a user edit. Clear it before the first cloud operation so V32.5's fast
+    // read-first path is preserved. A queue that was already dirty before page
+    // load is left untouched to protect genuine unsynced work.
+    if (!cloudInitialSyncComplete && !cloudQueueWasDirtyAtScriptLoadV337 && queue.dirty) {
+      saveCloudQueue({
+        dirty: false,
+        changedAt: "",
+        deleted: { products: [], imports: [], batches: [], importNumbers: [], batchIds: [] }
+      });
+      queue = getCloudQueue();
+    }
+    // V33.7: after one successful bootstrap, read-only revision checks stay in the
+    // background and must not put the dashboard back into a long "同步中..." state.
+    // Real local writes/pushes still show syncing.
+    if (!cloudInitialSyncComplete || queue.dirty || !isCloudBootstrapComplete()) {
+      setCloudState("syncing");
+    }
     const snapshot = makeLocalSnapshot();
     const localHasCoreData =
       (snapshot.products || []).length > 0 ||
@@ -525,7 +539,7 @@ async function runCloudSync() {
     }
 
     cloudInitialSyncComplete = true;
-    scheduleLegacyPzToBsMigrationV333();
+    if (!getCloudQueue().dirty) setCloudState("synced");
   } catch (error) {
     cloudInitialSyncComplete = true;
     setCloudState("failed", error);
@@ -568,9 +582,6 @@ async function pullLatestSnapshot(forceBootstrap = false) {
     saveCloudConfig(config);
     renderCloudMeta(config);
     setCloudState("synced");
-    if (typeof window.repairStaleBatchUnitCostsV206 === "function") {
-      window.repairStaleBatchUnitCostsV206({ persistCloud: true });
-    }
     return false;
   }
 
@@ -636,7 +647,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V33.3 Stable",
+    updatedBy: "System V33.7 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     minimumPriceManual: Boolean(minimumPriceManual),
@@ -680,7 +691,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V33.3 Stable",
+    updatedBy: "System V33.7 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
@@ -853,23 +864,32 @@ function applyRemoteData(data) {
 
   cloudApplyingRemote = true;
   try {
-    localStorage.setItem("importSystemSettings", JSON.stringify(data.settings || {}));
+    // V33.7: keep the proven V32.5 Pull/apply path simple.
+    // Only strip the retired promotion payload locally; do not run any
+    // migration/sanitizer during the first cloud Pull.
+    const safeRemoteSettingsV336 = { ...(data.settings || {}) };
+    delete safeRemoteSettingsV336.promotionV183;
+    localStorage.setItem("importSystemSettings", JSON.stringify(safeRemoteSettingsV336));
     localStorage.setItem("importSystemProducts", JSON.stringify(data.products));
     if (typeof invalidateMinimumPriceOriginIndexV160 === "function") {
       invalidateMinimumPriceOriginIndexV160();
     }
     localStorage.setItem("importSystemImports", JSON.stringify(data.imports));
     localStorage.setItem("importSystemBatches", JSON.stringify(data.batches));
+    // V33.7: direct cloud writes must invalidate the prepared inventory join.
+    // Otherwise a previously prepared empty/filtered array can survive the Pull
+    // and leave the card area blank even though totals already show live stock.
+    if (typeof inventoryPreparedRowsCacheV321 !== "undefined") {
+      inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
+    }
+    if (typeof inventoryLastRenderedPreparedRowsV321 !== "undefined") inventoryLastRenderedPreparedRowsV321 = null;
   } finally {
     cloudApplyingRemote = false;
   }
 
-  // V21.4 corrected build: after a canonical Pull, repair only deterministic
-  // stale batch-cost snapshots. The repair is idempotent and queues one normal
-  // cloud Push only when unitCost/Average Cost truly differ from saved batch inputs.
-  if (typeof window.repairStaleBatchUnitCostsV206 === "function") {
-    window.repairStaleBatchUnitCostsV206({ persistCloud: true });
-  }
+  // V33.7: a cloud Pull is read-only. Do not auto-repair/write cost snapshots
+  // during startup or revision checks; this prevents a successful Pull from
+  // immediately creating a dirty queue and starting another Push.
   refreshSystemViewsAfterSync();
 }
 
