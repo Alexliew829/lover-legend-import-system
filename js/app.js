@@ -37,11 +37,11 @@ window.addEventListener("pageshow", () => {
   }, 0);
 });
 
-// V33.7 one-time live-settings cleanup: remove obsolete ZZ / 杂花杂木 / invoice-recognition / two-warehouse residue.
+// V33.3 one-time live-settings cleanup: remove obsolete ZZ / 杂花杂木 / invoice-recognition / two-warehouse residue.
 // Current Products / Imports / Batches are never deleted here. Only settings/drafts that are not part of the
 // current authoritative product collection are pruned, so a restored formal inventory cannot be polluted again.
 function cleanupLegacySettingsResidueV323() {
-  // V33.7 hard cleanup. These legacy feature stores must never participate in the current system again.
+  // V33.3 hard cleanup. These legacy feature stores must never participate in the current system again.
   ["invoiceRecognitionDraftsV259","invoiceRecognitionHistoryV259","warehousePublicCatalogV275","supplierDirectoryV261",
    "testSupplierCleanupV268","twoWarehouseMigrationV270","twoWarehouseMigrationAddedV270","warehouseRepairV276",
    "warehouseRepairAddedV276","invoiceRecognitionSharedStatusV277"].forEach(key => {
@@ -76,6 +76,8 @@ function cleanupLegacySettingsResidueV323() {
     pruneByLiveProductId("productMediaLinksV229");
   }
 
+  if (Object.prototype.hasOwnProperty.call(next, "promotionV183")) { delete next.promotionV183; changed = true; }
+
   const isLegacyDraft = draft => {
     const rows = Array.isArray(draft?.rows) ? draft.rows : [];
     return rows.some(row => {
@@ -91,9 +93,8 @@ function cleanupLegacySettingsResidueV323() {
   }
 
   if (changed) {
-    // V33.7: startup residue cleanup is local-only. Never create a cloud dirty
-    // queue before the first V32.5-style read check has completed.
     saveJSON("importSystemSettings", next);
+    if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
   }
   return changed;
 }
@@ -176,7 +177,7 @@ const historySalesDetailsByLinkV134 = new Map();
 const historySalesContextLoadedV134 = new Set();
 const historySalesContextLoadingV134 = new Map();
 let historyLookupRenderTokenV134 = 0;
-// V33.7: keep keystroke painting separate from expensive filtering/rendering.
+// V33.3: keep keystroke painting separate from expensive filtering/rendering.
 // No network request is added; only the latest pending local render is executed.
 const searchRenderTimersV302 = new Map();
 function scheduleSearchRenderV302(key, fn, delay = 70) {
@@ -2209,7 +2210,7 @@ function unlockAccessLock(lock, input, status) {
     "1"
   );
 
-  // V33.7: bind unlock to this exact history entry on both desktop and mobile.
+  // V33.3: bind unlock to this exact history entry on both desktop and mobile.
   // Refreshing the same tab stays unlocked; a newly opened page/tab must authenticate again.
   try {
     history.replaceState({
@@ -2312,7 +2313,7 @@ function setupAccessLock() {
   updatePasswordHintDisplays();
   updateDeviceBiometricStatus();
 
-  // V33.7 desktop: if a saved password is still valid, verify locally and enter
+  // V33.3 desktop: if a saved password is still valid, verify locally and enter
   // immediately. No network request and no password/logo flash. Invalid saved
   // passwords are cleared and the normal password card is shown.
   let savedDesktopPasswordV316 = "";
@@ -3551,14 +3552,6 @@ function renderSystemInformationV203() {
   set("systemInfoApiVersionV203", systemHealthV203.apiOk === true ? `V${systemHealthV203.apiVersion || APP_VERSION}` : (systemHealthV203.apiOk === false ? "连接异常" : "尚未检查"));
   set("systemInfoGoogleSheetV203", systemHealthV203.apiOk === true ? "已连接 Google Web App" : (systemHealthV203.apiOk === false ? "连接异常" : "尚未检查"));
   set("systemInfoLastSyncV203", formatSystemDateTimeV203(config.lastSyncAt) || "尚未同步");
-  const revisionElV336 = document.getElementById("settingsRevisionV185");
-  if (revisionElV336) {
-    const currentRevisionV336 = Number(config.revision) || 0;
-    const previousRevisionV336 = Number(localStorage.getItem("importSystemPreviousRevisionV185"));
-    revisionElV336.textContent = currentRevisionV336 > 0
-      ? `${previousRevisionV336 > 0 && previousRevisionV336 !== currentRevisionV336 ? previousRevisionV336 : "—"} → ${currentRevisionV336}`
-      : "尚未同步";
-  }
   set("systemInfoLastBackupV203", formatSystemDateTimeV203(localStorage.getItem(SYSTEM_INFO_LAST_BACKUP_KEY_V203)) || "暂无记录");
   const localRestore = getLocalRestoreJob?.();
   const serverRestore = systemHealthV203.restoreJob;
@@ -4218,7 +4211,7 @@ function isMinimumPriceManualV160(product, configuredOverrides = null) {
   const overrides = configuredOverrides || getMinimumPriceManualOverridesV160();
   const productId = String(product?.id || "").trim();
   const productIdUpper = productId.toUpperCase();
-  // V33.7: one single manual-price truth for every desktop/mobile/table renderer.
+  // V33.3: one single manual-price truth for every desktop/mobile/table renderer.
   // Older settings may contain a differently-cased Product ID, so normalize once here
   // instead of letting each page infer protection differently.
   if (productId) {
@@ -4256,7 +4249,7 @@ function getOperationalProductsV256(products = getProducts()) {
   );
 }
 
-// V33.7: obsolete virtual-reference residue sweeper removed. Historical ID migration/safety remains below.
+// V33.3: obsolete virtual-reference residue sweeper removed. Historical ID migration/safety remains below.
 
 function getProducts() {
   const rules = getMinimumPriceRulesV160();
@@ -5143,7 +5136,7 @@ function renderProductList() {
   const searchNode = document.getElementById("productSearch");
   const list = document.getElementById("productList");
   const count = document.getElementById("productListCount");
-  // V33.7: legacy Product List UI was removed; callers may still refresh it.
+  // V33.3: legacy Product List UI was removed; callers may still refresh it.
   // Exit quietly instead of turning a successful Profit Management save into an error.
   if (!searchNode || !list || !count) return;
   const products = getProducts();
@@ -7550,7 +7543,7 @@ async function deleteBatchByNumber(importNumber) {
   if (typeof window.markCloudImportNumberDeletedV232 === "function") {
     window.markCloudImportNumberDeletedV232(batch.importNumber, batch.id);
   }
-  // V33.7: also tombstone concrete row IDs so a later Pull cannot resurrect a deleted test import/product.
+  // V33.3: also tombstone concrete row IDs so a later Pull cannot resurrect a deleted test import/product.
   if (typeof window.markCloudExplicitDeletedIdsV323 === "function") {
     window.markCloudExplicitDeletedIdsV323({
       imports: batchItems.map(item => String(item?.id || "")).filter(Boolean),
@@ -7573,7 +7566,7 @@ async function deleteBatchByNumber(importNumber) {
     if (typeof getCloudQueue === "function" && getCloudQueue()?.dirty) {
       throw new Error("云端仍有资料等待同步");
     }
-    // V33.7: pushAll_ writes the exact canonical Imports/Batches snapshot when an
+    // V33.3: pushAll_ writes the exact canonical Imports/Batches snapshot when an
     // explicit import-number tombstone is present. A successful strict flush is the
     // server-side confirmation; do not block the UI with one or two full Pulls.
     if (deleteStatusV228) deleteStatusV228.textContent = `云端已确认删除 ${batch.importNumber}，正在整理画面…`;
@@ -8206,7 +8199,7 @@ function setupImportHistory() {
   };
 
   button?.addEventListener("click", () => {
-    // V33.7: let the tap/typed text paint first, then run the existing local history scan.
+    // V33.3: let the tap/typed text paint first, then run the existing local history scan.
     normalizeHistoryDateField(startInput, startPicker);
     normalizeHistoryDateField(endInput, endPicker);
     lastCompletedHistoryLookup = "";
@@ -8245,7 +8238,7 @@ function setupImportHistory() {
     startInput.classList.remove("date-error");
     lastCompletedHistoryLookup = "";
     historyManualLookupReadyV246 = true;
-    // V33.7: let the date paint first; run the existing query only after the UI is free.
+    // V33.3: let the date paint first; run the existing query only after the UI is free.
     scheduleSearchRenderV302("history-date", renderImportHistory, 60);
   });
 
@@ -11554,7 +11547,7 @@ function maybeApplySuggestedBatchCurrencyV231(rowId, suggestedCurrency, label = 
 }
 
 function applyExistingProductCurrencyV232(rowId, product, { commitCurrency = false } = {}) {
-  // V33.7: historical currency is never scanned/applied during typing or selection.
+  // V33.3: historical currency is never scanned/applied during typing or selection.
   // Current purchase currency is decided only by explicit MYR selection or price threshold.
   return;
 }
@@ -11601,7 +11594,7 @@ function setAutoOriginalCostV249(rowId, record, { force = false } = {}) {
   const sourceCurrency = String(record?.currency || "").trim().toUpperCase();
   if (!(sourceValue > 0)) return false;
 
-  // V33.7: selecting a real existing product restores its historical unit price
+  // V33.3: selecting a real existing product restores its historical unit price
   // exactly as stored. Never convert VND<->CNY amounts. Currency is then chosen
   // by the proven V22.6 price rule, except explicit local MYR purchases stay MYR.
   row.dataset.settingAutoPriceV249 = "1";
@@ -11697,7 +11690,7 @@ function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, c
   tr.dataset.lastIdentityNameV231 = normalizedName;
 
   if (!commitCurrency) return;
-  // V33.7: prefix rules generate product IDs only; they never decide purchase currency.
+  // V33.3: prefix rules generate product IDs only; they never decide purchase currency.
 }
 
 function addBatchRow(prefill = {}){
@@ -14706,7 +14699,7 @@ function normalizeMinimumPriceInput(value) {
 }
 
 async function editDisplayedMinimumPriceV199(productId) {
-  // V33.7: direct minimum-price edits are always the product's manual minimum price.
+  // V33.3: direct minimum-price edits are always the product's manual minimum price.
   // Manual prices have highest priority and are never changed by Profit Management.
   return editProductMinimumPrice(String(productId || "").trim());
 }
@@ -15344,7 +15337,7 @@ function setupInventoryModule() {
 
   bindInventoryMinimumPriceLongPress();
   renderInventoryManagementList();
-  // V33.7 performance: do NOT preload the complete Sales history in the background.
+  // V33.3 performance: do NOT preload the complete Sales history in the background.
   // The persisted local analytics are enough for normal browsing; full Sales links are
   // fetched only when the user explicitly chooses Profit Highest or runs History.
 }
@@ -15526,7 +15519,7 @@ function getInventorySalesAnalyticsV146() {
 let inventoryVisibleProductsV153 = [];
 
 
-// V33.7: prepare the expensive inventory/import joins once per unchanged data snapshot.
+// V33.3: prepare the expensive inventory/import joins once per unchanged data snapshot.
 // Search and sort now operate on these prepared rows without rebuilding all import maps.
 let inventoryPreparedRowsCacheV321 = {
   rawProducts: null, settings: null, imports: null, batches: null, sales: null,
@@ -15620,7 +15613,7 @@ function getInventoryPreparedRowsV321() {
 let inventoryLastRenderedPreparedRowsV321 = null;
 let inventoryLastRenderedKeywordV321 = "";
 
-// V33.7: one canonical product search/filter/sort path for every inventory-style view.
+// V33.3: one canonical product search/filter/sort path for every inventory-style view.
 // Import product entry intentionally does NOT use this helper.
 function filterSortInventoryProductsV324(query = "", sortMode = "latest", sourceRows = null) {
   const keyword = String(query || "").trim().toLowerCase();
@@ -15655,120 +15648,6 @@ function filterSortInventoryProductsV324(query = "", sortMode = "latest", source
     return parseDDMMYYYY(b.displayLastImport) - parseDDMMYYYY(a.displayLastImport);
   });
   return products;
-}
-
-
-// V33.7: build the original full V32.5 inventory card defensively. Optional
-// helpers (media, copy button, language metadata, price-state helpers) are
-// isolated so one bad optional field can never blank the entire inventory list.
-// The fallback is still the SAME full card structure, never a simplified card.
-function buildInventoryManageCardV337(product, productMediaLinksV229 = {}) {
-  const stock = Math.max(0, Number(product?.stock) || 0);
-  const averageCost = Math.max(0, Number(product?.averageCost) || 0);
-
-  let minimumDisplayV315;
-  try {
-    minimumDisplayV315 = getMinimumPriceDisplayStateV315(product);
-  } catch (error) {
-    console.warn("Inventory minimum-price state skipped:", product?.id, error);
-    const price = Math.max(0, Number(product?.minimumPrice) || 0);
-    const manual = product?.minimumPriceManual === true;
-    const profit = price - averageCost;
-    minimumDisplayV315 = {
-      manual,
-      state: manual ? "manual" : (profit < -0.005 ? "loss" : profit > 0.005 ? "gain" : "neutral"),
-      className: manual ? "minimum-price-manual-v315" : (profit < -0.005 ? "minimum-price-loss-v302" : profit > 0.005 ? "minimum-price-gain-v302" : "minimum-price-neutral-v302"),
-      label: "最低售价",
-      price,
-      profitInfo: { profit, profitRate: price > 0 ? profit / price * 100 : 0 }
-    };
-  }
-
-  const minimumPrice = Math.max(0, Number(minimumDisplayV315?.price) || 0);
-  const originalCost = Math.max(0, Number(product?.latestOriginalCost) || 0);
-  const originalCurrency = String(product?.latestOriginalCurrency || "").trim().toUpperCase();
-  const originalCostText = originalCost > 0
-    ? `${formatMoney(originalCost)}${originalCurrency ? ` ${escapeHTML(originalCurrency)}` : ""}`
-    : `0.00${originalCurrency ? ` ${escapeHTML(originalCurrency)}` : ""}`;
-  const inventoryValue = stock * averageCost;
-  const profitInfoV205 = minimumDisplayV315?.profitInfo || { profit:0, profitRate:0 };
-
-  let averageCostLabelV205 = "平均成本";
-  try { averageCostLabelV205 = getAverageCostLabelV205(product); } catch (error) {
-    console.warn("Inventory average-cost label skipped:", product?.id, error);
-  }
-
-  const soldQuantity = Number(product?.netSoldQuantity) || 0;
-  const cumulativeProfit = Number(product?.cumulativeSoldProfit) || 0;
-  let englishName = "";
-  try { englishName = productEnglishNameV262(product) || ""; } catch (error) {
-    console.warn("Inventory English name skipped:", product?.id, error);
-  }
-  let mediaStatus = "";
-  try { mediaStatus = renderProductMediaStatusV236(product?.id, productMediaLinksV229); } catch (error) {
-    console.warn("Inventory media status skipped:", product?.id, error);
-  }
-  let productIdButton = escapeHTML(String(product?.id || ""));
-  try { productIdButton = buildProductIdCopyButtonV166(product?.id, "inventory-product-id-v166") || productIdButton; } catch (error) {
-    console.warn("Inventory product-id button skipped:", product?.id, error);
-  }
-  let driveCopyButton = "";
-  try { driveCopyButton = buildInventoryProductCopyButtonV306(product?.id) || ""; } catch (error) {
-    console.warn("Inventory copy-product button skipped:", product?.id, error);
-  }
-  let mediaButtons = "";
-  try { mediaButtons = renderProductMediaButtonsV229(product?.id, productMediaLinksV229) || ""; } catch (error) {
-    console.warn("Inventory media buttons skipped:", product?.id, error);
-  }
-
-  return `
-      <article class="inventory-manage-card"
-               data-product-id="${escapeHTML(product?.id || "")}">
-        <div class="inventory-manage-head">
-          <div class="inventory-manage-primary-v174">
-            <div class="inventory-product-title-row">
-              <span class="product-identity-v167 inventory-product-identity-v167"><button
-                class="inventory-product-name-copy"
-                type="button"
-                data-product-name="${escapeHTML(product?.name || "")}" 
-                onclick="copyInventoryProductName(this)"
-                title="点击复制产品名称">
-                ${escapeHTML(product?.name || "未命名产品")}
-              </button>
-              ${mediaStatus}
-              ${productIdButton}
-              ${driveCopyButton}
-              </span>
-            </div>
-            <div class="inventory-product-secondary-v314">
-              ${englishName ? `<small class="product-english-name-v262 inventory-english-secondline-v265">${escapeHTML(englishName)}</small>` : `<small class="product-english-name-v262 inventory-english-secondline-v265 empty" aria-hidden="true"></small>`}
-            </div>
-            ${mediaButtons}
-          </div>
-          <div class="inventory-sold-quantity" title="按 Import History 的实际净售出数量计算">
-            <span>售出数量</span>
-            <div><strong>${formatNumber(soldQuantity)}</strong><small>棵</small></div>
-            <span class="inventory-cumulative-profit-v146">累计利润</span>
-            <b>${formatMoney(cumulativeProfit, "RM ")}</b>
-          </div>
-        </div>
-
-        <div class="inventory-summary-grid">
-          <div><span>当前库存</span><strong>${formatNumber(stock)}</strong></div>
-          <button class="inventory-original-cost inventory-original-cost-toggle" type="button" title="点击展开 / 收起原成本清单"><span>原成本</span><strong>${originalCostText}</strong></button>
-          <button class="inventory-manage-minimum-price-btn ${minimumDisplayV315.className}" data-minimum-price-state-v324="${minimumDisplayV315.state}" type="button"
-                  data-product-id="${escapeHTML(product?.id || "")}" 
-                  aria-label="长按修改最低售价" title="长按修改最低售价">
-            <span>${minimumDisplayV315.label || "最低售价"}</span><strong>${formatMoney(minimumPrice, "RM ")}</strong>
-          </button>
-          <div><span>${escapeHTML(averageCostLabelV205)}</span><strong>${formatMoney(averageCost, "RM ")}</strong></div>
-          <div class="inventory-profit-value-v207 ${profitInfoV205.profit < 0 ? "loss" : profitInfoV205.profit > 0 ? "gain" : "neutral"}"><span>利润</span><strong>${formatMoney(profitInfoV205.profit, "RM ")}</strong></div>
-          <div class="inventory-profit-value-v207 ${profitInfoV205.profit < 0 ? "loss" : profitInfoV205.profit > 0 ? "gain" : "neutral"}"><span>利润率</span><strong>${escapeHTML(formatProfitTargetV303(profitInfoV205.profitRate))}</strong></div>
-          <div><span>库存成本总值</span><strong>${formatMoney(inventoryValue, "RM ")}</strong></div>
-          <div><span>最后进口</span><strong>${escapeHTML(normalizeDateToDDMMYYYY(product?.displayLastImport) || "-")}</strong></div>
-        </div>
-      </article>
-    `;
 }
 
 function renderInventoryManagementList() {
@@ -15860,14 +15739,69 @@ function renderInventoryManagementList() {
   const productMediaLinksV229 = getProductMediaLinksV229();
 
   list.innerHTML = products.map(product => {
-    try {
-      return buildInventoryManageCardV337(product, productMediaLinksV229);
-    } catch (error) {
-      // Never let one product/card failure wipe the entire list. The helper above
-      // already isolates optional components; this outer guard is final safety.
-      console.error("Inventory full-card render failed:", product?.id, error);
-      return buildInventoryManageCardV337({ ...product, netSoldQuantity:0, cumulativeSoldProfit:0 }, {});
-    }
+    const stock = Number(product.stock) || 0;
+    const averageCost = Number(product.averageCost) || 0;
+    const minimumDisplayV315 = getMinimumPriceDisplayStateV315(product);
+    const minimumPrice = minimumDisplayV315.price;
+    const originalCost = Math.max(0, Number(product.latestOriginalCost) || 0);
+    const originalCurrency = String(product.latestOriginalCurrency || "").trim().toUpperCase();
+    const originalCostText = originalCost > 0
+      ? `${formatMoney(originalCost)}${originalCurrency ? ` ${escapeHTML(originalCurrency)}` : ""}`
+      : `0.00${originalCurrency ? ` ${escapeHTML(originalCurrency)}` : ""}`;
+    const inventoryValue = stock * averageCost;
+    const profitInfoV205 = minimumDisplayV315.profitInfo;
+    const averageCostLabelV205 = getAverageCostLabelV205(product);
+    const soldQuantity = Number(product.netSoldQuantity) || 0;
+    const cumulativeProfit = Number(product.cumulativeSoldProfit) || 0;
+
+    return `
+      <article class="inventory-manage-card"
+               data-product-id="${escapeHTML(product.id)}">
+        <div class="inventory-manage-head">
+          <div class="inventory-manage-primary-v174">
+            <div class="inventory-product-title-row">
+              <span class="product-identity-v167 inventory-product-identity-v167"><button
+                class="inventory-product-name-copy"
+                type="button"
+                data-product-name="${escapeHTML(product.name)}"
+                onclick="copyInventoryProductName(this)"
+                title="点击复制产品名称">
+                ${escapeHTML(product.name)}
+              </button>
+              ${renderProductMediaStatusV236(product.id, productMediaLinksV229)}
+              ${buildProductIdCopyButtonV166(product.id, "inventory-product-id-v166")}
+              ${buildInventoryProductCopyButtonV306(product.id)}
+              </span>
+            </div>
+            <div class="inventory-product-secondary-v314">
+              ${productEnglishNameV262(product)?`<small class="product-english-name-v262 inventory-english-secondline-v265">${escapeHTML(productEnglishNameV262(product))}</small>`:`<small class="product-english-name-v262 inventory-english-secondline-v265 empty" aria-hidden="true"></small>`}
+            </div>
+            ${renderProductMediaButtonsV229(product.id, productMediaLinksV229)}
+          </div>
+          <div class="inventory-sold-quantity" title="按 Import History 的实际净售出数量计算">
+            <span>售出数量</span>
+            <div><strong>${formatNumber(soldQuantity)}</strong><small>棵</small></div>
+            <span class="inventory-cumulative-profit-v146">累计利润</span>
+            <b>${formatMoney(cumulativeProfit, "RM ")}</b>
+          </div>
+        </div>
+
+        <div class="inventory-summary-grid">
+          <div><span>当前库存</span><strong>${formatNumber(stock)}</strong></div>
+          <button class="inventory-original-cost inventory-original-cost-toggle" type="button" title="点击展开 / 收起原成本清单"><span>原成本</span><strong>${originalCostText}</strong></button>
+          <button class="inventory-manage-minimum-price-btn ${minimumDisplayV315.className}" data-minimum-price-state-v324="${minimumDisplayV315.state}" type="button"
+                  data-product-id="${escapeHTML(product.id || "")}"
+                  aria-label="长按修改最低售价" title="长按修改最低售价">
+            <span>${minimumDisplayV315.label}</span><strong>${formatMoney(minimumPrice, "RM ")}</strong>
+          </button>
+          <div><span>${averageCostLabelV205}</span><strong>${formatMoney(averageCost, "RM ")}</strong></div>
+          <div class="inventory-profit-value-v207 ${profitInfoV205.profit < 0 ? "loss" : profitInfoV205.profit > 0 ? "gain" : "neutral"}"><span>利润</span><strong>${formatMoney(profitInfoV205.profit, "RM ")}</strong></div>
+          <div class="inventory-profit-value-v207 ${profitInfoV205.profit < 0 ? "loss" : profitInfoV205.profit > 0 ? "gain" : "neutral"}"><span>利润率</span><strong>${escapeHTML(formatProfitTargetV303(profitInfoV205.profitRate))}</strong></div>
+          <div><span>库存成本总值</span><strong>${formatMoney(inventoryValue, "RM ")}</strong></div>
+          <div><span>最后进口</span><strong>${escapeHTML(normalizeDateToDDMMYYYY(product.displayLastImport) || "-")}</strong></div>
+        </div>
+      </article>
+    `;
   }).join("");
 
   inventoryLastRenderedPreparedRowsV321 = preparedProductsV321;
@@ -15887,7 +15821,7 @@ function renderInventoryManagementList() {
 
 
 
-// V33.7: permanent local-only helper for Google Drive media filenames.
+// V33.3: permanent local-only helper for Google Drive media filenames.
 // It does not write data or touch the sync queue; it only builds text and copies it.
 function buildInventoryProductCopyNameV306(product) {
   const id = String(product?.id || product?.productId || "").trim().toUpperCase();
@@ -16108,7 +16042,7 @@ function openSystemMediaPreviewV305(type, url, label = "") {
   const directVideoSources = getGoogleDriveDirectSourcesV310(originalUrl);
   if (!source) { window.alert("尚未上传"); return; }
 
-  // V33.7 desktop: use exactly one layer. Open the original Google Drive link in
+  // V33.3 desktop: use exactly one layer. Open the original Google Drive link in
   // one browser tab for both photos and videos. Closing that tab returns directly
   // to Import System; no second system modal remains underneath.
   const desktopFinePointer = window.matchMedia("(hover:hover) and (pointer:fine)").matches && window.innerWidth >= 720;
@@ -16117,7 +16051,7 @@ function openSystemMediaPreviewV305(type, url, label = "") {
     return;
   }
 
-  // V33.7 mobile video: try a minimal in-system player first. Only X, one
+  // V33.3 mobile video: try a minimal in-system player first. Only X, one
   // play/pause button and a slim progress bar are rendered by us. If Google
   // blocks the direct stream, silently switch to Drive Preview with no message.
   if (!desktopFinePointer && mediaType === "video") {
@@ -17158,7 +17092,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "33.7",
+      version: "33.3",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -17525,7 +17459,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V33.7 Stable",
+      updatedBy: "System V33.3 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -17671,7 +17605,7 @@ function productNameWithEnglishV262(product){const en=productEnglishNameV262(pro
 function rememberProductLanguageV262(productId, chineseName, englishName){const id=String(productId||"").toUpperCase();if(!id)return;const meta=getProductLanguageMetaV262();meta[id]={chineseName:String(chineseName||"").trim(),englishName:String(englishName||"").trim()};saveProductLanguageMetaV262(meta)}
 function inferSimpleBilingualV262(text){const raw=String(text||"").trim();const rule=speciesRuleV262(raw);return{chineseName:rule?.cn||(/[\u3400-\u9fff]/.test(raw)?raw:""),englishName:rule?.en||(!/[\u3400-\u9fff]/.test(raw)?raw.replace(/\b(?:P?\d{2,4}|\d+(?:\.\d+)?C|\d+[xX]\d+)\b.*$/i,"").trim():""),prefix:rule?.prefix||""}}
 
-// ================= V33.7 Product Inventory Master =================
+// ================= V33.3 Product Inventory Master =================
 const SUPPLIER_ALIASES_V261 = Object.freeze([
   {names:["Ocean Landscaping","Ocean Landscaping Nursery"],prefix:"OLN",currency:"MYR"},{names:["JM Gardening","JM Landscape","JM Nursery"],prefix:"JMG",currency:"MYR"},{names:["Soong Huat Enterprise","Soong Huat Cameron"],prefix:"SHE",currency:"MYR"},{names:["Tan Ah Hwang Nursery"],prefix:"TAH",currency:"MYR"},{names:["Tan Kok Leyong","Tan Kok Leyong Nursery"],prefix:"TKL",currency:"MYR"},{names:["Wong Wan Choi"],prefix:"WWC",currency:"MYR"},{names:["忠盛"],prefix:"忠盛",currency:"CNY"},{names:["大厚"],prefix:"大厚",currency:"CNY"},{names:["游小北"],prefix:"游小北",currency:"CNY"},{names:["昊杨"],prefix:"昊杨",currency:"CNY"},{names:["松美轩"],prefix:"松美轩",currency:"CNY"}
 ]);
