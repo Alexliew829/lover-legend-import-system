@@ -37,11 +37,11 @@ window.addEventListener("pageshow", () => {
   }, 0);
 });
 
-// V33.9 one-time live-settings cleanup: remove obsolete ZZ / 杂花杂木 / invoice-recognition / two-warehouse residue.
+// V34.0 one-time live-settings cleanup: remove obsolete ZZ / 杂花杂木 / invoice-recognition / two-warehouse residue.
 // Current Products / Imports / Batches are never deleted here. Only settings/drafts that are not part of the
 // current authoritative product collection are pruned, so a restored formal inventory cannot be polluted again.
 function cleanupLegacySettingsResidueV323() {
-  // V33.9 hard cleanup. These legacy feature stores must never participate in the current system again.
+  // V34.0 hard cleanup. These legacy feature stores must never participate in the current system again.
   ["invoiceRecognitionDraftsV259","invoiceRecognitionHistoryV259","warehousePublicCatalogV275","supplierDirectoryV261",
    "testSupplierCleanupV268","twoWarehouseMigrationV270","twoWarehouseMigrationAddedV270","warehouseRepairV276",
    "warehouseRepairAddedV276","invoiceRecognitionSharedStatusV277"].forEach(key => {
@@ -91,7 +91,7 @@ function cleanupLegacySettingsResidueV323() {
   }
 
   if (changed) {
-    // V33.9: startup residue cleanup is local-only. Never create a cloud dirty
+    // V34.0: startup residue cleanup is local-only. Never create a cloud dirty
     // queue before the first V32.5-style read check has completed.
     saveJSON("importSystemSettings", next);
   }
@@ -176,7 +176,7 @@ const historySalesDetailsByLinkV134 = new Map();
 const historySalesContextLoadedV134 = new Set();
 const historySalesContextLoadingV134 = new Map();
 let historyLookupRenderTokenV134 = 0;
-// V33.9: keep keystroke painting separate from expensive filtering/rendering.
+// V34.0: keep keystroke painting separate from expensive filtering/rendering.
 // No network request is added; only the latest pending local render is executed.
 const searchRenderTimersV302 = new Map();
 function scheduleSearchRenderV302(key, fn, delay = 70) {
@@ -2209,7 +2209,7 @@ function unlockAccessLock(lock, input, status) {
     "1"
   );
 
-  // V33.9: bind unlock to this exact history entry on both desktop and mobile.
+  // V34.0: bind unlock to this exact history entry on both desktop and mobile.
   // Refreshing the same tab stays unlocked; a newly opened page/tab must authenticate again.
   try {
     history.replaceState({
@@ -2312,7 +2312,7 @@ function setupAccessLock() {
   updatePasswordHintDisplays();
   updateDeviceBiometricStatus();
 
-  // V33.9 desktop: if a saved password is still valid, verify locally and enter
+  // V34.0 desktop: if a saved password is still valid, verify locally and enter
   // immediately. No network request and no password/logo flash. Invalid saved
   // passwords are cleared and the normal password card is shown.
   let savedDesktopPasswordV316 = "";
@@ -2717,7 +2717,7 @@ function setupNavigation() {
         const inventoryQueryV317=String(document.getElementById("inventorySearch")?.value||"").trim();
         if(!inventoryQueryV317) closeOriginalCostPanel();
       }
-      if(target!==current&&current==="supplierPage"){const a=document.getElementById("inventoryMasterPanelV264"),qa=String(document.getElementById("inventoryMasterSearchV261")?.value||"").trim();if(a&&!qa)a.open=false;const p=document.querySelector(".product-prefix-settings-v181"),k=String(document.getElementById("newProductPrefixKeyword")?.value||"").trim(),c=String(document.getElementById("newProductPrefixCode")?.value||"").trim();if(p&&!k&&!c&&!editingProductPrefixKeywordV229)p.open=false;}
+      if(target!==current&&current==="supplierPage"){const a=document.getElementById("inventoryMasterPanelV264"),qa=String(document.getElementById("inventoryMasterSearchV261")?.value||"").trim();if(a&&!qa)a.open=false;const p=document.getElementById("productPrefixSettingsV339"),k=String(document.getElementById("newProductPrefixKeyword")?.value||"").trim(),e=String(document.getElementById("newProductPrefixEnglishV319")?.value||"").trim(),c=String(document.getElementById("newProductPrefixCode")?.value||"").trim();if(p&&!k&&!e&&!c)p.open=false;}
       if(target!==current&&current==="settingsPage"){
         if(!confirmDiscardStaleZeroStockSelectionV227())return;
         if(!confirmLeaveSettingsV160())return;
@@ -2983,7 +2983,7 @@ function setupMinimumPriceSettingsV160() {
   if (resetButton && resetButton.dataset.boundV200 !== "1") {
     resetButton.dataset.boundV200 = "1";
     resetButton.addEventListener("click", () => {
-      const warning = "Reset to Factory 会把自动最低售价管理的主播佣金、目标净利率、木架＋本地运费和 VND 花盆成本全部恢复为系统默认值。\n\n手动原最低售价不会被覆盖；促销最低售价不会被修改。";
+      const warning = "Reset to Factory 会把自动最低售价管理的主播佣金、目标净利率、木架＋本地运费和 VND 花盆成本全部恢复为系统默认值。\n\n手动原最低售价不会被覆盖。";
       if (!window.confirm(`${warning}\n\n是否继续？`)) return;
       if (!window.confirm("再次确认：恢复原设置后，所有自动原最低售价会立即按默认参数重新计算。\n\n确定执行 Reset to Factory？")) return;
       const settings = loadJSON("importSystemSettings", {});
@@ -2995,7 +2995,7 @@ function setupMinimumPriceSettingsV160() {
       renderInventoryManagementList();
       renderDashboard();
       const status = document.getElementById("minimumPriceSettingsStatus");
-      if (status) status.textContent = "已恢复原设置，自动原最低售价已重新计算；手动原最低售价与促销最低售价未改变";
+      if (status) status.textContent = "已恢复原设置，自动原最低售价已重新计算；手动原最低售价未改变";
       setTimeout(() => { if (status) status.textContent = ""; }, 3600);
     });
   }
@@ -3093,21 +3093,8 @@ let costRepairCountdownTimerV206 = 0;
 let costRepairExpiryPendingV206 = false;
 
 function getCostRepairModeEnabled() {
-  const settings = loadJSON("importSystemSettings", {});
-  if (settings.costRepairMode !== true) return false;
-
-  const expiresAt = Number(settings.costRepairModeExpiresAt) || 0;
-  if (!(expiresAt > Date.now())) {
-    if (!costRepairExpiryPendingV206) {
-      costRepairExpiryPendingV206 = true;
-      window.setTimeout(() => {
-        costRepairExpiryPendingV206 = false;
-        closeCostRepairModeV206({ rollbackUnsaved: true, expired: true });
-      }, 0);
-    }
-    return false;
-  }
-  return true;
+  // V34.0: Data Repair is temporarily disabled. Formal imports are permanently read-only.
+  return false;
 }
 
 function getCostRepairModeExpiresAtV206() {
@@ -3117,13 +3104,8 @@ function getCostRepairModeExpiresAtV206() {
 
 function setCostRepairModeEnabled(enabled, expiresAt = 0) {
   const settings = loadJSON("importSystemSettings", {});
-  saveJSON("importSystemSettings", {
-    ...settings,
-    costRepairMode: Boolean(enabled),
-    costRepairModeExpiresAt: enabled ? Number(expiresAt || (Date.now() + COST_REPAIR_SESSION_MS_V206)) : 0
-  });
-  if (typeof markCloudSettingsSaved === "function") {
-    markCloudSettingsSaved();
+  if (settings.costRepairMode === true || Number(settings.costRepairModeExpiresAt)) {
+    saveJSON("importSystemSettings", { ...settings, costRepairMode:false, costRepairModeExpiresAt:0 });
   }
 }
 
@@ -3257,8 +3239,8 @@ function updateImportDraftSaveButtonV323() {
 
 function applyBatchCostEditability() {
   const isEditing = Boolean(currentEditingImportNumber);
-  const repairEnabled = getCostRepairModeEnabled();
-  const lockedSaved = isEditing && !repairEnabled;
+  const repairEnabled = false;
+  const lockedSaved = isEditing;
 
   // V24.6: China-side/core import facts are immutable once saved, even when
   // Data Repair is ON. If they are wrong, copy the whole import as a new draft,
@@ -3297,9 +3279,7 @@ function applyBatchCostEditability() {
     if (!field) return;
     field.readOnly = lockedSaved;
     field.classList.toggle("cost-field-locked", lockedSaved);
-    field.title = lockedSaved
-      ? "Data Repair 未开启。已保存进口资料只读。"
-      : (isEditing ? "Data Repair 已开启：允许修正后续物流/马来西亚资料。" : "");
+    field.title = lockedSaved ? "正式保存后永久只读。" : "";
   });
 
   ["batchContainerDatePicker", "batchArrivalDatePicker"].forEach(id => {
@@ -3307,7 +3287,7 @@ function applyBatchCostEditability() {
     if (!field) return;
     field.disabled = lockedSaved;
     field.classList.toggle("cost-field-locked", lockedSaved);
-    field.title = lockedSaved ? "Data Repair 未开启。已保存进口资料只读。" : "";
+    field.title = lockedSaved ? "正式保存后永久只读。" : "";
   });
 
   // Product identity, category, original quantity and original cost are core facts.
@@ -3336,36 +3316,25 @@ function applyBatchCostEditability() {
   const formalButtonV247 = document.getElementById("confirmFormalImportBtnV247");
   const deleteDraftButtonV247 = document.getElementById("deleteCurrentImportDraftBtnV247");
   if (saveButton) {
-    saveButton.disabled = isEditing && !repairEnabled;
-    saveButton.textContent = isEditing
-      ? (repairEnabled ? "保存 Data Repair 修改" : "已保存 · 只读")
-      : "保存草稿";
+    saveButton.disabled = isEditing;
+    saveButton.textContent = isEditing ? "已正式保存 · 只读" : "保存草稿";
     saveButton.title = isEditing
-      ? (repairEnabled
-          ? "只允许保存后续物流/马来西亚资料修改；内地核心资料仍锁定。"
-          : "到设置开启 Data Repair 后，才可修改允许的后续资料。")
-      : "第一次及后续点击都只保存草稿，不会正式入库。";
+      ? "确认正式保存后，整张进口编号所有数据无法修改。"
+      : "请先保存草稿，检查所有数据正确才确认保存。";
   }
   if (formalButtonV247) formalButtonV247.hidden = isEditing;
   if (deleteDraftButtonV247) deleteDraftButtonV247.hidden = isEditing || !getActiveImportDraftV243();
   if (!isEditing) updateImportDraftSaveButtonV323();
 }
 function renderCostRepairModeStatus() {
-  const enabled = getCostRepairModeEnabled();
   const status = document.getElementById("costRepairModeStatus");
   const button = document.getElementById("toggleCostRepairModeBtn");
-  if (status) {
-    const remaining = Math.max(0, getCostRepairModeExpiresAtV206() - Date.now());
-    status.textContent = enabled
-      ? `ON · 后续资料可修改 · ${formatCostRepairRemainingV206(remaining)} 后自动关闭`
-      : "OFF · 已锁定";
-    status.classList.toggle("enabled", enabled);
-  }
+  if (status) { status.textContent = "暂时关闭 · 正式保存后永久只读"; status.classList.remove("enabled"); }
   if (button) {
-    button.textContent = enabled
-      ? "关闭修改模式"
-      : "开启修改模式";
-    button.classList.toggle("danger-action-btn", enabled);
+    button.textContent = "暂时关闭";
+    button.disabled = true;
+    button.classList.remove("danger-action-btn");
+    button.title = "Data Repair 暂时关闭；以后如需恢复再重新开放。";
   }
   applyBatchCostEditability();
 }
@@ -3407,56 +3376,16 @@ function renderCostRevisionHistory() {
 }
 
 function setupCostRepairTools() {
-  const toggle = document.getElementById("toggleCostRepairModeBtn");
   const showHistory = document.getElementById("showCostRevisionHistoryBtn");
   const closeHistory = document.getElementById("closeCostRevisionHistoryBtn");
   const clearHistory = document.getElementById("clearCostRevisionHistoryBtn");
   const panel = document.getElementById("costRevisionHistoryPanel");
   const search = document.getElementById("costRevisionHistorySearch");
-  const status = document.getElementById("costRepairStatus");
-
-  toggle?.addEventListener("click", () => {
-    const next = !getCostRepairModeEnabled();
-    if (next) {
-      const warningAccepted = confirm(
-        "⚠️ Data Repair / 资料修改\n\n" +
-        "开启后，只允许修正已保存进口的后续物流/马来西亚资料：木架数量、运输单号、装柜日期、抵达日期、海外到大马运费。\n\n" +
-        "【永久锁定】产品、产品类别、原进口数量、原成本、币种、汇率、内地运输＋打木架费用、搭配花盆费用不能在这里修改。\n" +
-        "这些内地核心资料如有错误，请先『复制』整张进口成为新草稿，修正并保存新进口，再删除错误旧进口。\n\n" +
-        "修改海外到大马运费会按原进口编号既有成本资料，重算该进口编号内受影响产品的单位成本/平均成本；不会重新加入库存。\n\n" +
-        "Data Repair 开启30分钟后自动关闭，未保存修改会回滚。\n\n继续？"
-      );
-      if (!warningAccepted) return;
-      const finalAccepted = confirm(
-        "⚠️ 最后确认开启 Data Repair\n\n" +
-        "请确认只修正后续物流/马来西亚资料。\n" +
-        "内地核心资料继续锁定；当前库存与原进口数量不会因此改变。\n\n确定开启？"
-      );
-      if (!finalAccepted) return;
-      setCostRepairModeEnabled(true, Date.now() + COST_REPAIR_SESSION_MS_V206);
-      startCostRepairSessionTimerV206();
-      renderCostRepairModeStatus();
-      if (status) status.textContent = "Data Repair 已开启30分钟。只开放允许的后续资料；内地核心资料继续锁定。";
-      return;
-    }
-
-    const confirmed = confirm(
-      "确认关闭 Data Repair？\n\n尚未保存的进口修改会立即恢复到上次保存状态。"
-    );
-    if (!confirmed) return;
-    closeCostRepairModeV206({ rollbackUnsaved: true, expired: false });
-  });
-
-  showHistory?.addEventListener("click", () => {
-    if (panel) panel.hidden = false;
-    renderCostRevisionHistory();
-  });
+  showHistory?.addEventListener("click", () => { if (panel) panel.hidden = false; renderCostRevisionHistory(); });
   closeHistory?.addEventListener("click", () => { if (panel) panel.hidden = true; });
   clearHistory?.addEventListener("click", clearCostRevisionHistoryV222);
   search?.addEventListener("input", () => scheduleSearchRenderV302("cost-revision", renderCostRevisionHistory));
-
   renderCostRepairModeStatus();
-  if (getCostRepairModeEnabled()) startCostRepairSessionTimerV206();
 }
 
 
@@ -4218,7 +4147,7 @@ function isMinimumPriceManualV160(product, configuredOverrides = null) {
   const overrides = configuredOverrides || getMinimumPriceManualOverridesV160();
   const productId = String(product?.id || "").trim();
   const productIdUpper = productId.toUpperCase();
-  // V33.9: one single manual-price truth for every desktop/mobile/table renderer.
+  // V34.0: one single manual-price truth for every desktop/mobile/table renderer.
   // Older settings may contain a differently-cased Product ID, so normalize once here
   // instead of letting each page infer protection differently.
   if (productId) {
@@ -4256,7 +4185,7 @@ function getOperationalProductsV256(products = getProducts()) {
   );
 }
 
-// V33.9: obsolete virtual-reference residue sweeper removed. Historical ID migration/safety remains below.
+// V34.0: obsolete virtual-reference residue sweeper removed. Historical ID migration/safety remains below.
 
 function getProducts() {
   const rules = getMinimumPriceRulesV160();
@@ -4630,15 +4559,46 @@ function savePrefixEnglishMetaV319(keyword, english) {
   saveJSON("importSystemSettings", { ...settings, productPrefixEnglishV319: englishMap });
   if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
 }
+function getCanonicalPrefixEffectiveV340(base) {
+  const settings = loadJSON("importSystemSettings", {});
+  const overrides = settings.productPrefixOverridesV231 && typeof settings.productPrefixOverridesV231 === "object" ? settings.productPrefixOverridesV231 : {};
+  const baseKey = normalizeProductPrefixKeywordV181(base.cn);
+  const override = overrides[baseKey] || {};
+  if (override.deleted === true) return null;
+  return {
+    keyword: String(override.keyword || base.cn).trim(),
+    prefix: String(override.prefix || base.prefix).trim().toUpperCase() || base.prefix
+  };
+}
+function saveCanonicalPrefixOverrideV340(base, keyword, prefix, deleted = false) {
+  const settings = loadJSON("importSystemSettings", {});
+  const overrides = { ...(settings.productPrefixOverridesV231 || {}) };
+  const aliases = new Set(base.aliases.map(normalizeProductPrefixKeywordV181));
+  PRODUCT_PREFIX_RULES_V163.forEach(([baseKeyword, basePrefix]) => {
+    const key = normalizeProductPrefixKeywordV181(baseKeyword);
+    if (!aliases.has(key)) return;
+    overrides[key] = deleted
+      ? { ...(overrides[key] || {}), deleted:true }
+      : { ...(overrides[key] || {}), keyword: key === normalizeProductPrefixKeywordV181(base.cn) ? keyword : baseKeyword, prefix, deleted:false };
+  });
+  saveJSON("importSystemSettings", { ...settings, productPrefixOverridesV231: overrides });
+  if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
+}
+
 function getPrefixEditorRowsV333() {
   const rules = getProductPrefixRulesV181();
   const rows = PRODUCT_PREFIX_CANONICAL_V333.map(base => {
-    const present = rules.filter(([keyword,prefix]) => String(prefix||"").toUpperCase() === base.prefix && base.aliases.some(a => normalizeProductPrefixKeywordV181(a) === normalizeProductPrefixKeywordV181(keyword)));
-    const locked = present.some(([k,p]) => isProductPrefixRuleLockedV229(k,p));
-    const english = getPrefixEnglishMetaV319(base.cn).english || base.en;
-    return {keyword:base.cn, english, prefix:base.prefix, locked, builtin:true};
-  });
-  const canonicalKeywords = new Set(PRODUCT_PREFIX_CANONICAL_V333.flatMap(r => r.aliases.map(normalizeProductPrefixKeywordV181)));
+    const effective = getCanonicalPrefixEffectiveV340(base);
+    if (!effective) return null;
+    const present = rules.filter(([keyword,prefix]) => String(prefix||"").toUpperCase() === effective.prefix && (base.aliases.some(a => normalizeProductPrefixKeywordV181(a) === normalizeProductPrefixKeywordV181(keyword)) || normalizeProductPrefixKeywordV181(keyword) === normalizeProductPrefixKeywordV181(effective.keyword)));
+    const locked = present.some(([k,p]) => isProductPrefixRuleLockedV229(k,p)) || isProductPrefixRuleLockedV229(effective.keyword,effective.prefix);
+    const english = getPrefixEnglishMetaV319(effective.keyword).english || getPrefixEnglishMetaV319(base.cn).english || base.en;
+    return {keyword:effective.keyword, english, prefix:effective.prefix, locked, builtin:true, canonicalCn:base.cn};
+  }).filter(Boolean);
+  const canonicalKeywords = new Set([
+    ...PRODUCT_PREFIX_CANONICAL_V333.flatMap(r => r.aliases.map(normalizeProductPrefixKeywordV181)),
+    ...rows.map(r => normalizeProductPrefixKeywordV181(r.keyword))
+  ]);
   rules.forEach(([keyword,prefix]) => {
     if (canonicalKeywords.has(normalizeProductPrefixKeywordV181(keyword))) return;
     rows.push({keyword, english:getPrefixEnglishMetaV319(keyword).english, prefix, locked:isProductPrefixRuleLockedV229(keyword,prefix), builtin:false});
@@ -4667,21 +4627,37 @@ function setProductPrefixEditorV333(row = null, mode = "new") {
   if (!cn||!en||!pre) return;
   if (!row) { cn.value=""; en.value=""; pre.value=""; cn.disabled=false; pre.disabled=false; if(status)status.textContent=""; return; }
   cn.value=row.keyword||""; en.value=row.english||""; pre.value=row.prefix||"";
-  const lock = row.locked === true || row.builtin === true;
+  const lock = row.locked === true;
   cn.disabled=lock; pre.disabled=lock;
   if(status) status.textContent = mode === "delete" ? `准备删除：${row.keyword} / ${row.prefix}` : `修改：${row.keyword} / ${row.prefix}`;
   document.querySelector(".product-prefix-editor-v333")?.scrollIntoView({behavior:"smooth",block:"center"});
 }
+function setPrefixSaveButtonStateV340(text, busy = false) {
+  const button = document.getElementById("addProductPrefixRuleBtn");
+  if (!button) return;
+  button.textContent = text || "保存";
+  button.disabled = Boolean(busy);
+}
+function resetPrefixSaveButtonV340(delay = 900) {
+  window.setTimeout(() => setPrefixSaveButtonStateV340("保存", false), delay);
+}
+
 function setupProductPrefixSettingsV181() {
   const cn=document.getElementById("newProductPrefixKeyword"), en=document.getElementById("newProductPrefixEnglishV319"), pre=document.getElementById("newProductPrefixCode"), save=document.getElementById("addProductPrefixRuleBtn"), status=document.getElementById("productPrefixRulesStatus");
   const bonsaiDetailsV339=document.getElementById("productPrefixSettingsV339");
-  document.querySelectorAll("[data-open-bonsai-prefix-v339]").forEach(node=>node.addEventListener("click",event=>{event.preventDefault();event.stopPropagation();if(!bonsaiDetailsV339)return;bonsaiDetailsV339.open=true;window.requestAnimationFrame(()=>bonsaiDetailsV339.scrollIntoView({behavior:"smooth",block:"start"}));}));
   if(!cn||!en||!pre||!save)return; removeWhiteWaxTestPrefixV182(); renderProductPrefixRulesV181();
   cn.addEventListener("input",()=>{
     if(productPrefixEditorModeV333!=="new")return;
     const key=normalizeProductPrefixKeywordV181(cn.value);
     const known=PRODUCT_PREFIX_CANONICAL_V333.find(row=>row.aliases.some(a=>normalizeProductPrefixKeywordV181(a)===key) || normalizeProductPrefixKeywordV181(row.cn)===key);
-    if(known){ en.value=getPrefixEnglishMetaV319(known.cn).english||known.en; pre.value=known.prefix; cn.disabled=true; pre.disabled=true; productPrefixEditorOriginalV333={keyword:known.cn,english:en.value,prefix:known.prefix,locked:true,builtin:true}; productPrefixEditorModeV333="edit"; if(status)status.textContent=`已识别 ${known.cn}：只允许修改英文`; }
+    if(known){
+      const existing=getPrefixEditorRowsV333().find(r=>r.prefix===known.prefix && normalizeProductPrefixKeywordV181(r.keyword)===normalizeProductPrefixKeywordV181(known.cn));
+      en.value=getPrefixEnglishMetaV319(known.cn).english||known.en; pre.value=known.prefix;
+      productPrefixEditorOriginalV333=existing?{...existing}:{keyword:known.cn,english:en.value,prefix:known.prefix,locked:false,builtin:true};
+      productPrefixEditorModeV333=existing?"edit":"new";
+      const locked=existing?.locked===true; cn.disabled=locked; pre.disabled=locked;
+      if(status)status.textContent=locked?`已识别 ${known.cn}：已有产品关联，只允许修改英文`:`已识别 ${known.cn}：已自动带入英文与前缀`;
+    }
   });
   pre.addEventListener("input",()=>{pre.value=String(pre.value||"").replace(/[^a-z]/gi,"").toUpperCase().slice(0,2)});
   document.getElementById("productPrefixRulesList")?.addEventListener("click",event=>{
@@ -4699,24 +4675,46 @@ function setupProductPrefixSettingsV181() {
     if(productPrefixEditorModeV333==="delete"){
       const row=productPrefixEditorOriginalV333; if(!row||row.locked){if(status)status.textContent="已有产品关联，不能删除";return;}
       if(!window.confirm(`确认删除盆栽前缀规则？\n${row.keyword} → ${row.prefix}`))return;
-      if(status)status.textContent="删除中..."; save.disabled=true;
-      const settings=loadJSON("importSystemSettings",{}), additional=(Array.isArray(settings.productPrefixAdditionalRules)?settings.productPrefixAdditionalRules:[]).filter(item=>normalizeProductPrefixKeywordV181(Array.isArray(item)?item[0]:item?.keyword)!==normalizeProductPrefixKeywordV181(row.keyword));
-      saveJSON("importSystemSettings",{...settings,productPrefixAdditionalRules:additional}); if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved();
-      renderProductPrefixRulesV181(); setProductPrefixEditorV333(); if(status)status.textContent="已经删除"; save.disabled=false; return;
+      if(status)status.textContent=""; setPrefixSaveButtonStateV340("删除中...", true);
+      if(row.builtin){
+        const base=PRODUCT_PREFIX_CANONICAL_V333.find(item=>item.cn===(row.canonicalCn||row.keyword) || item.aliases.some(a=>normalizeProductPrefixKeywordV181(a)===normalizeProductPrefixKeywordV181(row.keyword)));
+        if(base) saveCanonicalPrefixOverrideV340(base,row.keyword,row.prefix,true);
+      } else {
+        const settings=loadJSON("importSystemSettings",{}), additional=(Array.isArray(settings.productPrefixAdditionalRules)?settings.productPrefixAdditionalRules:[]).filter(item=>normalizeProductPrefixKeywordV181(Array.isArray(item)?item[0]:item?.keyword)!==normalizeProductPrefixKeywordV181(row.keyword));
+        saveJSON("importSystemSettings",{...settings,productPrefixAdditionalRules:additional}); if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved();
+      }
+      renderProductPrefixRulesV181(); setProductPrefixEditorV333(); setPrefixSaveButtonStateV340("已经删除", true); resetPrefixSaveButtonV340(); return;
     }
     const row=productPrefixEditorOriginalV333;
     if(productPrefixEditorModeV333==="edit" && row){
       const before=`${row.keyword} / ${row.english||"—"} / ${row.prefix}`, after=`${keyword} / ${english||"—"} / ${prefix}`;
       if(!window.confirm(`确认修改盆栽前缀规则？\n\n修改前：${before}\n修改后：${after}`))return;
-      if(status)status.textContent="修改保存中..."; save.disabled=true;
-      savePrefixEnglishMetaV319(row.keyword,english); renderProductPrefixRulesV181(); setProductPrefixEditorV333(); if(status)status.textContent="修改成功"; save.disabled=false; return;
+      if(status)status.textContent=""; setPrefixSaveButtonStateV340("修改中...", true);
+      if(row.locked){
+        savePrefixEnglishMetaV319(row.keyword,english);
+      } else if(row.builtin){
+        const base=PRODUCT_PREFIX_CANONICAL_V333.find(item=>item.cn===(row.canonicalCn||row.keyword) || item.aliases.some(a=>normalizeProductPrefixKeywordV181(a)===normalizeProductPrefixKeywordV181(row.keyword)));
+        if(base) saveCanonicalPrefixOverrideV340(base,keyword,prefix,false);
+        savePrefixEnglishMetaV319(keyword,english);
+      } else {
+        const settings=loadJSON("importSystemSettings",{});
+        const additional=(Array.isArray(settings.productPrefixAdditionalRules)?settings.productPrefixAdditionalRules:[]).map(item=>{
+          const k=String(Array.isArray(item)?item[0]:item?.keyword||"");
+          if(normalizeProductPrefixKeywordV181(k)!==normalizeProductPrefixKeywordV181(row.keyword)) return item;
+          return {keyword,prefix};
+        });
+        saveJSON("importSystemSettings",{...settings,productPrefixAdditionalRules:additional});
+        if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved();
+        savePrefixEnglishMetaV319(keyword,english);
+      }
+      renderProductPrefixRulesV181(); setProductPrefixEditorV333(); setPrefixSaveButtonStateV340("修改成功", true); resetPrefixSaveButtonV340(); return;
     }
     if(getProductPrefixRulesV181().some(([k])=>normalizeProductPrefixKeywordV181(k)===normalizeProductPrefixKeywordV181(keyword))){if(status)status.textContent=`“${keyword}”已经存在`;return;}
     if(getCategoryPrefixConflictV229(prefix)){if(status)status.textContent=`前缀 ${prefix} 已被使用`;return;}
-    if(status)status.textContent="新增前缀保存中..."; save.disabled=true;
+    if(status)status.textContent=""; setPrefixSaveButtonStateV340("保存中...", true);
     const settings=loadJSON("importSystemSettings",{}),additional=Array.isArray(settings.productPrefixAdditionalRules)?settings.productPrefixAdditionalRules.slice():[]; additional.push({keyword,prefix});
     saveJSON("importSystemSettings",{...settings,productPrefixAdditionalRules:additional}); savePrefixEnglishMetaV319(keyword,english); if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved();
-    renderProductPrefixRulesV181(); setProductPrefixEditorV333(); if(status)status.textContent="保存成功"; save.disabled=false;
+    renderProductPrefixRulesV181(); setProductPrefixEditorV333(); setPrefixSaveButtonStateV340("保存成功", true); resetPrefixSaveButtonV340();
   });
 }
 function removeWhiteWaxTestPrefixV182() {
@@ -5146,7 +5144,7 @@ function renderProductList() {
   const searchNode = document.getElementById("productSearch");
   const list = document.getElementById("productList");
   const count = document.getElementById("productListCount");
-  // V33.9: legacy Product List UI was removed; callers may still refresh it.
+  // V34.0: legacy Product List UI was removed; callers may still refresh it.
   // Exit quietly instead of turning a successful Profit Management save into an error.
   if (!searchNode || !list || !count) return;
   const products = getProducts();
@@ -5703,7 +5701,7 @@ function ensureDraftReadyForFormalSaveV243(status) {
   const active = getActiveImportDraftV243();
   if (!active) {
     if (status) status.textContent = "请先保存草稿，再确认正式进口。";
-    alert("请先保存草稿，再确认正式进口。\n\n正式保存会增加库存，所以新进口必须先经过草稿。");
+    alert("请先保存草稿，检查所有数据正确才确认保存。\n\n确认正式保存后，所有数据无法修改。");
     return false;
   }
   if (importDraftFingerprintV243(collectImportDraftStateV242()) !== importDraftFingerprintV243(active)) {
@@ -5835,13 +5833,17 @@ function collectImportDraftStateV242() {
 }
 
 function saveImportDraftV242() {
+  const saveButtonV340 = document.getElementById("saveBatchBtn");
+  if (saveButtonV340) { saveButtonV340.disabled = true; saveButtonV340.textContent = "保存中..."; }
   if (currentEditingImportNumber) {
     alert("\u5df2\u4fdd\u5b58\u7684\u8fdb\u53e3\u7f16\u53f7\u4e0d\u4f7f\u7528\u8349\u7a3f\u6a21\u5f0f\u3002\u8349\u7a3f\u53ea\u7528\u4e8e\u65b0\u8fdb\u53e3\u3002");
+    if (saveButtonV340) { saveButtonV340.disabled = false; saveButtonV340.textContent = "保存草稿"; }
     return;
   }
   const state = collectImportDraftStateV242();
   if (!state.rows.length) {
     alert("请先输入至少一个产品，再保存草稿。");
+    if (saveButtonV340) { saveButtonV340.disabled = false; saveButtonV340.textContent = "保存草稿"; }
     return;
   }
   const drafts = getImportDraftsV242();
@@ -5882,7 +5884,13 @@ function saveImportDraftV242() {
     status.classList.add("draft-saved-status-v322");
   }
   renderImportDraftsV242();
-  updateImportDraftSaveButtonV323();
+  if (saveButtonV340) {
+    saveButtonV340.disabled = true;
+    saveButtonV340.textContent = "保存成功";
+    window.setTimeout(() => { saveButtonV340.disabled = false; updateImportDraftSaveButtonV323(); }, 900);
+  } else {
+    updateImportDraftSaveButtonV323();
+  }
 }
 
 function applyImportDraftV242(draftId) {
@@ -6064,8 +6072,8 @@ function confirmFormalImportV247() {
   const totalQty = rows.reduce((sum, row) => sum + Math.max(0, Number(row?.quantity) || 0), 0);
   const firstNames = rows.slice(0, 4).map(row => String(row.name || "").trim()).filter(Boolean).join("、");
   const summary = `${rows.length} 个产品 / 总数量 ${totalQty}${firstNames ? `\n${firstNames}${rows.length > 4 ? "…" : ""}` : ""}`;
-  if (!window.confirm(`⚠️ 确认正式保存这份进口？\n\n${summary}\n\n确认后才会执行 V22.6 原本正式保存逻辑：写入真实库存、成本、Import / Batch、Product ID 与最低售价相关处理。\n\n正式保存成功后，这份进口会锁定。`)) return;
-  if (!window.confirm("最后确认：现在正式入库？\n\n这是第二阶段正式保存，不再是草稿。成功后如需修改，只能依 Data Repair 规则处理。")) return;
+  if (!window.confirm(`⚠️ 确认正式保存这份进口？\n\n${summary}\n\n请先确认草稿内所有数据正确。确认正式保存后，整张进口编号所有数据将永久锁定，无法修改。`)) return;
+  if (!window.confirm("最后确认：现在正式入库？\n\n确认正式保存后，所有数据无法修改。")) return;
   saveBatchImport();
 }
 
@@ -7553,7 +7561,7 @@ async function deleteBatchByNumber(importNumber) {
   if (typeof window.markCloudImportNumberDeletedV232 === "function") {
     window.markCloudImportNumberDeletedV232(batch.importNumber, batch.id);
   }
-  // V33.9: also tombstone concrete row IDs so a later Pull cannot resurrect a deleted test import/product.
+  // V34.0: also tombstone concrete row IDs so a later Pull cannot resurrect a deleted test import/product.
   if (typeof window.markCloudExplicitDeletedIdsV323 === "function") {
     window.markCloudExplicitDeletedIdsV323({
       imports: batchItems.map(item => String(item?.id || "")).filter(Boolean),
@@ -7576,7 +7584,7 @@ async function deleteBatchByNumber(importNumber) {
     if (typeof getCloudQueue === "function" && getCloudQueue()?.dirty) {
       throw new Error("云端仍有资料等待同步");
     }
-    // V33.9: pushAll_ writes the exact canonical Imports/Batches snapshot when an
+    // V34.0: pushAll_ writes the exact canonical Imports/Batches snapshot when an
     // explicit import-number tombstone is present. A successful strict flush is the
     // server-side confirmation; do not block the UI with one or two full Pulls.
     if (deleteStatusV228) deleteStatusV228.textContent = `云端已确认删除 ${batch.importNumber}，正在整理画面…`;
@@ -8209,7 +8217,7 @@ function setupImportHistory() {
   };
 
   button?.addEventListener("click", () => {
-    // V33.9: let the tap/typed text paint first, then run the existing local history scan.
+    // V34.0: let the tap/typed text paint first, then run the existing local history scan.
     normalizeHistoryDateField(startInput, startPicker);
     normalizeHistoryDateField(endInput, endPicker);
     lastCompletedHistoryLookup = "";
@@ -8248,7 +8256,7 @@ function setupImportHistory() {
     startInput.classList.remove("date-error");
     lastCompletedHistoryLookup = "";
     historyManualLookupReadyV246 = true;
-    // V33.9: let the date paint first; run the existing query only after the UI is free.
+    // V34.0: let the date paint first; run the existing query only after the UI is free.
     scheduleSearchRenderV302("history-date", renderImportHistory, 60);
   });
 
@@ -11557,7 +11565,7 @@ function maybeApplySuggestedBatchCurrencyV231(rowId, suggestedCurrency, label = 
 }
 
 function applyExistingProductCurrencyV232(rowId, product, { commitCurrency = false } = {}) {
-  // V33.9: historical currency is never scanned/applied during typing or selection.
+  // V34.0: historical currency is never scanned/applied during typing or selection.
   // Current purchase currency is decided only by explicit MYR selection or price threshold.
   return;
 }
@@ -11604,7 +11612,7 @@ function setAutoOriginalCostV249(rowId, record, { force = false } = {}) {
   const sourceCurrency = String(record?.currency || "").trim().toUpperCase();
   if (!(sourceValue > 0)) return false;
 
-  // V33.9: selecting a real existing product restores its historical unit price
+  // V34.0: selecting a real existing product restores its historical unit price
   // exactly as stored. Never convert VND<->CNY amounts. Currency is then chosen
   // by the proven V22.6 price rule, except explicit local MYR purchases stay MYR.
   row.dataset.settingAutoPriceV249 = "1";
@@ -11700,7 +11708,7 @@ function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, c
   tr.dataset.lastIdentityNameV231 = normalizedName;
 
   if (!commitCurrency) return;
-  // V33.9: prefix rules generate product IDs only; they never decide purchase currency.
+  // V34.0: prefix rules generate product IDs only; they never decide purchase currency.
 }
 
 function addBatchRow(prefill = {}){
@@ -12399,8 +12407,8 @@ function clearBatchAfterSuccessfulAction() {
 }
 
 function saveBatchImport() {
-  if (currentEditingImportNumber && !getCostRepairModeEnabled()) {
-    alert("这个进口编号已经保存并锁定，只能阅读。\n\n如需修改允许的后续物流/马来西亚资料，请到设置开启 Data Repair。\n原成本单项修正请使用页面下方『输入产品或原成本可查询』专用入口。");
+  if (currentEditingImportNumber) {
+    alert("这个进口编号已经正式保存并永久锁定，只能阅读。\n\n确认正式保存后，整张进口编号所有数据无法修改。");
     return;
   }
   const status = document.getElementById("batchStatusText");
@@ -13280,6 +13288,8 @@ function confirmLeaveOriginalCostEditV219() {
 }
 
 function openProductOriginalCostEditorV219(productId, importRecordId = "") {
+  window.alert("正式保存后的进口编号已永久锁定，原成本不能修改。");
+  return;
   const id = String(productId || "").trim();
   const product = getProducts().find(item => String(item?.id || "").trim() === id);
   if (!product) { alert("找不到这个产品。"); return; }
@@ -13441,6 +13451,8 @@ window.addEventListener("beforeunload", event => {
 
 
 async function promptProductOriginalCostEditorV257(productId, importRecordId = "") {
+  window.alert("正式保存后的进口编号已永久锁定，原成本不能修改。");
+  return;
   const id = String(productId || "").trim();
   const product = getProducts().find(item => String(item?.id || "").trim() === id);
   if (!product) { alert("找不到这个产品。"); return; }
@@ -14709,7 +14721,7 @@ function normalizeMinimumPriceInput(value) {
 }
 
 async function editDisplayedMinimumPriceV199(productId) {
-  // V33.9: direct minimum-price edits are always the product's manual minimum price.
+  // V34.0: direct minimum-price edits are always the product's manual minimum price.
   // Manual prices have highest priority and are never changed by Profit Management.
   return editProductMinimumPrice(String(productId || "").trim());
 }
@@ -15347,7 +15359,7 @@ function setupInventoryModule() {
 
   bindInventoryMinimumPriceLongPress();
   renderInventoryManagementList();
-  // V33.9 performance: do NOT preload the complete Sales history in the background.
+  // V34.0 performance: do NOT preload the complete Sales history in the background.
   // The persisted local analytics are enough for normal browsing; full Sales links are
   // fetched only when the user explicitly chooses Profit Highest or runs History.
 }
@@ -15529,7 +15541,7 @@ function getInventorySalesAnalyticsV146() {
 let inventoryVisibleProductsV153 = [];
 
 
-// V33.9: prepare the expensive inventory/import joins once per unchanged data snapshot.
+// V34.0: prepare the expensive inventory/import joins once per unchanged data snapshot.
 // Search and sort now operate on these prepared rows without rebuilding all import maps.
 let inventoryPreparedRowsCacheV321 = {
   rawProducts: null, settings: null, imports: null, batches: null, sales: null,
@@ -15634,9 +15646,9 @@ function getMinimumPriceStateSignatureV339(products){
   }).sort().join("|");
 }
 
-// V33.9: one canonical product search/filter/sort path for every inventory-style view.
+// V34.0: one canonical product search/filter/sort path for every inventory-style view.
 // Import product entry intentionally does NOT use this helper.
-// V33.9: generic signed-percentage formatter retained from V32.5.
+// V34.0: generic signed-percentage formatter retained from V32.5.
 // This is shared by inventory profit-rate rendering and is NOT promotion logic.
 function formatProfitTargetV303(value) {
   const n = Number(value);
@@ -15682,7 +15694,7 @@ function filterSortInventoryProductsV324(query = "", sortMode = "latest", source
 }
 
 
-// V33.9: build the original full V32.5 inventory card defensively. Optional
+// V34.0: build the original full V32.5 inventory card defensively. Optional
 // helpers (media, copy button, language metadata, price-state helpers) are
 // isolated so one bad optional field can never blank the entire inventory list.
 // The fallback is still the SAME full card structure, never a simplified card.
@@ -15780,7 +15792,7 @@ function buildInventoryManageCardV337(product, productMediaLinksV229 = {}) {
         <div class="inventory-summary-grid">
           <div><span>当前库存</span><strong>${formatNumber(stock)}</strong></div>
           <button class="inventory-original-cost inventory-original-cost-toggle" type="button" title="点击展开 / 收起原成本清单"><span>原成本</span><strong>${originalCostText}</strong></button>
-          <button class="inventory-manage-minimum-price-btn ${minimumDisplayV315.className}" data-minimum-price-state-v324="${minimumDisplayV315.state}" type="button"
+          <button class="inventory-manage-minimum-price-btn ${minimumDisplayV315.className}" data-minimum-price-state-v324="${minimumDisplayV315.state}" style="color:${getMinimumPriceColorV340(minimumDisplayV315.state) || 'inherit'} !important" type="button"
                   data-product-id="${escapeHTML(product?.id || "")}" 
                   aria-label="长按修改最低售价" title="长按修改最低售价">
             <span>${minimumDisplayV315.label || "最低售价"}</span><strong>${formatMoney(minimumPrice, "RM ")}</strong>
@@ -15868,7 +15880,12 @@ function renderInventoryManagementList() {
     const cardByIdV321 = new Map(existingCardsV321.map(card => [String(card.dataset.productId || ""), card]));
     const completeV321 = products.every(product => cardByIdV321.has(String(product.id || "")));
     if (completeV321) {
-      products.forEach(product => list.appendChild(cardByIdV321.get(String(product.id || ""))));
+      products.forEach(product => {
+        const card = cardByIdV321.get(String(product.id || ""));
+        const priceButton = card?.querySelector(".inventory-manage-minimum-price-btn");
+        applyMinimumPriceVisualStateV340(priceButton, getMinimumPriceDisplayStateV315(product));
+        list.appendChild(card);
+      });
       const originalCostPanel = document.getElementById("originalCostPanel");
       if (originalCostPanel && !originalCostPanel.hidden) renderOriginalCostPanel(products);
       return;
@@ -15937,7 +15954,7 @@ function renderInventoryManagementList() {
         <div class="inventory-summary-grid">
           <div><span>当前库存</span><strong>${formatNumber(stock)}</strong></div>
           <button class="inventory-original-cost inventory-original-cost-toggle" type="button" title="点击展开 / 收起原成本清单"><span>原成本</span><strong>${originalCostText}</strong></button>
-          <button class="inventory-manage-minimum-price-btn ${minimumDisplayV315.className}" data-minimum-price-state-v324="${minimumDisplayV315.state}" type="button"
+          <button class="inventory-manage-minimum-price-btn ${minimumDisplayV315.className}" data-minimum-price-state-v324="${minimumDisplayV315.state}" style="color:${getMinimumPriceColorV340(minimumDisplayV315.state) || 'inherit'} !important" type="button"
                   data-product-id="${escapeHTML(product.id || "")}"
                   aria-label="长按修改最低售价" title="长按修改最低售价">
             <span>${minimumDisplayV315.label}</span><strong>${formatMoney(minimumPrice, "RM ")}</strong>
@@ -16191,7 +16208,7 @@ function openSystemMediaPreviewV305(type, url, label = "") {
   const directVideoSources = getGoogleDriveDirectSourcesV310(originalUrl);
   if (!source) { window.alert("尚未上传"); return; }
 
-  // V33.9 desktop: use exactly one layer. Open the original Google Drive link in
+  // V34.0 desktop: use exactly one layer. Open the original Google Drive link in
   // one browser tab for both photos and videos. Closing that tab returns directly
   // to Import System; no second system modal remains underneath.
   const desktopFinePointer = window.matchMedia("(hover:hover) and (pointer:fine)").matches && window.innerWidth >= 720;
@@ -16200,7 +16217,7 @@ function openSystemMediaPreviewV305(type, url, label = "") {
     return;
   }
 
-  // V33.9 mobile video: try a minimal in-system player first. Only X, one
+  // V34.0 mobile video: try a minimal in-system player first. Only X, one
   // play/pause button and a slim progress bar are rendered by us. If Google
   // blocks the direct stream, silently switch to Drive Preview with no message.
   if (!desktopFinePointer && mediaType === "video") {
@@ -16429,6 +16446,25 @@ function getMinimumPriceDisplayStateV315(product) {
   return { manual, state, className, label:"最低售价", price:info.price, profitInfo:info };
 }
 
+// V34.0: one visual state for desktop/mobile/card/original-cost/master table.
+// Inline color is deliberate: it prevents stale desktop DOM/CSS from overriding the
+// canonical state while keeping the same state attribute for every renderer.
+function getMinimumPriceColorV340(state) {
+  if (state === "manual") return "#0b68c9";
+  if (state === "gain") return "#087a43";
+  if (state === "loss") return "#c62828";
+  return "";
+}
+function applyMinimumPriceVisualStateV340(element, displayState) {
+  if (!element || !displayState) return;
+  ["minimum-price-manual-v315","minimum-price-gain-v302","minimum-price-loss-v302","minimum-price-neutral-v302"].forEach(name => element.classList.remove(name));
+  if (displayState.className) element.classList.add(displayState.className);
+  element.dataset.minimumPriceStateV324 = displayState.state || "neutral";
+  const color = getMinimumPriceColorV340(displayState.state);
+  element.style.setProperty("color", color || "inherit", "important");
+  element.querySelectorAll("span,strong,.master-price-main-v266").forEach(child => child.style.setProperty("color", color || "inherit", "important"));
+}
+
 function renderOriginalCostPanel(visibleProducts = inventoryVisibleProductsV153) {
   const body = document.getElementById("originalCostTableBody");
   const dateField = document.getElementById("originalCostPanelDate");
@@ -16469,7 +16505,7 @@ function renderOriginalCostPanel(visibleProducts = inventoryVisibleProductsV153)
         <td class="money-cell original-currency-cell">${originalCostText}</td>
         <td class="money-cell">${formatMoney(row.averageCost, "RM ")}${row.originalCurrency === "VND" ? `<small class="average-cost-vnd-note-v207">（VND不含盆）</small>` : ""}</td>
         <td class="money-cell minimum-price-cell">
-          <button class="original-cost-minimum-price-btn ${displayStateV315.className}" data-minimum-price-state-v324="${displayStateV315.state}" type="button"
+          <button class="original-cost-minimum-price-btn ${displayStateV315.className}" data-minimum-price-state-v324="${displayStateV315.state}" style="color:${getMinimumPriceColorV340(displayStateV315.state) || 'inherit'} !important" type="button"
                   data-product-id="${escapeHTML(row.id)}"
                   aria-label="长按修改最低售价" title="长按修改最低售价">${formatMoney(displayStateV315.price, "RM ")}</button>
         </td>
@@ -17241,7 +17277,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "33.9",
+      version: "34.0",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -17608,7 +17644,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V33.9 Stable",
+      updatedBy: "System V34.0 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -17754,7 +17790,7 @@ function productNameWithEnglishV262(product){const en=productEnglishNameV262(pro
 function rememberProductLanguageV262(productId, chineseName, englishName){const id=String(productId||"").toUpperCase();if(!id)return;const meta=getProductLanguageMetaV262();meta[id]={chineseName:String(chineseName||"").trim(),englishName:String(englishName||"").trim()};saveProductLanguageMetaV262(meta)}
 function inferSimpleBilingualV262(text){const raw=String(text||"").trim();const rule=speciesRuleV262(raw);return{chineseName:rule?.cn||(/[\u3400-\u9fff]/.test(raw)?raw:""),englishName:rule?.en||(!/[\u3400-\u9fff]/.test(raw)?raw.replace(/\b(?:P?\d{2,4}|\d+(?:\.\d+)?C|\d+[xX]\d+)\b.*$/i,"").trim():""),prefix:rule?.prefix||""}}
 
-// ================= V33.9 Product Inventory Master =================
+// ================= V34.0 Product Inventory Master =================
 const SUPPLIER_ALIASES_V261 = Object.freeze([
   {names:["Ocean Landscaping","Ocean Landscaping Nursery"],prefix:"OLN",currency:"MYR"},{names:["JM Gardening","JM Landscape","JM Nursery"],prefix:"JMG",currency:"MYR"},{names:["Soong Huat Enterprise","Soong Huat Cameron"],prefix:"SHE",currency:"MYR"},{names:["Tan Ah Hwang Nursery"],prefix:"TAH",currency:"MYR"},{names:["Tan Kok Leyong","Tan Kok Leyong Nursery"],prefix:"TKL",currency:"MYR"},{names:["Wong Wan Choi"],prefix:"WWC",currency:"MYR"},{names:["忠盛"],prefix:"忠盛",currency:"CNY"},{names:["大厚"],prefix:"大厚",currency:"CNY"},{names:["游小北"],prefix:"游小北",currency:"CNY"},{names:["昊杨"],prefix:"昊杨",currency:"CNY"},{names:["松美轩"],prefix:"松美轩",currency:"CNY"}
 ]);
@@ -17785,7 +17821,7 @@ function renderInventoryMasterV261(){
   const totalValue=matchedBatch?(Number(matchedBatch.grandTotal)||0):rows.reduce((n,r)=>n+(Number(r.inventoryValue)||0),0);
   if(count)count.textContent=`${rows.length} 项`;const st=document.getElementById("inventoryMasterStockV264"),val=document.getElementById("inventoryMasterValueV264");if(st)st.textContent=formatNumber(totalStock);if(val)val.textContent=`RM ${formatMoney(totalValue)}`;
   const masterHeaderV315=document.getElementById("inventoryMasterMinimumHeaderV315"); if(masterHeaderV315)masterHeaderV315.textContent="最低售价";
-  body.innerHTML=rows.map(r=>{const stateV315=getMinimumPriceDisplayStateV315(r.product);return `<tr><td><button type="button" class="master-copy-v263" data-master-copy-v263="${escapeHTML(r.productId)}">${escapeHTML(r.productId)}</button></td><td><button type="button" class="master-copy-v263 master-name-v262" data-master-copy-v263="${escapeHTML(r.cnName)}">${escapeHTML(r.cnName)}</button></td><td><button type="button" class="master-copy-v263 master-en-v262" data-master-copy-v263="${escapeHTML(r.enName)}">${escapeHTML(r.enName)}</button></td><td class="master-num-v264">${formatNumber(r.stock)}</td><td class="master-num-v264">${formatMoney(r.averageCost)}</td><td class="master-num-v264 ${stateV315.className}" data-minimum-price-state-v324="${stateV315.state}"><span class="master-price-main-v266">${formatMoney(r.minimumPrice)}</span></td></tr>`}).join("")||'<tr><td colspan="6">暂无符合资料</td></tr>';
+  body.innerHTML=rows.map(r=>{const stateV315=getMinimumPriceDisplayStateV315(r.product);return `<tr><td><button type="button" class="master-copy-v263" data-master-copy-v263="${escapeHTML(r.productId)}">${escapeHTML(r.productId)}</button></td><td><button type="button" class="master-copy-v263 master-name-v262" data-master-copy-v263="${escapeHTML(r.cnName)}">${escapeHTML(r.cnName)}</button></td><td><button type="button" class="master-copy-v263 master-en-v262" data-master-copy-v263="${escapeHTML(r.enName)}">${escapeHTML(r.enName)}</button></td><td class="master-num-v264">${formatNumber(r.stock)}</td><td class="master-num-v264">${formatMoney(r.averageCost)}</td><td class="master-num-v264 ${stateV315.className}" data-minimum-price-state-v324="${stateV315.state}" style="color:${getMinimumPriceColorV340(stateV315.state) || 'inherit'} !important"><span class="master-price-main-v266" style="color:${getMinimumPriceColorV340(stateV315.state) || 'inherit'} !important">${formatMoney(r.minimumPrice)}</span></td></tr>`}).join("")||'<tr><td colspan="6">暂无符合资料</td></tr>';
   body.querySelectorAll("[data-master-copy-v263]").forEach(btn=>btn.addEventListener("click",()=>copyRuleLabelV232(btn,btn.dataset.masterCopyV263||"")));
 }
 function excelWorkbookV263(worksheets){return `<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:html="http://www.w3.org/TR/REC-html40"><Styles><Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Bottom"/><Font ss:FontName="Arial" ss:Size="10"/></Style><Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="#D9EAD3" ss:Pattern="Solid"/></Style><Style ss:ID="HeaderRow"/><Style ss:ID="Number2"><NumberFormat ss:Format="#,##0.00"/></Style><Style ss:ID="Integer"><NumberFormat ss:Format="#,##0"/></Style><Style ss:ID="GeneralNumber"><NumberFormat ss:Format="#,##0.00"/></Style></Styles>${worksheets}</Workbook>`}

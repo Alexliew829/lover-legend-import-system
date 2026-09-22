@@ -5,18 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=33.9" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=33.9" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=33.9" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=33.9" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=33.9" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=33.9" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=33.9" />
+  <link rel="manifest" href="./manifest.json?v=34.0" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=34.0" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=34.0" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=34.0" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=34.0" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=34.0" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=34.0" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=33.9" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=34.0" />
   <style id="access-lock-critical-v299">
     html,body{margin:0;min-height:100%;font-family:Arial,Helvetica,sans-serif}
     .access-lock{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(242,248,244,.96)}
@@ -37,12 +37,12 @@
       }
     } catch (_) {}
   </script>
-  <link rel="preload" href="./css/style.css?v=33.9" as="style" />
-  <link rel="stylesheet" href="./css/style.css?v=33.9" media="print" onload="this.media='all'" />
-  <noscript><link rel="stylesheet" href="./css/style.css?v=33.9" /></noscript>
-  <script defer src="./js/common.js?v=33.9"></script>
-  <script defer src="./js/sync.js?v=33.9"></script>
-  <script defer src="./js/app.js?v=33.9"></script>
+  <link rel="preload" href="./css/style.css?v=34.0" as="style" />
+  <link rel="stylesheet" href="./css/style.css?v=34.0" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="./css/style.css?v=34.0" /></noscript>
+  <script defer src="./js/common.js?v=34.0"></script>
+  <script defer src="./js/sync.js?v=34.0"></script>
+  <script defer src="./js/app.js?v=34.0"></script>
 </head>
 <body>
   <div id="accessLock"
@@ -116,7 +116,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 33.9 Stable</div>
+          <div class="app-header-version">正式版 34.0 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -372,7 +372,7 @@
               <button id="resetBatchBtn" class="ghost-btn" type="button">清空本次输入</button>
             </div>
             <div id="activeDraftLabelV242" class="clear-help"></div>
-            <div class="clear-help">保存只会更新草稿，不影响库存、平均成本、最低售价或正式 Import / Batch。只有按「确认正式保存」并二次确认后，才执行正式入库。</div>
+            <div class="clear-help import-save-rule-v340"><strong>请先保存草稿，检查所有数据正确才确认保存。</strong><br>确认正式保存后，所有数据无法修改。</div>
             <div id="batchEditMode" class="batch-edit-mode" hidden>
               当前编辑：<strong id="currentImportNumberLabel"></strong>
             </div>
@@ -499,17 +499,17 @@
               <div class="product-rule-section-head-v339">
                 <div>
                   <h4>产品类别</h4>
-                  <p>先选择产品大类；点击「盆栽」打开黄杨、罗汉松、水梅等盆栽细分类。</p>
+                  <p>产品大类与编号前缀。盆栽树种细分类请在下方「盆栽细分类 / Bonsai」展开查看。</p>
                 </div>
               </div>
               <div class="product-category-prefix-table-v339" role="table" aria-label="产品类别">
-                <div class="product-category-prefix-row-v339 is-head" role="row"><span>#</span><span>中文分类</span><span>英文</span><span>前缀</span><span>细分类</span></div>
-                <div class="product-category-prefix-row-v339 is-clickable" role="row" data-open-bonsai-prefix-v339="1"><span>1</span><button type="button" class="product-category-name-v339" data-open-bonsai-prefix-v339="1">盆栽</button><span>Bonsai</span><strong>BS</strong><button type="button" class="product-category-open-v339" data-open-bonsai-prefix-v339="1">打开</button></div>
-                <div class="product-category-prefix-row-v339" role="row"><span>2</span><span>肥料 / 农药</span><span>Fertilizer / Pesticide</span><strong>FL</strong><span class="product-category-na-v339">—</span></div>
-                <div class="product-category-prefix-row-v339" role="row"><span>3</span><span>泥土 / 介质</span><span>Soil / Growing Media</span><strong>NT</strong><span class="product-category-na-v339">—</span></div>
-                <div class="product-category-prefix-row-v339" role="row"><span>4</span><span>花盆</span><span>Pot</span><strong>PT</strong><span class="product-category-na-v339">—</span></div>
-                <div class="product-category-prefix-row-v339" role="row"><span>5</span><span>其他</span><span>Others</span><strong>QT</strong><span class="product-category-na-v339">—</span></div>
-                <div class="product-category-prefix-row-v339" role="row"><span>6</span><span>工具</span><span>Tools</span><strong>TL</strong><span class="product-category-na-v339">—</span></div>
+                <div class="product-category-prefix-row-v339 is-head" role="row"><span>#</span><span>中文分类</span><span>英文</span><span>前缀</span></div>
+                <div class="product-category-prefix-row-v339" role="row"><span>1</span><strong class="product-category-cn-v340">盆栽</strong><span>Bonsai</span><strong>BS</strong></div>
+                <div class="product-category-prefix-row-v339" role="row"><span>2</span><strong class="product-category-cn-v340">肥料 / 农药</strong><span>Fertilizer / Pesticide</span><strong>FL</strong></div>
+                <div class="product-category-prefix-row-v339" role="row"><span>3</span><strong class="product-category-cn-v340">泥土 / 介质</strong><span>Soil / Growing Media</span><strong>NT</strong></div>
+                <div class="product-category-prefix-row-v339" role="row"><span>4</span><strong class="product-category-cn-v340">花盆</strong><span>Pot</span><strong>PT</strong></div>
+                <div class="product-category-prefix-row-v339" role="row"><span>5</span><strong class="product-category-cn-v340">其他</strong><span>Others</span><strong>QT</strong></div>
+                <div class="product-category-prefix-row-v339" role="row"><span>6</span><strong class="product-category-cn-v340">工具</strong><span>Tools</span><strong>TL</strong></div>
               </div>
             </div>
             <details id="productPrefixSettingsV339" class="collapsible-settings-v181 product-prefix-settings-v181 product-prefix-settings-v339 rules-subpanel-v235">
@@ -801,7 +801,7 @@
         <section class="panel cost-repair-panel">
           <h3>资料修改 / Data Repair</h3>
           <p class="settings-help">
-            正常保持关闭。关闭后，所有已保存进口编号全部只读。开启后30分钟内，只允许修正后续物流/马来西亚资料：木架数量、运输单号、装柜日期、抵达日期、海外到大马运费。产品、类别、原进口数量、原成本、币种、汇率、内地运输＋打木架费用及搭配花盆费用继续永久锁定；这些内地核心资料如有错误，请在“最近进口记录”先复制整张为新资料，修正并保存新进口编号后，再删除错误旧进口。
+            Data Repair 暂时关闭。确认正式保存后，整张进口编号所有数据永久只读，无法修改。以后如需重新开放资料修改功能，再另行启用。
           </p>
 
           <div class="cost-repair-control-row">
@@ -809,7 +809,7 @@
               <strong>修改模式</strong>
               <span id="costRepairModeStatus">OFF · 已锁定</span>
             </div>
-            <button id="toggleCostRepairModeBtn" class="secondary-btn" type="button">开启修改模式</button>
+            <button id="toggleCostRepairModeBtn" class="secondary-btn data-repair-disabled-v340" type="button" disabled>暂时关闭</button>
           </div>
 
           <div class="settings-tools-grid cost-revision-tools">
@@ -835,7 +835,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 33.9 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 34.0 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
