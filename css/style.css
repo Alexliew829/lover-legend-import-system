@@ -6039,3 +6039,10 @@ body.system-media-preview-open-v305{overflow:hidden}
   .inventory-media-dot-v236{width:14px!important;height:14px!important;}
   .inventory-media-status-v236{gap:6px!important;transform:translateX(-4px);}
 }
+
+
+/* V34.3 — matching collapsible Product Category / Bonsai rule panels. */
+#productCategorySettingsV343 > summary,#productPrefixSettingsV339 > summary{cursor:pointer;user-select:none}
+.product-category-editor-v342 input,.product-prefix-editor-v339 input{text-align:left!important}
+.inventory-media-status-v236{gap:5px;transform:translateX(-3px)}
+.inventory-media-dot-v236{width:13px!important;height:13px!important;min-width:13px}
