@@ -64,7 +64,7 @@ function saveCloudQueue(queue) {
 
 function isCloudBootstrapComplete() {
   const saved = loadJSON(CLOUD_BOOTSTRAP_KEY, {});
-  return saved && saved.version === APP_VERSION && saved.schemaVersion === CLOUD_SCHEMA_VERSION && saved.completed === true;
+  return saved && saved.schemaVersion === CLOUD_SCHEMA_VERSION && saved.completed === true;
 }
 
 function clearLegacyPendingCloudState() {
@@ -366,7 +366,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V33.5 Stable",
+      updatedBy: "System V33.6 Stable",
       ...payload
     });
 
@@ -401,7 +401,7 @@ async function commitSalesInventoryBatchToCloudV125(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V33.5 Stable",
+      updatedBy: "System V33.6 Stable",
       ...payload
     });
     if (data.conflict || data.stockChanged) {
@@ -424,7 +424,7 @@ window.commitSalesInventoryBatchToCloudV125 = commitSalesInventoryBatchToCloudV1
 
 async function commitSalesCorrectionBatchToCloudV110(payload) {
   await flushCloudQueueStrictV83(); const config=getCloudConfig(); setCloudState("syncing");
-  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V33.5 Stable",...payload});
+  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V33.6 Stable",...payload});
     if(data.conflict||data.stockChanged) throw new Error(data.message||"Google Sheet 资料已改变，全部库存差异没有处理。请同步后重试。");
     config.revision=Number(data.revision)||Number(config.revision)||0; config.lastSyncAt=new Date().toISOString(); config.bootstrapToken=String(data.bootstrapToken||config.bootstrapToken||""); config.bootstrapRevision=Number(data.revision)||Number(config.bootstrapRevision)||0; saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced"); return data;
   } catch(error){setCloudState("failed");throw error;}
@@ -438,7 +438,7 @@ async function migrateProductPrefixesV164() {
     action: "migrateProductPrefixesV164", clientVersion: APP_VERSION,
     schemaVersion: CLOUD_SCHEMA_VERSION, baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""), bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V33.5 Stable"
+    updatedBy: "System V33.6 Stable"
   });
   if (data.conflict) throw new Error(data.message || "资料已改变，请同步后重试。");
   config.revision = Number(data.revision) || Number(config.revision) || 0;
@@ -471,10 +471,15 @@ async function runCloudSync() {
 
   cloudSyncBusy = true;
   cloudSyncRequestedWhileBusy = false;
-  setCloudState("syncing");
 
   try {
     const queue = getCloudQueue();
+    // V33.6: after one successful bootstrap, read-only revision checks stay in the
+    // background and must not put the dashboard back into a long "同步中..." state.
+    // Real local writes/pushes still show syncing.
+    if (!cloudInitialSyncComplete || queue.dirty || !isCloudBootstrapComplete()) {
+      setCloudState("syncing");
+    }
     const snapshot = makeLocalSnapshot();
     const localHasCoreData =
       (snapshot.products || []).length > 0 ||
@@ -552,9 +557,6 @@ async function pullLatestSnapshot(forceBootstrap = false) {
     saveCloudConfig(config);
     renderCloudMeta(config);
     setCloudState("synced");
-    if (typeof window.repairStaleBatchUnitCostsV206 === "function") {
-      window.repairStaleBatchUnitCostsV206({ persistCloud: true });
-    }
     return false;
   }
 
@@ -620,7 +622,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V33.5 Stable",
+    updatedBy: "System V33.6 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     minimumPriceManual: Boolean(minimumPriceManual),
@@ -664,7 +666,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V33.5 Stable",
+    updatedBy: "System V33.6 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
@@ -837,12 +839,12 @@ function applyRemoteData(data) {
 
   cloudApplyingRemote = true;
   try {
-    // V33.5: keep the proven V32.5 Pull/apply path simple.
+    // V33.6: keep the proven V32.5 Pull/apply path simple.
     // Only strip the retired promotion payload locally; do not run any
     // migration/sanitizer during the first cloud Pull.
-    const safeRemoteSettingsV335 = { ...(data.settings || {}) };
-    delete safeRemoteSettingsV335.promotionV183;
-    localStorage.setItem("importSystemSettings", JSON.stringify(safeRemoteSettingsV335));
+    const safeRemoteSettingsV336 = { ...(data.settings || {}) };
+    delete safeRemoteSettingsV336.promotionV183;
+    localStorage.setItem("importSystemSettings", JSON.stringify(safeRemoteSettingsV336));
     localStorage.setItem("importSystemProducts", JSON.stringify(data.products));
     if (typeof invalidateMinimumPriceOriginIndexV160 === "function") {
       invalidateMinimumPriceOriginIndexV160();
@@ -853,12 +855,9 @@ function applyRemoteData(data) {
     cloudApplyingRemote = false;
   }
 
-  // V21.4 corrected build: after a canonical Pull, repair only deterministic
-  // stale batch-cost snapshots. The repair is idempotent and queues one normal
-  // cloud Push only when unitCost/Average Cost truly differ from saved batch inputs.
-  if (typeof window.repairStaleBatchUnitCostsV206 === "function") {
-    window.repairStaleBatchUnitCostsV206({ persistCloud: true });
-  }
+  // V33.6: a cloud Pull is read-only. Do not auto-repair/write cost snapshots
+  // during startup or revision checks; this prevents a successful Pull from
+  // immediately creating a dirty queue and starting another Push.
   refreshSystemViewsAfterSync();
 }
 
