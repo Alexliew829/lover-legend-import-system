@@ -4245,7 +4245,7 @@ function getEffectiveProductMinimumPriceV183(product, promotion = null, rules = 
   const originalPrice = Math.max(0, Number(product?.minimumPrice) || 0);
   const active = promotion || getPromotionSettingsV183();
   const productId = String(product?.id || "").trim().toUpperCase();
-  // V34.9: 售价控制是最高优先级。手动最低售价永远保持蓝色，完全不参与促销。
+  // V35.0: 售价控制是最高优先级。手动最低售价永远保持蓝色，完全不参与促销。
   // 一旦解除手动状态，若促销仍开启且产品不在排除清单，会自动重新加入促销。
   if (isMinimumPriceManualV160(product)) return originalPrice;
   if (!active || active.excludedProductIds.includes(productId)) return originalPrice;
@@ -4645,7 +4645,7 @@ function refreshPromotionUiV183() {
   const deleteButton = document.getElementById("deletePromotionV183");
   const toggleButton = document.getElementById("togglePromotionPriceListV183");
   if (summary) {
-    summary.textContent = promotion ? `${promotion.name} 促销进行中 · 目标净利率 ${promotion.targetMarginRate}%` : "";
+    summary.textContent = promotion ? `${promotion.name} 促销进行中 · ${promotion.targetMarginRate}%` : "";
     summary.hidden = !promotion;
     summary.classList.toggle("promotion-active-summary-v191", Boolean(promotion));
   }
@@ -4816,7 +4816,7 @@ function setupPromotionSettingsV183() {
   excludeSelected?.addEventListener("click", () => {
     const ids = [...promotionSearchSelectionV184].filter(id => !promotionExcludedDraftV183.has(id));
     if (!ids.length || !window.confirm(`确认批量排除已选择的 ${ids.length} 项产品？\n\n保存促销后，这些产品会继续使用原最低售价。`)) return;
-    // V34.9: confirmed exclusions accumulate across searches (e.g. 3 水梅 + 3 真柏 = 6).
+    // V35.0: confirmed exclusions accumulate across searches (e.g. 3 水梅 + 3 真柏 = 6).
     ids.forEach(id => promotionExcludedDraftV183.add(id));
     promotionDraftTouchedV209 = true;
     promotionSearchSelectionV184.clear();
@@ -4913,8 +4913,11 @@ function setupPromotionSettingsV183() {
     if (!window.confirm(`${activeNotice}确认${currentActive ? "更新并继续开启" : "保存并开启"}促销？\n\n促销：${promotion.name}\n主播佣金：${promotion.commissionRate}%\n目标净利率：${promotion.targetMarginRate}%\n应用产品：${affected.length} 项\n排除产品：${promotion.excludedProductIds.length} 项${warning}\n\n原最低售价不会被修改；删除促销后会立即恢复。`)) return;
     const now = new Date().toISOString();
     const payload = { ...promotion, active:true, createdAt:currentActive?.createdAt||now, updatedAt:now };
+    const saveButtonIdleTextV350 = currentActive ? "更新促销设置" : "开启促销管理";
+    const saveButtonBusyTextV350 = currentActive ? "正在更新促销设置…" : "正在保存并开启促销…";
     saveButton.disabled = true; if (deleteButton) deleteButton.disabled = true;
-    if (status) status.textContent = currentActive ? "正在更新促销设置…" : "正在保存并开启促销…";
+    saveButton.textContent = saveButtonBusyTextV350;
+    if (status) status.textContent = "";
     let saved = false;
     try {
       if (typeof updatePromotionSettingsFastV185 !== "function") throw new Error("促销快速同步模块未载入，请强制刷新。");
@@ -4924,10 +4927,13 @@ function setupPromotionSettingsV183() {
       promotionDraftTouchedV209 = false;
       resetPromotionDraftV183();
       saved = true;
-      if (status) { status.textContent = `促销已开启：${promotion.name}`; status.classList.add("promotion-status-active-v193"); }
+      if (status) { status.textContent = ""; status.classList.remove("promotion-status-active-v193"); }
     } catch (error) {
       if (status) status.textContent = `促销没有保存：${String(error?.message || error)}`;
-    } finally { saveButton.disabled=false; if(deleteButton)deleteButton.disabled=false; }
+    } finally {
+      saveButton.disabled=false; if(deleteButton)deleteButton.disabled=false;
+      saveButton.textContent = saveButtonIdleTextV350;
+    }
     if (saved) {
       [refreshPromotionUiV183, renderPromotionPriceListV183, renderDashboard, renderInventoryManagementList, renderProductList]
         .forEach(render => { try { render(); } catch (error) { console.warn("V19.8 post-save refresh skipped:", error); } });
@@ -5662,7 +5668,7 @@ function setupProductPrefixSettingsV181() {
       }
       renderProductPrefixRulesV181(); setProductPrefixEditorV333(); setPrefixSaveButtonStateV340("修改成功", true); resetPrefixSaveButtonV340(); return;
     }
-    // V34.9: a bonsai ID prefix may intentionally be shared by different species.
+    // V35.0: a bonsai ID prefix may intentionally be shared by different species.
     // Example: 真柏 / 系鱼川 / 香松 may all use JU; 仙丹 and 人参果矮霸 may both use IX.
     // What is forbidden is redefining the SAME Chinese keyword to another prefix.
     if(getProductPrefixRulesV181().some(([k])=>normalizeProductPrefixKeywordV181(k)===normalizeProductPrefixKeywordV181(keyword))){if(status)status.textContent=`“${keyword}”已经存在，不能再新增另一个前缀`;return;}
@@ -5684,7 +5690,7 @@ function findBestProductPrefixRuleV343(name = "") {
     const key=normalizeProductPrefixKeywordV181(rule[0]);
     return {rule,key,index:key?compact.indexOf(key):-1};
   }).filter(x=>x.index>=0);
-  // V34.9: whichever species keyword appears FIRST in the product name wins.
+  // V35.0: whichever species keyword appears FIRST in the product name wins.
   // Same-position ties prefer the longer/more-specific keyword.
   matched.sort((a,b)=>a.index-b.index || b.key.length-a.key.length);
   return matched[0]?.rule||null;
@@ -6013,7 +6019,7 @@ function getProductSearchPrefixAliasesV238(product) {
 
 function productExactOrPrefixSearchMatchesV238(product, queryValue) {
   const raw = String(queryValue || "").normalize("NFKC").trim();
-  // V34.9: migrated legacy Product IDs (notably PZxxxx / PSxxxx aliases) are
+  // V35.0: migrated legacy Product IDs (notably PZxxxx / PSxxxx aliases) are
   // internal compatibility only and must not produce front-end search hits.
   if (/^(?:PZ|PS)(?:\d{0,4})?$/i.test(raw)) {
     const formalId=String(product?.id||product?.productId||"").trim().toUpperCase();
@@ -7003,7 +7009,7 @@ function renderImportDraftsV242() {
       label.textContent = "未保存 · 当前资料尚未保存为草稿";
       label.dataset.draftStateV249 = "unsaved";
     } else {
-      // V34.9: a completely empty editor should not show a residual "未保存" bar.
+      // V35.0: a completely empty editor should not show a residual "未保存" bar.
       label.textContent = "";
       label.dataset.draftStateV249 = "empty";
     }
@@ -10809,7 +10815,7 @@ function buildHistorySoldCostSummary(options = {}) {
   `;
 }
 
-// V34.9 History import-date rule:
+// V35.0 History import-date rule:
 // Every import record is searched by ARRIVAL DATE only. Container/save/created dates
 // are display/audit metadata and must not decide Date Range results.
 function getHistoryImportTransactionDate(batch, item = null) {
@@ -14139,7 +14145,7 @@ function renderBatchList() {
     const arrival = normalizeDateToDDMMYYYY(batch?.arrivalDate || "");
     if (recentStartDateV345 || recentEndDateV345) {
       const arrivalTime = parseDDMMYYYY(arrival);
-      // V34.9: one selected date means that exact arrival day. Two selected dates
+      // V35.0: one selected date means that exact arrival day. Two selected dates
       // mean an inclusive arrival-date range. Import history never uses container date.
       const singleDate = recentStartDateV345 && !recentEndDateV345
         ? recentStartDateV345
@@ -17243,7 +17249,7 @@ function openSystemMediaPreviewV305(type, url, label = "") {
     return;
   }
 
-  // V34.9 video compatibility: restore the proven Google Drive preview player.
+  // V35.0 video compatibility: restore the proven Google Drive preview player.
   // Direct <video> streaming is unreliable for Drive links on iPhone/Safari.
   // Keep playback inside the Import System shell and show no permission/error banner.
   if (mediaType === "video") {
@@ -18313,7 +18319,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "34.9",
+      version: "35.0",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
