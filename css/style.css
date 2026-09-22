@@ -6105,7 +6105,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 #saveBatchBtn.draft-dirty-button-v323{background:#fff3cd!important;color:#7a5200!important;border-color:#e3b341!important;font-weight:900!important;}
 
 
-/* V32.5 — canonical minimum-price color state. One state, every surface, desktop + mobile. */
+/* V32.6 — canonical minimum-price color state. One state, every surface, desktop + mobile. */
 [data-minimum-price-state-v324="manual"],
 [data-minimum-price-state-v324="manual"] * { color:#0b68c9 !important; }
 [data-minimum-price-state-v324="gain"],
@@ -6115,7 +6115,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 [data-minimum-price-state-v324="neutral"],
 [data-minimum-price-state-v324="neutral"] * { color:inherit !important; }
 
-/* V32.5 — desktop prefix rules rebuilt as a stable four-column grid. Mobile keeps the approved layout. */
+/* V32.6 — desktop prefix rules rebuilt as a stable four-column grid. Mobile keeps the approved layout. */
 @media (min-width:720px) {
   .product-prefix-three-head-v319,
   .product-prefix-three-v319 {
@@ -6181,7 +6181,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 }
 
 
-/* V32.5 — prefix rules: remove lock-status text, reclaim space, keep desktop/mobile tidy. */
+/* V32.6 — prefix rules: remove lock-status text, reclaim space, keep desktop/mobile tidy. */
 @media (min-width:720px) {
   .product-prefix-three-head-v319,
   .product-prefix-three-v319 {
@@ -6212,3 +6212,4 @@ body.system-media-preview-open-v305{overflow:hidden}
   .product-prefix-three-v319 > .prefix-english-v319 { font-weight:600 !important; }
   .product-prefix-three-v319 .prefix-operation-v324 { gap:6px !important; }
 }
+\n\n/* V32.6 prefix rules: clean two-line layout, same structure on desktop/mobile. */\n.product-prefix-simple-head-v326{display:flex;justify-content:space-between;gap:16px;padding:8px 12px;font-weight:800;color:#65756c;border-bottom:1px solid #dfe8e2}\n.product-prefix-rule-card-v326{padding:12px;border-bottom:1px solid #dfe8e2;background:#f8fbf9}\n.product-prefix-rule-card-v326:last-child{border-bottom:0}\n.product-prefix-rule-main-v326{display:grid;grid-template-columns:minmax(0,1fr) 74px auto;align-items:center;gap:12px}\n.product-prefix-cn-v326{font-size:17px;font-weight:700;line-height:1.35;min-width:0}\n.product-prefix-code-v326{font-size:19px;font-weight:900;color:#087a43;text-align:center}\n.product-prefix-actions-v326{display:flex;gap:8px;justify-content:flex-end;align-items:center}\n.product-prefix-actions-v326 button{font-size:15px;padding:8px 13px;white-space:nowrap}\n.product-prefix-english-v326{margin-top:5px;font-size:16px;line-height:1.4;color:#43554b;padding-right:190px;overflow-wrap:anywhere}\n.product-prefix-rule-card-v326 .prefix-fallback-note-v319{margin-top:7px;padding-top:7px;border-top:1px dashed #dfe8e2;font-size:13px}\n@media(max-width:719px){\n  .product-prefix-simple-head-v326{font-size:14px;padding:7px 10px}\n  .product-prefix-rule-card-v326{padding:11px 10px}\n  .product-prefix-rule-main-v326{grid-template-columns:minmax(0,1fr) 50px auto;gap:7px}\n  .product-prefix-cn-v326,.product-prefix-english-v326,.product-prefix-actions-v326 button{font-size:16px!important}\n  .product-prefix-code-v326{font-size:18px}\n  .product-prefix-actions-v326{gap:5px}\n  .product-prefix-actions-v326 button{padding:7px 10px!important}\n  .product-prefix-english-v326{padding-right:0;margin-top:6px}\n}\n/* V32.6 minimum price: one authoritative state wins on every viewport. */\n[data-minimum-price-state-v324="manual"],[data-minimum-price-state-v324="manual"] *{color:#0b68c9!important}\n[data-minimum-price-state-v324="gain"],[data-minimum-price-state-v324="gain"] *{color:#087a43!important}\n[data-minimum-price-state-v324="loss"],[data-minimum-price-state-v324="loss"] *{color:#c62828!important}\n
