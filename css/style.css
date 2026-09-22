@@ -6256,3 +6256,38 @@ html:not(.access-lock-ready) .app-shell{visibility:hidden;}
 .product-prefix-editor-actions-v327{display:flex;gap:8px;align-items:center;margin-top:10px;}
 .product-prefix-editor-v327 input:disabled{background:#eef2ef;color:#65756c;}
 @media(max-width:719px){.product-prefix-table-head-v327,.product-prefix-row-v327{grid-template-columns:minmax(82px,1fr) minmax(120px,1.35fr) 44px 112px;gap:6px;font-size:14px;padding-left:8px;padding-right:8px}.product-prefix-actions-v327{gap:4px}.product-prefix-actions-v327 button{font-size:13px;padding:6px 7px}.product-prefix-code-v327{font-size:16px}.product-prefix-en-v327{white-space:normal;overflow-wrap:anywhere}.product-prefix-add-three-v319{grid-template-columns:1fr!important}}
+
+
+/* V32.9 — price-control filter + responsive prefix-rule editor */
+#inventoryPriceControlFilterV329,#inventoryMasterPriceFilterV329,#batchProductStockPriceFilterV329{font-weight:700}
+.product-prefix-table-head-v327,.product-prefix-row-v327{grid-template-columns:minmax(115px,1fr) minmax(190px,1.55fr) 64px 132px!important;column-gap:12px!important}
+.product-prefix-cn-v327,.product-prefix-en-v327,.product-prefix-code-v327{min-width:0;text-align:left}
+.product-prefix-en-v327{white-space:normal;overflow-wrap:anywhere}
+.product-prefix-actions-v327{display:flex;gap:6px;justify-content:flex-end;white-space:nowrap}
+.product-prefix-actions-v327 button{min-width:54px}
+.product-prefix-editor-mode-v329{display:inline-flex;align-items:center;min-height:30px;margin:0 0 10px;padding:5px 10px;border-radius:999px;background:#eaf5ee;color:#17613a;font-weight:800;font-size:13px}
+.product-prefix-editor-mode-v329[data-mode="edit"]{background:#eef4ff;color:#0b68c9}
+.product-prefix-editor-mode-v329[data-mode="delete"]{background:#fff0f0;color:#b42318}
+.product-prefix-editor-fields-v329{display:grid!important;grid-template-columns:minmax(120px,1fr) minmax(190px,1.5fr) 90px;gap:10px;align-items:end}
+.product-prefix-editor-fields-v329 label{display:grid;gap:5px;font-weight:700;text-align:left}
+.product-prefix-editor-fields-v329 input,.product-prefix-editor-fields-v329 input::placeholder{text-align:left!important}
+.product-prefix-editor-actions-v327{justify-content:flex-start}
+.product-prefix-editor-actions-v327 .primary-btn{min-width:120px}
+@media(max-width:719px){
+  .product-prefix-table-head-v327{display:none!important}
+  .product-prefix-row-v327{display:grid!important;grid-template-columns:minmax(0,1fr) 48px 112px!important;grid-template-areas:"cn code actions" "en en actions";gap:4px 8px!important;padding:10px!important;border:1px solid #dfe8e2!important;border-radius:10px!important;margin-bottom:8px}
+  .product-prefix-cn-v327{grid-area:cn;font-weight:800}
+  .product-prefix-en-v327{grid-area:en;color:#617168;font-size:13px;line-height:1.3}
+  .product-prefix-code-v327{grid-area:code;align-self:start;text-align:center!important}
+  .product-prefix-actions-v327{grid-area:actions;align-self:center;justify-content:flex-end;flex-wrap:wrap}
+  .product-prefix-actions-v327 button{font-size:13px;padding:6px 7px;min-width:50px}
+  .product-prefix-editor-fields-v329{grid-template-columns:minmax(80px,.9fr) minmax(125px,1.45fr) 70px!important;gap:7px!important}
+  .product-prefix-editor-fields-v329 label{font-size:12px}
+  .product-prefix-editor-fields-v329 input{min-width:0;padding-left:8px;padding-right:6px}
+  .product-prefix-editor-actions-v327 .primary-btn{width:100%}
+}
+
+/* V32.9 price-control filter can combine with search and sorting */
+@media(min-width:720px){.inventory-toolbar{grid-template-columns:minmax(0,1fr) 150px 220px}.inventory-master-toolbar-v264{grid-template-columns:minmax(280px,1fr) 150px 180px}.product-query-toolbar-v329{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:10px;align-items:center}}
+.product-query-toolbar-v329{margin-bottom:8px}.product-query-toolbar-v329 .search-input{margin-bottom:0}
+@media(max-width:719px){.product-query-toolbar-v329{display:grid;grid-template-columns:1fr;gap:8px}.inventory-master-toolbar-v264{grid-template-columns:1fr!important}}
