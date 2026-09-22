@@ -5,18 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=33.2" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=33.2" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=33.2" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=33.2" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=33.2" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=33.2" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=33.2" />
+  <link rel="manifest" href="./manifest.json?v=33.3" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=33.3" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=33.3" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=33.3" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=33.3" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=33.3" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=33.3" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=33.2" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=33.3" />
   <style id="access-lock-critical-v299">
     html,body{margin:0;min-height:100%;font-family:Arial,Helvetica,sans-serif}
     .access-lock{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(242,248,244,.96)}
@@ -37,12 +37,12 @@
       }
     } catch (_) {}
   </script>
-  <link rel="preload" href="./css/style.css?v=33.2" as="style" />
-  <link rel="stylesheet" href="./css/style.css?v=33.2" media="print" onload="this.media='all'" />
-  <noscript><link rel="stylesheet" href="./css/style.css?v=33.2" /></noscript>
-  <script defer src="./js/common.js?v=33.2"></script>
-  <script defer src="./js/sync.js?v=33.2"></script>
-  <script defer src="./js/app.js?v=33.2"></script>
+  <link rel="preload" href="./css/style.css?v=33.3" as="style" />
+  <link rel="stylesheet" href="./css/style.css?v=33.3" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="./css/style.css?v=33.3" /></noscript>
+  <script defer src="./js/common.js?v=33.3"></script>
+  <script defer src="./js/sync.js?v=33.3"></script>
+  <script defer src="./js/app.js?v=33.3"></script>
 </head>
 <body>
   <div id="accessLock"
@@ -116,7 +116,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 33.2 Stable</div>
+          <div class="app-header-version">正式版 33.3 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -129,7 +129,6 @@
       <section id="dashboardPage" class="page active">
         <div class="section-title-row dashboard-title-row-v204">
           <h2>Dashboard / 首页</h2>
-          <div id="dashboardPromotionStatusV208" class="dashboard-promotion-status-v208" aria-live="polite" hidden></div>
           <div class="system-health-row-v204" aria-live="polite">
             <button id="importAnomalyStatusButtonV202" class="import-anomaly-status-button-v202" type="button" aria-expanded="false">
               <span id="importAnomalyStatusDotV202" class="import-anomaly-status-dot-v202 checking" aria-hidden="true"></span>
@@ -187,11 +186,11 @@
             </div>
           </div>
           <div class="inventory-toolbar">
-            <input id="inventorySearch" class="search-input text-left-input" placeholder="搜索中文/英文名、编号、类别、进口编号、运输单号或原成本" />
+            <input id="inventorySearch" class="search-input text-left-input" placeholder="搜索中文/英文产品名、编号、类别、进口编号、运输单号或原成本" />
             <select id="inventorySort">
               <option value="latest">最近进口</option>
               <option value="latest-sold">最近售出</option>
-              <option value="manual-price">售价控制</option>
+              <option value="price-control">售价控制</option>
               <option value="name">产品名称</option>
               <option value="bestseller-desc">畅销商品</option>
               <option value="profit-desc">利润最高</option>
@@ -489,45 +488,45 @@
         <section class="panel product-master-query-v267">
           <h3>产品查询与修改</h3>
           <p class="settings-help">输入产品名称、产品编号或原成本查询。产品主名称不能为空；英文名可长按修改或清空。</p>
-          <input id="batchProductStockSearch" class="search-input text-left-input batch-product-search" type="text" placeholder="搜索中文/英文名、编号、类别、进口编号、运输单号或原成本" autocomplete="off" />
+          <input id="batchProductStockSearch" class="search-input text-left-input batch-product-search" type="text" placeholder="搜索中文/英文产品名、编号、类别、进口编号、运输单号或原成本" autocomplete="off" />
           <div id="batchProductStockResults" class="product-stock-search-results" hidden></div>
           <div id="batchProductStockStatus" class="status-text"></div>
         </section>
         <section class="panel product-rules-manager-v235">
           <h3>产品编号与类别规则管理</h3>
-          <p class="settings-help">先按六大产品分类决定大类前缀；只有 BS 盆栽继续匹配树种细分类，找不到细分类的盆栽统一使用 BS。</p>
           <div class="product-rules-manager-inner-v235">
-            <details class="collapsible-settings-v181 rules-subpanel-v235" open>
-              <summary><span>产品前缀规则</span><small>六大分类</small></summary>
-              <div class="product-category-prefix-table-v332">
-                <div class="head"><span>前缀</span><span>中文分类</span><span>英文</span></div>
-                <div><strong>BS</strong><span>盆栽</span><span>Bonsai</span></div>
-                <div><strong>FL</strong><span>肥料 / 农药</span><span>Fertilizer / Pesticide</span></div>
-                <div><strong>NT</strong><span>泥土 / 介质</span><span>Soil / Growing Media</span></div>
-                <div><strong>PT</strong><span>花盆</span><span>Pot</span></div>
-                <div><strong>QT</strong><span>其他</span><span>Others</span></div>
-                <div><strong>TL</strong><span>工具</span><span>Tools</span></div>
+            <div class="product-prefix-category-panel-v333">
+              <h4>产品前缀规则</h4>
+              <div class="product-category-prefix-table-v333" role="table" aria-label="产品前缀规则">
+                <div class="product-category-prefix-row-v333 is-head" role="row"><span>前缀</span><span>中文分类</span><span>英文</span></div>
+                <div class="product-category-prefix-row-v333" role="row"><strong>BS</strong><span>盆栽</span><span>Bonsai</span></div>
+                <div class="product-category-prefix-row-v333" role="row"><strong>FL</strong><span>肥料 / 农药</span><span>Fertilizer / Pesticide</span></div>
+                <div class="product-category-prefix-row-v333" role="row"><strong>NT</strong><span>泥土 / 介质</span><span>Soil / Growing Media</span></div>
+                <div class="product-category-prefix-row-v333" role="row"><strong>PT</strong><span>花盆</span><span>Pot</span></div>
+                <div class="product-category-prefix-row-v333" role="row"><strong>QT</strong><span>其他</span><span>Others</span></div>
+                <div class="product-category-prefix-row-v333" role="row"><strong>TL</strong><span>工具</span><span>Tools</span></div>
               </div>
-            </details>
+            </div>
             <details class="collapsible-settings-v181 product-prefix-settings-v181 rules-subpanel-v235" open>
-              <summary><span>盆栽前缀规则</span><small>BS 盆栽树种细分类</small></summary>
-              <div class="product-prefix-table-v332">
-                <div class="product-prefix-head-v332"><span>中文关键词</span><span>英文关键词</span><span>前缀</span><span>操作</span></div>
-                <div id="productPrefixRulesList" class="product-prefix-locked-list-v181 product-prefix-list-v332"></div>
+              <summary><span>盆栽前缀规则</span><small>盆栽无法匹配树种时自动使用 BS</small></summary>
+              <div class="product-prefix-table-v333" role="table" aria-label="盆栽前缀规则">
+                <div class="product-prefix-row-v333 is-head" role="row"><span>中文关键词</span><span>英文关键词</span><span>前缀</span><span>操作</span></div>
+                <div id="productPrefixRulesList" class="product-prefix-list-v333"></div>
               </div>
-              <div class="product-prefix-editor-v332">
+              <div class="product-prefix-editor-v333">
                 <h4>新增 / 修改盆栽前缀</h4>
-                <div class="product-prefix-add-v181 product-prefix-add-three-v319 product-prefix-input-row-v332">
-                  <label>中文<input id="newProductPrefixKeyword" maxlength="15" autocomplete="off" placeholder="例如：黄杨" /></label>
-                  <label>英文<input id="newProductPrefixEnglishV319" maxlength="15" autocomplete="off" placeholder="最多15个字符" /></label>
-                  <label>前缀<input id="newProductPrefixCode" maxlength="2" autocomplete="off" autocapitalize="characters" placeholder="BX" /></label>
+                <div class="product-prefix-editor-grid-v333">
+                  <label>中文<input id="newProductPrefixKeyword" maxlength="15" autocomplete="off" placeholder="中文关键词（最多15字）" /></label>
+                  <label>英文<input id="newProductPrefixEnglishV319" maxlength="15" autocomplete="off" placeholder="英文（最多15字）" /></label>
+                  <label>前缀<input id="newProductPrefixCode" maxlength="2" autocomplete="off" autocapitalize="characters" placeholder="2个字母" /></label>
                 </div>
-                <div id="productPrefixRulesStatus" class="status-text"></div>
                 <button id="addProductPrefixRuleBtn" class="primary-btn" type="button">保存</button>
+                <div id="productPrefixRulesStatus" class="status-text"></div>
               </div>
             </details>
           </div>
         </section>
+
 
         <details class="panel inventory-master-v261" id="inventoryMasterPanelV264">
           <summary class="inventory-master-summary-v264"><span>库存资料总表</span><small>点击打开／收起</small></summary>
@@ -536,9 +535,9 @@
             <button id="exportInventoryMasterExcelV261" class="secondary-btn" type="button">导出库存 Excel</button>
           </div>
           <div class="inventory-master-toolbar-v264">
-            <input id="inventoryMasterSearchV261" class="search-input text-left-input" type="search" placeholder="搜索中文/英文名、编号、类别、进口编号、运输单号或原成本" autocomplete="off" />
+            <input id="inventoryMasterSearchV261" class="search-input text-left-input" type="search" placeholder="搜索中文/英文产品名、编号、类别、进口编号、运输单号或原成本" autocomplete="off" />
             <select id="inventoryMasterSortV264">
-              <option value="latest">最近进口</option><option value="latest-sold">最近售出</option><option value="manual-price">售价控制</option><option value="name">产品名称</option><option value="bestseller-desc">畅销商品</option><option value="profit-desc">利润最高</option><option value="stock-desc">库存最多</option><option value="stock-asc">库存最少</option><option value="value-desc">库存成本最高</option><option value="cost-desc">平均成本最高</option>
+              <option value="latest">最近进口</option><option value="latest-sold">最近售出</option><option value="price-control">售价控制</option><option value="name">产品名称</option><option value="bestseller-desc">畅销商品</option><option value="profit-desc">利润最高</option><option value="stock-desc">库存最多</option><option value="stock-asc">库存最少</option><option value="value-desc">库存成本最高</option><option value="cost-desc">平均成本最高</option>
             </select>
           </div>
           <div class="inventory-master-summaryline-v264"><span>当前库存：<strong id="inventoryMasterStockV264">0</strong></span><span>库存成本：<strong id="inventoryMasterValueV264">RM 0.00</strong></span><span id="inventoryMasterCountV261">0 项</span></div>
@@ -581,7 +580,7 @@
 
         <details class="panel collapsible-settings-v181">
           <summary><span class="minimum-price-summary-title-v202"><span>自动最低售价管理</span><span id="minimumPriceCustomBadgeV202" class="minimum-price-custom-badge-v202" hidden></span></span><small>点击打开／收起</small></summary>
-          <p class="settings-help">以下设置会直接参与“自动原最低售价”计算；保存后自动原最低售价会重新计算，手动原最低售价与促销最低售价不会被覆盖。</p>
+          <p class="settings-help">以下设置会直接参与“自动原最低售价”计算；保存后自动最低售价会重新计算，手动修改过的最低售价（价格控制／精品区）不会被覆盖。</p>
           <div class="minimum-commission-row-v200">
             <label>主播佣金（%）<input id="minimumCommissionRate" inputmode="decimal" /></label>
           </div>
@@ -616,7 +615,6 @@
           <button id="resetMinimumPriceSettingsBtn" class="danger-outline-btn minimum-reset-factory-v200" type="button">回到原设置（Reset to Factory）</button>
           <div id="minimumPriceSettingsStatus" class="status-text"></div>
         </details>
-
 
         <section class="panel">
           <h3>更改系统密码</h3>
@@ -829,7 +827,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 33.2 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 33.3 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>

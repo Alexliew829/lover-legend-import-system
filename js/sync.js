@@ -366,7 +366,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V33.2 Stable",
+      updatedBy: "System V33.3 Stable",
       ...payload
     });
 
@@ -401,7 +401,7 @@ async function commitSalesInventoryBatchToCloudV125(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V33.2 Stable",
+      updatedBy: "System V33.3 Stable",
       ...payload
     });
     if (data.conflict || data.stockChanged) {
@@ -424,7 +424,7 @@ window.commitSalesInventoryBatchToCloudV125 = commitSalesInventoryBatchToCloudV1
 
 async function commitSalesCorrectionBatchToCloudV110(payload) {
   await flushCloudQueueStrictV83(); const config=getCloudConfig(); setCloudState("syncing");
-  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V33.2 Stable",...payload});
+  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V33.3 Stable",...payload});
     if(data.conflict||data.stockChanged) throw new Error(data.message||"Google Sheet 资料已改变，全部库存差异没有处理。请同步后重试。");
     config.revision=Number(data.revision)||Number(config.revision)||0; config.lastSyncAt=new Date().toISOString(); config.bootstrapToken=String(data.bootstrapToken||config.bootstrapToken||""); config.bootstrapRevision=Number(data.revision)||Number(config.bootstrapRevision)||0; saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced"); return data;
   } catch(error){setCloudState("failed");throw error;}
@@ -438,7 +438,7 @@ async function migrateProductPrefixesV164() {
     action: "migrateProductPrefixesV164", clientVersion: APP_VERSION,
     schemaVersion: CLOUD_SCHEMA_VERSION, baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""), bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V33.2 Stable"
+    updatedBy: "System V33.3 Stable"
   });
   if (data.conflict) throw new Error(data.message || "资料已改变，请同步后重试。");
   config.revision = Number(data.revision) || Number(config.revision) || 0;
@@ -456,6 +456,23 @@ async function pullLatestAfterSalesCommitV83(forceFull = false) {
 }
 window.pullLatestAfterSalesCommitV83 = pullLatestAfterSalesCommitV83;
 
+
+function scheduleLegacyPzToBsMigrationV333() {
+  if (window.legacyPzBsMigrationScheduledV333) return;
+  const wanted = new Set(["PZ0036","PZ0175","PZ0176","PZ0192","PZ0001"]);
+  const products = JSON.parse(localStorage.getItem("importSystemProducts") || "[]");
+  if (!products.some(p => wanted.has(String(p?.id || "").trim().toUpperCase()))) return;
+  window.legacyPzBsMigrationScheduledV333 = true;
+  window.setTimeout(async () => {
+    try {
+      if (!navigator.onLine || !isCloudBootstrapComplete() || cloudSyncBusy || getCloudQueue().dirty) { window.legacyPzBsMigrationScheduledV333=false; return; }
+      await migrateProductPrefixesV164();
+    } catch (error) {
+      console.warn("PZ→BS one-time migration deferred:", error);
+      window.legacyPzBsMigrationScheduledV333=false;
+    }
+  }, 5000);
+}
 async function runCloudSync() {
   if (!navigator.onLine) {
     setCloudState("failed");
@@ -508,6 +525,7 @@ async function runCloudSync() {
     }
 
     cloudInitialSyncComplete = true;
+    scheduleLegacyPzToBsMigrationV333();
   } catch (error) {
     cloudInitialSyncComplete = true;
     setCloudState("failed", error);
@@ -618,7 +636,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V33.2 Stable",
+    updatedBy: "System V33.3 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     minimumPriceManual: Boolean(minimumPriceManual),
@@ -648,31 +666,6 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
 
 window.updateProductMinimumPriceFast = updateProductMinimumPriceFast;
 
-async function updatePromotionSettingsFastV185(promotion) {
-  if (!navigator.onLine) throw new Error("目前离线，促销设置尚未同步。");
-  if (!isCloudBootstrapComplete()) throw new Error("首次同步尚未完成，请稍后再试。");
-  await waitForCloudIdleV83();
-  const config = getCloudConfig();
-  setCloudState("syncing");
-  const data = await callGoogleApi({
-    action: "updatePromotionSettingsV185",
-    clientVersion: APP_VERSION,
-    schemaVersion: CLOUD_SCHEMA_VERSION,
-    baseRevision: Number(config.revision) || 0,
-    bootstrapToken: String(config.bootstrapToken || ""),
-    bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V33.2 Stable",
-    promotion: promotion || null
-  });
-  if (data.conflict) throw new Error(data.message || "云端资料已改变，请同步后重试。");
-  config.revision = Number(data.revision) || Number(config.revision) || 0;
-  config.lastSyncAt = new Date().toISOString();
-  config.bootstrapToken = String(data.bootstrapToken || config.bootstrapToken || "");
-  config.bootstrapRevision = Number(data.revision) || Number(config.bootstrapRevision) || 0;
-  saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced");
-  return data;
-}
-window.updatePromotionSettingsFastV185 = updatePromotionSettingsFastV185;
 
 async function pushPendingSnapshot(queue, retryCount = 0) {
   const config = getCloudConfig();
@@ -687,7 +680,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V33.2 Stable",
+    updatedBy: "System V33.3 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
@@ -888,7 +881,6 @@ function refreshSystemViewsAfterSync() {
     "renderBatchList",
     "renderInventoryManagementList",
     "renderImportDraftsV242",
-    "refreshPromotionUiV183",
     "updatePasswordHintDisplays"
   ].forEach(name => {
     try {
@@ -933,7 +925,6 @@ function setCloudState(state, error = null) {
   element.classList.remove("syncing", "synced", "failed");
 
   if (state === "synced") {
-    if(typeof window.runDeferredPzToBsMigrationV332==="function") window.setTimeout(()=>{try{window.runDeferredPzToBsMigrationV332()}catch(_){}},1200);
     cloudLastErrorMessage = "";
     element.classList.add("synced");
     if (icon) icon.textContent = "✓";

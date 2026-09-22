@@ -4755,382 +4755,6 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .history-sales-financial-unavailable-v182{color:#727b76;font-weight:700}
 @media(max-width:560px){.product-prefix-add-v181{grid-template-columns:minmax(0,1fr) 105px}.product-prefix-locked-head-v181,.product-prefix-locked-row-v181{grid-template-columns:minmax(0,1fr) 62px 54px;gap:6px}.collapsible-settings-v181 > summary small{display:none}}
 
-/* V18.7 — temporary promotion-price overlay and exclusion management. */
-.promotion-main-grid-v183{grid-template-columns:minmax(180px,1.5fr) repeat(2,minmax(120px,.75fr))}
-.promotion-settings-v183 h4{margin:18px 0 8px}
-#promotionNameV183,#promotionExcludeSearchV183,#promotionPriceListSearchV183{text-align:left!important}
-#promotionNameV183::placeholder,#promotionExcludeSearchV183::placeholder,#promotionPriceListSearchV183::placeholder{text-align:left!important}
-#promotionExcludeSearchV183,#promotionPriceListSearchV183{width:100%;box-sizing:border-box;margin:4px 0 10px}
-.promotion-search-tools-v184{display:grid;grid-template-columns:minmax(0,2fr) minmax(150px,1fr);gap:10px;align-items:center}.promotion-search-tools-v184 select{margin:4px 0 10px}
-.promotion-batch-tools-v184{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;padding:9px 10px;border:1px solid #d9e5dd;border-radius:10px;background:#f4f9f6}.promotion-batch-tools-v184 label{display:flex;align-items:center;gap:6px;font-weight:800;margin-right:auto}.promotion-batch-tools-v184 .secondary-btn{width:auto;margin:0;padding:8px 12px}
-.promotion-exclude-all-v183{width:100%;margin:0 0 10px}
-.promotion-search-results-v183,.promotion-excluded-list-v183,.promotion-price-list-panel-v183{display:grid;gap:8px;margin-bottom:12px}
-.promotion-search-result-v183{width:100%;display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;align-items:center;text-align:left;padding:10px 12px;border:1px solid #d9e5dd;border-radius:10px;background:#f8fbf9;color:#17211b}.promotion-search-result-v183>div{display:grid;gap:3px;text-align:left}.promotion-search-result-v183>button{border:0;background:transparent;color:#126b3e;font-weight:800;padding:8px}
-.promotion-search-result-v183 strong{color:#126b3e;font-size:17px;order:2}.promotion-search-result-v183 small{font-weight:800;order:1}.promotion-search-result-v183 span{font-size:12px;color:#65716a;order:3}.promotion-search-result-v183 button:disabled{opacity:.65}
-.promotion-row-check-v184{width:18px!important;height:18px!important;margin:0!important;accent-color:#176b3c}
-.promotion-excluded-row-v183{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 12px;border:1px solid #e1c26e;border-radius:10px;background:#fff9e9}
-.promotion-excluded-row-v183 div{display:grid;gap:2px}.promotion-excluded-row-v183 strong{color:#126b3e}.promotion-excluded-row-v183 small{font-weight:800}.promotion-excluded-row-v183 span{font-size:12px;color:#6c716e}.promotion-excluded-row-v183 button{border:1px solid #9a7615;border-radius:8px;background:white;color:#745600;padding:8px;font-weight:800}
-.promotion-actions-v183{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.promotion-actions-v183 .primary-btn,.promotion-actions-v183 .danger-action-btn{margin:0;width:100%}
-#togglePromotionPriceListV183{width:100%;margin:10px 0}
-.promotion-price-list-panel-v183{max-height:65vh;overflow:auto;border:1px solid #d9e5dd;border-radius:12px;padding:10px;background:#fff}
-.promotion-price-row-v183{display:grid;grid-template-columns:minmax(220px,1.5fr) repeat(4,minmax(120px,.7fr));gap:10px;align-items:center;padding:10px;border-bottom:1px solid #e7ece9;font-size:13px}
-.promotion-price-row-v183>div{display:grid}.promotion-price-row-v183>div small{color:#68736d}.promotion-price-row-v183 span{display:grid;color:#6a746e}.promotion-price-row-v183 b{color:#18221c;font-size:14px}.promotion-price-row-v183.loss b{color:#c52525}.promotion-price-row-v183.gain>span:last-child b{color:#16733b}.promotion-price-row-v183.excluded{background:#fff9e9}
-.promotion-product-copy-v183>span{display:flex;align-items:center;gap:7px;min-width:0}.promotion-product-name-v183{font-size:14px!important;min-width:0}.promotion-product-id-v183{flex:0 0 auto}
-.promotion-empty-v183{padding:12px;text-align:center;color:#758079;background:#f7faf8;border-radius:8px}
-.promotion-settings-v183 [hidden]{display:none!important}
-
-/* V18.7 — one clear green search tray and one clear orange exclusion tray. */
-.promotion-search-box-v186{border:1.5px solid #b9d7c3;border-radius:12px;background:#f4faf6;padding:10px;margin-bottom:12px}
-.promotion-search-box-v186 .promotion-search-results-v183{margin-bottom:0}
-.promotion-search-box-v186 .promotion-batch-tools-v184{border-color:#b9d7c3;background:#e9f5ed}
-.promotion-excluded-box-v186{border:1.5px solid #dfb64e;border-radius:12px;background:#fff7df;padding:10px;margin:0 0 12px}
-.promotion-excluded-box-v186 .promotion-excluded-list-v183{margin-bottom:0}
-.promotion-excluded-tools-v186{border-color:#dfb64e!important;background:#fff0bf!important}
-.promotion-excluded-row-v183{background:#fff7df;border-color:#dfb64e}
-.promotion-search-name-v186,.promotion-excluded-name-v186{display:block!important;width:max-content;max-width:100%;border:0!important;background:transparent!important;padding:0!important;color:#17211b!important;font:inherit!important;font-weight:800!important;text-align:left!important;text-decoration:underline dotted;cursor:pointer}
-.promotion-unsaved-v186{margin:8px 0 12px;padding:10px 12px;border:1px solid #e4aa2b;border-radius:10px;background:#fff6d8;color:#765200;font-weight:800}
-.promotion-price-list-panel-v183>.promotion-search-tools-v184{position:sticky;top:-10px;z-index:5;margin:-10px -10px 8px;padding:10px;background:#fff;border-bottom:1px solid #d9e5dd;box-shadow:0 4px 8px rgba(23,107,60,.08)}
-@media(max-width:719px){.promotion-main-grid-v183{grid-template-columns:1fr 1fr}.promotion-main-grid-v183 label:first-child{grid-column:1/-1}.promotion-search-tools-v184{grid-template-columns:minmax(0,1.35fr) minmax(115px,.65fr)}.promotion-batch-tools-v184{display:grid;grid-template-columns:1fr}.promotion-batch-tools-v184 label{margin:0}.promotion-batch-tools-v184 .secondary-btn{width:100%}.promotion-actions-v183{grid-template-columns:1fr}.promotion-price-row-v183{grid-template-columns:1fr 1fr}.promotion-price-row-v183>div{grid-column:1/-1}.promotion-price-list-panel-v183{max-height:58vh}}
-
-/* V12.3 return to associated Sales card */
-.sales-open-card-v118{width:100%;margin:12px 0 8px;padding:12px 14px;border:1.5px solid #16814a;border-radius:12px;background:#f4fbf6;color:#126b3e;font-weight:800;font-size:16px;cursor:pointer}
-.sales-open-card-v118:active{transform:translateY(1px)}
-.sales-inventory-operation-locked-v117 .sales-open-card-v118{pointer-events:none;opacity:.45}
-
-/* V12.3 associated Sales Card action: keep it unmistakably visible in every pending card. */
-.sales-card-open-row-v119{display:block;width:100%;margin:4px 0 0}
-.sales-open-card-v119{display:block!important;visibility:visible!important;width:100%!important;min-height:46px!important;margin:0!important;background:#f4fbf6!important;color:#126b3e!important;border:1.5px solid #16814a!important}
-
-/* V12.3: keep each associated Sales-card link directly under that card header,
-   visually separated from the inventory-confirm action below the product lines. */
-.sales-card-open-row-v120{display:block;width:100%;margin:8px 0 12px;padding:0}
-.sales-open-card-v120{display:block!important;width:100%!important;min-height:42px!important;margin:0!important;padding:10px 12px!important;background:#f7fbf8!important;color:#126b3e!important;border:1.5px solid #16814a!important;border-radius:10px!important;font-weight:800!important;font-size:15px!important}
-.sales-startup-card-v106>.sales-card-open-row-v120 + .sales-card-line-v106{margin-top:0}
-
-/* V18.7 — every stock-history case uses the same emphasis: red date/time and
-   a product name at exactly the same size.  ID/action/quantity color rules are
-   intentionally unchanged. */
-.history-record-main-v170 > .product-history-adjustment-date {
-  color: #c51f1f !important;
-  font-size: 16px;
-}
-
-.history-record-main-v170 .history-copy-product-inline,
-.history-record-main-v170 .product-history-adjustment-product.history-copy-product-inline {
-  font-size: 16px;
-  line-height: 1.35;
-}
-
-/* V18.7 final mobile constraint: keep the name and ID visually adjacent while
-   still allowing an exceptionally long name to shrink inside the card. */
-@media (max-width: 719px) {
-  .inventory-product-identity-v167.product-identity-v167 {
-    width: max-content;
-    max-width: 100%;
-    min-width: 0;
-  }
-
-  .inventory-product-identity-v167 .inventory-product-name-copy {
-    min-width: 0;
-    max-width: 100%;
-  }
-}
-
-
-/* V18.7 — compact mobile promotion controls, sign toggle and product cards. */
-.promotion-margin-input-row-v187{display:flex;align-items:center;gap:8px;width:100%}
-.promotion-margin-input-row-v187 input{min-width:0;flex:1}
-.promotion-sign-btn-v187{flex:0 0 auto;white-space:nowrap;min-height:42px;padding:8px 11px;border:1px solid #16814a;border-radius:9px;background:#f1faf4;color:#126b3e;font-weight:800;cursor:pointer}
-#promotionPriceListV183{display:grid;gap:9px;min-width:0}
-.promotion-price-card-v187{min-width:0;border:1px solid #b9d7c3;border-radius:12px;background:#f8fcf9;padding:10px;display:grid;grid-template-columns:minmax(220px,1.45fr) minmax(150px,.8fr) minmax(420px,2fr);gap:10px;align-items:center}
-.promotion-price-card-v187.excluded{background:#fff4dc;border-color:#dfb64e}
-.promotion-price-card-head-v187{display:flex;align-items:center;gap:7px;min-width:0;overflow:hidden}
-.promotion-price-card-head-v187 .promotion-product-name-v183{display:block!important;width:auto!important;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0!important;background:transparent!important;padding:0!important;font-weight:800!important;text-align:left!important;color:#17211b!important;text-decoration:underline dotted;cursor:pointer}
-.promotion-product-id-v183{display:inline-flex!important;width:auto!important;min-width:0!important;max-width:max-content!important;min-height:0!important;height:auto!important;padding:3px 7px!important;margin:0!important;border:1px solid #91c9a5!important;border-radius:7px!important;background:#eaf7ee!important;color:#126b3e!important;font-size:12px!important;line-height:1.2!important;font-weight:800!important;white-space:nowrap!important;flex:0 0 auto!important}
-.promotion-price-card-status-v187{font-size:12px;font-weight:800;color:#52635a;white-space:normal}
-.promotion-price-card-v187.excluded .promotion-price-card-status-v187{color:#7b5700}
-.promotion-price-metrics-v187{display:grid;grid-template-columns:repeat(4,minmax(92px,1fr));gap:7px;min-width:0}
-.promotion-price-metrics-v187>div{min-width:0;border:1px solid #cbe5d3;border-radius:8px;background:#edf8f0;padding:7px 8px;display:grid;gap:2px}
-.promotion-price-card-v187.excluded .promotion-price-metrics-v187>div{background:#fffaf0;border-color:#ecd99d}
-.promotion-price-metrics-v187 small{font-size:11px;color:#66736b;white-space:nowrap}.promotion-price-metrics-v187 b{font-size:13px;color:#17211b;white-space:nowrap}
-.promotion-price-card-v187.loss .promotion-profit-v187 b{color:#c52525}.promotion-price-card-v187.gain .promotion-profit-v187 b{color:#16733b}
-@media(max-width:719px){
-  .promotion-settings-v183,.promotion-settings-v183>*{max-width:100%;box-sizing:border-box}
-  .promotion-main-grid-v183{grid-template-columns:1fr!important}.promotion-main-grid-v183 label:first-child{grid-column:auto}
-  .promotion-search-tools-v184{grid-template-columns:minmax(0,1fr)!important;gap:4px}.promotion-search-tools-v184 select{width:100%;min-width:0}
-  .promotion-search-box-v186,.promotion-excluded-box-v186{width:100%;max-width:100%;padding:8px;overflow:hidden}
-  .promotion-batch-tools-v184{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:6px!important;padding:7px 8px!important;width:100%;max-width:100%;overflow:hidden}
-  .promotion-batch-tools-v184 label{display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:flex-start!important;gap:6px!important;width:100%!important;margin:0!important;white-space:nowrap!important;writing-mode:horizontal-tb!important}
-  .promotion-batch-tools-v184 label input{flex:0 0 18px!important;margin:0!important}
-  .promotion-batch-tools-v184 .secondary-btn{display:block;width:100%!important;min-height:38px!important;height:auto!important;padding:8px 10px!important;margin:0!important;white-space:normal!important;writing-mode:horizontal-tb!important}
-  .promotion-search-result-v183{grid-template-columns:20px minmax(0,1fr);gap:7px;padding:8px}.promotion-search-result-v183>button{grid-column:2;width:max-content;max-width:100%;padding:5px 7px}
-  .promotion-excluded-row-v183{grid-template-columns:20px minmax(0,1fr);gap:7px;padding:8px;min-width:0}.promotion-excluded-row-v183>div{min-width:0}.promotion-excluded-row-v183>button{grid-column:2;justify-self:start;width:auto;max-width:100%;padding:6px 8px;white-space:nowrap}
-  .promotion-search-name-v186,.promotion-excluded-name-v186{width:100%!important;max-width:100%!important;white-space:normal!important;overflow-wrap:anywhere}
-  .promotion-product-id-v183{width:auto!important;max-width:max-content!important;padding:3px 7px!important;font-size:12px!important}
-  .promotion-price-list-panel-v183{width:100%;max-width:100%;padding:8px;overflow-x:hidden;max-height:58vh}
-  .promotion-price-list-panel-v183>.promotion-search-tools-v184{top:-8px;margin:-8px -8px 8px;padding:8px}
-  .promotion-price-card-v187{grid-template-columns:minmax(0,1fr);gap:7px;padding:9px;width:100%;max-width:100%;overflow:hidden}
-  .promotion-price-card-head-v187{flex-wrap:wrap;overflow:visible}.promotion-price-card-head-v187 .promotion-product-name-v183{flex:1 1 100%;white-space:normal!important;overflow-wrap:anywhere}
-  .promotion-price-metrics-v187{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.promotion-price-metrics-v187>div{padding:7px 6px}.promotion-price-metrics-v187 small,.promotion-price-metrics-v187 b{white-space:normal;overflow-wrap:anywhere}
-}
-
-
-/* V19.5 — promotion list keeps the compact legacy row layout; names wrap fully. */
-.minimum-freight-tier-grid-v188{grid-template-columns:repeat(2,minmax(0,1fr))}
-#promotionPriceListV183{display:grid;gap:0;min-width:0}
-.promotion-price-row-v183{display:grid;grid-template-columns:minmax(250px,1.6fr) minmax(150px,.85fr) repeat(4,minmax(105px,.72fr));gap:8px;align-items:center;padding:9px 8px;border-bottom:1px solid #e7ece9;background:#fff;font-size:13px;min-width:0}
-.promotion-price-row-v183.excluded{background:#fff9e9}
-.promotion-price-row-v183>span,.promotion-sales-stats-v188>span{display:grid;min-width:0;border:1px solid #cbe5d3;border-radius:8px;background:#edf8f0;padding:6px 7px;gap:2px}
-.promotion-price-row-v183.excluded>span,.promotion-price-row-v183.excluded .promotion-sales-stats-v188>span{background:#fffaf0;border-color:#ecd99d}
-.promotion-price-row-v183 small{font-size:11px;color:#66736b}
-.promotion-price-row-v183 b{font-size:13px;color:#17211b;white-space:nowrap}
-.promotion-price-row-v183.loss .promotion-profit-v188 b{color:#c52525}.promotion-price-row-v183.gain .promotion-profit-v188 b{color:#16733b}
-.promotion-product-copy-v183{display:flex!important;flex-wrap:wrap;align-items:center;gap:5px 7px;min-width:0}
-.promotion-product-copy-v183 .promotion-product-name-v183{flex:1 1 100%;display:block!important;width:100%!important;max-width:100%!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:anywhere;border:0!important;background:transparent!important;padding:0!important;color:#17211b!important;font:inherit!important;font-weight:800!important;text-align:left!important;text-decoration:underline dotted;cursor:pointer}
-.promotion-excluded-note-v188{flex:1 1 100%;color:#7b5700!important;font-weight:800}
-.promotion-sales-stats-v188{display:grid;grid-template-columns:1fr;gap:5px;min-width:0}
-@media(max-width:719px){
-  .minimum-freight-tier-grid-v188{grid-template-columns:1fr}
-  .promotion-price-row-v183{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;padding:8px}
-  .promotion-product-copy-v183{grid-column:1/-1}
-  .promotion-sales-stats-v188{grid-column:1/-1;grid-template-columns:1fr 1fr}
-  .promotion-price-row-v183>span{min-width:0}
-  .promotion-price-row-v183 b{white-space:normal;overflow-wrap:anywhere}
-}
-
-/* V19.5 — promotion price list: desktop stays one row; sales stats match Inventory Management. */
-.promotion-price-row-v183{
-  grid-template-columns:minmax(230px,1.55fr) 108px repeat(4,minmax(96px,.68fr));
-  gap:7px;
-}
-.promotion-sales-stats-v188{
-  display:block;
-  min-width:92px;
-  padding:8px 10px;
-  border:1.5px solid #d97706;
-  border-radius:10px;
-  background:#fffaf2;
-  text-align:center;
-  line-height:1.1;
-}
-.promotion-sales-stats-v188>span{
-  display:block;
-  min-width:0;
-  border:0;
-  border-radius:0;
-  background:transparent;
-  padding:0;
-  color:#6b7280;
-  font-size:11px;
-  font-weight:700;
-}
-.promotion-sales-stats-v188>span:first-child b{
-  display:block;
-  margin-top:4px;
-  color:#17613a;
-  font-size:20px;
-  font-weight:900;
-}
-.promotion-sales-stats-v188>span:last-child{
-  margin-top:6px;
-  padding-top:6px;
-  border-top:1px solid #f0c98d;
-  color:#8a4b08;
-  font-size:12px;
-}
-.promotion-sales-stats-v188>span:last-child b{
-  display:block;
-  margin-top:3px;
-  color:#b42318;
-  font-size:14px;
-  font-weight:900;
-}
-.promotion-price-row-v183.excluded .promotion-sales-stats-v188,
-.promotion-price-row-v183.excluded .promotion-sales-stats-v188>span{
-  background:#fffaf2;
-}
-@media(min-width:720px){
-  .promotion-price-row-v183{align-items:center}
-  .promotion-product-copy-v183{flex-wrap:nowrap}
-  .promotion-product-copy-v183 .promotion-product-name-v183{
-    flex:1 1 auto;
-    width:auto!important;
-    white-space:normal!important;
-    overflow-wrap:anywhere;
-  }
-  .promotion-product-copy-v183 .promotion-product-id-v183{flex:0 0 auto}
-  .promotion-excluded-note-v188{display:none}
-  .promotion-price-row-v183>span{padding:5px 6px}
-  .promotion-price-row-v183 small{font-size:10px}
-  .promotion-price-row-v183 b{font-size:12px}
-}
-@media(max-width:719px){
-  .promotion-price-row-v183{grid-template-columns:minmax(0,1fr) 104px;align-items:start}
-  .promotion-product-copy-v183{grid-column:1/2}
-  .promotion-sales-stats-v188{grid-column:2/3;grid-row:1/2;width:104px;justify-self:end}
-  .promotion-price-row-v183>span{grid-column:auto}
-}
-
-
-/* V19.5 — Promotion price list uses the exact Inventory Management card language on desktop and mobile. */
-#promotionPriceListV183.promotion-inventory-list-v190{display:grid;gap:10px;min-width:0}
-.promotion-inventory-card-v190{min-width:0}
-.promotion-inventory-card-v190.excluded{background:#fff9e9;border-color:#e9c56e}
-.promotion-inventory-card-v190.excluded .inventory-summary-grid>div{background:#fff5d9}
-.promotion-status-v190{font-weight:700;color:#17613a}
-.promotion-inventory-card-v190.excluded .promotion-status-v190{color:#8a4b08}
-.promotion-summary-grid-v190 .promotion-profit-box-v190.gain strong{color:#16733b}
-.promotion-summary-grid-v190 .promotion-profit-box-v190.loss strong{color:#c52525}
-@media(min-width:720px){#promotionPriceListV183.promotion-inventory-list-v190{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:719px){#promotionPriceListV183.promotion-inventory-list-v190{grid-template-columns:1fr}}
-
-
-/* V19.5 — active promotion name/status beside Settings summary. */
-#promotionSummaryStatusV183.promotion-active-summary-v191{color:#c52525!important;font-weight:800!important;}
-
-
-/* V19.5 — active promotion status stays beside the title; open/collapse remains at right. */
-.promotion-settings-v183 > summary{justify-content:flex-start!important}
-.promotion-summary-title-v192{display:flex;align-items:center;gap:12px;min-width:0;flex-wrap:wrap}
-#promotionSummaryStatusV183.promotion-active-summary-v191{margin-left:0!important;color:#c52525!important;font-size:16px!important;font-weight:900!important;line-height:1.2}
-.promotion-toggle-hint-v192{margin-left:auto!important;color:#718078!important;font-size:13px!important;font-weight:700!important;white-space:nowrap}
-@media(max-width:560px){
-  .promotion-settings-v183 > summary{gap:7px!important}
-  .promotion-summary-title-v192{gap:5px 8px;flex:1 1 auto}
-  #promotionSummaryStatusV183.promotion-active-summary-v191{display:inline!important;font-size:14px!important}
-  .promotion-toggle-hint-v192{display:inline!important;font-size:12px!important}
-}
-
-
-/* V19.5 — compact promotion price list, pending selection visibility and active status. */
-.promotion-pending-selection-v193{margin:8px 0;padding:9px 10px;border:1px solid #d4a72c;border-radius:10px;background:#fff8df;color:#6b4b00}.promotion-pending-selection-v193 strong{display:block;margin-bottom:6px}.promotion-pending-selection-v193 div{display:flex;flex-wrap:wrap;gap:6px}.promotion-pending-selection-v193 button{border:1px solid #d7b65d;border-radius:999px;background:#fff;color:#5c4500;padding:4px 8px;font-weight:700}
-.promotion-compact-list-v193{width:100%;overflow-x:auto;border:1px solid #dce8df;border-radius:10px}.promotion-compact-head-v193,.promotion-compact-row-v193{display:grid;grid-template-columns:minmax(260px,2fr) 70px 120px 120px 135px 120px;gap:8px;align-items:center;min-width:860px;padding:8px 10px}.promotion-compact-head-v193{background:#eaf5ed;color:#175d35;font-weight:800}.promotion-compact-row-v193{border-top:1px solid #e5ece7;background:#fff;font-size:13px}.promotion-compact-row-v193.excluded{background:#fff9e9}.promotion-compact-row-v193>span{min-width:0;white-space:nowrap}.promotion-compact-product-v193{display:flex;align-items:center;gap:6px;overflow:hidden}.promotion-compact-name-v193{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:transparent;padding:0;font:inherit;font-weight:700;text-align:left;cursor:pointer}.promotion-price-edit-v193{border:0;background:transparent;padding:0;color:#d71920;font:inherit;font-weight:800;cursor:pointer;text-decoration:underline dotted}.promotion-manual-note-v193{display:block;color:#8a5a00;font-size:10px}.promotion-compact-row-v193 .loss{color:#c52525;font-weight:800}.promotion-compact-row-v193 .gain{color:#16733b;font-weight:800}.promotion-status-active-v193{color:#d71920!important;font-weight:800!important}
-
-/* V19.5 — promotion table clarity, sticky headings and safe long-press price editing. */
-.promotion-status-active-v193{
-  color:#d71920!important;
-  font-weight:900!important;
-  font-size:16px!important;
-  line-height:1.35!important;
-  margin-top:10px!important;
-}
-.promotion-compact-head-v193{
-  position:sticky;
-  top:var(--promotion-sticky-head-top-v194,64px);
-  z-index:8;
-  box-shadow:0 2px 5px rgba(23,107,60,.10);
-}
-.promotion-price-edit-v193{
-  touch-action:pan-y;
-  user-select:none;
-  -webkit-user-select:none;
-  -webkit-touch-callout:none;
-  transition:background .15s ease,transform .15s ease;
-}
-.promotion-price-edit-v193.promotion-price-pressing-v194{
-  background:#fff1c9;
-  border-radius:5px;
-  transform:scale(.98);
-}
-@media(min-width:720px){
-  .promotion-compact-list-v193{overflow-x:visible}
-  .promotion-compact-head-v193,.promotion-compact-row-v193{
-    grid-template-columns:minmax(235px,2fr) 52px 100px 105px 115px 118px;
-    gap:6px;
-    min-width:0;
-    padding-left:8px;
-    padding-right:8px;
-  }
-  .promotion-currency-prefix-v194{display:none}
-  .promotion-compact-row-v193>span{overflow:visible}
-  .promotion-compact-row-v193 .loss,.promotion-compact-row-v193 .gain{white-space:nowrap}
-}
-@media(max-width:719px){
-  .promotion-status-active-v193{font-size:15px!important}
-  .promotion-currency-prefix-v194{display:inline}
-}
-
-
-/* V19.5 — desktop keeps the compact table; mobile returns to the V19.3 card presentation. */
-@media(max-width:719px){
-  #promotionPriceListV183.promotion-mobile-cards-v195{display:grid;grid-template-columns:1fr;gap:10px;overflow:visible;border:0;background:transparent}
-  .promotion-mobile-card-v195{border:1px solid #d7e5da;border-radius:14px;background:#fff;padding:12px;min-width:0;box-shadow:0 1px 0 rgba(20,80,46,.03)}
-  .promotion-mobile-card-v195.excluded{background:#fff9e9;border-color:#e7c56d}
-  .promotion-mobile-card-title-v195{display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-width:0;margin-bottom:8px}
-  .promotion-mobile-card-title-v195 .inventory-product-name-copy{flex:1 1 100%;width:100%;max-width:100%;border:0!important;background:transparent!important;padding:0!important;text-align:left!important;font-size:17px!important;font-weight:800!important;color:#17211b!important;white-space:normal!important;overflow-wrap:anywhere;text-decoration:none!important}
-  .promotion-mobile-excluded-v195{margin:-2px 0 8px;color:#8a5700;font-size:12px;font-weight:800}
-  .promotion-mobile-grid-v195{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
-  .promotion-mobile-grid-v195>div{min-width:0;border-radius:11px;background:#edf7f0;padding:9px 10px;display:grid;gap:3px}
-  .promotion-mobile-card-v195.excluded .promotion-mobile-grid-v195>div{background:#fff5d9}
-  .promotion-mobile-grid-v195 span{font-size:12px;color:#6c7771}
-  .promotion-mobile-grid-v195 strong,.promotion-mobile-price-edit-v195{font-size:16px;font-weight:800;line-height:1.25;white-space:normal;overflow-wrap:anywhere}
-  .promotion-mobile-price-edit-v195{width:max-content;max-width:100%;border:0;background:transparent;padding:0;color:#d71920;text-align:left;text-decoration:underline dotted}
-  .promotion-mobile-profit-v195{grid-column:1/-1}
-  .promotion-mobile-profit-v195.loss strong{color:#c52525}.promotion-mobile-profit-v195.gain strong{color:#16733b}
-  .promotion-compact-head-v193{display:none!important}
-}
-
-/* V19.8 — iPhone long-press safety for promotion prices and original-cost list. */
-.promotion-price-edit-v193,
-.promotion-price-edit-v193 *,
-.original-cost-table td,
-.original-cost-table td *,
-.original-cost-minimum-price-btn,
-.original-cost-minimum-price-btn * {
-  -webkit-user-select: none !important;
-  user-select: none !important;
-  -webkit-touch-callout: none !important;
-}
-.promotion-price-edit-v193 { touch-action: pan-y; }
-.original-cost-table td { touch-action: pan-y; }
-
-
-/* V19.8 — promotion exclusion confirmation buttons are explicit actions with tactile feedback. */
-.promotion-batch-tools-v184 .promotion-confirm-action-v197{
-  appearance:none;-webkit-appearance:none;cursor:pointer;border-radius:12px!important;
-  min-height:44px!important;padding:10px 16px!important;font-weight:900!important;
-  transition:transform .08s ease,background-color .08s ease,box-shadow .08s ease,opacity .08s ease;
-  box-shadow:0 2px 5px rgba(18,107,62,.12);
-}
-.promotion-batch-tools-v184 .promotion-confirm-add-v197:not(:disabled){background:#176b3c!important;color:#fff!important;border:1.5px solid #176b3c!important}
-.promotion-batch-tools-v184 .promotion-confirm-remove-v197:not(:disabled){background:#fff8e8!important;color:#795800!important;border:1.5px solid #b8860b!important}
-.promotion-batch-tools-v184 .promotion-confirm-action-v197:not(:disabled):active{
-  transform:scale(.975);box-shadow:inset 0 2px 5px rgba(0,0,0,.15);filter:brightness(.92)
-}
-.promotion-batch-tools-v184 .promotion-confirm-action-v197:disabled{
-  cursor:not-allowed;background:#edf2ef!important;color:#8b9690!important;border:1.5px solid #d4ddd8!important;
-  box-shadow:none!important;opacity:.72!important;transform:none!important
-}
-#savePromotionV183.promotion-save-needs-confirm-v197{cursor:pointer!important;opacity:1!important}
-
-/* V19.8 — promotion commission and target margin share one compact row. */
-.promotion-main-grid-v183 #promotionCommissionV183,
-.promotion-main-grid-v183 #promotionMarginV183{
-  text-align:center!important;
-}
-@media(max-width:719px){
-  .promotion-main-grid-v183{
-    grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
-    gap:10px!important;
-  }
-  .promotion-main-grid-v183 label:first-child{
-    grid-column:1/-1!important;
-  }
-  .promotion-main-grid-v183 label:nth-child(2),
-  .promotion-main-grid-v183 label:nth-child(3){
-    grid-column:auto!important;
-    min-width:0!important;
-  }
-  .promotion-main-grid-v183 label:nth-child(2) input,
-  .promotion-main-grid-v183 label:nth-child(3) input{
-    width:100%!important;
-    min-width:0!important;
-    box-sizing:border-box!important;
-    text-align:center!important;
-  }
-}
-
-
 /* V20.0 — automatic original minimum-price settings */
 .minimum-commission-row-v200{display:flex;justify-content:flex-start;margin-top:14px}
 .minimum-commission-row-v200 label{width:min(220px,48%);font-weight:700;color:var(--muted)}
@@ -5212,63 +4836,8 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .average-cost-vnd-note-v207 { display: block; margin-top: 2px; font-size: .76em; line-height: 1.15; color: #6f7b73; font-weight: 600; white-space: nowrap; }
 
 
-/* V21.4: active promotion appears centered on the Dashboard title row. */
-.dashboard-promotion-status-v208{min-width:0;text-align:center;font-size:1.05rem;line-height:1.25;font-weight:800;color:#d01818;overflow-wrap:anywhere}
-.dashboard-promotion-status-v208[hidden]{display:none!important}
-@media(max-width:720px){
-  .dashboard-title-row-v204{grid-template-columns:auto minmax(110px,1fr) auto;gap:7px}
-  .dashboard-promotion-status-v208{font-size:.94rem;line-height:1.18}
-}
-@media(max-width:430px){
-  .dashboard-title-row-v204{gap:5px}
-  .dashboard-title-row-v204 h2{font-size:1.05rem!important}
-  .dashboard-promotion-status-v208{font-size:.9rem;line-height:1.15}
-}
-
-/* V21.4: promotion target percentage sits beside the promotional minimum price; color follows actual profit. */
-.inventory-promotion-margin-v209{font-style:normal;font-size:.78em;font-weight:800;margin-left:6px;white-space:nowrap}
-.inventory-promotion-margin-v209.gain{color:#177245!important}
-.inventory-promotion-margin-v209.loss{color:#c62828!important}
-.inventory-promotion-margin-v209.neutral{color:#111!important}
-@media(max-width:720px){
-  .dashboard-promotion-status-v208{font-size:.78rem!important;line-height:1.1!important;max-width:42vw}
-}
-@media(max-width:430px){
-  .dashboard-title-row-v204{grid-template-columns:minmax(115px,auto) minmax(80px,1fr) auto!important;gap:3px!important}
-  .dashboard-title-row-v204 h2{font-size:.98rem!important;white-space:nowrap}
-  .dashboard-promotion-status-v208{font-size:.68rem!important;line-height:1.05!important;max-width:36vw}
-}
 .bottom-nav a.nav-btn{text-decoration:none;box-sizing:border-box;text-align:center}
 
-
-/* V21.4: mobile dashboard title keeps promotion on its own row to prevent overlap. */
-@media(max-width:720px){
-  .dashboard-title-row-v204{
-    display:grid!important;
-    grid-template-columns:minmax(0,1fr) auto!important;
-    grid-template-areas:
-      "title health"
-      "promo promo"!important;
-    gap:7px 8px!important;
-    align-items:center!important;
-  }
-  .dashboard-title-row-v204 h2{grid-area:title;min-width:0;margin:0!important;white-space:nowrap}
-  .dashboard-title-row-v204 .system-health-row-v204{grid-area:health;justify-self:end}
-  .dashboard-promotion-status-v208{
-    grid-area:promo;
-    width:100%;
-    max-width:none!important;
-    text-align:center;
-    font-size:.86rem!important;
-    line-height:1.18!important;
-    margin:0!important;
-  }
-}
-@media(max-width:430px){
-  .dashboard-title-row-v204{grid-template-columns:minmax(0,1fr) auto!important;gap:6px!important}
-  .dashboard-title-row-v204 h2{font-size:1rem!important}
-  .dashboard-promotion-status-v208{font-size:.82rem!important;max-width:none!important}
-}
 
 /* V21.4: mobile bottom navigation is in-app navigation only; suppress link callout/new-tab affordances. */
 @media (max-width: 900px), (hover: none) and (pointer: coarse) {
@@ -5843,7 +5412,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 /* V26.6 UI-only: supplier/product management labels, English edit row, price badge stacking. */
 .supplier-product-management-title-v266{margin:22px 0 10px;font-size:22px;font-weight:800}
 .product-stock-english-edit-btn-v266{display:block;border:0;background:transparent;padding:2px 0 8px;color:#33483d;font-size:15px;font-weight:700;text-align:left;cursor:pointer;max-width:100%}
-.master-price-main-v266{display:block;text-align:right;white-space:nowrap}.master-price-badge-v266{display:block;text-align:right;font-size:11px;line-height:1.1;margin-top:2px}.master-price-badge-v266 .inventory-promotion-margin-v209{margin:0}
+.master-price-main-v266{display:block;text-align:right;white-space:nowrap}.master-price-badge-v266{display:block;text-align:right;font-size:11px;line-height:1.1;margin-top:2px}
 @media(max-width:700px){.inventory-sales-summary-v146{transform:translateY(10px)}.product-stock-english-edit-btn-v266{font-size:17px;font-weight:800}}
 
 /* V30.1 UI-only refinements; no sync-path changes. */
@@ -5859,8 +5428,8 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 /* V30.1 product-management minimum price follows homepage profit color. */
-.product-stock-minimum-price-loss-v268 strong,.product-stock-minimum-price-loss-v268 .inventory-promotion-margin-v209{color:#c62828!important}
-.product-stock-minimum-price-gain-v268 strong,.product-stock-minimum-price-gain-v268 .inventory-promotion-margin-v209{color:#177245!important}
+.product-stock-minimum-price-loss-v268 strong{color:#c62828!important}
+.product-stock-minimum-price-gain-v268 strong{color:#177245!important}
 
 
 /* V32.0 focused performance/UI refinements; no extra sync requests. */
@@ -5886,7 +5455,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 }
 
 /* V32.0 Profit Management — local draft only; one cloud write on final confirm. */
-.profit-batch-rate-v303{display:flex;align-items:end;gap:8px;margin:8px 0}.profit-batch-rate-v303 label{display:grid;gap:5px;font-weight:700}.profit-batch-rate-v303 input{max-width:150px}.profit-override-actions-v303{display:flex;gap:6px;flex-wrap:wrap}.promotion-excluded-row-v183 .loss{color:#c52525}.promotion-excluded-row-v183 .gain{color:#16733b}@media(max-width:719px){.profit-batch-rate-v303 input{max-width:120px}.profit-override-actions-v303{justify-content:flex-end}}
+.profit-batch-rate-v303{display:flex;align-items:end;gap:8px;margin:8px 0}.profit-batch-rate-v303 label{display:grid;gap:5px;font-weight:700}.profit-batch-rate-v303 input{max-width:150px}.profit-override-actions-v303{display:flex;gap:6px;flex-wrap:wrap}@media(max-width:719px){.profit-batch-rate-v303 input{max-width:120px}.profit-override-actions-v303{justify-content:flex-end}}
 
 
 /* V32.0 — on-demand in-system photo/video preview. Media loads only after click. */
@@ -5954,10 +5523,8 @@ body.system-media-preview-open-v305{overflow:hidden}
 .system-media-drive-mobile-v314 .system-media-stage-v305{position:relative;z-index:2}
 
 
-/* V32.0 — unified minimum-price meaning and promotion batch clarity. */
 .minimum-price-manual-v315,.minimum-price-manual-v315 strong,.original-cost-minimum-price-btn.minimum-price-manual-v315{color:#0b68c9!important}
 .master-price-manual-v315,.master-price-manual-v315 .master-price-main-v266{color:#0b68c9!important;font-weight:900}
-.promotion-selection-info-v315{margin:6px 0 2px;color:#5b6b60;font-size:12px;font-weight:700}
 
 /* V32.0 — Product ID + Copy Product stay on the same identity row. */
 .inventory-product-secondary-v314{justify-content:flex-start!important}
@@ -5973,9 +5540,6 @@ body.system-media-preview-open-v305{overflow:hidden}
 
 .product-stock-minimum-price-manual-v268 strong{color:#0b68c9!important}
 .product-stock-minimum-price-neutral-v268 strong{color:inherit!important}
-.promotion-price-manual-v315,.promotion-price-manual-v315 strong,.promotion-price-manual-v315 b{color:#0b68c9!important}
-.promotion-price-gain-v315,.promotion-price-gain-v315 strong,.promotion-price-gain-v315 b{color:#087a43!important}
-.promotion-price-loss-v315,.promotion-price-loss-v315 strong,.promotion-price-loss-v315 b{color:#c62828!important}
 
 /* V32.0 targeted UI hardening */
 .inventory-product-identity-v167.product-identity-v167{grid-template-columns:minmax(0,1fr) auto auto auto!important;align-items:center!important;gap:4px!important;white-space:nowrap!important}
@@ -5984,8 +5548,6 @@ body.system-media-preview-open-v305{overflow:hidden}
 .inventory-product-identity-v167 .inventory-product-id-v166{order:3;grid-column:auto!important;grid-row:auto!important}
 .inventory-product-identity-v167 .inventory-product-file-copy-v306{order:4;grid-column:auto!important;grid-row:auto!important;flex:0 1 auto!important;max-width:82px!important}
 @media(max-width:720px){.inventory-product-identity-v167.product-identity-v167{gap:3px!important}.inventory-product-identity-v167 .inventory-product-file-copy-v306{font-size:10px!important;padding:2px 4px!important;min-height:24px!important;max-width:58px!important}.inventory-product-identity-v167 .inventory-product-id-v166{font-size:12px!important;padding:2px 4px!important}.inventory-product-identity-v167 .inventory-media-dot-v236{width:9px!important;height:9px!important}}
-.promotion-actions-v183{grid-template-columns:1fr!important}.promotion-actions-v183 .primary-btn,.promotion-actions-v183 .danger-action-btn{width:100%!important}
-.promotion-search-result-v183:not(.excluded){cursor:pointer}.promotion-row-check-v184{pointer-events:auto!important;position:relative;z-index:2}
 .system-media-simple-video-v316 .system-media-shell-v305{background:#000}.simple-video-wrap-v316{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#000}.simple-video-element-v316{width:100%;height:100%;object-fit:contain;background:#000}.simple-video-play-v316{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:72px;height:72px;border:0;border-radius:50%;background:rgba(0,0,0,.58);color:#fff;font-size:30px;display:flex;align-items:center;justify-content:center;z-index:3}.simple-video-progress-v316{position:absolute;left:18px;right:18px;bottom:max(22px,env(safe-area-inset-bottom));width:calc(100% - 36px);z-index:3;accent-color:#fff}.system-media-simple-video-v316 .system-media-close-v305{z-index:7}
 @media(hover:hover) and (pointer:fine){html.desktop-auto-pending-v316 .access-lock-card{visibility:hidden!important}}
 
@@ -6020,14 +5582,10 @@ body.system-media-preview-open-v305{overflow:hidden}
   .inventory-product-identity-v167 .inventory-product-file-copy-v306{width:68px!important;min-width:68px!important;max-width:68px!important;height:28px!important;min-height:28px!important;padding:2px 3px!important;font-size:11px!important}
   .inventory-product-identity-v167 .inventory-media-dot-v236{width:8px!important;height:8px!important}
 }
-/* V32.0 — make promotion selection unmistakably interactive. */
-.promotion-row-check-v184:not(:disabled){cursor:pointer!important;pointer-events:auto!important;opacity:1!important}
-.promotion-search-result-v183:not(.excluded){cursor:pointer!important}
 
-/* V32.0 three-field prefix rules and full-width promotion actions */
-.product-prefix-three-head-v319,.product-prefix-three-v319{grid-template-columns:minmax(110px,.8fr) minmax(180px,1.5fr) 80px minmax(150px,1fr)!important}.prefix-english-v319{min-width:0;overflow-wrap:anywhere;color:#42534a}.prefix-fallback-note-v319{grid-column:1/-1;color:#6d786f;font-size:12px;padding-top:4px}.product-prefix-add-three-v319{grid-template-columns:minmax(120px,1fr) minmax(160px,1.5fr) 110px!important}.product-prefix-three-v319 .rule-actions-v231{display:flex;gap:6px;align-items:center;justify-content:flex-end}.promotion-actions-v183{display:grid!important;grid-template-columns:1fr 1fr!important;gap:10px}.promotion-actions-v183>button{width:100%!important;margin:0!important}@media(max-width:719px){.product-prefix-three-head-v319,.product-prefix-three-v319{grid-template-columns:minmax(70px,.7fr) minmax(105px,1.25fr) 50px minmax(78px,.8fr)!important;gap:5px!important}.product-prefix-three-v319 .rule-actions-v231{flex-direction:column;gap:3px}.product-prefix-three-v319 .rule-actions-v231 button{font-size:11px;padding:5px 6px}.product-prefix-add-three-v319{grid-template-columns:1fr!important}.promotion-actions-v183{grid-template-columns:1fr!important}}
+/* V32.0 three-field prefix rules */
+.product-prefix-three-head-v319,.product-prefix-three-v319{grid-template-columns:minmax(110px,.8fr) minmax(180px,1.5fr) 80px minmax(150px,1fr)!important}.prefix-english-v319{min-width:0;overflow-wrap:anywhere;color:#42534a}.prefix-fallback-note-v319{grid-column:1/-1;color:#6d786f;font-size:12px;padding-top:4px}.product-prefix-add-three-v319{grid-template-columns:minmax(120px,1fr) minmax(160px,1.5fr) 110px!important}.product-prefix-three-v319 .rule-actions-v231{display:flex;gap:6px;align-items:center;justify-content:flex-end}@media(max-width:719px){.product-prefix-three-head-v319,.product-prefix-three-v319{grid-template-columns:minmax(70px,.7fr) minmax(105px,1.25fr) 50px minmax(78px,.8fr)!important;gap:5px!important}.product-prefix-three-v319 .rule-actions-v231{flex-direction:column;gap:3px}.product-prefix-three-v319 .rule-actions-v231 button{font-size:11px;padding:5px 6px}.product-prefix-add-three-v319{grid-template-columns:1fr!important}}
 
-/* V32.0 — stable 3-column prefix management + protected promotion exclusions. */
 .product-prefix-rule-wrap-v320{border-top:1px solid #e1e9e3;background:#f7faf8}
 .product-prefix-rule-wrap-v320:first-child{border-top:0}
 .product-prefix-rule-wrap-v320 .product-prefix-locked-row-v181{border-top:0!important;border-radius:0;background:transparent}
@@ -6035,8 +5593,6 @@ body.system-media-preview-open-v305{overflow:hidden}
 .product-prefix-three-head-v319>span,.product-prefix-three-v319>*{min-width:0}
 .product-prefix-three-v319 .rule-actions-v231{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-end}
 .prefix-fallback-note-v319{display:block!important;padding:0 10px 10px 10px!important;color:#6d786f;font-size:12px;line-height:1.45}
-.promotion-protected-v320{background:#f5f8ff}
-.promotion-protected-note-v320{font-style:normal;color:#1769aa;font-weight:700;white-space:nowrap}
 @media(max-width:719px){
   .product-prefix-three-head-v319,.product-prefix-three-v319{grid-template-columns:minmax(72px,.8fr) minmax(110px,1.25fr) 46px minmax(88px,.8fr)!important;gap:5px!important;font-size:12px!important}
   .product-prefix-three-v319 .rule-actions-v231{flex-direction:column;align-items:stretch;gap:3px}
@@ -6105,7 +5661,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 #saveBatchBtn.draft-dirty-button-v323{background:#fff3cd!important;color:#7a5200!important;border-color:#e3b341!important;font-weight:900!important;}
 
 
-/* V32.5 — canonical minimum-price color state. One state, every surface, desktop + mobile. */
+/* V33.3 — canonical minimum-price color state. One state, every surface, desktop + mobile. */
 [data-minimum-price-state-v324="manual"],
 [data-minimum-price-state-v324="manual"] * { color:#0b68c9 !important; }
 [data-minimum-price-state-v324="gain"],
@@ -6115,7 +5671,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 [data-minimum-price-state-v324="neutral"],
 [data-minimum-price-state-v324="neutral"] * { color:inherit !important; }
 
-/* V32.5 — desktop prefix rules rebuilt as a stable four-column grid. Mobile keeps the approved layout. */
+/* V33.3 — desktop prefix rules rebuilt as a stable four-column grid. Mobile keeps the approved layout. */
 @media (min-width:720px) {
   .product-prefix-three-head-v319,
   .product-prefix-three-v319 {
@@ -6181,7 +5737,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 }
 
 
-/* V32.5 — prefix rules: remove lock-status text, reclaim space, keep desktop/mobile tidy. */
+/* V33.3 — prefix rules: remove lock-status text, reclaim space, keep desktop/mobile tidy. */
 @media (min-width:720px) {
   .product-prefix-three-head-v319,
   .product-prefix-three-v319 {
@@ -6213,18 +5769,13 @@ body.system-media-preview-open-v305{overflow:hidden}
   .product-prefix-three-v319 .prefix-operation-v324 { gap:6px !important; }
 }
 
-
-/* V33.2 rebuilt from V32.5 stable: desktop product/prefix tables only; sync/card layout untouched. */
-.product-category-prefix-table-v332{width:100%;border:1px solid #d8e6dc;border-radius:12px;overflow:hidden;background:#fff;margin-top:10px}
-.product-category-prefix-table-v332>div{display:grid;grid-template-columns:120px 1fr 1.35fr;align-items:center;min-height:42px;padding:0 14px;border-bottom:1px solid #edf2ee;gap:14px}
-.product-category-prefix-table-v332>div:last-child{border-bottom:0}.product-category-prefix-table-v332>.head{background:#eef7f0;font-weight:800;color:#174e31}
-.product-category-prefix-table-v332 strong{font-size:16px;color:#0b6b43}
-.product-prefix-table-v332{width:100%;border:1px solid #d8e6dc;border-radius:12px;overflow:hidden;background:#fff;margin-top:10px}
-.product-prefix-head-v332,.product-prefix-list-v332 .product-prefix-row-v332{display:grid;grid-template-columns:25% 40% 12% 23%;align-items:center;min-height:46px;gap:0}
-.product-prefix-head-v332{background:#eef7f0;font-weight:800;color:#174e31;border-bottom:1px solid #d8e6dc}
-.product-prefix-head-v332>span,.product-prefix-row-v332>*{padding:8px 14px;min-width:0}
-.product-prefix-row-v332{border-bottom:1px solid #edf2ee}.product-prefix-row-v332:last-child{border-bottom:0}
-.product-prefix-row-v332 .prefix-code-v332{text-align:center;font-weight:800;color:#0b6b43}.product-prefix-row-v332 .prefix-actions-v332{display:flex;justify-content:center;gap:8px}
-.product-prefix-editor-v332{margin-top:16px;padding-top:14px;border-top:1px solid #dfe9e2}.product-prefix-editor-v332 h4{margin:0 0 10px}
-.product-prefix-input-row-v332{display:grid!important;grid-template-columns:1fr 1.4fr 140px!important;gap:12px!important;align-items:end}.product-prefix-input-row-v332 label{display:flex;flex-direction:column;gap:6px}.product-prefix-input-row-v332 input{text-align:left!important}
-@media(max-width:719px){.product-category-prefix-table-v332>div{grid-template-columns:58px 1fr 1.3fr;padding:0 8px;gap:6px}.product-prefix-head-v332,.product-prefix-list-v332 .product-prefix-row-v332{grid-template-columns:1fr 1.35fr 48px 92px}.product-prefix-head-v332>span,.product-prefix-row-v332>*{padding:7px 6px}.product-prefix-row-v332 .prefix-actions-v332{gap:3px}.product-prefix-row-v332 .prefix-actions-v332 button{padding:6px 7px}.product-prefix-input-row-v332{grid-template-columns:1fr!important}}
+/* V33.3 — product prefix categories + desktop bonsai prefix editor. */
+.product-prefix-category-panel-v333{margin:4px 0 14px}
+.product-prefix-category-panel-v333 h4,.product-prefix-editor-v333 h4{margin:0 0 10px;color:#163f2b}
+.product-category-prefix-table-v333,.product-prefix-table-v333{width:100%;border:1px solid #d8e6dc;border-radius:12px;overflow:hidden;background:#fff}
+.product-category-prefix-row-v333{display:grid;grid-template-columns:100px minmax(180px,1fr) minmax(240px,1.4fr);align-items:center;gap:18px;padding:10px 16px;border-top:1px solid #edf2ee;text-align:left}
+.product-category-prefix-row-v333:first-child{border-top:0}.product-category-prefix-row-v333.is-head{background:#f1f8f3;color:#385748;font-weight:800}.product-category-prefix-row-v333 strong{color:#116b3d;text-align:center}
+.product-prefix-row-v333{display:grid;grid-template-columns:minmax(150px,25%) minmax(260px,40%) 90px minmax(190px,1fr);align-items:center;gap:14px;padding:10px 16px;border-top:1px solid #edf2ee;text-align:left}
+.product-prefix-row-v333.is-head{border-top:0;background:#f1f8f3;color:#385748;font-weight:800}.product-prefix-row-v333>strong{text-align:center;color:#116b3d}.product-prefix-actions-v333{display:flex;justify-content:center;gap:8px}.product-prefix-actions-v333 button{width:auto;min-width:72px;margin:0;padding:7px 10px}.product-prefix-actions-v333 button:disabled{opacity:.45;cursor:not-allowed}
+.product-prefix-list-v333{display:contents}.product-prefix-editor-v333{margin-top:16px;padding-top:14px;border-top:1px solid #e2ece5}.product-prefix-editor-grid-v333{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr) 130px;gap:12px;align-items:end}.product-prefix-editor-grid-v333 label{display:grid;gap:6px;font-weight:700}.product-prefix-editor-grid-v333 input,.product-prefix-editor-grid-v333 input::placeholder{text-align:left!important}.product-prefix-editor-v333>.primary-btn{margin-top:10px;width:100%}
+@media(max-width:719px){.product-category-prefix-row-v333{grid-template-columns:60px minmax(0,1fr);gap:6px 10px}.product-category-prefix-row-v333>span:last-child{grid-column:2}.product-prefix-row-v333{grid-template-columns:minmax(0,1fr) 58px;gap:6px 8px}.product-prefix-row-v333>span:nth-child(2){grid-column:1}.product-prefix-actions-v333{grid-column:1/-1;justify-content:flex-start}.product-prefix-editor-grid-v333{grid-template-columns:1fr}}
