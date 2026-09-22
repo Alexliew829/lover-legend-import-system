@@ -6056,3 +6056,15 @@ body.system-media-preview-open-v305{overflow:hidden}
 .recent-batch-date-wrap-v346{min-width:205px;flex:0 1 235px}
 .recent-batch-date-wrap-v346 .recent-batch-date-v345{min-width:0;max-width:none;width:100%}
 @media(max-width:720px){.recent-batch-date-wrap-v346{min-width:0;flex:1 1 210px}.recent-batch-filter-v345 #batchSearch{order:2;flex-basis:100%}}
+
+
+/* V34.7 — recent-import mobile filter sits fully below the section title. */
+@media(max-width:720px){
+  .batch-list-toolbar{display:block!important;}
+  .batch-list-toolbar>h3{display:block;width:100%;margin:0 0 12px!important;}
+  .recent-batch-filter-v345{display:flex!important;width:100%!important;gap:8px!important;align-items:center!important;}
+  .recent-batch-filter-v345 .recent-batch-date-wrap-v346{flex:1 1 calc(50% - 4px)!important;min-width:0!important;}
+  .recent-batch-filter-v345 #recentBatchDateClearV345,
+  .recent-batch-filter-v345 #toggleBatchListBtn{flex:1 1 calc(50% - 4px)!important;min-width:0!important;order:2;}
+  .recent-batch-filter-v345 #batchSearch{order:3!important;flex:1 1 100%!important;width:100%!important;min-width:0!important;max-width:none!important;}
+}

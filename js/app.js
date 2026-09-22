@@ -4814,7 +4814,7 @@ function setupProductPrefixSettingsV181() {
       }
       renderProductPrefixRulesV181(); setProductPrefixEditorV333(); setPrefixSaveButtonStateV340("修改成功", true); resetPrefixSaveButtonV340(); return;
     }
-    // V34.6: a bonsai ID prefix may intentionally be shared by different species.
+    // V34.7: a bonsai ID prefix may intentionally be shared by different species.
     // Example: 真柏 / 系鱼川 / 香松 may all use JU; 仙丹 and 人参果矮霸 may both use IX.
     // What is forbidden is redefining the SAME Chinese keyword to another prefix.
     if(getProductPrefixRulesV181().some(([k])=>normalizeProductPrefixKeywordV181(k)===normalizeProductPrefixKeywordV181(keyword))){if(status)status.textContent=`“${keyword}”已经存在，不能再新增另一个前缀`;return;}
@@ -4836,7 +4836,7 @@ function findBestProductPrefixRuleV343(name = "") {
     const key=normalizeProductPrefixKeywordV181(rule[0]);
     return {rule,key,index:key?compact.indexOf(key):-1};
   }).filter(x=>x.index>=0);
-  // V34.6: whichever species keyword appears FIRST in the product name wins.
+  // V34.7: whichever species keyword appears FIRST in the product name wins.
   // Same-position ties prefer the longer/more-specific keyword.
   matched.sort((a,b)=>a.index-b.index || b.key.length-a.key.length);
   return matched[0]?.rule||null;
@@ -5165,7 +5165,7 @@ function getProductSearchPrefixAliasesV238(product) {
 
 function productExactOrPrefixSearchMatchesV238(product, queryValue) {
   const raw = String(queryValue || "").normalize("NFKC").trim();
-  // V34.6: migrated legacy Product IDs (notably PZxxxx / PSxxxx aliases) are
+  // V34.7: migrated legacy Product IDs (notably PZxxxx / PSxxxx aliases) are
   // internal compatibility only and must not produce front-end search hits.
   if (/^(?:PZ|PS)(?:\d{0,4})?$/i.test(raw)) {
     const formalId=String(product?.id||product?.productId||"").trim().toUpperCase();
@@ -6155,9 +6155,11 @@ function renderImportDraftsV242() {
       label.textContent = "未保存 · 当前资料尚未保存为草稿";
       label.dataset.draftStateV249 = "unsaved";
     } else {
-      label.textContent = "未保存";
+      // V34.7: a completely empty editor should not show a residual "未保存" bar.
+      label.textContent = "";
       label.dataset.draftStateV249 = "empty";
     }
+    label.hidden = !String(label.textContent || "").trim();
   }
   if (deleteButton) deleteButton.hidden = !active;
   if (openButton) {
@@ -9959,7 +9961,7 @@ function buildHistorySoldCostSummary(options = {}) {
   `;
 }
 
-// V34.6 History import-date rule:
+// V34.7 History import-date rule:
 // Every import record is searched by ARRIVAL DATE only. Container/save/created dates
 // are display/audit metadata and must not decide Date Range results.
 function getHistoryImportTransactionDate(batch, item = null) {
@@ -13289,8 +13291,15 @@ function renderBatchList() {
     const arrival = normalizeDateToDDMMYYYY(batch?.arrivalDate || "");
     if (recentStartDateV345 || recentEndDateV345) {
       const arrivalTime = parseDDMMYYYY(arrival);
-      const startTime = recentStartDateV345 ? parseDDMMYYYY(recentStartDateV345) : -Infinity;
-      const endTime = recentEndDateV345 ? parseDDMMYYYY(recentEndDateV345) : Infinity;
+      // V34.7: one selected date means that exact arrival day. Two selected dates
+      // mean an inclusive arrival-date range. Import history never uses container date.
+      const singleDate = recentStartDateV345 && !recentEndDateV345
+        ? recentStartDateV345
+        : (!recentStartDateV345 && recentEndDateV345 ? recentEndDateV345 : "");
+      const effectiveStart = singleDate || recentStartDateV345;
+      const effectiveEnd = singleDate || recentEndDateV345;
+      const startTime = effectiveStart ? parseDDMMYYYY(effectiveStart) : -Infinity;
+      const endTime = effectiveEnd ? parseDDMMYYYY(effectiveEnd) : Infinity;
       if (!arrival || !Number.isFinite(arrivalTime) || arrivalTime < startTime || arrivalTime > endTime) return false;
     }
     if (!keyword) return true;
@@ -16386,50 +16395,55 @@ function openSystemMediaPreviewV305(type, url, label = "") {
     return;
   }
 
-  // V34.3 mobile video: try a minimal in-system player first. Only X, one
-  // play/pause button and a slim progress bar are rendered by us. If Google
-  // blocks the direct stream, silently switch to Drive Preview with no message.
+  // V34.7 video compatibility: restore the proven Google Drive preview player.
+  // Direct <video> streaming is unreliable for Drive links on iPhone/Safari.
+  // Keep playback inside the Import System shell and show no permission/error banner.
   if (mediaType === "video") {
     const modal = document.createElement("div");
     modal.id = "systemMediaPreviewV305";
-    modal.className = "system-media-preview-v305 system-media-simple-video-v316";
-    modal.setAttribute("role", "dialog"); modal.setAttribute("aria-modal", "true");
+    modal.className = "system-media-preview-v305";
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
     modal.innerHTML = `<div class="system-media-shell-v305">
       <button type="button" class="system-media-close-v305" aria-label="关闭预览">×</button>
       <div class="system-media-stage-v305"></div>
     </div>`;
-    document.body.appendChild(modal); document.body.classList.add("system-media-preview-open-v305");
+    document.body.appendChild(modal);
+    document.body.classList.add("system-media-preview-open-v305");
     const stage = modal.querySelector(".system-media-stage-v305");
-    let disposed = false, timer = 0, sourceIndex = 0;
-    const cleanupStage = () => { if(timer)window.clearTimeout(timer); timer=0; const v=stage?.querySelector("video"); if(v){try{v.pause()}catch(_){} v.removeAttribute("src"); try{v.load()}catch(_){}} const f=stage?.querySelector("iframe"); if(f)f.removeAttribute("src"); stage?.replaceChildren(); };
-    const useDriveSilently = () => {
-      if(disposed)return;
-      // V34.6: if Google Drive blocks direct playback, fail silently and close the
-      // lightweight player. Never show Drive preview or a permission/error banner.
-      disposed=true; cleanupStage(); modal.remove(); document.body.classList.remove("system-media-preview-open-v305");
+    let disposed = false;
+    const cleanup = () => {
+      disposed = true;
+      const video = stage?.querySelector("video");
+      if (video) { try { video.pause(); } catch (_) {} video.removeAttribute("src"); try { video.load(); } catch (_) {} }
+      const frame = stage?.querySelector("iframe");
+      if (frame) frame.removeAttribute("src");
+      stage?.replaceChildren();
     };
-    const tryDirect = () => {
-      if(disposed||!stage)return; cleanupStage();
-      const candidate = directVideoSources[sourceIndex++] || source;
-      if(!candidate){ useDriveSilently(); return; }
-      const wrap=document.createElement("div"); wrap.className="simple-video-wrap-v316";
-      const video=document.createElement("video"); video.className="system-media-video-v305 simple-video-element-v316"; video.playsInline=true; video.preload="metadata"; video.src=candidate; video.setAttribute("webkit-playsinline","");
-      const play=document.createElement("button"); play.type="button"; play.className="simple-video-play-v316"; play.textContent="▶"; play.setAttribute("aria-label","播放/暂停");
-      const progress=document.createElement("input"); progress.type="range"; progress.min="0"; progress.max="1000"; progress.value="0"; progress.className="simple-video-progress-v316"; progress.setAttribute("aria-label","视频进度");
-      wrap.append(video,play,progress); stage.appendChild(wrap);
-      const update=()=>{ if(Number.isFinite(video.duration)&&video.duration>0)progress.value=String(Math.round(video.currentTime/video.duration*1000)); play.textContent=video.paused?"▶":"❚❚"; };
-      play.addEventListener("click",()=>{ if(video.paused){const p=video.play(); if(p?.catch)p.catch(()=>{});} else video.pause(); });
-      video.addEventListener("click",()=>play.click()); video.addEventListener("play",update); video.addEventListener("pause",update); video.addEventListener("timeupdate",update); video.addEventListener("ended",()=>{video.currentTime=0;update();});
-      progress.addEventListener("input",()=>{ if(Number.isFinite(video.duration)&&video.duration>0)video.currentTime=Number(progress.value)/1000*video.duration; });
-      let ready=false; const success=()=>{ready=true;if(timer)window.clearTimeout(timer);timer=0;update();};
-      const fail=()=>{ if(disposed||ready)return; if(sourceIndex<directVideoSources.length)tryDirect(); else useDriveSilently(); };
-      video.addEventListener("loadedmetadata",success,{once:true}); video.addEventListener("canplay",success,{once:true}); video.addEventListener("error",fail,{once:true}); timer=window.setTimeout(fail,12000);
-    };
-    tryDirect();
-    modal._systemMediaCleanupV308=()=>{disposed=true;cleanupStage();};
+    if (drivePreview && stage) {
+      const frame = document.createElement("iframe");
+      frame.className = "system-media-drive-frame-v308";
+      frame.src = drivePreview;
+      frame.title = label || "视频预览";
+      frame.allow = "autoplay; fullscreen; picture-in-picture";
+      frame.allowFullscreen = true;
+      frame.referrerPolicy = "no-referrer-when-downgrade";
+      stage.appendChild(frame);
+    } else if (stage) {
+      const video = document.createElement("video");
+      video.className = "system-media-video-v305";
+      video.controls = true;
+      video.playsInline = true;
+      video.preload = "metadata";
+      video.src = source;
+      stage.appendChild(video);
+    }
+    modal._systemMediaCleanupV308 = cleanup;
     modal.querySelector(".system-media-close-v305")?.addEventListener("click", closeSystemMediaPreviewV305);
-    modal.addEventListener("click", event=>{if(event.target===modal)closeSystemMediaPreviewV305();});
-    const onKey=event=>{if(event.key==="Escape")closeSystemMediaPreviewV305();}; modal._systemMediaKeyHandlerV305=onKey; document.addEventListener("keydown",onKey);
+    modal.addEventListener("click", event => { if (event.target === modal) closeSystemMediaPreviewV305(); });
+    const onKey = event => { if (event.key === "Escape") closeSystemMediaPreviewV305(); };
+    modal._systemMediaKeyHandlerV305 = onKey;
+    document.addEventListener("keydown", onKey);
     return;
   }
 
@@ -17451,7 +17465,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "34.6",
+      version: "34.7",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
