@@ -1,4 +1,4 @@
-const APP_VERSION = "33.1";
+const APP_VERSION = "32.5";
 
 function formatMoney(value, prefix = "") {
   const number = Number(value) || 0;
@@ -27,7 +27,7 @@ function loadJSON(key, fallback) {
 }
 
 
-// V32.7: read-only JSON cache. It compares the raw localStorage string on every
+// V32.5: read-only JSON cache. It compares the raw localStorage string on every
 // read, so direct writes from sync/restore are picked up immediately while
 // repeated settings reads during large renders avoid repeated JSON.parse work.
 const readOnlyJsonCacheV317 = new Map();

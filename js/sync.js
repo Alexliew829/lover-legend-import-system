@@ -366,7 +366,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V33.1 Stable",
+      updatedBy: "System V32.5 Stable",
       ...payload
     });
 
@@ -401,7 +401,7 @@ async function commitSalesInventoryBatchToCloudV125(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V33.1 Stable",
+      updatedBy: "System V32.5 Stable",
       ...payload
     });
     if (data.conflict || data.stockChanged) {
@@ -424,7 +424,7 @@ window.commitSalesInventoryBatchToCloudV125 = commitSalesInventoryBatchToCloudV1
 
 async function commitSalesCorrectionBatchToCloudV110(payload) {
   await flushCloudQueueStrictV83(); const config=getCloudConfig(); setCloudState("syncing");
-  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V33.1 Stable",...payload});
+  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V32.5 Stable",...payload});
     if(data.conflict||data.stockChanged) throw new Error(data.message||"Google Sheet 资料已改变，全部库存差异没有处理。请同步后重试。");
     config.revision=Number(data.revision)||Number(config.revision)||0; config.lastSyncAt=new Date().toISOString(); config.bootstrapToken=String(data.bootstrapToken||config.bootstrapToken||""); config.bootstrapRevision=Number(data.revision)||Number(config.bootstrapRevision)||0; saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced"); return data;
   } catch(error){setCloudState("failed");throw error;}
@@ -438,7 +438,7 @@ async function migrateProductPrefixesV164() {
     action: "migrateProductPrefixesV164", clientVersion: APP_VERSION,
     schemaVersion: CLOUD_SCHEMA_VERSION, baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""), bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V33.1 Stable"
+    updatedBy: "System V32.5 Stable"
   });
   if (data.conflict) throw new Error(data.message || "资料已改变，请同步后重试。");
   config.revision = Number(data.revision) || Number(config.revision) || 0;
@@ -570,12 +570,6 @@ async function pullLatestSnapshot(forceBootstrap = false) {
   if (forceBootstrap) saveCloudBootstrap(data);
   renderCloudMeta(config);
   setCloudState("synced");
-  // V33.1: migrations are post-Pull maintenance and must never block/read-modify the normal Pull path.
-  window.setTimeout(() => {
-    try { if (typeof cleanupLegacySettingsResidueV323 === "function") cleanupLegacySettingsResidueV323(); } catch (error) { console.warn("V33.1 settings cleanup skipped", error); }
-    try { if (typeof window.migrateLegacyGenericBonsaiIdsV330 === "function") window.migrateLegacyGenericBonsaiIdsV330(); } catch (error) { console.warn("V33.1 BS migration skipped", error); }
-    try { if (typeof renderInventoryManagementList === "function") renderInventoryManagementList(); } catch (_) {}
-  }, 80);
   return true;
 }
 
@@ -624,7 +618,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V33.1 Stable",
+    updatedBy: "System V32.5 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     minimumPriceManual: Boolean(minimumPriceManual),
@@ -654,7 +648,30 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
 
 window.updateProductMinimumPriceFast = updateProductMinimumPriceFast;
 
-async function updatePromotionSettingsFastV185() { throw new Error("促销管理已移除。V33.1 不再保存促销设置。"); }
+async function updatePromotionSettingsFastV185(promotion) {
+  if (!navigator.onLine) throw new Error("目前离线，促销设置尚未同步。");
+  if (!isCloudBootstrapComplete()) throw new Error("首次同步尚未完成，请稍后再试。");
+  await waitForCloudIdleV83();
+  const config = getCloudConfig();
+  setCloudState("syncing");
+  const data = await callGoogleApi({
+    action: "updatePromotionSettingsV185",
+    clientVersion: APP_VERSION,
+    schemaVersion: CLOUD_SCHEMA_VERSION,
+    baseRevision: Number(config.revision) || 0,
+    bootstrapToken: String(config.bootstrapToken || ""),
+    bootstrapRevision: Number(config.bootstrapRevision) || 0,
+    updatedBy: "System V32.5 Stable",
+    promotion: promotion || null
+  });
+  if (data.conflict) throw new Error(data.message || "云端资料已改变，请同步后重试。");
+  config.revision = Number(data.revision) || Number(config.revision) || 0;
+  config.lastSyncAt = new Date().toISOString();
+  config.bootstrapToken = String(data.bootstrapToken || config.bootstrapToken || "");
+  config.bootstrapRevision = Number(data.revision) || Number(config.bootstrapRevision) || 0;
+  saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced");
+  return data;
+}
 window.updatePromotionSettingsFastV185 = updatePromotionSettingsFastV185;
 
 async function pushPendingSnapshot(queue, retryCount = 0) {
@@ -670,7 +687,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V33.1 Stable",
+    updatedBy: "System V32.5 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
@@ -723,7 +740,7 @@ function sanitizeLegacySettingsV323(settings = {}, products = []) {
     if (!src || typeof src !== "object" || Array.isArray(src)) return;
     out[key] = Object.fromEntries(Object.entries(src).filter(([id]) => validIds.has(String(id || "").trim().toUpperCase())));
   };
-  delete out.minimumPriceManualOverrides;
+  prune("minimumPriceManualOverrides");
   prune("productLanguageMetaV262");
   prune("productMediaLinksV229");
   if (Array.isArray(out.importDraftsV242)) {
@@ -739,8 +756,10 @@ function sanitizeLegacySettingsV323(settings = {}, products = []) {
       return !(legacyRow || legacySource);
     });
   }
-  // V32.7: promotion management removed; never merge it back from older devices.
-  delete out.promotionV183;
+  if (out.promotionV183 && typeof out.promotionV183 === "object") {
+    out.promotionV183 = { ...out.promotionV183, excludedProductIds:(Array.isArray(out.promotionV183.excludedProductIds) ? out.promotionV183.excludedProductIds : [])
+      .map(id => String(id || "").trim().toUpperCase()).filter(id => validIds.has(id)) };
+  }
   return out;
 }
 
@@ -872,6 +891,7 @@ function refreshSystemViewsAfterSync() {
     "renderBatchList",
     "renderInventoryManagementList",
     "renderImportDraftsV242",
+    "refreshPromotionUiV183",
     "updatePasswordHintDisplays"
   ].forEach(name => {
     try {
