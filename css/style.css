@@ -6047,7 +6047,12 @@ body.system-media-preview-open-v305{overflow:hidden}
 .inventory-media-status-v236{gap:5px;transform:translateX(-3px)}
 .inventory-media-dot-v236{width:13px!important;height:13px!important;min-width:13px}
 
-/* V34.5 recent-import arrival-date filters */
+/* V34.6 recent-import arrival-date filters */
 .recent-batch-filter-v345{display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:1}
 .recent-batch-date-v345{min-width:150px;max-width:180px}
 @media(max-width:720px){.recent-batch-filter-v345{width:100%}.recent-batch-date-v345{min-width:0;max-width:none;flex:1 1 135px}}
+
+/* V34.6 recent import filter alignment */
+.recent-batch-date-wrap-v346{min-width:205px;flex:0 1 235px}
+.recent-batch-date-wrap-v346 .recent-batch-date-v345{min-width:0;max-width:none;width:100%}
+@media(max-width:720px){.recent-batch-date-wrap-v346{min-width:0;flex:1 1 210px}.recent-batch-filter-v345 #batchSearch{order:2;flex-basis:100%}}

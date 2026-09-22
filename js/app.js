@@ -4814,8 +4814,10 @@ function setupProductPrefixSettingsV181() {
       }
       renderProductPrefixRulesV181(); setProductPrefixEditorV333(); setPrefixSaveButtonStateV340("修改成功", true); resetPrefixSaveButtonV340(); return;
     }
-    if(getProductPrefixRulesV181().some(([k])=>normalizeProductPrefixKeywordV181(k)===normalizeProductPrefixKeywordV181(keyword))){if(status)status.textContent=`“${keyword}”已经存在`;return;}
-    if(getCategoryPrefixConflictV229(prefix)){if(status)status.textContent=`前缀 ${prefix} 已被使用`;return;}
+    // V34.6: a bonsai ID prefix may intentionally be shared by different species.
+    // Example: 真柏 / 系鱼川 / 香松 may all use JU; 仙丹 and 人参果矮霸 may both use IX.
+    // What is forbidden is redefining the SAME Chinese keyword to another prefix.
+    if(getProductPrefixRulesV181().some(([k])=>normalizeProductPrefixKeywordV181(k)===normalizeProductPrefixKeywordV181(keyword))){if(status)status.textContent=`“${keyword}”已经存在，不能再新增另一个前缀`;return;}
     if(status)status.textContent=""; setPrefixSaveButtonStateV340("保存中...", true);
     const settings=loadJSON("importSystemSettings",{}),additional=Array.isArray(settings.productPrefixAdditionalRules)?settings.productPrefixAdditionalRules.slice():[]; additional.push({keyword,prefix});
     saveJSON("importSystemSettings",{...settings,productPrefixAdditionalRules:additional}); savePrefixEnglishMetaV319(keyword,english); if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved();
@@ -4830,10 +4832,14 @@ function removeWhiteWaxTestPrefixV182() {
 
 function findBestProductPrefixRuleV343(name = "") {
   const compact=normalizeProductPrefixKeywordV181(name);if(!compact)return null;
-  const matched=getProductPrefixRulesV181().filter(([keyword])=>compact.includes(normalizeProductPrefixKeywordV181(keyword)));
-  matched.sort((a,b)=>normalizeProductPrefixKeywordV181(b[0]).length-normalizeProductPrefixKeywordV181(a[0]).length);
-  const itoigawa=matched.find(([keyword])=>normalizeProductPrefixKeywordV181(keyword)===normalizeProductPrefixKeywordV181("系鱼川"));
-  return itoigawa||matched[0]||null;
+  const matched=getProductPrefixRulesV181().map(rule=>{
+    const key=normalizeProductPrefixKeywordV181(rule[0]);
+    return {rule,key,index:key?compact.indexOf(key):-1};
+  }).filter(x=>x.index>=0);
+  // V34.6: whichever species keyword appears FIRST in the product name wins.
+  // Same-position ties prefer the longer/more-specific keyword.
+  matched.sort((a,b)=>a.index-b.index || b.key.length-a.key.length);
+  return matched[0]?.rule||null;
 }
 function getProductPrefix(category, name = "") {
   const normalizedCategory = normalizePrimaryProductCategoryV255(category);
@@ -5159,6 +5165,12 @@ function getProductSearchPrefixAliasesV238(product) {
 
 function productExactOrPrefixSearchMatchesV238(product, queryValue) {
   const raw = String(queryValue || "").normalize("NFKC").trim();
+  // V34.6: migrated legacy Product IDs (notably PZxxxx / PSxxxx aliases) are
+  // internal compatibility only and must not produce front-end search hits.
+  if (/^(?:PZ|PS)(?:\d{0,4})?$/i.test(raw)) {
+    const formalId=String(product?.id||product?.productId||"").trim().toUpperCase();
+    if(!formalId.startsWith(raw.toUpperCase())) return false;
+  }
   if (!raw) return true;
   const query = normalizeSmartSearchText(raw);
   if (!query) return true;
@@ -5622,9 +5634,13 @@ function setupImportModule(){
   const toggleBatchListBtn = document.getElementById("toggleBatchListBtn");
   const recentStartV345 = document.getElementById("recentBatchStartDateV345");
   const recentEndV345 = document.getElementById("recentBatchEndDateV345");
+  const recentStartPickerV346 = document.getElementById("recentBatchStartDatePickerV346");
+  const recentEndPickerV346 = document.getElementById("recentBatchEndDatePickerV346");
   const recentClearV345 = document.getElementById("recentBatchDateClearV345");
   [recentStartV345, recentEndV345].forEach(field => field?.addEventListener("input", () => { batchListExpanded = true; renderBatchList(); }));
-  recentClearV345?.addEventListener("click", () => { if (recentStartV345) recentStartV345.value = ""; if (recentEndV345) recentEndV345.value = ""; batchListExpanded = true; renderBatchList(); });
+  const syncRecentPickerV346=(picker,text)=>{picker?.addEventListener("change",()=>{if(!picker.value||!text)return;const [y,m,d]=picker.value.split("-");text.value=`${d}-${m}-${y}`;text.dispatchEvent(new Event("input",{bubbles:true}));});};
+  syncRecentPickerV346(recentStartPickerV346,recentStartV345); syncRecentPickerV346(recentEndPickerV346,recentEndV345);
+  recentClearV345?.addEventListener("click", () => { if (recentStartV345) recentStartV345.value = ""; if (recentEndV345) recentEndV345.value = ""; if(recentStartPickerV346)recentStartPickerV346.value="";if(recentEndPickerV346)recentEndPickerV346.value=""; batchListExpanded = true; renderBatchList(); });
   const productStockSearch =
     document.getElementById("batchProductStockSearch");
 
@@ -9943,7 +9959,7 @@ function buildHistorySoldCostSummary(options = {}) {
   `;
 }
 
-// V34.5 History import-date rule:
+// V34.6 History import-date rule:
 // Every import record is searched by ARRIVAL DATE only. Container/save/created dates
 // are display/audit metadata and must not decide Date Range results.
 function getHistoryImportTransactionDate(batch, item = null) {
@@ -12236,7 +12252,7 @@ function attachBatchRowEvents(id){
       }
     }, 320);
   });
-  n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();n.value=Array.from(t).slice(0,15).join("");n.dispatchEvent(new Event("input",{bubbles:true}));});
+  n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();const start=n.selectionStart??n.value.length,end=n.selectionEnd??start;const combined=n.value.slice(0,start)+t+n.value.slice(end);n.value=Array.from(combined).slice(0,15).join("");n.dispatchEvent(new Event("input",{bubbles:true}));const caret=Math.min(start+Array.from(t).length,n.value.length);try{n.setSelectionRange(caret,caret)}catch(_){}});
   [`batchQty-${id}`,`batchPrice-${id}`].forEach(k=>{const x=document.getElementById(k);x.addEventListener("focus",()=>x.select());x.addEventListener("input",calculateBatch);x.addEventListener("blur",()=>{if(!k.includes("Qty")&&!k.includes("Stock"))formatInputAmount(x);calculateBatch();});});
   document.getElementById(`batchPrice-${id}`).addEventListener("input", () => {
     const row = document.querySelector(`#batchRows tr[data-row-id="${id}"]`);
@@ -16387,8 +16403,10 @@ function openSystemMediaPreviewV305(type, url, label = "") {
     let disposed = false, timer = 0, sourceIndex = 0;
     const cleanupStage = () => { if(timer)window.clearTimeout(timer); timer=0; const v=stage?.querySelector("video"); if(v){try{v.pause()}catch(_){} v.removeAttribute("src"); try{v.load()}catch(_){}} const f=stage?.querySelector("iframe"); if(f)f.removeAttribute("src"); stage?.replaceChildren(); };
     const useDriveSilently = () => {
-      if(disposed||!stage)return; cleanupStage();
-      const note=document.createElement("div"); note.className="system-media-message-v305"; note.textContent="此视频无法在系统内直接播放，请检查 Google Drive 分享权限或重新上传可直接播放的视频。"; stage.appendChild(note);
+      if(disposed)return;
+      // V34.6: if Google Drive blocks direct playback, fail silently and close the
+      // lightweight player. Never show Drive preview or a permission/error banner.
+      disposed=true; cleanupStage(); modal.remove(); document.body.classList.remove("system-media-preview-open-v305");
     };
     const tryDirect = () => {
       if(disposed||!stage)return; cleanupStage();
@@ -17433,7 +17451,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "34.5",
+      version: "34.6",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -17937,10 +17955,24 @@ const PRODUCT_SPECIES_ALIASES_V262 = Object.freeze([
 ]);
 const PRODUCT_LANGUAGE_META_KEY_V262="productLanguageMetaV262";
 function normalizeSearchTextV262(v){return String(v||"").normalize("NFKC").toLowerCase().replace(/\s+/g," ").trim()}
-function speciesRuleV262(text){const q=normalizeSearchTextV262(text);if(!q)return null;return PRODUCT_SPECIES_ALIASES_V262.find(r=>r.keys.some(k=>q.includes(normalizeSearchTextV262(k))))||null}
+function speciesRuleV262(text){const q=normalizeSearchTextV262(text);if(!q)return null;const hits=[];PRODUCT_SPECIES_ALIASES_V262.forEach((r,order)=>r.keys.forEach(k=>{const key=normalizeSearchTextV262(k),index=key?q.indexOf(key):-1;if(index>=0)hits.push({r,index,len:key.length,order})}));hits.sort((a,b)=>a.index-b.index||b.len-a.len||a.order-b.order);return hits[0]?.r||null}
 function getProductLanguageMetaV262(){const s=getCachedSettingsV317();return s[PRODUCT_LANGUAGE_META_KEY_V262]&&typeof s[PRODUCT_LANGUAGE_META_KEY_V262]==="object"?s[PRODUCT_LANGUAGE_META_KEY_V262]:{}}
 function saveProductLanguageMetaV262(meta){const s=loadJSON("importSystemSettings",{});saveJSON("importSystemSettings",{...s,[PRODUCT_LANGUAGE_META_KEY_V262]:meta||{}});if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved()}
-function resolveProductTreeRuleV343(product){if(!product||normalizePrimaryProductCategoryV255(product.category||"盆栽")!=="盆栽")return null;const stored=String(product.speciesRuleId||product.treeRuleId||"").trim();if(stored){const direct=PRODUCT_PREFIX_CANONICAL_V333.find(r=>r.ruleId===stored);if(direct)return direct;}const name=String(product.name||"");const candidates=PRODUCT_PREFIX_CANONICAL_V333.filter(r=>r.aliases.some(a=>normalizeProductPrefixKeywordV181(name).includes(normalizeProductPrefixKeywordV181(a))));const ito=candidates.find(r=>r.cn==="系鱼川");if(ito)return ito;candidates.sort((a,b)=>Math.max(...b.aliases.map(x=>normalizeProductPrefixKeywordV181(x).length))-Math.max(...a.aliases.map(x=>normalizeProductPrefixKeywordV181(x).length)));return candidates[0]||null}
+function resolveProductTreeRuleV343(product){
+  if(!product||normalizePrimaryProductCategoryV255(product.category||"盆栽")!=="盆栽")return null;
+  const name=String(product.name||"");
+  const compact=normalizeProductPrefixKeywordV181(name);
+  const matches=PRODUCT_PREFIX_CANONICAL_V333.map(rule=>{
+    const positions=rule.aliases.map(a=>normalizeProductPrefixKeywordV181(a)).filter(Boolean).map(key=>({key,index:compact.indexOf(key)})).filter(x=>x.index>=0);
+    if(!positions.length)return null;
+    positions.sort((a,b)=>a.index-b.index||b.key.length-a.key.length);
+    return {rule,index:positions[0].index,keyLength:positions[0].key.length};
+  }).filter(Boolean).sort((a,b)=>a.index-b.index||b.keyLength-a.keyLength);
+  if(matches.length)return matches[0].rule;
+  const stored=String(product.speciesRuleId||product.treeRuleId||"").trim();
+  if(stored){const direct=PRODUCT_PREFIX_CANONICAL_V333.find(r=>r.ruleId===stored);if(direct)return direct;}
+  return null;
+}
 function getProductTreeRuleIdV343(product){return resolveProductTreeRuleV343(product)?.ruleId||""}
 function productEnglishNameV262(product){if(!product)return"";const rule=resolveProductTreeRuleV343(product);if(rule)return getPrefixEnglishMetaV319(rule.cn).english||rule.en||"";return speciesRuleV262(product.name)?.en||""}
 function productSearchTextV262(product){const sup=typeof inferSupplierFromProductV261==="function"?inferSupplierFromProductV261(product):null;return [product?.id,product?.name,productEnglishNameV262(product),sup?.name,sup?.prefix,...(sup?.aliases||[])].filter(Boolean).join(" ")}
