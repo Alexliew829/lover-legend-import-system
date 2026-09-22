@@ -78,7 +78,7 @@ function cleanupLegacySettingsResidueV323() {
     pruneByLiveProductId("productMediaLinksV229");
   }
 
-  // V32.9 one-time migration: old device Settings may know that a product was
+  // V33.0 one-time migration: old device Settings may know that a product was
   // manually price-controlled. Promote TRUE only into Product, then delete the
   // duplicate Settings truth forever. A stale FALSE must never override Product.
   const legacyManualOverridesV329 = next.minimumPriceManualOverrides && typeof next.minimumPriceManualOverrides === "object"
@@ -107,6 +107,16 @@ function cleanupLegacySettingsResidueV323() {
     changed = true;
   }
 
+  // V33.0 canonical six main categories. Bonsai data remains category "盆栽"; BS is its fallback ID prefix.
+  const canonicalCategoriesV330 = ["盆栽","肥料 / 农药","泥土 / 介质 Soil","花盆 Pot","其他","工具"];
+  const canonicalCategoryRulesV330 = [
+    {name:"盆栽",prefix:"BS",mode:"name"},{name:"肥料 / 农药",prefix:"FL",mode:"category"},
+    {name:"泥土 / 介质 Soil",prefix:"NT",mode:"category"},{name:"花盆 Pot",prefix:"PT",mode:"category"},
+    {name:"其他",prefix:"QT",mode:"category"},{name:"工具",prefix:"TL",mode:"category"}
+  ];
+  if (JSON.stringify(next.productCategoriesV227 || []) !== JSON.stringify(canonicalCategoriesV330)) { next.productCategoriesV227 = canonicalCategoriesV330; changed = true; }
+  if (JSON.stringify((next.productCategoryRulesV228 || []).map(r=>({name:r?.name,prefix:r?.prefix,mode:r?.mode}))) !== JSON.stringify(canonicalCategoryRulesV330)) { next.productCategoryRulesV228 = canonicalCategoryRulesV330; changed = true; }
+
   // Promotion management removed; permanently discard legacy settings.
   if (Object.prototype.hasOwnProperty.call(next, "promotionV183")) { delete next.promotionV183; changed = true; }
 
@@ -131,10 +141,54 @@ function cleanupLegacySettingsResidueV323() {
   return changed;
 }
 
+
+// V33.0 — migrate the five confirmed legacy generic bonsai IDs from PZ to BS.
+// Existing fine-species IDs (BX/JL/BB/PD/...) are untouched. Old PZ IDs remain aliases.
+const LEGACY_GENERIC_BONSAI_ID_MAP_V330 = Object.freeze({
+  PZ0036:"BS0036", PZ0175:"BS0175", PZ0176:"BS0176", PZ0192:"BS0192", PZ0001:"BS0001"
+});
+function replaceProductIdReferencesV330(value, aliases=LEGACY_GENERIC_BONSAI_ID_MAP_V330) {
+  if (typeof value === "string") {
+    let out=value; Object.entries(aliases).forEach(([oldId,newId])=>{ out=out.split(oldId).join(newId); }); return out;
+  }
+  if (Array.isArray(value)) return value.map(item=>replaceProductIdReferencesV330(item,aliases));
+  if (value && typeof value === "object") {
+    const out={}; Object.entries(value).forEach(([key,item])=>{
+      const nextKey=aliases[String(key||"").toUpperCase()]||key;
+      out[nextKey]=replaceProductIdReferencesV330(item,aliases);
+    }); return out;
+  }
+  return value;
+}
+function migrateLegacyGenericBonsaiIdsV330() {
+  const products=getProducts(), imports=getImports(), batches=getBatches(), settings=loadJSON("importSystemSettings",{});
+  const present=Object.entries(LEGACY_GENERIC_BONSAI_ID_MAP_V330).filter(([oldId,newId])=>
+    products.some(p=>String(p?.id||"").toUpperCase()===oldId) && !products.some(p=>String(p?.id||"").toUpperCase()===newId));
+  if(!present.length) {
+    const aliases={...(settings.productIdAliases||{})}; let aliasChanged=false;
+    Object.entries(LEGACY_GENERIC_BONSAI_ID_MAP_V330).forEach(([oldId,newId])=>{if(!aliases[oldId]){aliases[oldId]=newId;aliasChanged=true;}});
+    if(aliasChanged){saveJSON("importSystemSettings",{...settings,productIdAliases:aliases});if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved();}
+    return false;
+  }
+  const map=Object.fromEntries(present);
+  const nextProducts=replaceProductIdReferencesV330(products,map);
+  const nextImports=replaceProductIdReferencesV330(imports,map);
+  const nextBatches=replaceProductIdReferencesV330(batches,map);
+  const nextSettings=replaceProductIdReferencesV330(settings,map);
+  nextSettings.productIdAliases={...(nextSettings.productIdAliases||{}),...LEGACY_GENERIC_BONSAI_ID_MAP_V330};
+  saveInventoryConsistencySnapshot(products,nextProducts,imports,nextImports,batches,nextBatches);
+  saveJSON("importSystemSettings",nextSettings);
+  if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved();
+  if(typeof invalidateMinimumPriceOriginIndexV160==="function")invalidateMinimumPriceOriginIndexV160();
+  return true;
+}
+window.migrateLegacyGenericBonsaiIdsV330=migrateLegacyGenericBonsaiIdsV330;
+
 document.addEventListener("DOMContentLoaded", () => {
   clearTransientSearchInputsOnReloadV304();
   setupAccessLock();
   cleanupLegacySettingsResidueV323();
+  migrateLegacyGenericBonsaiIdsV330();
   repairLegacyImportDates();
   setupNavigation();
   setupSettings();
@@ -2813,12 +2867,10 @@ function setupNavigation() {
       if (target === "dashboardPage") {
         renderInventoryManagementList();
         renderDashboard();
-        refreshPromotionCloudStateV209(false);
       }
 
       if (target === "settingsPage") {
         collapseStaleZeroStockPanelV227();
-        refreshPromotionCloudStateV209(true);
       }
 
       if (target === "historyPage") {
@@ -2879,7 +2931,6 @@ function hasUnsavedSettingsChangesV160() {
   }
   if (["newProductPrefixKeyword", "newProductPrefixCode"].some(id =>
     String(document.getElementById(id)?.value || "").trim() !== "")) return true;
-  if (typeof hasPromotionDraftChangesV183 === "function" && hasPromotionDraftChangesV183()) return true;
 
   const storedRules = getMinimumPriceRulesV160();
   return Object.entries(MINIMUM_PRICE_SETTING_FIELDS_V160).some(([key, field]) => {
@@ -2906,7 +2957,6 @@ function discardSettingsDraftV160() {
     const input = document.getElementById(id);
     if (input) input.value = "";
   });
-  if (typeof resetPromotionDraftV183 === "function") resetPromotionDraftV183();
 }
 
 function collapseSettingsPanelsV196() {
@@ -5012,16 +5062,16 @@ function setupPromotionSettingsV183() {
 }
 
 function getMinimumPriceManualOverridesV160() {
-  // V32.9 compatibility only. Manual minimum-price state now lives on Product.
+  // V33.0 compatibility only. Manual minimum-price state now lives on Product.
   return {};
 }
 
 function saveMinimumPriceManualOverridesV160(overrides) {
-  // V32.9 compatibility no-op. Do not recreate device-local manual-price truth.
+  // V33.0 compatibility no-op. Do not recreate device-local manual-price truth.
 }
 
 function isMinimumPriceManualV160(product, configuredOverrides = null) {
-  // V32.9 single source of truth: price-control / 精品区 belongs to the Product itself.
+  // V33.0 single source of truth: price-control / 精品区 belongs to the Product itself.
   return product?.minimumPriceManual === true;
 }
 
@@ -5095,7 +5145,7 @@ const PRIMARY_PRODUCT_CATEGORIES_V255 = Object.freeze([
 ]);
 
 const DEFAULT_PRODUCT_CATEGORY_RULES_V228 = Object.freeze([
-  { name: "盆栽", prefix: "PZ", mode: "name" },
+  { name: "盆栽", prefix: "BS", mode: "name" },
   { name: "肥料 / 农药", prefix: "FL", mode: "category" },
   { name: "泥土 / 介质 Soil", prefix: "NT", mode: "category" },
   { name: "花盆 Pot", prefix: "PT", mode: "category" },
@@ -5188,14 +5238,14 @@ function getProductCategoryRulesV228() {
     usedNames.add(key);
     const preset = DEFAULT_PRODUCT_CATEGORY_RULES_V228.find(rule => rule.name === name);
     const mode = name === "盆栽" ? "name" : "category";
-    const prefix = mode === "name" ? "PZ" : (normalizeCategoryPrefixV228(raw?.prefix) || preset?.prefix || "QT");
+    const prefix = mode === "name" ? "BS" : (normalizeCategoryPrefixV228(raw?.prefix) || preset?.prefix || "QT");
     const lockedByUsageV229 = raw?.lockedByUsageV229 === true;
     // V24.6: usage lock is derived from current active data, not a permanent flag.
     // After the user explicitly cleans the last zero-stock product, the rule may unlock.
     const locked = name === "盆栽" ? true : isProductCategoryUsedV229(name);
     result.push({ name, prefix, mode, locked, lockedByUsageV229 });
   });
-  if (!result.some(rule => rule.name === "盆栽")) result.unshift({ name: "盆栽", prefix: "PZ", mode: "name", locked: true });
+  if (!result.some(rule => rule.name === "盆栽")) result.unshift({ name: "盆栽", prefix: "BS", mode: "name", locked: true });
   // V26.6: the seven main categories must always be available. This does not
   // change any existing Product ID or historical record.
   PRIMARY_PRODUCT_CATEGORIES_V255.forEach(name => {
@@ -5216,7 +5266,7 @@ function getProductCategoriesV227() {
 function productCategoryOptionsHTMLV227(selected = "盆栽") {
   const wanted = normalizePrimaryProductCategoryV255(selected);
   const categories = getProductCategoriesV227();
-  return categories.map(name => `<option value="${escapeHTML(name)}"${name === wanted ? " selected" : ""}>${escapeHTML(name)}</option>`).join("");
+  return categories.map(name => { const label=name==="盆栽"?"盆栽 / Bonsai":name; return `<option value="${escapeHTML(name)}"${name === wanted ? " selected" : ""}>${escapeHTML(label)}</option>`; }).join("");
 }
 
 function migrateLegacyProductCategoriesV227() {
@@ -5410,12 +5460,12 @@ function renderProductPrefixRulesV181() {
   const rules=getProductPrefixRulesV181();
   list.innerHTML=rules.map(([keyword,prefix])=>{
     const meta=getPrefixEnglishMetaV319(keyword), locked=isProductPrefixRuleLockedV229(keyword,prefix);
-    return `<div class="product-prefix-row-v327">
-      <span class="product-prefix-cn-v327">${escapeHTML(keyword)}</span>
-      <span class="product-prefix-en-v327">${escapeHTML(meta.english||"—")}</span>
-      <strong class="product-prefix-code-v327">${escapeHTML(prefix)}</strong>
-      <span class="product-prefix-actions-v327"><button type="button" class="secondary-btn" data-prefix-edit-v327="${escapeHTML(keyword)}">修改</button><button type="button" class="danger-btn ${locked?"is-locked-v327":""}" data-prefix-delete-select-v327="${escapeHTML(keyword)}">删除</button></span>
-    </div>`;
+    return `<tr class="product-prefix-row-v330">
+      <td class="product-prefix-cn-v330">${escapeHTML(keyword)}</td>
+      <td class="product-prefix-en-v330">${escapeHTML(meta.english||"—")}</td>
+      <td class="product-prefix-code-v330">${escapeHTML(prefix)}</td>
+      <td class="product-prefix-actions-v330"><button type="button" class="secondary-btn" data-prefix-edit-v327="${escapeHTML(keyword)}">修改</button><button type="button" class="danger-btn ${locked?"is-locked-v327":""}" data-prefix-delete-select-v327="${escapeHTML(keyword)}">删除</button></td>
+    </tr>`;
   }).join("");
 }
 
@@ -5526,14 +5576,14 @@ function getProductPrefix(category, name = "") {
       const labels=[keyword,...(PRODUCT_PREFIX_MATCH_ALIASES_V327[String(keyword||"").trim()]||[]),getPrefixEnglishMetaV319(keyword).english];
       return labels.filter(Boolean).some(label=>compact.includes(normalizeProductPrefixKeywordV181(label)));
     });
-    return matched ? matched[1] : "PZ";
+    return matched ? matched[1] : "BS";
   }
   const rule = getProductCategoryRulesV228().find(item => item.name === normalizedCategory);
   return rule?.prefix || "QT";
 }
 
 function generateNextProductIdFromPrefixV240(products, preferredPrefix) {
-  const prefix = normalizeCategoryPrefixV228(preferredPrefix || "") || "PZ";
+  const prefix = normalizeCategoryPrefixV228(preferredPrefix || "") || "BS";
   const settings = loadJSON("importSystemSettings", {});
   const aliases = settings.productIdAliases || {};
   const used = new Set([
@@ -14282,7 +14332,7 @@ function renderBatchProductStockResults() {
   if (!input || !output) return;
 
   const keyword = String(input.value || "").trim().toLowerCase();
-  const priceControlOnlyV329 = String(document.getElementById("batchProductStockPriceFilterV329")?.value || "all") === "manual";
+  const priceControlOnlyV329 = Boolean(document.getElementById("batchProductStockPriceFilterV329")?.checked);
   const recentBatchArea =
     document.getElementById("recentBatchResultsArea");
   const toggleButton =
@@ -16063,7 +16113,6 @@ function setupInventoryModule() {
   document
     .getElementById("inventorySearch")
     .addEventListener("input", () => scheduleSearchRenderV302("inventory", renderInventoryManagementList, 25));
-  document.getElementById("inventoryPriceControlFilterV329")?.addEventListener("change", () => renderInventoryManagementList());
   document
     .getElementById("inventorySort")
     .addEventListener("change", event => {
@@ -16464,11 +16513,13 @@ function resolveCanonicalProductV328(subject, context=null){
 
 function filterSortInventoryProductsV324(query = "", sortMode = "latest", sourceRows = null, priceControlOnlyV329 = false) {
   const keyword = String(query || "").trim().toLowerCase();
+  const priceControlFromSortV330 = String(sortMode || "") === "price-control";
+  if (priceControlFromSortV330) { priceControlOnlyV329 = true; sortMode = "latest"; }
   let rows = Array.isArray(sourceRows) ? sourceRows : getInventoryPreparedRowsV321();
   if (["latest-sold","bestseller-desc","profit-desc"].includes(sortMode)) rows = applyInventorySalesAnalyticsV327(rows);
   const searchContextV328=getCanonicalProductSearchContextV328();
   let products = rows.filter(product => canonicalProductSearchMatchesV328(product, keyword, searchContextV328)).slice();
-  // V32.9: “售价控制” = 精品区 = Product.minimumPriceManual === true.
+  // V33.0: “售价控制” = 精品区 = Product.minimumPriceManual === true.
   // It is a precise filter and can be combined with any existing text search + sort.
   if (priceControlOnlyV329) products = products.filter(product => product?.minimumPriceManual === true);
 
@@ -16491,9 +16542,8 @@ function filterSortInventoryProductsV324(query = "", sortMode = "latest", source
 function renderInventoryManagementList() {
   const keyword = document.getElementById("inventorySearch").value.trim().toLowerCase();
   const sortMode = document.getElementById("inventorySort").value;
-  const priceControlOnlyV329 = String(document.getElementById("inventoryPriceControlFilterV329")?.value || "all") === "manual";
   const preparedProductsV321 = getInventoryPreparedRowsV321();
-  const products = filterSortInventoryProductsV324(keyword, sortMode, preparedProductsV321, priceControlOnlyV329);
+  const products = filterSortInventoryProductsV324(keyword, sortMode, preparedProductsV321);
   const priceSignatureV326 = products.map(product => {
     try {
       const state = getMinimumPriceDisplayStateV315(product);
@@ -16591,7 +16641,7 @@ function renderInventoryManagementList() {
   try { productMediaLinksV229 = getProductMediaLinksV229() || {}; }
   catch (error) { console.warn("V32.8 inventory media metadata unavailable", error); }
 
-  // V32.9: keep the full approved inventory card. Optional helpers fail individually;
+  // V33.0: keep the full approved inventory card. Optional helpers fail individually;
   // one bad media/copy helper must never replace the entire card with a simplified fallback.
   list.innerHTML = products.map(product => {
     const stock = Number(product.stock) || 0;
@@ -16599,7 +16649,7 @@ function renderInventoryManagementList() {
     let minimumDisplayV315;
     try { minimumDisplayV315 = getMinimumPriceDisplayStateV315(product); }
     catch (error) {
-      console.warn("V32.9 minimum-price display fallback", product?.id, error);
+      console.warn("V33.0 minimum-price display fallback", product?.id, error);
       const manualV329 = product?.minimumPriceManual === true;
       const storedV329 = Math.max(0, Number(product?.minimumPrice) || 0);
       minimumDisplayV315 = { manual:manualV329, state:manualV329?"manual":"neutral", className:manualV329?"minimum-price-manual-v315":"minimum-price-neutral-v302", label:"最低售价", price:storedV329, profitInfo:{profit:0,profitRate:0} };
@@ -16617,11 +16667,11 @@ function renderInventoryManagementList() {
     const soldQuantity = Number(product.netSoldQuantity) || 0;
     const cumulativeProfit = Number(product.cumulativeSoldProfit) || 0;
     let englishNameV329 = "", mediaStatusHtmlV329 = "", mediaButtonsHtmlV329 = "", idButtonHtmlV329 = "", driveCopyHtmlV329 = "";
-    try { englishNameV329 = productEnglishNameV262(product) || ""; } catch (error) { console.warn("V32.9 English name skipped", product?.id, error); }
-    try { mediaStatusHtmlV329 = renderProductMediaStatusV236(product.id, productMediaLinksV229) || ""; } catch (error) { console.warn("V32.9 media status skipped", product?.id, error); }
-    try { mediaButtonsHtmlV329 = renderProductMediaButtonsV229(product.id, productMediaLinksV229) || ""; } catch (error) { console.warn("V32.9 media buttons skipped", product?.id, error); }
-    try { idButtonHtmlV329 = buildProductIdCopyButtonV166(product.id, "inventory-product-id-v166") || ""; } catch (error) { console.warn("V32.9 ID copy skipped", product?.id, error); }
-    try { driveCopyHtmlV329 = buildInventoryProductCopyButtonV306(product.id) || ""; } catch (error) { console.warn("V32.9 drive copy skipped", product?.id, error); }
+    try { englishNameV329 = productEnglishNameV262(product) || ""; } catch (error) { console.warn("V33.0 English name skipped", product?.id, error); }
+    try { mediaStatusHtmlV329 = renderProductMediaStatusV236(product.id, productMediaLinksV229) || ""; } catch (error) { console.warn("V33.0 media status skipped", product?.id, error); }
+    try { mediaButtonsHtmlV329 = renderProductMediaButtonsV229(product.id, productMediaLinksV229) || ""; } catch (error) { console.warn("V33.0 media buttons skipped", product?.id, error); }
+    try { idButtonHtmlV329 = buildProductIdCopyButtonV166(product.id, "inventory-product-id-v166") || ""; } catch (error) { console.warn("V33.0 ID copy skipped", product?.id, error); }
+    try { driveCopyHtmlV329 = buildInventoryProductCopyButtonV306(product.id) || ""; } catch (error) { console.warn("V33.0 drive copy skipped", product?.id, error); }
 
     return `
       <article class="inventory-manage-card"
@@ -17971,7 +18021,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "32.9",
+      version: "33.0",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18338,7 +18388,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V32.9 Stable",
+      updatedBy: "System V33.0 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -18505,8 +18555,7 @@ function inventoryMasterRowsV261(){
 function renderInventoryMasterV261(){
   const body=document.getElementById("inventoryMasterBodyV261"),count=document.getElementById("inventoryMasterCountV261"),rawQuery=String(document.getElementById("inventoryMasterSearchV261")?.value||"").trim(),keyword=rawQuery.toLowerCase(),sort=String(document.getElementById("inventoryMasterSortV264")?.value||"latest");
   if(!body)return;
-  const priceControlOnlyV329=String(document.getElementById("inventoryMasterPriceFilterV329")?.value||"all")==="manual";
-  const canonicalRows=filterSortInventoryProductsV324(keyword,sort,getInventoryPreparedRowsV321(),priceControlOnlyV329);
+  const canonicalRows=filterSortInventoryProductsV324(keyword,sort,getInventoryPreparedRowsV321());
   let rows=canonicalRows.map(p=>{
     const sup=inferSupplierFromProductV261(p),state=getMinimumPriceDisplayStateV315(p);
     return {product:p,productId:p.id||"",cnName:p.name||"",enName:productEnglishNameV262(p),supplierPrefix:supplierPrefixV261(sup?.prefix||""),category:p.category||"",stock:Number(p.stock)||0,originalCost:Math.max(0,Number(p.latestOriginalCost)||0),averageCost:Number(p.averageCost)||0,inventoryValue:(Number(p.stock)||0)*(Number(p.averageCost)||0),minimumPrice:state.price,lastImportDate:p.displayLastImport||"",lastImportNumber:String(p.latestImportNumber||""),remark:String(p.remark||""),importNumbers:String(p.importNumbers||""),overseasTrackingNumbers:String(p.overseasTrackingNumbers||""),originalCostValuesV216:Array.isArray(p.originalCostValuesV216)?p.originalCostValuesV216:[],latestSoldAt:Number(p.latestSoldAt)||0,netSoldQuantity:Number(p.netSoldQuantity)||0,cumulativeSoldProfit:Number(p.cumulativeSoldProfit)||0};
@@ -18529,7 +18578,6 @@ function setupInventoryMasterV299(){
   const search=document.getElementById("inventoryMasterSearchV261"),exp=document.getElementById("exportInventoryMasterExcelV261"),panel=document.getElementById("inventoryMasterPanelV264");
   const renderIfOpenV318=()=>{if(panel?.open)renderInventoryMasterV261()};
   search?.addEventListener("input",()=>{if(panel?.open)scheduleSearchRenderV302("inventory-master",renderInventoryMasterV261,25)});
-  document.getElementById("inventoryMasterPriceFilterV329")?.addEventListener("change",renderIfOpenV318);
   document.getElementById("inventoryMasterSortV264")?.addEventListener("change",event=>{
     renderIfOpenV318();
     if(event.target.value==="profit-desc"&&!historyAllSalesLinksLoadedV136&&navigator.onLine){
