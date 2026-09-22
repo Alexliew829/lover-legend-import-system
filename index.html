@@ -5,18 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=33.0" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=33.0" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=33.0" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=33.0" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=33.0" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=33.0" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=33.0" />
+  <link rel="manifest" href="./manifest.json?v=33.1" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=33.1" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=33.1" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=33.1" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=33.1" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=33.1" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=33.1" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=33.0" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=33.1" />
   <style id="access-lock-critical-v299">
     html,body{margin:0;min-height:100%;font-family:Arial,Helvetica,sans-serif}
     .access-lock{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(242,248,244,.96)}
@@ -37,12 +37,12 @@
       }
     } catch (_) {}
   </script>
-  <link rel="preload" href="./css/style.css?v=33.0" as="style" />
-  <link rel="stylesheet" href="./css/style.css?v=33.0" media="print" onload="this.media='all'" />
-  <noscript><link rel="stylesheet" href="./css/style.css?v=33.0" /></noscript>
-  <script defer src="./js/common.js?v=33.0"></script>
-  <script defer src="./js/sync.js?v=33.0"></script>
-  <script defer src="./js/app.js?v=33.0"></script>
+  <link rel="preload" href="./css/style.css?v=33.1" as="style" />
+  <link rel="stylesheet" href="./css/style.css?v=33.1" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="./css/style.css?v=33.1" /></noscript>
+  <script defer src="./js/common.js?v=33.1"></script>
+  <script defer src="./js/sync.js?v=33.1"></script>
+  <script defer src="./js/app.js?v=33.1"></script>
 </head>
 <body>
   <div id="accessLock"
@@ -116,7 +116,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 33.0 Stable</div>
+          <div class="app-header-version">正式版 33.1 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -417,13 +417,19 @@
         <h2>History Search / 历史查询</h2>
         <section class="panel">
           <div class="history-lookup-row">
-            <input id="historyLookupInput"
-                   class="search-input text-left-input"
-                   placeholder="搜索中文/英文名、编号、类别、进口编号、运输单号、原成本、地点或人员"
-                   autocomplete="off"
-                   autocapitalize="characters"
-                   spellcheck="false"
-                   enterkeyhint="search" />
+            <div class="history-lookup-row-v331">
+              <input id="historyLookupInput"
+                     class="search-input text-left-input"
+                     placeholder="搜索中文/英文名、编号、类别、进口编号、运输单号、原成本、地点或人员"
+                     autocomplete="off"
+                     autocapitalize="characters"
+                     spellcheck="false"
+                     enterkeyhint="search" />
+              <select id="historyProductFilterV331" aria-label="历史产品筛选条件">
+                <option value="">筛选条件</option>
+                <option value="price-control">售价控制</option>
+              </select>
+            </div>
             <button id="historyLookupBtn" class="primary-btn" type="button">查看历史</button>
             <button id="historyClearPageBtn"
                     class="secondary-btn history-clear-page-btn"
@@ -490,42 +496,61 @@
           <p class="settings-help">统一支持中文名、英文名、产品编号、类别、进口编号、运输单号及原成本查询；纯数字只作原成本精确搜索。产品主名称不能为空；英文名可长按修改或清空。</p>
           <div class="product-query-toolbar-v329">
             <input id="batchProductStockSearch" class="search-input text-left-input batch-product-search" type="text" placeholder="搜索中文/英文名、编号、类别、进口编号、运输单号或原成本" autocomplete="off" />
-            <label class="price-control-toggle-v330" title="只显示手动修改过最低售价的精品产品"><input id="batchProductStockPriceFilterV329" type="checkbox" /> <span>售价控制</span></label>
+            <select id="batchProductStockFilterV331" aria-label="产品筛选条件">
+              <option value="">筛选条件</option>
+              <option value="price-control">售价控制</option>
+            </select>
           </div>
           <div id="batchProductStockResults" class="product-stock-search-results" hidden></div>
           <div id="batchProductStockStatus" class="status-text"></div>
         </section>
         <section class="panel product-rules-manager-v235">
           <h3>产品编号与类别规则管理</h3>
-          <p class="settings-help">这里只管理盆栽产品编号前缀。</p>
+          <p class="settings-help">先按六大产品分类决定大类前缀；只有 BS 盆栽再继续匹配树种细分类。找不到细分类的盆栽一律使用 BS。</p>
           <div class="product-rules-manager-inner-v235">
-        <details class="collapsible-settings-v181 product-prefix-settings-v181 rules-subpanel-v235">
-          <summary><span>盆栽前缀规则</span><small>按产品名称关键词生成编号前缀</small></summary>
-          <p class="settings-help">
-            规则如果已经有现有产品编号／产品资料使用，只允许修改英文关键词；中文关键词、前缀和删除会自动锁定。没有任何产品关联的规则可自由修改或删除。只影响以后新增产品，现有产品编号永远不会自动改号。
-          </p>
-          <div class="product-prefix-desktop-table-v330">
-            <table class="product-prefix-rule-table-v330">
-              <thead><tr><th>中文关键词</th><th>英文关键词</th><th>前缀</th><th>操作</th></tr></thead>
-              <tbody id="productPrefixRulesList"></tbody>
-            </table>
-          </div>
-          <div id="productPrefixEditorV327" class="product-prefix-editor-v327">
-            <div class="product-prefix-editor-title-v327">新增 / 修改盆栽前缀规则</div>
-            <div id="productPrefixEditorModeV329" class="product-prefix-editor-mode-v329" data-mode="new">新增模式</div>
-            <div class="product-prefix-add-v181 product-prefix-editor-fields-v329">
-              <label>中文<input id="newProductPrefixKeyword" class="text-left-input" maxlength="15" autocomplete="off" placeholder="例如：黄杨" /></label>
-              <label>英文<input id="newProductPrefixEnglishV319" class="text-left-input" maxlength="15" autocomplete="off" placeholder="例如：Buxus Boxwood" /></label>
-              <label>前缀<input id="newProductPrefixCode" class="text-left-input" maxlength="2" autocomplete="off" autocapitalize="characters" placeholder="例如：BX" /></label>
-            </div>
-            <div id="productPrefixEditorLockNoteV327" class="settings-help" hidden></div>
-            <div class="product-prefix-editor-actions-v327">
-              <button id="addProductPrefixRuleBtn" class="primary-btn" type="button">保存</button>
-            </div>
-          </div>
-          <div id="productPrefixRulesStatus" class="status-text"></div>
-          <p class="settings-help">这里只管理「盆栽 / Bonsai」产品的树种细分类前缀；例如黄杨 → BX。无法匹配细分类的盆栽统一使用 BS。</p>
-        </details>
+            <details class="collapsible-settings-v181 rules-subpanel-v235" open>
+              <summary><span>产品前缀规则</span><small>六大分类</small></summary>
+              <div class="product-main-prefix-block-v331">
+                <div class="product-main-prefix-wrap-v331">
+                  <table class="product-main-prefix-table-v331">
+                    <thead><tr><th>前缀</th><th>中文分类</th><th>英文</th></tr></thead>
+                    <tbody>
+                      <tr><td>BS</td><td>盆栽</td><td>Bonsai</td></tr>
+                      <tr><td>FL</td><td>肥料 / 农药</td><td>Fertilizer / Pesticide</td></tr>
+                      <tr><td>NT</td><td>泥土 / 介质</td><td>Soil / Growing Media</td></tr>
+                      <tr><td>PT</td><td>花盆</td><td>Pot</td></tr>
+                      <tr><td>QT</td><td>其他</td><td>Others</td></tr>
+                      <tr><td>TL</td><td>工具</td><td>Tools</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </details>
+
+            <details class="collapsible-settings-v181 product-prefix-settings-v181 rules-subpanel-v235" open>
+              <summary><span>盆栽前缀规则</span><small>BS 盆栽的树种细分类</small></summary>
+              <p class="settings-help">已有关联产品的规则只允许修改英文；中文、前缀和删除自动锁定。现有超过15字的英文可完整显示，只有新输入／实际修改的内容限制15字；前缀限制2个英文字母。</p>
+              <div class="product-prefix-desktop-table-v330">
+                <table class="product-prefix-rule-table-v330">
+                  <thead><tr><th>中文关键词</th><th>英文关键词</th><th>前缀</th><th>操作</th></tr></thead>
+                  <tbody id="productPrefixRulesList"></tbody>
+                </table>
+              </div>
+              <div id="productPrefixEditorV327" class="product-prefix-editor-v327">
+                <div class="product-prefix-editor-title-v327">新增 / 修改盆栽前缀</div>
+                <div class="product-prefix-add-v181 product-prefix-editor-fields-v329">
+                  <label>中文<input id="newProductPrefixKeyword" class="text-left-input" maxlength="15" autocomplete="off" placeholder="例如：黄杨" /></label>
+                  <label>英文<input id="newProductPrefixEnglishV319" class="text-left-input" maxlength="15" autocomplete="off" placeholder="例如：Buxus Boxwood" /></label>
+                  <label>前缀<input id="newProductPrefixCode" class="text-left-input" maxlength="2" autocomplete="off" autocapitalize="characters" placeholder="例如：BX" /></label>
+                </div>
+                <div id="productPrefixEditorLockNoteV327" class="settings-help" hidden></div>
+                <div class="product-prefix-editor-actions-v327">
+                  <button id="addProductPrefixRuleBtn" class="primary-btn" type="button">保存</button>
+                </div>
+              </div>
+              <div id="productPrefixRulesStatus" class="status-text"></div>
+              <p class="settings-help">黄杨 → BX、水梅 → JL 等；无法匹配任何盆栽细分类时统一使用 BS，不再使用 PZ。</p>
+            </details>
           </div>
         </section>
 
@@ -832,7 +857,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 33.0 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 33.1 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>

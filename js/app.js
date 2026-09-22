@@ -78,7 +78,7 @@ function cleanupLegacySettingsResidueV323() {
     pruneByLiveProductId("productMediaLinksV229");
   }
 
-  // V33.0 one-time migration: old device Settings may know that a product was
+  // V33.1 one-time migration: old device Settings may know that a product was
   // manually price-controlled. Promote TRUE only into Product, then delete the
   // duplicate Settings truth forever. A stale FALSE must never override Product.
   const legacyManualOverridesV329 = next.minimumPriceManualOverrides && typeof next.minimumPriceManualOverrides === "object"
@@ -107,11 +107,11 @@ function cleanupLegacySettingsResidueV323() {
     changed = true;
   }
 
-  // V33.0 canonical six main categories. Bonsai data remains category "盆栽"; BS is its fallback ID prefix.
-  const canonicalCategoriesV330 = ["盆栽","肥料 / 农药","泥土 / 介质 Soil","花盆 Pot","其他","工具"];
+  // V33.1 canonical six main categories. Bonsai data remains category "盆栽"; BS is its fallback ID prefix.
+  const canonicalCategoriesV330 = ["盆栽","肥料 / 农药","泥土 / 介质","花盆","其他","工具"];
   const canonicalCategoryRulesV330 = [
     {name:"盆栽",prefix:"BS",mode:"name"},{name:"肥料 / 农药",prefix:"FL",mode:"category"},
-    {name:"泥土 / 介质 Soil",prefix:"NT",mode:"category"},{name:"花盆 Pot",prefix:"PT",mode:"category"},
+    {name:"泥土 / 介质",prefix:"NT",mode:"category"},{name:"花盆",prefix:"PT",mode:"category"},
     {name:"其他",prefix:"QT",mode:"category"},{name:"工具",prefix:"TL",mode:"category"}
   ];
   if (JSON.stringify(next.productCategoriesV227 || []) !== JSON.stringify(canonicalCategoriesV330)) { next.productCategoriesV227 = canonicalCategoriesV330; changed = true; }
@@ -142,7 +142,7 @@ function cleanupLegacySettingsResidueV323() {
 }
 
 
-// V33.0 — migrate the five confirmed legacy generic bonsai IDs from PZ to BS.
+// V33.1 — migrate the five confirmed legacy generic bonsai IDs from PZ to BS.
 // Existing fine-species IDs (BX/JL/BB/PD/...) are untouched. Old PZ IDs remain aliases.
 const LEGACY_GENERIC_BONSAI_ID_MAP_V330 = Object.freeze({
   PZ0036:"BS0036", PZ0175:"BS0175", PZ0176:"BS0176", PZ0192:"BS0192", PZ0001:"BS0001"
@@ -187,8 +187,7 @@ window.migrateLegacyGenericBonsaiIdsV330=migrateLegacyGenericBonsaiIdsV330;
 document.addEventListener("DOMContentLoaded", () => {
   clearTransientSearchInputsOnReloadV304();
   setupAccessLock();
-  cleanupLegacySettingsResidueV323();
-  migrateLegacyGenericBonsaiIdsV330();
+  // V33.1: startup must remain read-first. Cleanup/ID migration run only after a successful Pull.
   repairLegacyImportDates();
   setupNavigation();
   setupSettings();
@@ -363,6 +362,21 @@ function normalizeSalesInventoryTextV77(value) {
   return String(value || "").trim().toLowerCase().replace(/\s+/g, "");
 }
 
+// V33.1: every Sales -> Import lookup/key first resolves legacy product aliases.
+// This keeps old PZ Sales Cards linked after the five generic bonsai IDs become BS.
+function canonicalSalesProductIdV331(value) {
+  const raw = String(value || "").trim().toUpperCase();
+  if (!raw) return "";
+  const aliases = loadJSON("importSystemSettings", {})?.productIdAliases || {};
+  let current = raw;
+  const seen = new Set();
+  while (aliases[current] && !seen.has(current)) {
+    seen.add(current);
+    current = String(aliases[current] || "").trim().toUpperCase() || current;
+  }
+  return current;
+}
+
 function isSalesManualCorrectionTaskV102(item) {
   const taskType = String(item?.taskType || item?.inventoryTaskType || "").trim().toUpperCase();
   const status = String(item?.manualCorrectionStatus || item?.importSyncStatus || "").trim().toUpperCase();
@@ -379,7 +393,7 @@ function getSalesInventoryItemKeyV77(item) {
   }
   return [
     String(item?.linkId || "").trim(),
-    String(item?.productId || "").trim() || normalizeSalesInventoryTextV77(item?.productName)
+    canonicalSalesProductIdV331(item?.productId) || normalizeSalesInventoryTextV77(item?.productName)
   ].join("|");
 }
 
@@ -404,9 +418,9 @@ function getSalesInventoryCommitKeyV122(item, processedQty, commitQty) {
 
 function findImportProductForSalesItemV77(item) {
   const products = getProducts();
-  const productId = String(item?.productId || "").trim();
+  const productId = canonicalSalesProductIdV331(item?.productId);
   if (productId) {
-    const exact = products.find(product => String(product?.id || "").trim() === productId);
+    const exact = products.find(product => canonicalSalesProductIdV331(product?.id) === productId);
     if (exact) return exact;
   }
   const targetName = normalizeSalesInventoryTextV77(item?.productName);
@@ -428,7 +442,7 @@ function getProcessedSalesInventoryQuantitiesV77() {
       const adjustmentType = String(adjustment?.adjustmentType || "").toLowerCase();
       links.forEach(link => {
         const linkId = String(link?.linkId || "").trim();
-        const productId = String(link?.productId || product?.id || "").trim();
+        const productId = canonicalSalesProductIdV331(link?.productId || product?.id);
         const key = linkId
           ? [linkId, productId || normalizeSalesInventoryTextV77(link?.productName || product?.name)].join("|")
           : String(link?.key || "").trim();
@@ -447,13 +461,13 @@ function getProcessedSalesInventoryQuantitiesV77() {
 function getSalesFeedDesiredQtyV121(manualItem, change) {
   const saleId = String(manualItem?.saleId || manualItem?.transactionId || "").trim();
   const linkId = String(change?.linkId || manualItem?.linkId || "").trim();
-  const productId = String(change?.importProductId || change?.productId || "").trim();
+  const productId = canonicalSalesProductIdV331(change?.importProductId || change?.productId);
   const productName = normalizeSalesInventoryTextV77(change?.productName || change?.name || "");
   const rows = salesInventoryFeedV77.filter(row => {
     if (isSalesManualCorrectionTaskV102(row)) return false;
     const rowSaleId = String(row?.saleId || row?.transactionId || "").trim();
     if (saleId && rowSaleId !== saleId) return false;
-    const rowProductId = String(row?.productId || "").trim();
+    const rowProductId = canonicalSalesProductIdV331(row?.productId);
     const rowProductName = normalizeSalesInventoryTextV77(row?.productName);
     if (productId ? rowProductId !== productId : (productName && rowProductName !== productName)) return false;
     if (linkId && String(row?.linkId || "").trim() !== linkId) return false;
@@ -469,7 +483,7 @@ function getSalesFeedDesiredQtyV121(manualItem, change) {
 }
 
 function getProcessedQtyForManualChangeV121(processed, manualItem, change) {
-  const productId = String(change?.importProductId || change?.productId || "").trim();
+  const productId = canonicalSalesProductIdV331(change?.importProductId || change?.productId);
   const productName = normalizeSalesInventoryTextV77(change?.productName || change?.name || "");
   const linkId = String(change?.linkId || manualItem?.linkId || "").trim();
   if (linkId) {
@@ -485,7 +499,7 @@ function getProcessedQtyForManualChangeV121(processed, manualItem, change) {
   if (!saleId || (!productId && !productName)) return 0;
   let net = 0;
   getProducts().forEach(product => {
-    const pid = String(product?.id || "").trim();
+    const pid = canonicalSalesProductIdV331(product?.id);
     const pname = normalizeSalesInventoryTextV77(product?.name);
     if (productId ? pid !== productId : pname !== productName) return;
     getProductStockAdjustments(product).forEach(adjustment => {
@@ -493,7 +507,7 @@ function getProcessedQtyForManualChangeV121(processed, manualItem, change) {
       const adjustmentType = String(adjustment?.adjustmentType || "").toLowerCase();
       (Array.isArray(adjustment?.salesLinks) ? adjustment.salesLinks : []).forEach(link => {
         if (String(link?.saleId || "").trim() !== saleId) return;
-        const lpid = String(link?.productId || pid || "").trim();
+        const lpid = canonicalSalesProductIdV331(link?.productId || pid);
         const lpname = normalizeSalesInventoryTextV77(link?.productName || product?.name);
         if (productId ? lpid !== productId : lpname !== productName) return;
         const qty = Math.max(0, Math.trunc(Number(link?.processedQty) || 0));
@@ -5062,16 +5076,16 @@ function setupPromotionSettingsV183() {
 }
 
 function getMinimumPriceManualOverridesV160() {
-  // V33.0 compatibility only. Manual minimum-price state now lives on Product.
+  // V33.1 compatibility only. Manual minimum-price state now lives on Product.
   return {};
 }
 
 function saveMinimumPriceManualOverridesV160(overrides) {
-  // V33.0 compatibility no-op. Do not recreate device-local manual-price truth.
+  // V33.1 compatibility no-op. Do not recreate device-local manual-price truth.
 }
 
 function isMinimumPriceManualV160(product, configuredOverrides = null) {
-  // V33.0 single source of truth: price-control / 精品区 belongs to the Product itself.
+  // V33.1 single source of truth: price-control / 精品区 belongs to the Product itself.
   return product?.minimumPriceManual === true;
 }
 
@@ -5138,8 +5152,8 @@ function saveProducts(products) {
 const PRIMARY_PRODUCT_CATEGORIES_V255 = Object.freeze([
   "盆栽",
   "肥料 / 农药",
-  "泥土 / 介质 Soil",
-  "花盆 Pot",
+  "泥土 / 介质",
+  "花盆",
   "工具",
   "其他"
 ]);
@@ -5147,8 +5161,8 @@ const PRIMARY_PRODUCT_CATEGORIES_V255 = Object.freeze([
 const DEFAULT_PRODUCT_CATEGORY_RULES_V228 = Object.freeze([
   { name: "盆栽", prefix: "BS", mode: "name" },
   { name: "肥料 / 农药", prefix: "FL", mode: "category" },
-  { name: "泥土 / 介质 Soil", prefix: "NT", mode: "category" },
-  { name: "花盆 Pot", prefix: "PT", mode: "category" },
+  { name: "泥土 / 介质", prefix: "NT", mode: "category" },
+  { name: "花盆", prefix: "PT", mode: "category" },
   { name: "工具", prefix: "TL", mode: "category" },
   { name: "其他", prefix: "QT", mode: "category" }
 ]);
@@ -5159,7 +5173,9 @@ function isPrimaryProductCategoryV255(value) {
 }
 
 function normalizePrimaryProductCategoryV255(value) {
-  const wanted = normalizeProductCategoryNameV227(value);
+  let wanted = normalizeProductCategoryNameV227(value);
+  if (wanted === "泥土 / 介质 Soil") wanted = "泥土 / 介质";
+  if (wanted === "花盆 Pot") wanted = "花盆";
   if (PRIMARY_PRODUCT_CATEGORIES_V255.includes(wanted)) return wanted;
   return wanted ? "其他" : "盆栽";
 }
@@ -5516,7 +5532,10 @@ function setupProductPrefixSettingsV181() {
   keywordInput.addEventListener("input",()=>{
     if(modeV329!=="new")return;
     const key=String(keywordInput.value||"").trim(), preset=presetsV329[key];
-    if(preset){englishInput.value=preset.english;prefixInput.value=preset.prefix;}
+    if(!preset)return;
+    englishInput.value=preset.english; prefixInput.value=preset.prefix;
+    const existing=getProductPrefixRulesV181().find(([k])=>normalizeProductPrefixKeywordV181(k)===normalizeProductPrefixKeywordV181(key));
+    if(existing){ selectRule(existing[0],false); }
   });
   document.getElementById("productPrefixRulesList")?.addEventListener("click",event=>{
     const edit=event.target.closest("[data-prefix-edit-v327]"); if(edit){selectRule(edit.dataset.prefixEditV327||"",false);return;}
@@ -5538,7 +5557,11 @@ function setupProductPrefixSettingsV181() {
     }
     if(!normalized){finish("请输入中文关键词");return;}
     if(!english){finish("请输入英文关键词");return;}
+    if(keyword.length>15){finish("中文关键词最多15个字");return;}
     if(!/^[A-Z]{2}$/.test(prefix)){finish("编号前缀必须是2个英文字母");return;}
+    // Existing legacy English labels longer than 15 remain displayable and may be saved unchanged.
+    const oldEnglishForLimitV331=existingRule?String(getPrefixEnglishMetaV319(existingRule[0]).english||"").trim():"";
+    if(english.length>15 && english!==oldEnglishForLimitV331){finish("英文关键词最多15个字；现有较长名称可保留原样");return;}
     if(existingRule){
       const locked=isProductPrefixRuleLockedV229(existingRule[0],existingRule[1]);
       const oldEnglish=getPrefixEnglishMetaV319(existingRule[0]).english||"";
@@ -6404,7 +6427,7 @@ function setupImportModule(){
       scheduleSearchRenderV302("product-repair", renderBatchProductStockResults);
     });
   }
-  document.getElementById("batchProductStockPriceFilterV329")?.addEventListener("change", () => {
+  document.getElementById("batchProductStockFilterV331")?.addEventListener("change", () => {
     batchListExpanded = false;
     renderBatchProductStockResults();
   });
@@ -11479,7 +11502,8 @@ function renderImportHistoryNowV134() {
   }
 
   const keyword = input.value.trim();
-  if (!keyword) {
+  const historyPriceOnlyV331 = String(document.getElementById("historyProductFilterV331")?.value || "") === "price-control";
+  if (!keyword && !historyPriceOnlyV331) {
     output.innerHTML = '<div class="empty-state">输入中文/英文名、产品编号、类别、进口编号、海外运输单号 / 本地单号、原成本、地点、人员，或选择日期范围查看历史资料</div>';
     return;
   }
@@ -11569,9 +11593,11 @@ function renderImportHistoryNowV134() {
   // A numeric Original Cost hit must remain row/batch-specific; it must not turn
   // into a Product ID hit that automatically includes every historical batch.
   const historySearchContextV328 = getCanonicalProductSearchContextV328();
+  const historyPriceControlOnlyV331 = String(document.getElementById("historyProductFilterV331")?.value || "") === "price-control";
   const matchedProductIds = new Set(
     getProducts().filter(product => {
       if (numericOriginalCostOnlyV218) return false;
+      if (historyPriceControlOnlyV331 && product?.minimumPriceManual !== true) return false;
       const name = String(product.name || "").trim().toLowerCase();
       if (exactHistoryProduct) return name === exactHistoryProduct;
       return canonicalProductSearchMatchesV328(product, normalizedKeyword, historySearchContextV328);
@@ -11582,6 +11608,10 @@ function renderImportHistoryNowV134() {
     const matchingItems = getBatchItemsForDisplay(batch).filter(item => {
       const itemName = String(item.productName || "").trim().toLowerCase();
       const itemProductId = String(item.productId || "").trim();
+      if (historyPriceControlOnlyV331) {
+        const resolvedV331 = resolveCanonicalProductV328({id:itemProductId,name:item.productName}, historySearchContextV328);
+        if (resolvedV331?.minimumPriceManual !== true) return false;
+      }
 
       // Prefer stable productId linkage whenever the current Products record matched.
       if (matchedProductIds.size && itemProductId && matchedProductIds.has(itemProductId)) {
@@ -14332,7 +14362,8 @@ function renderBatchProductStockResults() {
   if (!input || !output) return;
 
   const keyword = String(input.value || "").trim().toLowerCase();
-  const priceControlOnlyV329 = Boolean(document.getElementById("batchProductStockPriceFilterV329")?.checked);
+  const filterModeV331 = String(document.getElementById("batchProductStockFilterV331")?.value || "");
+  const priceControlOnlyV329 = filterModeV331 === "price-control";
   const recentBatchArea =
     document.getElementById("recentBatchResultsArea");
   const toggleButton =
@@ -16501,7 +16532,9 @@ function canonicalProductSearchMatchesV328(product, queryValue, context=null) {
     const numeric=Number(keyword.normalize("NFKC").replace(/[,，\s]/g,""));
     return Number.isFinite(numeric) && meta.costValues.some(value=>Math.abs(Number(value)-numeric)<0.000001);
   }
-  const productTarget=[product?.id||product?.productId,product?.name||product?.productName,productEnglishNameV262(product),product?.category].map(v=>String(v||"")).join(" ");
+  const settingsV331=loadJSON("importSystemSettings",{}), aliasesV331=settingsV331.productIdAliases||{}, currentIdV331=String(product?.id||product?.productId||"").trim().toUpperCase();
+  const oldIdsV331=Object.entries(aliasesV331).filter(([,next])=>String(next||"").trim().toUpperCase()===currentIdV331).map(([old])=>old);
+  const productTarget=[product?.id||product?.productId,...oldIdsV331,product?.name||product?.productName,productEnglishNameV262(product),product?.category].map(v=>String(v||"")).join(" ");
   return smartSearchMatches(productTarget,keyword) || sequentialSearchMatches(meta.importNumbers,keyword) || shipmentLocalNumberMatchesV235(meta.shipmentNumbers,keyword);
 }
 function resolveCanonicalProductV328(subject, context=null){
@@ -16519,7 +16552,7 @@ function filterSortInventoryProductsV324(query = "", sortMode = "latest", source
   if (["latest-sold","bestseller-desc","profit-desc"].includes(sortMode)) rows = applyInventorySalesAnalyticsV327(rows);
   const searchContextV328=getCanonicalProductSearchContextV328();
   let products = rows.filter(product => canonicalProductSearchMatchesV328(product, keyword, searchContextV328)).slice();
-  // V33.0: “售价控制” = 精品区 = Product.minimumPriceManual === true.
+  // V33.1: “售价控制” = 精品区 = Product.minimumPriceManual === true.
   // It is a precise filter and can be combined with any existing text search + sort.
   if (priceControlOnlyV329) products = products.filter(product => product?.minimumPriceManual === true);
 
@@ -16641,37 +16674,43 @@ function renderInventoryManagementList() {
   try { productMediaLinksV229 = getProductMediaLinksV229() || {}; }
   catch (error) { console.warn("V32.8 inventory media metadata unavailable", error); }
 
-  // V33.0: keep the full approved inventory card. Optional helpers fail individually;
+  // V33.1: keep the full approved inventory card. Optional helpers fail individually;
   // one bad media/copy helper must never replace the entire card with a simplified fallback.
   list.innerHTML = products.map(product => {
+    try {
     const stock = Number(product.stock) || 0;
     const averageCost = Number(product.averageCost) || 0;
     let minimumDisplayV315;
     try { minimumDisplayV315 = getMinimumPriceDisplayStateV315(product); }
     catch (error) {
-      console.warn("V33.0 minimum-price display fallback", product?.id, error);
+      console.warn("V33.1 minimum-price display fallback", product?.id, error);
       const manualV329 = product?.minimumPriceManual === true;
       const storedV329 = Math.max(0, Number(product?.minimumPrice) || 0);
       minimumDisplayV315 = { manual:manualV329, state:manualV329?"manual":"neutral", className:manualV329?"minimum-price-manual-v315":"minimum-price-neutral-v302", label:"最低售价", price:storedV329, profitInfo:{profit:0,profitRate:0} };
     }
-    const minimumPrice = minimumDisplayV315.price;
+    minimumDisplayV315 = minimumDisplayV315 && typeof minimumDisplayV315 === "object" ? minimumDisplayV315 : {manual:false,state:"neutral",className:"minimum-price-neutral-v302",label:"最低售价",price:0,profitInfo:{profit:0,profitRate:0}};
+    minimumDisplayV315.state = minimumDisplayV315.state || (minimumDisplayV315.manual ? "manual" : "neutral");
+    minimumDisplayV315.className = minimumDisplayV315.className || (minimumDisplayV315.manual ? "minimum-price-manual-v315" : "minimum-price-neutral-v302");
+    minimumDisplayV315.label = minimumDisplayV315.label || "最低售价";
+    const minimumPrice = Math.max(0, Number(minimumDisplayV315.price) || 0);
     const originalCost = Math.max(0, Number(product.latestOriginalCost) || 0);
     const originalCurrency = String(product.latestOriginalCurrency || "").trim().toUpperCase();
     const originalCostText = originalCost > 0
       ? `${formatMoney(originalCost)}${originalCurrency ? ` ${escapeHTML(originalCurrency)}` : ""}`
       : `0.00${originalCurrency ? ` ${escapeHTML(originalCurrency)}` : ""}`;
     const inventoryValue = stock * averageCost;
-    const profitInfoV205 = minimumDisplayV315.profitInfo;
+    const profitInfoV205 = minimumDisplayV315?.profitInfo && typeof minimumDisplayV315.profitInfo === "object"
+      ? minimumDisplayV315.profitInfo : {profit:0,profitRate:0};
     let averageCostLabelV205 = "平均成本";
     try { averageCostLabelV205 = getAverageCostLabelV205(product) || "平均成本"; } catch (_) {}
     const soldQuantity = Number(product.netSoldQuantity) || 0;
     const cumulativeProfit = Number(product.cumulativeSoldProfit) || 0;
     let englishNameV329 = "", mediaStatusHtmlV329 = "", mediaButtonsHtmlV329 = "", idButtonHtmlV329 = "", driveCopyHtmlV329 = "";
-    try { englishNameV329 = productEnglishNameV262(product) || ""; } catch (error) { console.warn("V33.0 English name skipped", product?.id, error); }
-    try { mediaStatusHtmlV329 = renderProductMediaStatusV236(product.id, productMediaLinksV229) || ""; } catch (error) { console.warn("V33.0 media status skipped", product?.id, error); }
-    try { mediaButtonsHtmlV329 = renderProductMediaButtonsV229(product.id, productMediaLinksV229) || ""; } catch (error) { console.warn("V33.0 media buttons skipped", product?.id, error); }
-    try { idButtonHtmlV329 = buildProductIdCopyButtonV166(product.id, "inventory-product-id-v166") || ""; } catch (error) { console.warn("V33.0 ID copy skipped", product?.id, error); }
-    try { driveCopyHtmlV329 = buildInventoryProductCopyButtonV306(product.id) || ""; } catch (error) { console.warn("V33.0 drive copy skipped", product?.id, error); }
+    try { englishNameV329 = productEnglishNameV262(product) || ""; } catch (error) { console.warn("V33.1 English name skipped", product?.id, error); }
+    try { mediaStatusHtmlV329 = renderProductMediaStatusV236(product.id, productMediaLinksV229) || ""; } catch (error) { console.warn("V33.1 media status skipped", product?.id, error); }
+    try { mediaButtonsHtmlV329 = renderProductMediaButtonsV229(product.id, productMediaLinksV229) || ""; } catch (error) { console.warn("V33.1 media buttons skipped", product?.id, error); }
+    try { idButtonHtmlV329 = buildProductIdCopyButtonV166(product.id, "inventory-product-id-v166") || ""; } catch (error) { console.warn("V33.1 ID copy skipped", product?.id, error); }
+    try { driveCopyHtmlV329 = buildInventoryProductCopyButtonV306(product.id) || ""; } catch (error) { console.warn("V33.1 drive copy skipped", product?.id, error); }
 
     return `
       <article class="inventory-manage-card"
@@ -16721,6 +16760,25 @@ function renderInventoryManagementList() {
         </div>
       </article>
     `;
+    } catch (error) {
+      console.error("V33.1 inventory full-card render fallback", product?.id, error);
+      const pid=String(product?.id||""); const pname=String(product?.name||"未命名产品");
+      let mediaButtons=""; try{mediaButtons=renderProductMediaButtonsV229(pid,productMediaLinksV229)||"";}catch(_){mediaButtons="";}
+      return `<article class="inventory-manage-card" data-product-id="${escapeHTML(pid)}">
+        <div class="inventory-manage-head"><div class="inventory-manage-primary-v174">
+          <div class="inventory-product-title-row"><span class="product-identity-v167 inventory-product-identity-v167"><button class="inventory-product-name-copy" type="button" data-product-name="${escapeHTML(pname)}" onclick="copyInventoryProductName(this)">${escapeHTML(pname)}</button>${buildProductIdCopyButtonV166(pid,"inventory-product-id-v166")}</span></div>
+          <div class="inventory-product-secondary-v314"><small class="product-english-name-v262 inventory-english-secondline-v265">${escapeHTML((()=>{try{return productEnglishNameV262(product)||""}catch(_){return ""}})())}</small></div>${mediaButtons}
+        </div><div class="inventory-sold-quantity"><span>售出数量</span><div><strong>${formatNumber(Number(product?.netSoldQuantity)||0)}</strong><small>棵</small></div><span class="inventory-cumulative-profit-v146">累计利润</span><b>${formatMoney(Number(product?.cumulativeSoldProfit)||0,"RM ")}</b></div></div>
+        <div class="inventory-summary-grid">
+          <div><span>当前库存</span><strong>${formatNumber(Number(product?.stock)||0)}</strong></div>
+          <button class="inventory-original-cost inventory-original-cost-toggle" type="button"><span>原成本</span><strong>${formatMoney(Number(product?.latestOriginalCost)||0)}</strong></button>
+          <button class="inventory-manage-minimum-price-btn ${product?.minimumPriceManual===true?"minimum-price-manual-v315":"minimum-price-neutral-v302"}" data-minimum-price-state-v324="${product?.minimumPriceManual===true?"manual":"neutral"}" type="button" data-product-id="${escapeHTML(pid)}"><span>最低售价</span><strong>${formatMoney(Number(product?.minimumPrice)||0,"RM ")}</strong></button>
+          <div><span>平均成本</span><strong>${formatMoney(Number(product?.averageCost)||0,"RM ")}</strong></div>
+          <div class="inventory-profit-value-v207 neutral"><span>利润</span><strong>RM 0.00</strong></div><div class="inventory-profit-value-v207 neutral"><span>利润率</span><strong>0.00%</strong></div>
+          <div><span>库存成本总值</span><strong>${formatMoney((Number(product?.stock)||0)*(Number(product?.averageCost)||0),"RM ")}</strong></div>
+          <div><span>最后进口</span><strong>${escapeHTML(normalizeDateToDDMMYYYY(product?.displayLastImport)||"-")}</strong></div>
+        </div></article>`;
+    }
   }).join("");
 
   inventoryLastRenderedPreparedRowsV321 = preparedProductsV321;
@@ -18021,7 +18079,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "33.0",
+      version: "33.1",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18388,7 +18446,7 @@ async function restoreSystemData(event) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V33.0 Stable",
+      updatedBy: "System V33.1 Stable",
       jobId,
       settings: restored.settings,
       products: restored.products,
@@ -18592,3 +18650,13 @@ function setupInventoryMasterV299(){
   exp?.addEventListener("click",exportInventoryMasterExcelV261);
 }
 
+
+
+// V33.1 unified product filter controls outside Product Import.
+document.addEventListener("DOMContentLoaded",()=>{
+  document.getElementById("historyProductFilterV331")?.addEventListener("change",()=>{
+    const button=document.getElementById("historyLookupBtn");
+    const hasQuery=String(document.getElementById("historyLookupInput")?.value||"").trim();
+    if(hasQuery && button) button.click();
+  });
+});
