@@ -13398,8 +13398,6 @@ function confirmLeaveOriginalCostEditV219() {
 }
 
 function openProductOriginalCostEditorV219(productId, importRecordId = "") {
-  window.alert("正式保存后的进口编号已永久锁定，原成本不能修改。");
-  return;
   const id = String(productId || "").trim();
   const product = getProducts().find(item => String(item?.id || "").trim() === id);
   if (!product) { alert("找不到这个产品。"); return; }
@@ -13561,8 +13559,6 @@ window.addEventListener("beforeunload", event => {
 
 
 async function promptProductOriginalCostEditorV257(productId, importRecordId = "") {
-  window.alert("正式保存后的进口编号已永久锁定，原成本不能修改。");
-  return;
   const id = String(productId || "").trim();
   const product = getProducts().find(item => String(item?.id || "").trim() === id);
   if (!product) { alert("找不到这个产品。"); return; }
@@ -13615,6 +13611,106 @@ async function promptProductOriginalCostEditorV257(productId, importRecordId = "
     tempInput.remove();
     if (originalCostEditPendingV219) originalCostEditPendingV219 = null;
   }
+}
+
+
+function bindProductStockLongPress() {
+  const output = document.getElementById("batchProductStockResults");
+  if (!output || output.dataset.stockMetricLongPressBoundV344 === "1") return;
+  output.dataset.stockMetricLongPressBoundV344 = "1";
+
+  let timer = null;
+  let activeButton = null;
+  let activePointerId = null;
+  let startX = 0;
+  let startY = 0;
+  let moved = false;
+  let fired = false;
+
+  const clearTimer = () => {
+    if (timer !== null) {
+      window.clearTimeout(timer);
+      timer = null;
+    }
+  };
+  const reset = () => {
+    clearTimer();
+    activeButton?.classList.remove("long-press-active");
+    activeButton = null;
+    activePointerId = null;
+    moved = false;
+    fired = false;
+  };
+  const runEdit = button => {
+    if (!button) return;
+    const productId = String(button.dataset.productId || "").trim();
+    const editType = String(button.dataset.editType || "").trim();
+    const importRecordId = String(button.dataset.importRecordId || "").trim();
+    if (!productId || !editType) return;
+    if (editType === "stock") {
+      editProductStockFromImportPage(productId);
+    } else if (editType === "originalCost") {
+      openProductOriginalCostEditorV219(productId, importRecordId);
+    } else if (editType === "minimumPrice") {
+      editDisplayedMinimumPriceV199(productId);
+    } else if (editType === "averageCost") {
+      editProductAverageCostFromImportPage(productId);
+    }
+  };
+
+  output.addEventListener("pointerdown", event => {
+    const button = event.target.closest('.product-stock-metric-v256[data-edit-type]');
+    if (!button || (event.pointerType === "mouse" && event.button !== 0)) return;
+    reset();
+    activeButton = button;
+    activePointerId = event.pointerId;
+    startX = Number(event.clientX) || 0;
+    startY = Number(event.clientY) || 0;
+    button.classList.add("long-press-active");
+    timer = window.setTimeout(() => {
+      timer = null;
+      if (!activeButton || moved) return;
+      fired = true;
+      const target = activeButton;
+      target.classList.remove("long-press-active");
+      runEdit(target);
+    }, 650);
+  });
+
+  output.addEventListener("pointermove", event => {
+    if (!activeButton || event.pointerId !== activePointerId) return;
+    if (Math.abs((Number(event.clientX) || 0) - startX) > 12 ||
+        Math.abs((Number(event.clientY) || 0) - startY) > 12) {
+      moved = true;
+      clearTimer();
+      activeButton.classList.remove("long-press-active");
+    }
+  });
+
+  output.addEventListener("pointerup", event => {
+    if (!activeButton || event.pointerId !== activePointerId) return;
+    const button = activeButton;
+    clearTimer();
+    button.classList.remove("long-press-active");
+    activeButton = null;
+    activePointerId = null;
+    moved = false;
+    fired = false;
+  });
+  output.addEventListener("pointercancel", event => {
+    if (activePointerId !== null && event.pointerId !== activePointerId) return;
+    reset();
+  });
+  output.addEventListener("contextmenu", event => {
+    if (event.target.closest('.product-stock-metric-v256[data-edit-type]')) event.preventDefault();
+  });
+  output.addEventListener("click", event => {
+    if (!event.target.closest('.product-stock-metric-v256[data-edit-type]')) return;
+    if (fired) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }, true);
 }
 
 function renderBatchProductStockResults() {
@@ -17286,7 +17382,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "34.3",
+      version: "34.4",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
