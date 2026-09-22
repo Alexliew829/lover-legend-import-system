@@ -5341,7 +5341,7 @@ function resetProductForm(clearStatus = true) {
 
 
 let batchRowSeq = 0;
-let batchListExpanded = false;
+let batchListExpanded = true;
 function bindBatchMoneyInput(id) {
   const input = document.getElementById(id);
   if (!input || input.dataset.batchBound === "1") return;
@@ -5620,6 +5620,11 @@ function setupImportModule(){
 
   const batchSearch = document.getElementById("batchSearch");
   const toggleBatchListBtn = document.getElementById("toggleBatchListBtn");
+  const recentStartV345 = document.getElementById("recentBatchStartDateV345");
+  const recentEndV345 = document.getElementById("recentBatchEndDateV345");
+  const recentClearV345 = document.getElementById("recentBatchDateClearV345");
+  [recentStartV345, recentEndV345].forEach(field => field?.addEventListener("input", () => { batchListExpanded = true; renderBatchList(); }));
+  recentClearV345?.addEventListener("click", () => { if (recentStartV345) recentStartV345.value = ""; if (recentEndV345) recentEndV345.value = ""; batchListExpanded = true; renderBatchList(); });
   const productStockSearch =
     document.getElementById("batchProductStockSearch");
 
@@ -5940,6 +5945,20 @@ function collectImportDraftStateV242() {
   };
 }
 
+function validateNoDuplicateImportProductsV345(rows) {
+  const seen = new Map();
+  for (const row of (Array.isArray(rows) ? rows : [])) {
+    const name = String(row?.name || "").trim();
+    if (!name) continue;
+    const productId = String(row?.productId || "").trim().toLowerCase();
+    const category = normalizePrimaryProductCategoryV255(row?.category || "盆栽");
+    const key = productId ? `id:${productId}` : `name:${name.toLowerCase()}|${category}`;
+    if (seen.has(key)) return { ok:false, name, first:seen.get(key) };
+    seen.set(key, name);
+  }
+  return { ok:true };
+}
+
 function saveImportDraftV242() {
   const saveButtonV340 = document.getElementById("saveBatchBtn");
   if (saveButtonV340) { saveButtonV340.disabled = true; saveButtonV340.textContent = "保存中..."; }
@@ -5951,6 +5970,14 @@ function saveImportDraftV242() {
   const state = collectImportDraftStateV242();
   if (!state.rows.length) {
     alert("请先输入至少一个产品，再保存草稿。");
+    if (saveButtonV340) { saveButtonV340.disabled = false; saveButtonV340.textContent = "保存草稿"; }
+    return;
+  }
+  const duplicateV345 = validateNoDuplicateImportProductsV345(state.rows);
+  if (!duplicateV345.ok) {
+    alert(`同一进口编号不能重复加入相同产品：${duplicateV345.name}\n\n请合并数量或删除重复项目后再保存草稿。`);
+    const statusV345 = document.getElementById("batchStatusText");
+    if (statusV345) statusV345.textContent = `保存已停止：同一进口编号不能重复产品 ${duplicateV345.name}`;
     if (saveButtonV340) { saveButtonV340.disabled = false; saveButtonV340.textContent = "保存草稿"; }
     return;
   }
@@ -7563,6 +7590,24 @@ function copyBatchAsNewDraftV221(importNumber) {
   return true;
 }
 
+function getBatchSalesProtectionV345(effectiveItems) {
+  const products = getProducts();
+  const protectedRows = [];
+  for (const item of (Array.isArray(effectiveItems) ? effectiveItems : [])) {
+    const pid = String(item?.productId || "").trim();
+    const pname = String(item?.productName || item?.name || "").trim().toLowerCase();
+    const product = products.find(p => (pid && String(p?.id || "").trim() === pid) || (!pid && pname && String(p?.name || "").trim().toLowerCase() === pname));
+    if (!product) continue;
+    const adjustments = typeof getProductStockAdjustments === "function" ? getProductStockAdjustments(product) : [];
+    const hasSales = (adjustments || []).some(adj => {
+      const links = Array.isArray(adj?.salesLinks) ? adj.salesLinks : [];
+      return links.length > 0 || String(adj?.adjustmentType || "").toLowerCase() === "sale";
+    });
+    if (hasSales) protectedRows.push(product);
+  }
+  return protectedRows;
+}
+
 async function deleteBatchByNumber(importNumber) {
 
   const batches = getBatches();
@@ -7586,6 +7631,13 @@ async function deleteBatchByNumber(importNumber) {
   );
   const effectiveItems =
     batchItems.length ? batchItems : (batch.items || []);
+
+  const protectedSalesV345 = getBatchSalesProtectionV345(effectiveItems);
+  if (protectedSalesV345.length) {
+    const namesV345 = protectedSalesV345.slice(0, 5).map(p => p?.name || p?.id || "产品").join("、");
+    alert(`不能删除进口编号 ${batch.importNumber}。\n\n此进口编号内已有产品产生买卖记录，因此整张进口记录必须保留。\n\n已有买卖记录：${namesV345}${protectedSalesV345.length > 5 ? "…" : ""}`);
+    return;
+  }
 
   // V24.6: “复制”已经是独立按钮，删除按钮只负责删除。
   // 不再使用 confirm 的“确定=复制 / 取消=继续删除”反向流程，
@@ -9891,47 +9943,15 @@ function buildHistorySoldCostSummary(options = {}) {
   `;
 }
 
-// V6.8 History transaction-date rule:
-// Date filtering for an import is based on the date the import record was saved
-// into this system (Imports.date / Batches.date), not arrival/container date.
-// Arrival/container dates remain logistics metadata only. Legacy records without
-// a transaction date fall back to createdAt, then arrival/container date.
+// V34.5 History import-date rule:
+// Every import record is searched by ARRIVAL DATE only. Container/save/created dates
+// are display/audit metadata and must not decide Date Range results.
 function getHistoryImportTransactionDate(batch, item = null) {
-  const directCandidates = [
-    item?.date,
-    batch?.date
-  ];
-
-  for (const value of directCandidates) {
+  const candidates = [item?.arrivalDate, batch?.arrivalDate];
+  for (const value of candidates) {
     const normalized = normalizeDateToDDMMYYYY(value);
     if (normalized) return normalized;
   }
-
-  const createdCandidates = [
-    item?.createdAt,
-    batch?.createdAt
-  ];
-
-  for (const value of createdCandidates) {
-    if (!value) continue;
-    const parsed = new Date(value);
-    if (!Number.isNaN(parsed.getTime())) {
-      return formatDateDDMMYYYY(parsed);
-    }
-  }
-
-  const legacyCandidates = [
-    item?.arrivalDate,
-    batch?.arrivalDate,
-    item?.containerDate,
-    batch?.containerDate
-  ];
-
-  for (const value of legacyCandidates) {
-    const normalized = normalizeDateToDDMMYYYY(value);
-    if (normalized) return normalized;
-  }
-
   return "";
 }
 
@@ -11758,6 +11778,26 @@ function fillExistingProductOriginalCostV244(rowId, product, { force = false } =
   return false;
 }
 
+function inferProductCategoryFromNameV345(name) {
+  const text = String(name || "").trim().toLowerCase();
+  if (!text) return "其他";
+  const rules = typeof getProductCategoryRulesV228 === "function" ? getProductCategoryRulesV228() : [];
+  for (const rule of rules) {
+    const category = normalizeProductCategoryNameV227(rule?.name || "");
+    if (!category || category === "盆栽" || category === "其他") continue;
+    const cn = String(rule?.name || "").trim().toLowerCase();
+    const en = String(rule?.english || "").trim().toLowerCase();
+    const tokens = [cn, ...cn.split(/[\/／、\s]+/), en, ...en.split(/[\/／,\s]+/)].filter(x => x && x.length >= 2);
+    if (tokens.some(token => text.includes(token))) return category;
+  }
+  if (/花盆|盆器|pot/.test(text)) return "花盆";
+  if (/肥料|农药|杀虫|杀菌|fertili|pestic/.test(text)) return "肥料 / 农药";
+  if (/泥土|介质|土壤|soil|media/.test(text)) return "泥土 / 介质";
+  if (/工具|剪刀|钳|锯|tool/.test(text)) return "工具";
+  if (typeof findNamePrefixRuleV231 === "function" && findNamePrefixRuleV231(name)) return "盆栽";
+  return "其他";
+}
+
 function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, commitCurrency = false } = {}) {
   const tr = document.querySelector(`#batchRows tr[data-row-id="${rowId}"]`);
   const nameInput = document.getElementById(`batchName-${rowId}`);
@@ -11812,8 +11852,7 @@ function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, c
   productIdField.value = "";
   const manualForSameName = tr.dataset.categoryManualForName === normalizedName;
   if (!fromCategoryChange && !manualForSameName) {
-    const prefixRule = findNamePrefixRuleV231(name);
-    categoryField.value = prefixRule ? "盆栽" : "其他";
+    categoryField.value = inferProductCategoryFromNameV345(name);
   }
   tr.dataset.lastIdentityNameV231 = normalizedName;
 
@@ -11858,7 +11897,7 @@ function addBatchRow(prefill = {}){
   <td><button type="button" class="remove-item-btn" onclick="removeBatchRow(${id})">删除</button></td>`;
   document.getElementById("batchRows").appendChild(tr);
   document.getElementById(`batchCategory-${id}`).value =
-    (prefill.category === "周边产品" ? "其他" : (prefill.category === "花盆" ? "花盆 / 配件 / 工具" : (prefill.category || "盆栽")));
+    normalizePrimaryProductCategoryV255(prefill.category || "盆栽");
   if (Number.isFinite(Number(prefill.quantity))) {
     const quantity = Math.max(0, Math.floor(Number(prefill.quantity)));
     const quantityInput = document.getElementById(`batchQty-${id}`);
@@ -12532,7 +12571,7 @@ function saveBatchImport() {
 
   const names = result.valid.map(item => `${item.name.toLowerCase()}|${item.category}`);
   if (new Set(names).size !== names.length) {
-    status.textContent = "同一批不能重复相同产品名称。";
+    status.textContent = "同一进口编号不能重复加入相同产品，请合并数量或删除重复项目。";
     return;
   }
 
@@ -13184,8 +13223,8 @@ function getBatchShippingRate(batch) {
 function renderBatchList() {
   const allBatches = getBatches().slice().sort((a, b) => {
     const dateDiff =
-      parseDDMMYYYY(b.containerDate || b.date || "") -
-      parseDDMMYYYY(a.containerDate || a.date || "");
+      parseDDMMYYYY(b.arrivalDate || "") -
+      parseDDMMYYYY(a.arrivalDate || "");
 
     if (dateDiff) return dateDiff;
 
@@ -13197,8 +13236,10 @@ function renderBatchList() {
   const toggleButton = document.getElementById("toggleBatchListBtn");
   const listElement = document.getElementById("batchList");
   const keyword = String(searchInput?.value || "").trim().toLowerCase();
+  const recentStartDateV345 = String(document.getElementById("recentBatchStartDateV345")?.value || "").trim();
+  const recentEndDateV345 = String(document.getElementById("recentBatchEndDateV345")?.value || "").trim();
 
-  if (!keyword && !batchListExpanded) {
+  if (!keyword && !recentStartDateV345 && !recentEndDateV345 && !batchListExpanded) {
 
     if (toggleButton) {
       toggleButton.hidden = !allBatches.length;
@@ -13229,6 +13270,13 @@ function renderBatchList() {
   }
 
   const filteredBatches = allBatches.filter(batch => {
+    const arrival = normalizeDateToDDMMYYYY(batch?.arrivalDate || "");
+    if (recentStartDateV345 || recentEndDateV345) {
+      const arrivalTime = parseDDMMYYYY(arrival);
+      const startTime = recentStartDateV345 ? parseDDMMYYYY(recentStartDateV345) : -Infinity;
+      const endTime = recentEndDateV345 ? parseDDMMYYYY(recentEndDateV345) : Infinity;
+      if (!arrival || !Number.isFinite(arrivalTime) || arrivalTime < startTime || arrivalTime > endTime) return false;
+    }
     if (!keyword) return true;
 
     const items = getBatchItemsForDisplay(batch);
@@ -13289,7 +13337,7 @@ function renderBatchList() {
     return `<article class="import-card">
       <div class="batch-card-title-row">
         <div>
-          <h4>${escapeHTML(batch.containerDate || batch.date || "-")} · ${Number(batch.itemCount) || items.length} 种产品</h4>
+          <h4>${escapeHTML(normalizeDateToDDMMYYYY(batch.arrivalDate || "") || "-")} · ${Number(batch.itemCount) || items.length} 种产品</h4>
           <div class="import-number-line"><span>进口编号</span>${batch.importNumber ? `<button class="recent-batch-copy-value" type="button" data-copy-value="${escapeHTML(batch.importNumber)}" onclick="copyRecentBatchValue(this, '进口编号')" title="点击复制进口编号">${escapeHTML(batch.importNumber)}</button>` : `<strong>-</strong>`}</div>
         </div>
         <div class="batch-card-buttons">
@@ -13650,7 +13698,7 @@ function bindProductStockLongPress() {
     if (editType === "stock") {
       editProductStockFromImportPage(productId);
     } else if (editType === "originalCost") {
-      openProductOriginalCostEditorV219(productId, importRecordId);
+      promptProductOriginalCostEditorV257(productId, importRecordId);
     } else if (editType === "minimumPrice") {
       editDisplayedMinimumPriceV199(productId);
     } else if (editType === "averageCost") {
@@ -14894,7 +14942,7 @@ async function editProductMinimumPrice(productId) {
   renderDashboard();
 
   const status = document.getElementById("batchProductStockStatus");
-  if (status) status.textContent = `同步中：${product.name} 最低售价 ${formatMoney(nextMinimumPrice, "RM ")}`;
+  if (status) status.textContent = `同步中：${product.name} 最低售价 ${formatMoney(nextMinimumPrice, "RM ")}（未完成前离开会提示）`;
 
   try {
     await updateProductMinimumPriceFast(id, nextMinimumPrice, updatedAt, nextMinimumPriceManual);
@@ -16338,7 +16386,10 @@ function openSystemMediaPreviewV305(type, url, label = "") {
     const stage = modal.querySelector(".system-media-stage-v305");
     let disposed = false, timer = 0, sourceIndex = 0;
     const cleanupStage = () => { if(timer)window.clearTimeout(timer); timer=0; const v=stage?.querySelector("video"); if(v){try{v.pause()}catch(_){} v.removeAttribute("src"); try{v.load()}catch(_){}} const f=stage?.querySelector("iframe"); if(f)f.removeAttribute("src"); stage?.replaceChildren(); };
-    const useDriveSilently = () => { if(disposed||!stage||!drivePreview)return; cleanupStage(); const frame=document.createElement("iframe"); frame.className="system-media-drive-frame-v308 system-media-drive-minimal-v322"; frame.src=`${drivePreview}${drivePreview.includes("?")?"&":"?"}rm=minimal`; frame.title=label||"视频预览"; frame.allow="autoplay; fullscreen; picture-in-picture"; frame.allowFullscreen=true; frame.referrerPolicy="no-referrer-when-downgrade"; stage.appendChild(frame); };
+    const useDriveSilently = () => {
+      if(disposed||!stage)return; cleanupStage();
+      const note=document.createElement("div"); note.className="system-media-message-v305"; note.textContent="此视频无法在系统内直接播放，请检查 Google Drive 分享权限或重新上传可直接播放的视频。"; stage.appendChild(note);
+    };
     const tryDirect = () => {
       if(disposed||!stage)return; cleanupStage();
       const candidate = directVideoSources[sourceIndex++] || source;
@@ -17382,7 +17433,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "34.4",
+      version: "34.5",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),

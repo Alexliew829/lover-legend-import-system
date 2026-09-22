@@ -6046,3 +6046,8 @@ body.system-media-preview-open-v305{overflow:hidden}
 .product-category-editor-v342 input,.product-prefix-editor-v339 input{text-align:left!important}
 .inventory-media-status-v236{gap:5px;transform:translateX(-3px)}
 .inventory-media-dot-v236{width:13px!important;height:13px!important;min-width:13px}
+
+/* V34.5 recent-import arrival-date filters */
+.recent-batch-filter-v345{display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:1}
+.recent-batch-date-v345{min-width:150px;max-width:180px}
+@media(max-width:720px){.recent-batch-filter-v345{width:100%}.recent-batch-date-v345{min-width:0;max-width:none;flex:1 1 135px}}

@@ -12,7 +12,7 @@ let cloudInitialSyncComplete = false;
 let cloudSyncTimer = null;
 let cloudSyncRequestedWhileBusy = false;
 let cloudRefreshingViewsV338 = false;
-// V34.4: remember whether a real unsynced queue already existed before any
+// V34.5: remember whether a real unsynced queue already existed before any
 // DOMContentLoaded setup code runs. Startup-only housekeeping must never turn a
 // clean launch into a Push before the first read-only cloud check completes.
 const cloudQueueWasDirtyAtScriptLoadV337 = (() => {
@@ -134,7 +134,7 @@ function setupCloudSync() {
     (startupSnapshotV338.products || []).length > 0 ||
     (startupSnapshotV338.imports || []).length > 0 ||
     (startupSnapshotV338.batches || []).length > 0;
-  // V34.4 Local-First: when a valid V32.5-style bootstrap and cached core data
+  // V34.5 Local-First: when a valid V32.5-style bootstrap and cached core data
   // already exist, show the last successful state immediately while the
   // revision check runs silently in the background.
   if (isCloudBootstrapComplete() && Number(startupConfigV338.revision) > 0 && hasCachedCoreV338 && !getCloudQueue().dirty) {
@@ -411,7 +411,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V34.4 Stable",
+      updatedBy: "System V34.5 Stable",
       ...payload
     });
 
@@ -447,7 +447,7 @@ async function commitSalesInventoryBatchToCloudV125(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V34.4 Stable",
+      updatedBy: "System V34.5 Stable",
       ...payload
     });
     if (data.conflict || data.stockChanged) {
@@ -470,7 +470,7 @@ window.commitSalesInventoryBatchToCloudV125 = commitSalesInventoryBatchToCloudV1
 
 async function commitSalesCorrectionBatchToCloudV110(payload) {
   await flushCloudQueueStrictV83(); const config=getCloudConfig(); setCloudState("syncing");
-  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V34.4 Stable",...payload});
+  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V34.5 Stable",...payload});
     if(data.conflict||data.stockChanged) throw new Error(data.message||"Google Sheet 资料已改变，全部库存差异没有处理。请同步后重试。");
     config.revision=Number(data.revision)||Number(config.revision)||0; config.lastSyncAt=new Date().toISOString(); config.bootstrapToken=String(data.bootstrapToken||config.bootstrapToken||""); config.bootstrapRevision=Number(data.revision)||Number(config.bootstrapRevision)||0; saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced"); return data;
   } catch(error){setCloudState("failed");throw error;}
@@ -484,7 +484,7 @@ async function migrateProductPrefixesV164() {
     action: "migrateProductPrefixesV164", clientVersion: APP_VERSION,
     schemaVersion: CLOUD_SCHEMA_VERSION, baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""), bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V34.4 Stable"
+    updatedBy: "System V34.5 Stable"
   });
   if (data.conflict) throw new Error(data.message || "资料已改变，请同步后重试。");
   config.revision = Number(data.revision) || Number(config.revision) || 0;
@@ -520,7 +520,7 @@ async function runCloudSync() {
 
   try {
     let queue = getCloudQueue();
-    // V34.4: if the queue was clean before this page loaded but became dirty while
+    // V34.5: if the queue was clean before this page loaded but became dirty while
     // setup/render code was running, that dirtiness is startup housekeeping, not
     // a user edit. Clear it before the first cloud operation so V32.5's fast
     // read-first path is preserved. A queue that was already dirty before page
@@ -533,7 +533,7 @@ async function runCloudSync() {
       });
       queue = getCloudQueue();
     }
-    // V34.4: after one successful bootstrap, read-only revision checks stay in the
+    // V34.5: after one successful bootstrap, read-only revision checks stay in the
     // background and must not put the dashboard back into a long "同步中..." state.
     // Real local writes/pushes still show syncing.
     if (!cloudInitialSyncComplete || queue.dirty || !isCloudBootstrapComplete()) {
@@ -550,7 +550,7 @@ async function runCloudSync() {
     // No Push is allowed until the canonical Sheet has been pulled successfully.
     let remoteUpdated = false;
 
-    // V34.4: a bootstrap record from an older cached frontend may be complete but
+    // V34.5: a bootstrap record from an older cached frontend may be complete but
     // its write credential is not current. Refresh it with a read-only Pull before
     // any Push is allowed. This prevents the mobile V8.7 red-flash loop.
     let credentialRefreshedV342 = false;
@@ -594,6 +594,7 @@ async function runCloudSync() {
     const finalQueueV338 = getCloudQueue();
     if (cloudInitialSyncComplete && !finalQueueV338.dirty && navigator.onLine) {
       setCloudState("synced");
+      if (getMinimumPricePendingV345()?.productId) window.setTimeout(retryPendingMinimumPriceV345, 250);
     }
     if (cloudSyncRequestedWhileBusy || finalQueueV338.dirty) {
       cloudSyncTimer = window.setTimeout(() => runCloudSync(), 40);
@@ -629,7 +630,7 @@ async function pullLatestSnapshot(forceBootstrap = false) {
       config.bootstrapRevision = Number(data.revision) || 0;
     }
     saveCloudConfig(config);
-    // V34.4: even an unchanged Pull can return a fresh bootstrap token. Persist
+    // V34.5: even an unchanged Pull can return a fresh bootstrap token. Persist
     // the current-version credential so mobile caches do not keep using V34.0/V34.1 tokens.
     if (!isCloudWriteCredentialCurrentV341() && data.bootstrapToken) saveCloudBootstrap(data);
     renderCloudMeta(config);
@@ -680,6 +681,31 @@ function hasUnsyncedLocalChanges(local, remote, config) {
 }
 
 
+
+const MINIMUM_PRICE_PENDING_KEY_V345 = "minimumPricePendingV345";
+function getMinimumPricePendingV345(){try{return JSON.parse(localStorage.getItem(MINIMUM_PRICE_PENDING_KEY_V345)||"null")}catch(_){return null}}
+function setMinimumPricePendingV345(value){if(value)localStorage.setItem(MINIMUM_PRICE_PENDING_KEY_V345,JSON.stringify(value));else localStorage.removeItem(MINIMUM_PRICE_PENDING_KEY_V345)}
+function reapplyPendingMinimumPriceLocalV345(){
+  const pending=getMinimumPricePendingV345(); if(!pending?.productId)return false;
+  try{
+    const products=loadJSON("importSystemProducts",[]); const i=products.findIndex(p=>String(p?.id||"")===String(pending.productId));
+    if(i>=0){products[i]={...products[i],minimumPrice:Number(pending.minimumPrice)||0,minimumPriceManual:Boolean(pending.minimumPriceManual),updatedAt:String(pending.updatedAt||new Date().toISOString())};localStorage.setItem("importSystemProducts",JSON.stringify(products));}
+    const settings=loadJSON("importSystemSettings",{}), overrides={...(settings.minimumPriceManualOverrides||{})}; overrides[String(pending.productId)]=Boolean(pending.minimumPriceManual); localStorage.setItem("importSystemSettings",JSON.stringify({...settings,minimumPriceManualOverrides:overrides}));
+    return true;
+  }catch(_){return false}
+}
+window.hasPendingMinimumPriceV345=()=>Boolean(getMinimumPricePendingV345()?.productId);
+window.addEventListener("beforeunload",event=>{if(!getMinimumPricePendingV345()?.productId)return;event.preventDefault();event.returnValue="";});
+let minimumPricePendingRetryBusyV345=false;
+function retryPendingMinimumPriceV345(){
+  const pending=getMinimumPricePendingV345();
+  if(!pending?.productId||minimumPricePendingRetryBusyV345||!navigator.onLine||!isCloudBootstrapComplete())return;
+  minimumPricePendingRetryBusyV345=true;
+  Promise.resolve(updateProductMinimumPriceFast(pending.productId,pending.minimumPrice,pending.updatedAt,pending.minimumPriceManual))
+    .catch(error=>console.warn("V34.5 pending minimum-price retry kept for next sync",error))
+    .finally(()=>{minimumPricePendingRetryBusyV345=false;});
+}
+window.retryPendingMinimumPriceV345=retryPendingMinimumPriceV345;
 async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt, minimumPriceManual = true, retryCountV341 = 0) {
   if (!isCloudWriteCredentialCurrentV341()) {
     await pullLatestSnapshot(false);
@@ -693,6 +719,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
     throw new Error("首次同步尚未完成，请等显示「已同步」后再修改最低售价。");
   }
 
+  setMinimumPricePendingV345({productId:String(productId||""),minimumPrice:Number(minimumPrice)||0,minimumPriceManual:Boolean(minimumPriceManual),updatedAt:String(updatedAt||new Date().toISOString())});
   setCloudState("syncing");
 
   const data = await callGoogleApi({
@@ -702,7 +729,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V34.4 Stable",
+    updatedBy: "System V34.5 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     minimumPriceManual: Boolean(minimumPriceManual),
@@ -729,7 +756,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
   config.bootstrapRevision = Number(data.revision) || 0;
   saveCloudConfig(config);
 
-  // V34.4: keep this single-product change authoritative locally as well.
+  // V34.5: keep this single-product change authoritative locally as well.
   // A credential-refresh Pull may have happened immediately before the write;
   // re-apply only this product so other protected products never lose their flags.
   try {
@@ -754,12 +781,13 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
       inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
     }
   } catch (localErrorV341) {
-    console.warn("V34.4 minimum-price local refresh skipped", localErrorV341);
+    console.warn("V34.5 minimum-price local refresh skipped", localErrorV341);
   }
 
+  setMinimumPricePendingV345(null);
   renderCloudMeta(config);
   setCloudState("synced");
-  window.setTimeout(()=>{try{if(typeof refreshSystemViewsAfterSync==="function")refreshSystemViewsAfterSync()}catch(refreshErrorV343){console.warn("V34.4 deferred minimum-price refresh skipped",refreshErrorV343)}},0);
+  window.setTimeout(()=>{try{if(typeof refreshSystemViewsAfterSync==="function")refreshSystemViewsAfterSync()}catch(refreshErrorV343){console.warn("V34.5 deferred minimum-price refresh skipped",refreshErrorV343)}},0);
   return data;
 }
 
@@ -779,7 +807,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V34.4 Stable",
+    updatedBy: "System V34.5 Stable",
     settings: snapshot.settings,
     products: snapshot.products,
     imports: snapshot.imports,
@@ -952,7 +980,7 @@ function applyRemoteData(data) {
 
   cloudApplyingRemote = true;
   try {
-    // V34.4: keep the proven V32.5 Pull/apply path simple.
+    // V34.5: keep the proven V32.5 Pull/apply path simple.
     // Only strip the retired promotion payload locally; do not run any
     // migration/sanitizer during the first cloud Pull.
     const safeRemoteSettingsV336 = { ...(data.settings || {}) };
@@ -960,12 +988,13 @@ function applyRemoteData(data) {
     localStorage.setItem("importSystemSettings", JSON.stringify(safeRemoteSettingsV336));
     const hydratedProductsV341 = hydrateRemoteProductManualFlagsV341(data.products, safeRemoteSettingsV336);
     localStorage.setItem("importSystemProducts", JSON.stringify(hydratedProductsV341));
+    reapplyPendingMinimumPriceLocalV345();
     if (typeof invalidateMinimumPriceOriginIndexV160 === "function") {
       invalidateMinimumPriceOriginIndexV160();
     }
     localStorage.setItem("importSystemImports", JSON.stringify(data.imports));
     localStorage.setItem("importSystemBatches", JSON.stringify(data.batches));
-    // V34.4: direct cloud writes must invalidate the prepared inventory join.
+    // V34.5: direct cloud writes must invalidate the prepared inventory join.
     // Otherwise a previously prepared empty/filtered array can survive the Pull
     // and leave the card area blank even though totals already show live stock.
     if (typeof inventoryPreparedRowsCacheV321 !== "undefined") {
@@ -977,7 +1006,7 @@ function applyRemoteData(data) {
     cloudApplyingRemote = false;
   }
 
-  // V34.4: a cloud Pull is read-only. Do not auto-repair/write cost snapshots
+  // V34.5: a cloud Pull is read-only. Do not auto-repair/write cost snapshots
   // during startup or revision checks; this prevents a successful Pull from
   // immediately creating a dirty queue and starting another Push.
   cloudRefreshingViewsV338 = true;
