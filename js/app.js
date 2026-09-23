@@ -4245,7 +4245,7 @@ function getEffectiveProductMinimumPriceV183(product, promotion = null, rules = 
   const originalPrice = Math.max(0, Number(product?.minimumPrice) || 0);
   const active = promotion || getPromotionSettingsV183();
   const productId = String(product?.id || "").trim().toUpperCase();
-  // V35.1: 售价控制是最高优先级。手动最低售价永远保持蓝色，完全不参与促销。
+  // V35.3: 售价控制是最高优先级。手动最低售价永远保持蓝色，完全不参与促销。
   // 一旦解除手动状态，若促销仍开启且产品不在排除清单，会自动重新加入促销。
   if (isMinimumPriceManualV160(product)) return originalPrice;
   if (!active || active.excludedProductIds.includes(productId)) return originalPrice;
@@ -4406,7 +4406,10 @@ function updatePromotionDraftStatusV186() {
     // what still needs confirmation and offer the two safe choices.
     const hasPendingAdd = [...promotionSearchSelectionV184].some(id => !promotionExcludedDraftV183.has(id));
     const hasPendingRemove = [...promotionExcludedSelectionV184].some(id => promotionExcludedDraftV183.has(id));
-    save.disabled = Boolean(active) && !changed && !hasPendingAdd && !hasPendingRemove;
+    // V35.3: idle active promotion must never look like it is still loading.
+    // Keep the update button available even when there are no draft changes;
+    // only the actual save transaction may disable it.
+    save.disabled = false;
     save.classList.toggle("promotion-save-needs-confirm-v197", hasPendingAdd || hasPendingRemove);
   }
   if (!notice) return;
@@ -4645,7 +4648,7 @@ function refreshPromotionUiV183() {
   const deleteButton = document.getElementById("deletePromotionV183");
   const toggleButton = document.getElementById("togglePromotionPriceListV183");
   if (summary) {
-    summary.textContent = promotion ? `${promotion.name} 促销进行中 · ${promotion.targetMarginRate}%` : "";
+    summary.textContent = promotion ? `${promotion.name} 促销进行中 · ${promotion.targetMarginRate}% · 排除 ${Array.isArray(promotion.excludedProductIds) ? promotion.excludedProductIds.length : 0} 项` : "";
     summary.hidden = !promotion;
     summary.classList.toggle("promotion-active-summary-v191", Boolean(promotion));
   }
@@ -4816,7 +4819,7 @@ function setupPromotionSettingsV183() {
   excludeSelected?.addEventListener("click", () => {
     const ids = [...promotionSearchSelectionV184].filter(id => !promotionExcludedDraftV183.has(id));
     if (!ids.length || !window.confirm(`确认批量排除已选择的 ${ids.length} 项产品？\n\n保存促销后，这些产品会继续使用原最低售价。`)) return;
-    // V35.1: confirmed exclusions accumulate across searches (e.g. 3 水梅 + 3 真柏 = 6).
+    // V35.3: confirmed exclusions accumulate across searches (e.g. 3 水梅 + 3 真柏 = 6).
     ids.forEach(id => promotionExcludedDraftV183.add(id));
     promotionDraftTouchedV209 = true;
     promotionSearchSelectionV184.clear();
@@ -4892,6 +4895,7 @@ function setupPromotionSettingsV183() {
     const saveButtonIdleTextV350 = currentActive ? "更新促销设置" : "开启促销管理";
     const saveButtonBusyTextV350 = currentActive ? "正在更新促销设置…" : "正在保存并开启促销…";
     saveButton.disabled = true; if (deleteButton) deleteButton.disabled = true;
+    saveButton.classList.add("promotion-save-busy-v352");
     saveButton.textContent = saveButtonBusyTextV350;
     if (status) status.textContent = "";
     let saved = false;
@@ -4908,6 +4912,7 @@ function setupPromotionSettingsV183() {
       if (status) status.textContent = `促销没有保存：${String(error?.message || error)}`;
     } finally {
       saveButton.disabled=false; if(deleteButton)deleteButton.disabled=false;
+      saveButton.classList.remove("promotion-save-busy-v352");
       saveButton.textContent = saveButtonIdleTextV350;
       try { if (typeof setCloudState === "function" && navigator.onLine) setCloudState("synced"); } catch (_) {}
     }
@@ -5645,7 +5650,7 @@ function setupProductPrefixSettingsV181() {
       }
       renderProductPrefixRulesV181(); setProductPrefixEditorV333(); setPrefixSaveButtonStateV340("修改成功", true); resetPrefixSaveButtonV340(); return;
     }
-    // V35.1: a bonsai ID prefix may intentionally be shared by different species.
+    // V35.3: a bonsai ID prefix may intentionally be shared by different species.
     // Example: 真柏 / 系鱼川 / 香松 may all use JU; 仙丹 and 人参果矮霸 may both use IX.
     // What is forbidden is redefining the SAME Chinese keyword to another prefix.
     if(getProductPrefixRulesV181().some(([k])=>normalizeProductPrefixKeywordV181(k)===normalizeProductPrefixKeywordV181(keyword))){if(status)status.textContent=`“${keyword}”已经存在，不能再新增另一个前缀`;return;}
@@ -5667,7 +5672,7 @@ function findBestProductPrefixRuleV343(name = "") {
     const key=normalizeProductPrefixKeywordV181(rule[0]);
     return {rule,key,index:key?compact.indexOf(key):-1};
   }).filter(x=>x.index>=0);
-  // V35.1: whichever species keyword appears FIRST in the product name wins.
+  // V35.3: whichever species keyword appears FIRST in the product name wins.
   // Same-position ties prefer the longer/more-specific keyword.
   matched.sort((a,b)=>a.index-b.index || b.key.length-a.key.length);
   return matched[0]?.rule||null;
@@ -5996,7 +6001,7 @@ function getProductSearchPrefixAliasesV238(product) {
 
 function productExactOrPrefixSearchMatchesV238(product, queryValue) {
   const raw = String(queryValue || "").normalize("NFKC").trim();
-  // V35.1: migrated legacy Product IDs (notably PZxxxx / PSxxxx aliases) are
+  // V35.3: migrated legacy Product IDs (notably PZxxxx / PSxxxx aliases) are
   // internal compatibility only and must not produce front-end search hits.
   if (/^(?:PZ|PS)(?:\d{0,4})?$/i.test(raw)) {
     const formalId=String(product?.id||product?.productId||"").trim().toUpperCase();
@@ -6986,7 +6991,7 @@ function renderImportDraftsV242() {
       label.textContent = "未保存 · 当前资料尚未保存为草稿";
       label.dataset.draftStateV249 = "unsaved";
     } else {
-      // V35.1: a completely empty editor should not show a residual "未保存" bar.
+      // V35.3: a completely empty editor should not show a residual "未保存" bar.
       label.textContent = "";
       label.dataset.draftStateV249 = "empty";
     }
@@ -10792,7 +10797,7 @@ function buildHistorySoldCostSummary(options = {}) {
   `;
 }
 
-// V35.1 History import-date rule:
+// V35.3 History import-date rule:
 // Every import record is searched by ARRIVAL DATE only. Container/save/created dates
 // are display/audit metadata and must not decide Date Range results.
 function getHistoryImportTransactionDate(batch, item = null) {
@@ -12572,7 +12577,7 @@ function convertHistoricalOriginalCostForBatchV249(value, sourceCurrency, target
   // V26.6 exchange-rate direction: the stored rate is foreign-currency units per
   // MYR. So foreign -> MYR divides, MYR -> foreign multiplies, and foreign ->
   // foreign converts through MYR. Examples: 920 CNY / 1.60 = RM575.00;
-  // RM35.10 * 1.60 = CNY56.00.
+  // RM35.20 * 1.60 = CNY56.00.
   const sourceRate = getBatchCurrencyRateV249(source);
   const targetRate = getBatchCurrencyRateV249(target);
   const amountMYR = source === "MYR" ? amount : (sourceRate > 0 ? amount / sourceRate : amount);
@@ -14122,7 +14127,7 @@ function renderBatchList() {
     const arrival = normalizeDateToDDMMYYYY(batch?.arrivalDate || "");
     if (recentStartDateV345 || recentEndDateV345) {
       const arrivalTime = parseDDMMYYYY(arrival);
-      // V35.1: one selected date means that exact arrival day. Two selected dates
+      // V35.3: one selected date means that exact arrival day. Two selected dates
       // mean an inclusive arrival-date range. Import history never uses container date.
       const singleDate = recentStartDateV345 && !recentEndDateV345
         ? recentStartDateV345
@@ -15746,7 +15751,7 @@ async function editProductMinimumPrice(productId) {
   const product = products[productIndex];
   const storedMinimumPriceV351 = Math.max(0, Number(product.minimumPrice) || 0);
   const currentMinimumPriceManual = isMinimumPriceManualV160(product);
-  // V35.1: the edit dialog must reflect the price the user is actually seeing now.
+  // V35.3: the edit dialog must reflect the price the user is actually seeing now.
   // During an active promotion, a non-manual, non-excluded product therefore shows
   // the promotion minimum price instead of the underlying automatic base price.
   const currentMinimumPrice = Math.max(0, Number(getEffectiveProductMinimumPriceV333(product)) || 0);
@@ -15819,7 +15824,7 @@ async function editProductMinimumPrice(productId) {
   } catch (error) {
     const pendingSameProductV351 = typeof hasPendingMinimumPriceV345 === "function" && hasPendingMinimumPriceV345();
     if (pendingSameProductV351) {
-      // V35.1: a revision conflict is not a user cancellation. Keep the user's
+      // V35.3: a revision conflict is not a user cancellation. Keep the user's
       // optimistic manual price visible and let the existing pending retry finish.
       // This prevents the card from flickering 11,800 -> promotion price -> 11,800.
       const latestProducts = getProducts();
@@ -16350,6 +16355,9 @@ function setupInventoryModule() {
     .getElementById("inventorySort")
     .addEventListener("change", event => {
       const mode = String(event.target.value || "");
+      if (mode !== "price-control" && typeof originalCostPriceControlSelectionV353 !== "undefined") {
+        originalCostPriceControlSelectionV353.clear();
+      }
       const needsSales = ["latest-sold","bestseller-desc","profit-desc"].includes(mode);
       if (needsSales && !historyAllSalesLinksLoadedV136 && !hasUsableInventorySalesAnalyticsV343() && navigator.onLine) {
         const list = document.getElementById("inventoryManagementList");
@@ -17257,7 +17265,7 @@ function openSystemMediaPreviewV305(type, url, label = "") {
     return;
   }
 
-  // V35.1 video compatibility: restore the proven Google Drive preview player.
+  // V35.3 video compatibility: restore the proven Google Drive preview player.
   // Direct <video> streaming is unreliable for Drive links on iPhone/Safari.
   // Keep playback inside the Import System shell and show no permission/error banner.
   if (mediaType === "video") {
@@ -17515,6 +17523,190 @@ function applyMinimumPriceVisualStateV340(element, displayState) {
   element.querySelectorAll("span,strong,.master-price-main-v266").forEach(child => child.style.setProperty("color", color || "inherit", "important"));
 }
 
+const originalCostPriceControlSelectionV353 = new Set();
+let originalCostPriceControlBusyV353 = false;
+
+function isOriginalCostPriceControlModeV353() {
+  return String(document.getElementById("inventorySort")?.value || "") === "price-control";
+}
+
+function getManualPriceControlProductsV353() {
+  return getProducts().filter(product => isMinimumPriceManualV160(product));
+}
+
+function updateOriginalCostPriceControlActionsV353(rows = getOriginalCostSummaryRows()) {
+  const actions = document.getElementById("originalCostPriceControlActionsV353");
+  const selectAll = document.getElementById("originalCostSelectAllCurrentV353");
+  const batchButton = document.getElementById("originalCostBatchReleaseControlV353");
+  const allButton = document.getElementById("originalCostReleaseAllControlV353");
+  const active = isOriginalCostPriceControlModeV353();
+  if (!actions) return;
+
+  actions.hidden = !active;
+  if (!active) {
+    originalCostPriceControlSelectionV353.clear();
+    if (selectAll) { selectAll.checked = false; selectAll.indeterminate = false; }
+    return;
+  }
+
+  const currentIds = (Array.isArray(rows) ? rows : [])
+    .map(row => String(row?.id || "").trim())
+    .filter(Boolean);
+  const liveManualIds = new Set(getManualPriceControlProductsV353().map(product => String(product.id || "").trim()));
+  Array.from(originalCostPriceControlSelectionV353).forEach(id => {
+    if (!liveManualIds.has(id)) originalCostPriceControlSelectionV353.delete(id);
+  });
+
+  const selectedCurrent = currentIds.filter(id => originalCostPriceControlSelectionV353.has(id)).length;
+  if (selectAll) {
+    selectAll.disabled = originalCostPriceControlBusyV353 || currentIds.length === 0;
+    selectAll.checked = currentIds.length > 0 && selectedCurrent === currentIds.length;
+    selectAll.indeterminate = selectedCurrent > 0 && selectedCurrent < currentIds.length;
+  }
+  if (batchButton) {
+    batchButton.disabled = originalCostPriceControlBusyV353 || originalCostPriceControlSelectionV353.size === 0;
+    batchButton.textContent = originalCostPriceControlBusyV353
+      ? "正在放弃控制…"
+      : `批量放弃控制（${originalCostPriceControlSelectionV353.size}）`;
+  }
+  if (allButton) {
+    const totalManual = liveManualIds.size;
+    allButton.disabled = originalCostPriceControlBusyV353 || totalManual === 0;
+    allButton.textContent = originalCostPriceControlBusyV353 ? "正在放弃全部控制…" : "一键全部放弃控制";
+    allButton.title = totalManual ? `当前共有 ${totalManual} 项售价控制产品` : "目前没有售价控制产品";
+  }
+}
+
+function refreshOriginalCostPriceControlCheckboxesV353() {
+  document.querySelectorAll(".original-cost-price-control-checkbox-v353").forEach(input => {
+    const id = String(input.dataset.productId || "").trim();
+    input.checked = originalCostPriceControlSelectionV353.has(id);
+    input.disabled = originalCostPriceControlBusyV353;
+  });
+  updateOriginalCostPriceControlActionsV353();
+}
+
+async function releaseMinimumPriceControlBatchV353(productIds, label = "所选产品") {
+  const ids = Array.from(new Set((Array.isArray(productIds) ? productIds : []).map(id => String(id || "").trim()).filter(Boolean)));
+  if (!ids.length || originalCostPriceControlBusyV353) return;
+
+  const products = getProducts();
+  const targets = ids
+    .map(id => products.find(product => String(product.id || "").trim() === id))
+    .filter(product => product && isMinimumPriceManualV160(product));
+  if (!targets.length) {
+    originalCostPriceControlSelectionV353.clear();
+    renderInventoryManagementList();
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `确认放弃${label}的售价控制？\n\n共 ${targets.length} 项。\n解除后将恢复系统自动计算；若促销正在进行且产品未被排除，会立即重新使用促销最低售价。\n\n库存数量、平均成本及库存总值不会改变。`
+  );
+  if (!confirmed) return;
+
+  if (typeof updateMinimumPriceBatchV353 !== "function") {
+    window.alert("批量售价控制同步功能尚未载入，请刷新网页后再试。");
+    return;
+  }
+
+  originalCostPriceControlBusyV353 = true;
+  updateOriginalCostPriceControlActionsV353();
+  refreshOriginalCostPriceControlCheckboxesV353();
+
+  const updatedAt = new Date().toISOString();
+  const changes = targets.map(product => ({
+    productId: String(product.id || "").trim(),
+    minimumPrice: getAutomaticMinimumPriceV160(product.averageCost, null, product),
+    minimumPriceManual: false,
+    updatedAt
+  }));
+
+  const previousProducts = products.map(product => ({ ...product }));
+  const previousOverrides = { ...getMinimumPriceManualOverridesV160() };
+  const byId = new Map(changes.map(change => [change.productId, change]));
+  const nextProducts = products.map(product => {
+    const change = byId.get(String(product.id || "").trim());
+    return change ? { ...product, minimumPrice: change.minimumPrice, minimumPriceManual: false, updatedAt } : product;
+  });
+  const nextOverrides = { ...previousOverrides };
+  changes.forEach(change => { nextOverrides[change.productId] = false; });
+
+  saveJSON("importSystemProducts", nextProducts);
+  saveMinimumPriceManualOverridesV160(nextOverrides);
+  originalCostPriceControlSelectionV353.clear();
+  if (typeof inventoryPreparedRowsCacheV321 !== "undefined") {
+    inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
+  }
+  renderInventoryManagementList();
+  renderDashboard();
+
+  try {
+    await updateMinimumPriceBatchV353(changes);
+    appendCostRevisionHistory(changes.map(change => {
+      const before = previousProducts.find(product => String(product.id || "").trim() === change.productId);
+      return {
+        id: `DATAREV${Date.now()}${Math.random().toString(36).slice(2, 7)}`,
+        timestamp: new Date().toLocaleString("zh-MY", { hour12: false }),
+        importNumber: change.productId || "-",
+        fieldLabel: `放弃售价控制 · ${before?.name || change.productId}`,
+        before: formatMoney(before?.minimumPrice || 0, "RM "),
+        after: formatMoney(change.minimumPrice, "RM ")
+      };
+    }));
+    renderCostRevisionHistory();
+  } catch (error) {
+    saveJSON("importSystemProducts", previousProducts);
+    saveMinimumPriceManualOverridesV160(previousOverrides);
+    if (typeof inventoryPreparedRowsCacheV321 !== "undefined") {
+      inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
+    }
+    renderInventoryManagementList();
+    renderDashboard();
+    window.alert(String(error?.message || error || "批量放弃售价控制失败"));
+  } finally {
+    originalCostPriceControlBusyV353 = false;
+    renderInventoryManagementList();
+  }
+}
+
+function bindOriginalCostPriceControlActionsV353() {
+  const actions = document.getElementById("originalCostPriceControlActionsV353");
+  const body = document.getElementById("originalCostTableBody");
+  if (!actions || !body || actions.dataset.boundV353 === "1") return;
+  actions.dataset.boundV353 = "1";
+
+  document.getElementById("originalCostSelectAllCurrentV353")?.addEventListener("change", event => {
+    const checked = Boolean(event.target.checked);
+    getOriginalCostSummaryRows().forEach(row => {
+      const id = String(row.id || "").trim();
+      if (!id) return;
+      if (checked) originalCostPriceControlSelectionV353.add(id);
+      else originalCostPriceControlSelectionV353.delete(id);
+    });
+    refreshOriginalCostPriceControlCheckboxesV353();
+  });
+
+  document.getElementById("originalCostBatchReleaseControlV353")?.addEventListener("click", () => {
+    void releaseMinimumPriceControlBatchV353(Array.from(originalCostPriceControlSelectionV353), "所选产品");
+  });
+
+  document.getElementById("originalCostReleaseAllControlV353")?.addEventListener("click", () => {
+    const allIds = getManualPriceControlProductsV353().map(product => String(product.id || "").trim()).filter(Boolean);
+    void releaseMinimumPriceControlBatchV353(allIds, "全部产品");
+  });
+
+  body.addEventListener("change", event => {
+    const checkbox = event.target.closest(".original-cost-price-control-checkbox-v353");
+    if (!checkbox) return;
+    const id = String(checkbox.dataset.productId || "").trim();
+    if (!id) return;
+    if (checkbox.checked) originalCostPriceControlSelectionV353.add(id);
+    else originalCostPriceControlSelectionV353.delete(id);
+    updateOriginalCostPriceControlActionsV353();
+  });
+}
+
 function renderOriginalCostPanel(visibleProducts = inventoryVisibleProductsV153) {
   const body = document.getElementById("originalCostTableBody");
   const dateField = document.getElementById("originalCostPanelDate");
@@ -17524,12 +17716,16 @@ function renderOriginalCostPanel(visibleProducts = inventoryVisibleProductsV153)
     inventoryVisibleProductsV153 = visibleProducts.map(product => ({ ...product }));
   }
   const rows = getOriginalCostSummaryRows();
+  const priceControlModeV353 = isOriginalCostPriceControlModeV353();
+  if (!priceControlModeV353) originalCostPriceControlSelectionV353.clear();
   const originalHeader = document.getElementById("originalCostMinimumHeaderV315");
   if (originalHeader) originalHeader.textContent = "最低售价";
   if (dateField) dateField.textContent = `资料日期：${formatDateDDMMYYYY(new Date())}`;
 
   if (!rows.length) {
     body.innerHTML = '<tr><td colspan="5" class="empty-state">暂无库存资料</td></tr>';
+    bindOriginalCostPriceControlActionsV353();
+    updateOriginalCostPriceControlActionsV353(rows);
     return;
   }
 
@@ -17539,6 +17735,7 @@ function renderOriginalCostPanel(visibleProducts = inventoryVisibleProductsV153)
     return `
       <tr>
         <td>
+          ${priceControlModeV353 ? `<label class="original-cost-product-select-v353"><input class="original-cost-price-control-checkbox-v353" type="checkbox" data-product-id="${escapeHTML(row.id)}" aria-label="选择 ${escapeHTML(row.name)}" ${originalCostPriceControlSelectionV353.has(String(row.id || "").trim()) ? "checked" : ""} /></label>` : ""}
           <button
             class="inventory-product-name-copy original-cost-product-copy"
             type="button"
@@ -17564,6 +17761,8 @@ function renderOriginalCostPanel(visibleProducts = inventoryVisibleProductsV153)
   }).join("");
   bindOriginalCostStockLongPressV151();
   bindOriginalCostMinimumPriceLongPress();
+  bindOriginalCostPriceControlActionsV353();
+  updateOriginalCostPriceControlActionsV353(rows);
 }
 
 function bindOriginalCostStockLongPressV151() {
@@ -18327,7 +18526,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "35.1",
+      version: "35.3",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
