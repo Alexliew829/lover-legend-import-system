@@ -102,7 +102,7 @@ function cleanupLegacySettingsResidueV323() {
 document.addEventListener("DOMContentLoaded", () => {
   clearTransientSearchInputsOnReloadV304();
   setupAccessLock();
-  // V36.7: clean any stale PZ+BS duplicate cache before Dashboard/Inventory first paint.
+  // V36.8: clean any stale PZ+BS duplicate cache before Dashboard/Inventory first paint.
   if (typeof repairLocalBsCanonicalCacheV365 === "function") repairLocalBsCanonicalCacheV365();
   cleanupLegacySettingsResidueV323();
   repairLegacyImportDates();
@@ -210,7 +210,7 @@ function persistInventorySalesAnalyticsV343(value){try{const revision=getInvento
 function hasUsableInventorySalesAnalyticsV343(){return Boolean(inventorySalesAnalyticsCacheV146?.value)||hydrateInventorySalesAnalyticsV343()}
 function hasCurrentFullInventorySalesAnalyticsV360(){if(!hasUsableInventorySalesAnalyticsV343())return false;const revision=getInventoryAnalyticsCloudRevisionV360();return Boolean(inventorySalesAnalyticsFullCachedV360&&revision>0&&inventorySalesAnalyticsFullRevisionV360===revision)}
 function invalidateInventorySalesAnalyticsAfterFullLoadV360(){inventorySalesAnalyticsCacheV146={signature:"",value:null};inventoryPreparedRowsCacheV321={rawProducts:null,settings:null,imports:null,batches:null,sales:null,rows:[]};}
-function refreshProfitAnalyticsInBackgroundV360(rerender,label="profit analytics"){if(!navigator.onLine||historyAllSalesLinksLoadedV136||historyAllSalesLinksLoadingV136)return;Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(()=>{invalidateInventorySalesAnalyticsAfterFullLoadV360();try{getInventorySalesAnalyticsV146()}catch(_){};try{rerender?.()}catch(error){console.warn(`V36.7 ${label} rerender failed`,error)}}).catch(error=>console.warn(`V36.7 ${label} background refresh failed`,error))}
+function refreshProfitAnalyticsInBackgroundV360(rerender,label="profit analytics"){if(!navigator.onLine||historyAllSalesLinksLoadedV136||historyAllSalesLinksLoadingV136)return;Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(()=>{invalidateInventorySalesAnalyticsAfterFullLoadV360();try{getInventorySalesAnalyticsV146()}catch(_){};try{rerender?.()}catch(error){console.warn(`V36.8 ${label} rerender failed`,error)}}).catch(error=>console.warn(`V36.8 ${label} background refresh failed`,error))}
 const HISTORY_SALES_CACHE_KEY_V179 = "lover_import_history_sales_financial_v179";
 let historySalesCacheHydratedV179 = false;
 let historySalesCacheHasDataV179 = false;
@@ -3219,20 +3219,31 @@ function startCostRepairSessionTimerV206() {
   }, 1000);
 }
 
+function isCostOrInventoryRevisionV368(entry) {
+  const label = String(entry?.fieldLabel || "").trim();
+  if (!label) return false;
+  return /^(原成本|平均成本|当前库存|海外到大马运费)/.test(label);
+}
+
 function getCostRevisionHistory() {
   const settings = loadJSON("importSystemSettings", {});
-  return Array.isArray(settings.costRevisionHistory)
+  const rows = Array.isArray(settings.costRevisionHistory)
     ? settings.costRevisionHistory
     : [];
+  // V36.8: this panel is strictly for changes that affect cost, stock quantity,
+  // or inventory value. Legacy price/name/ID audit rows remain untouched in the
+  // stored backup but are no longer shown here.
+  return rows.filter(isCostOrInventoryRevisionV368);
 }
 
 function appendCostRevisionHistory(entries = []) {
-  if (!Array.isArray(entries) || !entries.length) return;
+  const accepted = Array.isArray(entries) ? entries.filter(isCostOrInventoryRevisionV368) : [];
+  if (!accepted.length) return;
   const settings = loadJSON("importSystemSettings", {});
   const current = Array.isArray(settings.costRevisionHistory)
     ? settings.costRevisionHistory
     : [];
-  const next = [...entries, ...current].slice(0, 2000);
+  const next = [...accepted, ...current].slice(0, 2000);
   saveJSON("importSystemSettings", {
     ...settings,
     costRevisionHistory: next
@@ -3240,6 +3251,28 @@ function appendCostRevisionHistory(entries = []) {
   if (typeof markCloudSettingsSaved === "function") {
     markCloudSettingsSaved();
   }
+}
+
+function formatCostRevisionTimestampV368(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  let match = raw.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})(?:[ T,]+)(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (match) {
+    const [, y, m, d, hh, mm, ss="00"] = match;
+    return `${String(d).padStart(2,"0")}-${String(m).padStart(2,"0")}-${y} ${String(hh).padStart(2,"0")}:${mm}:${ss}`;
+  }
+  match = raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})(?:[ T,]+)(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (match) {
+    const [, d, m, y, hh, mm, ss="00"] = match;
+    return `${String(d).padStart(2,"0")}-${String(m).padStart(2,"0")}-${y} ${String(hh).padStart(2,"0")}:${mm}:${ss}`;
+  }
+  const date = new Date(raw);
+  if (!Number.isNaN(date.getTime())) {
+    const d=String(date.getDate()).padStart(2,"0"), m=String(date.getMonth()+1).padStart(2,"0"), y=date.getFullYear();
+    const hh=String(date.getHours()).padStart(2,"0"), mm=String(date.getMinutes()).padStart(2,"0"), ss=String(date.getSeconds()).padStart(2,"0");
+    return `${d}-${m}-${y} ${hh}:${mm}:${ss}`;
+  }
+  return raw;
 }
 
 function clearCostRevisionHistoryV222() {
@@ -3406,7 +3439,7 @@ async function ensureAverageCostAuditHistoryV359(force = false) {
       saveAverageCostAuditCacheV359(entries, Date.now());
       return entries;
     })
-    .catch(error => { console.warn("V36.7 average-cost audit history load failed", error); return cache.entries; })
+    .catch(error => { console.warn("V36.8 average-cost audit history load failed", error); return cache.entries; })
     .finally(() => { averageCostAuditLoadPromiseV359 = null; });
   return averageCostAuditLoadPromiseV359;
 }
@@ -3499,7 +3532,7 @@ function renderCostRevisionHistory() {
         <span>修改后：${escapeHTML(String(entry.after ?? ""))}</span>
       </div>
       ${entry.reason ? `<div class="cost-revision-reason-v358"><strong>原因 / 备注：</strong>${escapeHTML(String(entry.reason))}</div>` : ""}
-      <small>${escapeHTML(entry.timestamp || "")}</small>
+      <small>${escapeHTML(formatCostRevisionTimestampV368(entry.timestamp || ""))}</small>
     </div>
   `).join("");
 }
@@ -3730,7 +3763,7 @@ function getImportAnomaliesV201() {
   if (cloudLastErrorMessage) {
     issues.push({severity:"critical", type:"sync-error", title:"最近同步失败", detail:String(cloudLastErrorMessage), action:"请先检查网络和 Google Web App，再按重新检查。"});
   }
-  // V36.7: Sales feed is a read-only reminder channel. A mobile browser can transiently
+  // V36.8: Sales feed is a read-only reminder channel. A mobile browser can transiently
   // fail a JSONP request even while Import cloud sync is healthy. Do not keep the whole
   // Import System in a red "needs check" state merely because an old/processed Sales feed
   // snapshot exists. Only a currently known pending Sales inventory task can escalate the
@@ -4776,7 +4809,11 @@ function refreshPromotionUiV183() {
     manualToggleV361.textContent = promotionIncludeManualDraftV361 ? "精品退出促销" : "精品加入促销";
     manualToggleV361.classList.toggle("is-open-v361", promotionIncludeManualDraftV361);
   }
-  if (manualStatusV361) manualStatusV361.textContent = promotionIncludeManualDraftV361 ? "精品参与促销" : "精品保护中";
+  if (manualStatusV361) {
+    manualStatusV361.textContent = promotionIncludeManualDraftV361 ? "参与促销中" : "售价控制中";
+    manualStatusV361.classList.toggle("is-participating-v368", promotionIncludeManualDraftV361);
+    manualStatusV361.classList.remove("is-pending-v368");
+  }
   const currentNameInputV361 = document.getElementById("promotionNameV183");
   if (currentNameInputV361) {
     currentNameInputV361.disabled = promotionIncludeManualDraftV361;
@@ -4856,7 +4893,9 @@ function setupPromotionSettingsV183() {
       const pendingManualStateV362 = savedManualStateV362 !== promotionIncludeManualDraftV361;
       manualPricingStatusV361.textContent = pendingManualStateV362
         ? (promotionIncludeManualDraftV361 ? "精品将加入促销（待确认）" : "精品将退出促销（待确认）")
-        : (promotionIncludeManualDraftV361 ? "精品参与促销" : "精品保护中");
+        : (promotionIncludeManualDraftV361 ? "参与促销中" : "售价控制中");
+      manualPricingStatusV361.classList.toggle("is-participating-v368", !pendingManualStateV362 && promotionIncludeManualDraftV361);
+      manualPricingStatusV361.classList.toggle("is-pending-v368", pendingManualStateV362);
     }
     nameInput.disabled = promotionIncludeManualDraftV361;
     nameInput.title = promotionIncludeManualDraftV361 ? "精品已参与促销，促销名称固定为 Crazy Sales" : "";
@@ -4925,7 +4964,7 @@ function setupPromotionSettingsV183() {
     if (mode === "profit-desc" && !historyAllSalesLinksLoadedV136 && !hasCachedSalesV360 && navigator.onLine) {
       if (searchResults) searchResults.innerHTML = '<div class="promotion-empty-v183">正在读取完整销售利润…</div>';
       Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(() => { invalidateInventorySalesAnalyticsAfterFullLoadV360(); renderPromotionExcludeSearchV183(); })
-        .catch(error => { console.warn("V36.7 promotion profit analytics load failed", error); renderPromotionExcludeSearchV183(); });
+        .catch(error => { console.warn("V36.8 promotion profit analytics load failed", error); renderPromotionExcludeSearchV183(); });
       return;
     }
     renderPromotionExcludeSearchV183();
@@ -5179,7 +5218,7 @@ function setupPromotionSettingsV183() {
       const priceList = document.getElementById("promotionPriceListV183");
       if (priceList) priceList.innerHTML = '<div class="promotion-empty-v183">正在读取完整销售利润…</div>';
       Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(() => { invalidateInventorySalesAnalyticsAfterFullLoadV360(); if (String(priceSortV195?.value || "") === mode) renderPromotionPriceListV183(); })
-        .catch(error => { console.warn("V36.7 promotion price profit analytics load failed", error); renderPromotionPriceListV183(); });
+        .catch(error => { console.warn("V36.8 promotion price profit analytics load failed", error); renderPromotionPriceListV183(); });
       return;
     }
     renderPromotionPriceListV183();
@@ -16070,7 +16109,7 @@ async function editProductMinimumPrice(productId) {
   minimumPriceOverrides[id] = nextMinimumPriceManual;
   saveMinimumPriceManualOverridesV160(minimumPriceOverrides);
 
-  // V36.7 Local-First: first paint the exact new state immediately. This is especially
+  // V36.8 Local-First: first paint the exact new state immediately. This is especially
   // important when entering 0 to leave sale-control; the user must see the automatic
   // price/color at once instead of waiting for a full result-list rebuild.
   saveJSON("importSystemProducts", products);
@@ -16087,14 +16126,6 @@ async function editProductMinimumPrice(productId) {
 
   try {
     await updateProductMinimumPriceFast(id, nextMinimumPrice, updatedAt, nextMinimumPriceManual);
-    appendCostRevisionHistory([{
-      id: `DATAREV${Date.now()}${Math.random().toString(36).slice(2, 7)}`,
-      timestamp: new Date().toLocaleString("zh-MY", { hour12: false }),
-      importNumber: product.id || "-",
-      fieldLabel: `最低售价 · ${product.name || "未命名产品"}`,
-      before: formatMoney(currentMinimumPrice, "RM "),
-      after: formatMoney(nextMinimumPrice, "RM ")
-    }]);
     renderCostRevisionHistory();
     if (status) status.textContent = `已更新：${product.name} 最低售价 ${formatMoney(nextMinimumPrice, "RM ")}`;
   } catch (error) {
@@ -18506,7 +18537,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "36.7",
+      version: "36.8",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
