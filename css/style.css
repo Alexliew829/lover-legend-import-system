@@ -6437,7 +6437,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 }
 
 
-/* V35.8 — Inventory Master is the single edit center; Original Cost list is read-only except product-name copy. */
+/* V35.9 — Inventory Master is the single edit center; Original Cost list is read-only except product-name copy. */
 .original-cost-readonly-v356{display:inline-block;font:inherit;font-weight:inherit;color:inherit;}
 .master-value-btn-v356{appearance:none;border:0;background:transparent;padding:0;margin:0;font:inherit;font-weight:inherit;color:inherit;text-align:right;cursor:pointer;font-variant-numeric:tabular-nums;white-space:nowrap;}
 .master-edit-v356.long-press-active{opacity:.58;transform:scale(.985);}
@@ -6447,3 +6447,21 @@ body.system-media-preview-open-v305{overflow:hidden}
     -webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;
   }
 }
+
+
+/* V35.9 — click-to-copy English name on inventory cards + average-cost audit History. */
+.inventory-english-copy-v359{
+  appearance:none;-webkit-appearance:none;border:0;background:transparent;padding:0;margin:0;
+  font:inherit;color:inherit;text-align:left;cursor:pointer;max-width:100%;
+  user-select:none;-webkit-user-select:none;
+}
+.inventory-english-copy-v359.copied{font-weight:800;}
+.average-cost-audit-history-v359{margin-top:14px;display:grid;gap:10px;}
+.average-cost-audit-card-v359{border:1px solid rgba(0,0,0,.12);border-radius:12px;padding:12px;background:#fff;display:grid;gap:7px;}
+.average-cost-audit-head-v359{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.average-cost-audit-head-v359 .history-copy-product{font-weight:800;}
+.average-cost-audit-values-v359{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.average-cost-audit-values-v359 em{font-style:normal;font-weight:800;}
+.average-cost-audit-values-v359 em.gain{color:#087a43}.average-cost-audit-values-v359 em.loss{color:#c62828}
+.average-cost-audit-reason-v359{line-height:1.45;word-break:break-word;}
+.average-cost-audit-inventory-v359{font-size:.92em;opacity:.82;}
