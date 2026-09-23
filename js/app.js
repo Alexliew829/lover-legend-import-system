@@ -102,7 +102,7 @@ function cleanupLegacySettingsResidueV323() {
 document.addEventListener("DOMContentLoaded", () => {
   clearTransientSearchInputsOnReloadV304();
   setupAccessLock();
-  // V36.9: clean any stale PZ+BS duplicate cache before Dashboard/Inventory first paint.
+  // V37.0: clean any stale PZ+BS duplicate cache before Dashboard/Inventory first paint.
   if (typeof repairLocalBsCanonicalCacheV365 === "function") repairLocalBsCanonicalCacheV365();
   cleanupLegacySettingsResidueV323();
   repairLegacyImportDates();
@@ -210,7 +210,7 @@ function persistInventorySalesAnalyticsV343(value){try{const revision=getInvento
 function hasUsableInventorySalesAnalyticsV343(){return Boolean(inventorySalesAnalyticsCacheV146?.value)||hydrateInventorySalesAnalyticsV343()}
 function hasCurrentFullInventorySalesAnalyticsV360(){if(!hasUsableInventorySalesAnalyticsV343())return false;const revision=getInventoryAnalyticsCloudRevisionV360();return Boolean(inventorySalesAnalyticsFullCachedV360&&revision>0&&inventorySalesAnalyticsFullRevisionV360===revision)}
 function invalidateInventorySalesAnalyticsAfterFullLoadV360(){inventorySalesAnalyticsCacheV146={signature:"",value:null};inventoryPreparedRowsCacheV321={rawProducts:null,settings:null,imports:null,batches:null,sales:null,rows:[]};}
-function refreshProfitAnalyticsInBackgroundV360(rerender,label="profit analytics"){if(!navigator.onLine||historyAllSalesLinksLoadedV136||historyAllSalesLinksLoadingV136)return;Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(()=>{invalidateInventorySalesAnalyticsAfterFullLoadV360();try{getInventorySalesAnalyticsV146()}catch(_){};try{rerender?.()}catch(error){console.warn(`V36.9 ${label} rerender failed`,error)}}).catch(error=>console.warn(`V36.9 ${label} background refresh failed`,error))}
+function refreshProfitAnalyticsInBackgroundV360(rerender,label="profit analytics"){if(!navigator.onLine||historyAllSalesLinksLoadedV136||historyAllSalesLinksLoadingV136)return;Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(()=>{invalidateInventorySalesAnalyticsAfterFullLoadV360();try{getInventorySalesAnalyticsV146()}catch(_){};try{rerender?.()}catch(error){console.warn(`V37.0 ${label} rerender failed`,error)}}).catch(error=>console.warn(`V37.0 ${label} background refresh failed`,error))}
 const HISTORY_SALES_CACHE_KEY_V179 = "lover_import_history_sales_financial_v179";
 let historySalesCacheHydratedV179 = false;
 let historySalesCacheHasDataV179 = false;
@@ -3230,7 +3230,7 @@ function getCostRevisionHistory() {
   const rows = Array.isArray(settings.costRevisionHistory)
     ? settings.costRevisionHistory
     : [];
-  // V36.9: this panel is strictly for changes that affect cost, stock quantity,
+  // V37.0: this panel is strictly for changes that affect cost, stock quantity,
   // or inventory value. Legacy price/name/ID audit rows remain untouched in the
   // stored backup but are no longer shown here.
   return rows.filter(isCostOrInventoryRevisionV368);
@@ -3439,7 +3439,7 @@ async function ensureAverageCostAuditHistoryV359(force = false) {
       saveAverageCostAuditCacheV359(entries, Date.now());
       return entries;
     })
-    .catch(error => { console.warn("V36.9 average-cost audit history load failed", error); return cache.entries; })
+    .catch(error => { console.warn("V37.0 average-cost audit history load failed", error); return cache.entries; })
     .finally(() => { averageCostAuditLoadPromiseV359 = null; });
   return averageCostAuditLoadPromiseV359;
 }
@@ -3763,7 +3763,7 @@ function getImportAnomaliesV201() {
   if (cloudLastErrorMessage) {
     issues.push({severity:"critical", type:"sync-error", title:"最近同步失败", detail:String(cloudLastErrorMessage), action:"请先检查网络和 Google Web App，再按重新检查。"});
   }
-  // V36.9: Sales feed is a read-only reminder channel. A mobile browser can transiently
+  // V37.0: Sales feed is a read-only reminder channel. A mobile browser can transiently
   // fail a JSONP request even while Import cloud sync is healthy. Do not keep the whole
   // Import System in a red "needs check" state merely because an old/processed Sales feed
   // snapshot exists. Only a currently known pending Sales inventory task can escalate the
@@ -4778,22 +4778,57 @@ async function refreshPromotionCloudStateV209(force = false) {
 }
 window.refreshPromotionCloudStateV209 = refreshPromotionCloudStateV209;
 
-// V36.9: when another device changes promotion settings, background revision
-// sync already refreshes Dashboard data. Refresh the Settings controls from the
-// same authoritative promotionV183 state as well. Never overwrite an unsaved
-// local promotion draft.
-function refreshPromotionSettingsAfterCloudSyncV369() {
+// V37.0: when another device changes promotion settings, background revision
+// sync must refresh the entire Promotion Settings form, including the manual-price
+// participation flag. Preserve a truly edited local draft, but do not let a stale
+// pre-sync snapshot masquerade as an unsaved draft and block the cloud state.
+let promotionDraftBaselineV370 = null;
+function promotionDraftComparableV370(value) {
+  const v = value || {};
+  return JSON.stringify({
+    name: String(v.name || ""),
+    commissionRate: Number(v.commissionRate),
+    targetMarginRate: Number(v.targetMarginRate),
+    excludedProductIds: [...(v.excludedProductIds || [])].map(String).sort(),
+    priceOverrides: Object.fromEntries(Object.entries(v.priceOverrides || {}).sort(([a],[b]) => a.localeCompare(b))),
+    includeManualPriceProducts: v.includeManualPriceProducts === true,
+    originalPromotionName: String(v.originalPromotionName || "")
+  });
+}
+function capturePromotionDraftBaselineV370() {
+  try { promotionDraftBaselineV370 = promotionDraftComparableV370(getPromotionDraftV183()); }
+  catch (_) { promotionDraftBaselineV370 = null; }
+}
+function hasRealLocalPromotionDraftV370() {
+  if (!promotionDraftTouchedV209) return false;
+  if (!promotionDraftBaselineV370) return true;
+  try { return promotionDraftComparableV370(getPromotionDraftV183()) !== promotionDraftBaselineV370; }
+  catch (_) { return true; }
+}
+function refreshPromotionSettingsAfterCloudSyncV370() {
   try {
+    if (hasRealLocalPromotionDraftV370()) {
+      // A user is genuinely editing this device. Keep the draft, but still repaint
+      // authoritative summary/status outside the form through the normal render path.
+      refreshPromotionUiV183();
+      return;
+    }
+    // No genuine local edit: discard stale draft state and bind every control to the
+    // latest cloud promotionV183, especially includeManualPriceProducts.
+    promotionDraftTouchedV209 = false;
+    resetPromotionDraftV183();
     refreshPromotionUiV183();
-    if (promotionDraftTouchedV209) return;
     renderPromotionExcludedListV183();
     renderPromotionPriceListV183();
     updatePromotionDraftStatusV186();
+    capturePromotionDraftBaselineV370();
   } catch (error) {
-    console.warn("V36.9 promotion settings cloud repaint skipped", error);
+    console.warn("V37.0 promotion settings cloud repaint skipped", error);
   }
 }
-window.refreshPromotionSettingsAfterCloudSyncV369 = refreshPromotionSettingsAfterCloudSyncV369;
+window.refreshPromotionSettingsAfterCloudSyncV370 = refreshPromotionSettingsAfterCloudSyncV370;
+// Backward name kept so any already-bound V36.9 callback still resolves during hot upgrade.
+window.refreshPromotionSettingsAfterCloudSyncV369 = refreshPromotionSettingsAfterCloudSyncV370;
 
 function getPromotionMarginBadgeV209(product, profitInfo = null) {
   const promotion = getPromotionSettingsV183();
@@ -4968,6 +5003,7 @@ function setupPromotionSettingsV183() {
   }
   renderPromotionExcludedListV183();
   refreshPromotionUiV183();
+  capturePromotionDraftBaselineV370();
   [nameInput, commissionInput, marginInput].forEach(input => input?.addEventListener("input", () => {
     promotionDraftTouchedV209 = true;
     renderPromotionExcludeSearchV183();
@@ -4981,7 +5017,7 @@ function setupPromotionSettingsV183() {
     if (mode === "profit-desc" && !historyAllSalesLinksLoadedV136 && !hasCachedSalesV360 && navigator.onLine) {
       if (searchResults) searchResults.innerHTML = '<div class="promotion-empty-v183">正在读取完整销售利润…</div>';
       Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(() => { invalidateInventorySalesAnalyticsAfterFullLoadV360(); renderPromotionExcludeSearchV183(); })
-        .catch(error => { console.warn("V36.9 promotion profit analytics load failed", error); renderPromotionExcludeSearchV183(); });
+        .catch(error => { console.warn("V37.0 promotion profit analytics load failed", error); renderPromotionExcludeSearchV183(); });
       return;
     }
     renderPromotionExcludeSearchV183();
@@ -5157,6 +5193,7 @@ function setupPromotionSettingsV183() {
       saveJSON("importSystemSettings", { ...settings, promotionV183:payload });
       promotionDraftTouchedV209 = false;
       resetPromotionDraftV183();
+      capturePromotionDraftBaselineV370();
       saved = true;
       if (status) { status.textContent = ""; status.classList.remove("promotion-status-active-v193"); }
     } catch (error) {
@@ -5202,6 +5239,7 @@ function setupPromotionSettingsV183() {
       promotionExcludedSelectionV184 = new Set();
       promotionDraftTouchedV209 = false;
       resetPromotionDraftV183();
+      capturePromotionDraftBaselineV370();
       clearPromotionSearchStateV212();
       if (priceSearch) priceSearch.value = "";
       const priceSort = document.getElementById("promotionPriceListSortV185");
@@ -5235,7 +5273,7 @@ function setupPromotionSettingsV183() {
       const priceList = document.getElementById("promotionPriceListV183");
       if (priceList) priceList.innerHTML = '<div class="promotion-empty-v183">正在读取完整销售利润…</div>';
       Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(() => { invalidateInventorySalesAnalyticsAfterFullLoadV360(); if (String(priceSortV195?.value || "") === mode) renderPromotionPriceListV183(); })
-        .catch(error => { console.warn("V36.9 promotion price profit analytics load failed", error); renderPromotionPriceListV183(); });
+        .catch(error => { console.warn("V37.0 promotion price profit analytics load failed", error); renderPromotionPriceListV183(); });
       return;
     }
     renderPromotionPriceListV183();
@@ -16126,7 +16164,7 @@ async function editProductMinimumPrice(productId) {
   minimumPriceOverrides[id] = nextMinimumPriceManual;
   saveMinimumPriceManualOverridesV160(minimumPriceOverrides);
 
-  // V36.9 Local-First: first paint the exact new state immediately. This is especially
+  // V37.0 Local-First: first paint the exact new state immediately. This is especially
   // important when entering 0 to leave sale-control; the user must see the automatic
   // price/color at once instead of waiting for a full result-list rebuild.
   saveJSON("importSystemProducts", products);
@@ -18554,7 +18592,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "36.9",
+      version: "37.0",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
