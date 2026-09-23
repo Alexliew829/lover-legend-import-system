@@ -5,18 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=35.3" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=35.3" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=35.3" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=35.3" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=35.3" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=35.3" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=35.3" />
+  <link rel="manifest" href="./manifest.json?v=35.4" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=35.4" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=35.4" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=35.4" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=35.4" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=35.4" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=35.4" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=35.3" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=35.4" />
   <style id="access-lock-critical-v299">
     html,body{margin:0;min-height:100%;font-family:Arial,Helvetica,sans-serif}
     .access-lock{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(242,248,244,.96)}
@@ -37,12 +37,12 @@
       }
     } catch (_) {}
   </script>
-  <link rel="preload" href="./css/style.css?v=35.3" as="style" />
-  <link rel="stylesheet" href="./css/style.css?v=35.3" media="print" onload="this.media='all'" />
-  <noscript><link rel="stylesheet" href="./css/style.css?v=35.3" /></noscript>
-  <script defer src="./js/common.js?v=35.3"></script>
-  <script defer src="./js/sync.js?v=35.3"></script>
-  <script defer src="./js/app.js?v=35.3"></script>
+  <link rel="preload" href="./css/style.css?v=35.4" as="style" />
+  <link rel="stylesheet" href="./css/style.css?v=35.4" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="./css/style.css?v=35.4" /></noscript>
+  <script defer src="./js/common.js?v=35.4"></script>
+  <script defer src="./js/sync.js?v=35.4"></script>
+  <script defer src="./js/app.js?v=35.4"></script>
 </head>
 <body>
   <div id="accessLock"
@@ -116,7 +116,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 35.3 Stable</div>
+          <div class="app-header-version">正式版 35.4 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -212,14 +212,6 @@
                 <button id="exportOriginalCostExcelBtn" class="secondary-btn" type="button">导出 Excel</button>
                 <button id="closeOriginalCostPanelBtn" class="secondary-btn" type="button">收起 ▲</button>
               </div>
-            </div>
-            <div id="originalCostPriceControlActionsV353" class="original-cost-price-control-actions-v353" hidden>
-              <label class="original-cost-select-all-v353">
-                <input id="originalCostSelectAllCurrentV353" type="checkbox" />
-                <span>全选当前结果</span>
-              </label>
-              <button id="originalCostBatchReleaseControlV353" class="secondary-btn" type="button" disabled>批量放弃控制（0）</button>
-              <button id="originalCostReleaseAllControlV353" class="danger-outline-btn original-cost-release-all-v353" type="button">一键全部放弃控制</button>
             </div>
             <div class="original-cost-table-wrap">
               <table class="original-cost-table">
@@ -559,7 +551,7 @@
         <details class="panel inventory-master-v261" id="inventoryMasterPanelV264">
           <summary class="inventory-master-summary-v264"><span>库存资料总表</span><small>点击打开／收起</small></summary>
           <div class="supplier-page-head-v261 inventory-master-head-v264">
-            <div><p class="settings-help">只读资料。中文名就是系统现有完整产品名；英文名只保留简短树种名称。产品编号、中文名、英文名可点击复制。</p></div>
+            <div><p class="settings-help">中文名就是系统现有完整产品名；英文名只保留简短树种名称。产品编号、中文名、英文名可点击复制；筛选「售价控制」时可批量放弃或 Reset To Factory。</p></div>
             <button id="exportInventoryMasterExcelV261" class="secondary-btn" type="button">导出库存 Excel</button>
           </div>
           <div class="inventory-master-toolbar-v264">
@@ -567,6 +559,15 @@
             <select id="inventoryMasterSortV264">
               <option value="latest">最近进口</option><option value="latest-sold">最近售出</option><option value="price-control">售价控制</option><option value="name">产品名称</option><option value="bestseller-desc">畅销商品</option><option value="profit-desc">利润最高</option><option value="stock-desc">库存最多</option><option value="stock-asc">库存最少</option><option value="value-desc">库存成本最高</option><option value="cost-desc">平均成本最高</option>
             </select>
+          </div>
+          <div id="inventoryMasterPriceControlActionsV354" class="inventory-master-price-control-actions-v354" hidden>
+            <label class="inventory-master-select-all-v354">
+              <input id="inventoryMasterSelectAllCurrentV354" type="checkbox" />
+              <span>全选当前结果</span>
+            </label>
+            <button id="inventoryMasterBatchReleaseControlV354" class="secondary-btn" type="button" disabled>批量放弃控制（0）</button>
+            <button id="inventoryMasterReleaseAllControlV354" class="danger-outline-btn inventory-master-release-all-v354" type="button">一键全部放弃控制</button>
+            <button id="inventoryMasterResetFactoryV354" class="secondary-btn inventory-master-reset-factory-v354" type="button" disabled>回到原设置（Reset To Factory）</button>
           </div>
           <div class="inventory-master-summaryline-v264"><span>当前库存：<strong id="inventoryMasterStockV264">0</strong></span><span>库存成本：<strong id="inventoryMasterValueV264">RM 0.00</strong></span><span id="inventoryMasterCountV261">0 项</span></div>
           <div class="inventory-master-wrap-v261">
@@ -923,7 +924,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 35.3 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 35.4 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>

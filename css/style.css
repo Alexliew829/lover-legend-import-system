@@ -6058,7 +6058,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 @media(max-width:720px){.recent-batch-date-wrap-v346{min-width:0;flex:1 1 210px}.recent-batch-filter-v345 #batchSearch{order:2;flex-basis:100%}}
 
 
-/* V35.3 — recent-import mobile filter sits fully below the section title. */
+/* V35.4 — recent-import mobile filter sits fully below the section title. */
 @media(max-width:720px){
   .batch-list-toolbar{display:block!important;}
   .batch-list-toolbar>h3{display:block;width:100%;margin:0 0 12px!important;}
@@ -6371,7 +6371,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 
 
 
-/* V35.3 — Promotion management integrated with canonical V35.3 price-state colors. */
+/* V35.4 — Promotion management integrated with canonical V35.4 price-state colors. */
 .promotion-search-result-v183.price-control,.promotion-mobile-card-v195.price-control,.promotion-compact-row-v193.price-control{border-color:#8ab9eb!important;background:#f2f8ff!important}
 .promotion-price-control-lock-v348,.promotion-price-control-note-v348{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:#e8f2ff;color:#0b68c9;font-weight:900;font-size:12px;padding:3px 8px;white-space:nowrap}
 .promotion-mobile-price-control-v348{margin:-2px 0 8px;color:#0b68c9;font-size:15px;font-weight:900}
@@ -6385,7 +6385,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 }
 
 
-/* V35.3 — promotion exclusion/labels/status/mobile polish. */
+/* V35.4 — promotion exclusion/labels/status/mobile polish. */
 .promotion-actions-v183{grid-template-columns:1fr!important}
 .promotion-actions-v183.promotion-is-active-v349{grid-template-columns:1fr 1fr!important}
 .promotion-active-button-status-v349{width:100%;margin:12px 0 0;min-height:44px;border:1px solid #d71920;border-radius:11px;background:#fff5f5;color:#d71920;font-size:16px;font-weight:900;text-align:center;cursor:default}
@@ -6403,7 +6403,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 }
 
 
-/* V35.3 — promotion status polish and conflict-safe presentation. */
+/* V35.4 — promotion status polish and conflict-safe presentation. */
 .dashboard-sync-status .dashboard-promotion-status-v208{font-size:17px!important;font-weight:900!important;letter-spacing:.05px;color:#d71920!important}
 .promotion-active-button-status-v349{background:#fdf1f1!important;color:#d71920!important;font-size:17px!important}
 #savePromotionV183:disabled{opacity:1!important;font-weight:900!important}
@@ -6414,7 +6414,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 }
 
 
-/* V35.3 — promotion exclusion controls use one unified desktop/mobile rhythm. */
+/* V35.4 — promotion exclusion controls use one unified desktop/mobile rhythm. */
 .promotion-search-box-v186 .promotion-batch-tools-v184,
 .promotion-excluded-box-v186 .promotion-batch-tools-v184{
   display:flex!important;flex-direction:row!important;align-items:center!important;flex-wrap:nowrap!important;gap:10px!important;
@@ -6436,11 +6436,10 @@ body.system-media-preview-open-v305{overflow:hidden}
   #promotionExcludeSelectedV184,#promotionRemoveSelectedV184{width:168px!important;min-width:168px!important;max-width:168px!important;font-size:15px!important;padding:8px 8px!important;}
 }
 
-
-/* V35.3 — 原成本清单仅在“售价控制”筛选时显示批量放弃控制工具。 */
-.original-cost-price-control-actions-v353{
+/* V35.4 — 售价控制批量管理移至「产品管理 → 库存资料总表」；非“售价控制”筛选时整块隐藏。 */
+.inventory-master-price-control-actions-v354{
   display:grid;
-  grid-template-columns:minmax(180px,1fr) minmax(210px,1fr) minmax(210px,1fr);
+  grid-template-columns:minmax(180px,1fr) minmax(210px,1fr) minmax(210px,1fr) minmax(230px,1fr);
   gap:10px;
   align-items:center;
   margin:12px 0 14px;
@@ -6449,8 +6448,8 @@ body.system-media-preview-open-v305{overflow:hidden}
   border-radius:14px;
   background:#f6fbf7;
 }
-.original-cost-price-control-actions-v353[hidden]{display:none!important}
-.original-cost-select-all-v353{
+.inventory-master-price-control-actions-v354[hidden]{display:none!important}
+.inventory-master-select-all-v354{
   display:flex;
   align-items:center;
   gap:9px;
@@ -6459,14 +6458,18 @@ body.system-media-preview-open-v305{overflow:hidden}
   white-space:nowrap;
   cursor:pointer;
 }
-.original-cost-select-all-v353 input,
-.original-cost-product-select-v353 input{width:20px;height:20px;accent-color:#176f46}
-.original-cost-price-control-actions-v353 button{min-height:44px;font-weight:700}
-.original-cost-release-all-v353{border:1px solid #b42318;color:#b42318;background:#fff7f6}
-.original-cost-product-select-v353{display:inline-flex;vertical-align:middle;margin-right:8px}
-@media (max-width:700px){
-  .original-cost-price-control-actions-v353{grid-template-columns:1fr 1fr;padding:10px;gap:8px}
-  .original-cost-price-control-actions-v353 .original-cost-release-all-v353{grid-column:1 / -1}
-  .original-cost-select-all-v353{font-size:16px}
-  .original-cost-price-control-actions-v353 button{font-size:15px;padding:10px 8px}
+.inventory-master-select-all-v354 input,
+.inventory-master-product-select-v354 input{width:20px;height:20px;accent-color:#176f46}
+.inventory-master-price-control-actions-v354 button{min-height:44px;font-weight:700}
+.inventory-master-release-all-v354{border:1px solid #b42318;color:#b42318;background:#fff7f6}
+.inventory-master-reset-factory-v354{border:1px solid #176f46;color:#176f46;background:#fff}
+.inventory-master-product-select-v354{display:inline-flex;vertical-align:middle;margin-right:8px}
+@media (max-width:900px){
+  .inventory-master-price-control-actions-v354{grid-template-columns:1fr 1fr;padding:10px;gap:8px}
+  .inventory-master-select-all-v354{font-size:16px}
+  .inventory-master-price-control-actions-v354 button{font-size:15px;padding:10px 8px}
+}
+@media (max-width:520px){
+  .inventory-master-price-control-actions-v354{grid-template-columns:1fr 1fr}
+  .inventory-master-release-all-v354,.inventory-master-reset-factory-v354{grid-column:auto}
 }
