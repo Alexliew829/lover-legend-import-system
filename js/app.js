@@ -195,14 +195,20 @@ let historyAllSalesLinksLoadedV136 = false;
 let historyAllSalesLinksLoadingV136 = null;
 let inventorySalesAnalyticsCacheV146 = { signature: "", value: null };
 const INVENTORY_SALES_ANALYTICS_CACHE_KEY_V343="inventorySalesAnalyticsCacheV343";
+let inventorySalesAnalyticsFullRevisionV360 = 0;
+let inventorySalesAnalyticsFullCachedV360 = false;
 function salesMapToArrayV343(map){return Array.from((map instanceof Map?map:new Map()).entries())}
 function salesArrayToMapV343(rows){return new Map(Array.isArray(rows)?rows:[])}
 function getInventorySalesSourceSignatureV343(){const products=loadJSON("importSystemProducts",[]);return JSON.stringify((Array.isArray(products)?products:[]).map(p=>[String(p?.id||""),String(p?.name||""),String(p?.stockAdjustmentsJson??JSON.stringify(p?.stockAdjustments||[]))]))}
+function getInventoryAnalyticsCloudRevisionV360(){try{return typeof getCloudConfig==="function"?(Number(getCloudConfig()?.revision)||0):0}catch(_){return 0}}
 function serializeInventorySalesAnalyticsV343(value){return{quantityById:salesMapToArrayV343(value?.quantityById),quantityByName:salesMapToArrayV343(value?.quantityByName),profitById:salesMapToArrayV343(value?.profitById),profitByName:salesMapToArrayV343(value?.profitByName),latestById:salesMapToArrayV343(value?.latestById),latestByName:salesMapToArrayV343(value?.latestByName)}}
 function deserializeInventorySalesAnalyticsV343(v){if(!v||typeof v!=="object")return null;return{quantityById:salesArrayToMapV343(v.quantityById),quantityByName:salesArrayToMapV343(v.quantityByName),profitById:salesArrayToMapV343(v.profitById),profitByName:salesArrayToMapV343(v.profitByName),latestById:salesArrayToMapV343(v.latestById),latestByName:salesArrayToMapV343(v.latestByName)}}
-function hydrateInventorySalesAnalyticsV343(){try{const raw=JSON.parse(localStorage.getItem(INVENTORY_SALES_ANALYTICS_CACHE_KEY_V343)||"null");if(!raw||raw.sourceSignature!==getInventorySalesSourceSignatureV343())return false;const value=deserializeInventorySalesAnalyticsV343(raw.value);if(!value)return false;const productsSnapshot=String(localStorage.getItem("importSystemProducts")||"");inventorySalesAnalyticsCacheV146={signature:`${productsSnapshot}|links:0|all:0`,value};return true}catch(_){return false}}
-function persistInventorySalesAnalyticsV343(value){try{localStorage.setItem(INVENTORY_SALES_ANALYTICS_CACHE_KEY_V343,JSON.stringify({sourceSignature:getInventorySalesSourceSignatureV343(),savedAt:new Date().toISOString(),value:serializeInventorySalesAnalyticsV343(value)}))}catch(_){}}
+function hydrateInventorySalesAnalyticsV343(){try{const raw=JSON.parse(localStorage.getItem(INVENTORY_SALES_ANALYTICS_CACHE_KEY_V343)||"null");if(!raw||raw.sourceSignature!==getInventorySalesSourceSignatureV343())return false;const value=deserializeInventorySalesAnalyticsV343(raw.value);if(!value)return false;const productsSnapshot=String(localStorage.getItem("importSystemProducts")||"");inventorySalesAnalyticsCacheV146={signature:`${productsSnapshot}|links:0|all:0`,value};inventorySalesAnalyticsFullCachedV360=raw.full===true;inventorySalesAnalyticsFullRevisionV360=Number(raw.revision)||0;return true}catch(_){return false}}
+function persistInventorySalesAnalyticsV343(value){try{const revision=getInventoryAnalyticsCloudRevisionV360();localStorage.setItem(INVENTORY_SALES_ANALYTICS_CACHE_KEY_V343,JSON.stringify({sourceSignature:getInventorySalesSourceSignatureV343(),savedAt:new Date().toISOString(),full:Boolean(historyAllSalesLinksLoadedV136),revision,value:serializeInventorySalesAnalyticsV343(value)}));if(historyAllSalesLinksLoadedV136){inventorySalesAnalyticsFullCachedV360=true;inventorySalesAnalyticsFullRevisionV360=revision}}catch(_){}}
 function hasUsableInventorySalesAnalyticsV343(){return Boolean(inventorySalesAnalyticsCacheV146?.value)||hydrateInventorySalesAnalyticsV343()}
+function hasCurrentFullInventorySalesAnalyticsV360(){if(!hasUsableInventorySalesAnalyticsV343())return false;const revision=getInventoryAnalyticsCloudRevisionV360();return Boolean(inventorySalesAnalyticsFullCachedV360&&revision>0&&inventorySalesAnalyticsFullRevisionV360===revision)}
+function invalidateInventorySalesAnalyticsAfterFullLoadV360(){inventorySalesAnalyticsCacheV146={signature:"",value:null};inventoryPreparedRowsCacheV321={rawProducts:null,settings:null,imports:null,batches:null,sales:null,rows:[]};}
+function refreshProfitAnalyticsInBackgroundV360(rerender,label="profit analytics"){if(!navigator.onLine||historyAllSalesLinksLoadedV136||historyAllSalesLinksLoadingV136)return;Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(()=>{invalidateInventorySalesAnalyticsAfterFullLoadV360();try{getInventorySalesAnalyticsV146()}catch(_){};try{rerender?.()}catch(error){console.warn(`V36.0 ${label} rerender failed`,error)}}).catch(error=>console.warn(`V36.0 ${label} background refresh failed`,error))}
 const HISTORY_SALES_CACHE_KEY_V179 = "lover_import_history_sales_financial_v179";
 let historySalesCacheHydratedV179 = false;
 let historySalesCacheHasDataV179 = false;
@@ -3398,7 +3404,7 @@ async function ensureAverageCostAuditHistoryV359(force = false) {
       saveAverageCostAuditCacheV359(entries, Date.now());
       return entries;
     })
-    .catch(error => { console.warn("V35.9 average-cost audit history load failed", error); return cache.entries; })
+    .catch(error => { console.warn("V36.0 average-cost audit history load failed", error); return cache.entries; })
     .finally(() => { averageCostAuditLoadPromiseV359 = null; });
   return averageCostAuditLoadPromiseV359;
 }
@@ -4834,16 +4840,16 @@ function setupPromotionSettingsV183() {
   searchInput?.addEventListener("input", () => { renderPromotionExcludeSearchV183(); });
   filterInput?.addEventListener("change", () => {
     const mode = String(filterInput.value || "latest");
-    if (mode === "profit-desc" && !historyAllSalesLinksLoadedV136 && navigator.onLine) {
+    const hasCachedSalesV360 = hasUsableInventorySalesAnalyticsV343();
+    if (mode === "profit-desc" && !historyAllSalesLinksLoadedV136 && !hasCachedSalesV360 && navigator.onLine) {
       if (searchResults) searchResults.innerHTML = '<div class="promotion-empty-v183">正在读取完整销售利润…</div>';
-      Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(() => {
-        inventorySalesAnalyticsCacheV146 = { signature:"", value:null };
-        inventoryPreparedRowsCacheV321 = { rawProducts:null,settings:null,imports:null,batches:null,sales:null,rows:[] };
-        renderPromotionExcludeSearchV183();
-      }).catch(error => { console.warn("V35.9 promotion profit analytics load failed", error); renderPromotionExcludeSearchV183(); });
+      Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(() => { invalidateInventorySalesAnalyticsAfterFullLoadV360(); renderPromotionExcludeSearchV183(); })
+        .catch(error => { console.warn("V36.0 promotion profit analytics load failed", error); renderPromotionExcludeSearchV183(); });
       return;
     }
     renderPromotionExcludeSearchV183();
+    if(mode === "profit-desc" && navigator.onLine && !historyAllSalesLinksLoadedV136 && !hasCurrentFullInventorySalesAnalyticsV360())
+      refreshProfitAnalyticsInBackgroundV360(renderPromotionExcludeSearchV183,"promotion exclusion profit analytics");
   });
   selectAllSearch?.addEventListener("change", () => {
     const ids = getPromotionExcludeMatchesV183(searchInput?.value || "")
@@ -5081,17 +5087,17 @@ function setupPromotionSettingsV183() {
   const priceSortV195 = document.getElementById("promotionPriceListSortV185");
   const rerenderPromotionSortV195 = () => {
     const mode = String(priceSortV195?.value || "latest");
-    if (mode === "profit-desc" && !historyAllSalesLinksLoadedV136 && navigator.onLine) {
+    const hasCachedSalesV360 = hasUsableInventorySalesAnalyticsV343();
+    if (mode === "profit-desc" && !historyAllSalesLinksLoadedV136 && !hasCachedSalesV360 && navigator.onLine) {
       const priceList = document.getElementById("promotionPriceListV183");
       if (priceList) priceList.innerHTML = '<div class="promotion-empty-v183">正在读取完整销售利润…</div>';
-      Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(() => {
-        inventorySalesAnalyticsCacheV146 = { signature:"", value:null };
-        inventoryPreparedRowsCacheV321 = { rawProducts:null,settings:null,imports:null,batches:null,sales:null,rows:[] };
-        if (String(priceSortV195?.value || "") === mode) renderPromotionPriceListV183();
-      }).catch(error => { console.warn("V35.9 promotion price profit analytics load failed", error); renderPromotionPriceListV183(); });
+      Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(() => { invalidateInventorySalesAnalyticsAfterFullLoadV360(); if (String(priceSortV195?.value || "") === mode) renderPromotionPriceListV183(); })
+        .catch(error => { console.warn("V36.0 promotion price profit analytics load failed", error); renderPromotionPriceListV183(); });
       return;
     }
     renderPromotionPriceListV183();
+    if(mode === "profit-desc" && navigator.onLine && !historyAllSalesLinksLoadedV136 && !hasCurrentFullInventorySalesAnalyticsV360())
+      refreshProfitAnalyticsInBackgroundV360(()=>{if(String(priceSortV195?.value||"")===mode)renderPromotionPriceListV183()},"promotion price profit analytics");
   };
   priceSortV195?.addEventListener("input", rerenderPromotionSortV195);
   priceSortV195?.addEventListener("change", rerenderPromotionSortV195);
@@ -15977,7 +15983,7 @@ async function editProductMinimumPrice(productId) {
   minimumPriceOverrides[id] = nextMinimumPriceManual;
   saveMinimumPriceManualOverridesV160(minimumPriceOverrides);
 
-  // V35.9 Local-First: first paint the exact new state immediately. This is especially
+  // V36.0 Local-First: first paint the exact new state immediately. This is especially
   // important when entering 0 to leave sale-control; the user must see the automatic
   // price/color at once instead of waiting for a full result-list rebuild.
   saveJSON("importSystemProducts", products);
@@ -16575,25 +16581,28 @@ function setupInventoryModule() {
     .addEventListener("change", event => {
       const mode = String(event.target.value || "");
       const needsSales = ["latest-sold","bestseller-desc","profit-desc"].includes(mode);
-      // V35.9: 利润最高必须使用完整 Sales History 明细。旧版仅在缓存为空时读取，
+      // V36.0: 利润最高必须使用完整 Sales History 明细。旧版仅在缓存为空时读取，
       // 若缓存存在但不完整，会产生错误排序。只在用户主动选择利润最高时补齐，
       // 不改变利润公式，也不增加日常同步负担。
-      const mustLoadFullProfitV359 = mode === "profit-desc" && !historyAllSalesLinksLoadedV136 && navigator.onLine;
-      const needsMissingSalesV359 = needsSales && !historyAllSalesLinksLoadedV136 && !hasUsableInventorySalesAnalyticsV343() && navigator.onLine;
-      if (mustLoadFullProfitV359 || needsMissingSalesV359) {
+      const hasCachedSalesV360 = hasUsableInventorySalesAnalyticsV343();
+      const needsMissingSalesV360 = needsSales && !historyAllSalesLinksLoadedV136 && !hasCachedSalesV360 && navigator.onLine;
+      if (needsMissingSalesV360) {
         const list = document.getElementById("inventoryManagementList");
         if (list) list.innerHTML = '<div class="empty-state">正在读取销售分析…</div>';
         Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(() => {
-          inventorySalesAnalyticsCacheV146 = { signature: "", value: null };
-          inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
+          invalidateInventorySalesAnalyticsAfterFullLoadV360();
           if (String(document.getElementById("inventorySort")?.value || "") === mode) renderInventoryManagementList();
-        }).catch(error => {
-          console.warn("Sales analytics load failed:", error);
-          renderInventoryManagementList();
-        });
+        }).catch(error => { console.warn("Sales analytics load failed:", error); renderInventoryManagementList(); });
         return;
       }
+      // V36.0: once Profit Highest has a verified local analytics cache, render it immediately.
+      // If cloud revision changed, refresh full Sales details quietly in background and repaint later.
       renderInventoryManagementList();
+      if (mode === "profit-desc" && navigator.onLine && !historyAllSalesLinksLoadedV136 && !hasCurrentFullInventorySalesAnalyticsV360()) {
+        refreshProfitAnalyticsInBackgroundV360(() => {
+          if (String(document.getElementById("inventorySort")?.value || "") === mode) renderInventoryManagementList();
+        }, "inventory profit analytics");
+      }
     });
 
   const inventoryList = document.getElementById("inventoryManagementList");
@@ -18409,7 +18418,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "35.9",
+      version: "36.0",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -19065,19 +19074,21 @@ function setupInventoryMasterV299(){
   document.getElementById("inventoryMasterSortV264")?.addEventListener("change",event=>{
     const mode=String(event.target.value||"");
     const salesDependent=["latest-sold","bestseller-desc","profit-desc"].includes(mode);
-    const mustLoadFullProfitV359=mode==="profit-desc"&&!historyAllSalesLinksLoadedV136&&navigator.onLine;
-    const needsMissingSalesV359=salesDependent&&!historyAllSalesLinksLoadedV136&&!hasUsableInventorySalesAnalyticsV343()&&navigator.onLine;
-    if(mustLoadFullProfitV359||needsMissingSalesV359){
+    const hasCachedSalesV360=hasUsableInventorySalesAnalyticsV343();
+    const needsMissingSalesV360=salesDependent&&!historyAllSalesLinksLoadedV136&&!hasCachedSalesV360&&navigator.onLine;
+    if(needsMissingSalesV360){
       const body=document.getElementById("inventoryMasterBodyV261");
       if(body)body.innerHTML='<tr><td colspan="6">正在读取销售分析…</td></tr>';
       Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(()=>{
-        inventorySalesAnalyticsCacheV146={signature:"",value:null};
-        inventoryPreparedRowsCacheV321={rawProducts:null,settings:null,imports:null,batches:null,sales:null,rows:[]};
+        invalidateInventorySalesAnalyticsAfterFullLoadV360();
         if(panel?.open&&String(document.getElementById("inventoryMasterSortV264")?.value||"")===mode)renderInventoryMasterV261();
       });
       return;
     }
     renderIfOpenV318();
+    if(mode==="profit-desc"&&navigator.onLine&&!historyAllSalesLinksLoadedV136&&!hasCurrentFullInventorySalesAnalyticsV360()){
+      refreshProfitAnalyticsInBackgroundV360(()=>{if(panel?.open&&String(document.getElementById("inventoryMasterSortV264")?.value||"")===mode)renderInventoryMasterV261()},"inventory master profit analytics");
+    }
   });
   panel?.addEventListener("toggle",e=>{if(e.currentTarget.open)renderInventoryMasterV261()});
   exp?.addEventListener("click",exportInventoryMasterExcelV261);

@@ -6437,7 +6437,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 }
 
 
-/* V35.9 — Inventory Master is the single edit center; Original Cost list is read-only except product-name copy. */
+/* V36.0 — Inventory Master is the single edit center; Original Cost list is read-only except product-name copy. */
 .original-cost-readonly-v356{display:inline-block;font:inherit;font-weight:inherit;color:inherit;}
 .master-value-btn-v356{appearance:none;border:0;background:transparent;padding:0;margin:0;font:inherit;font-weight:inherit;color:inherit;text-align:right;cursor:pointer;font-variant-numeric:tabular-nums;white-space:nowrap;}
 .master-edit-v356.long-press-active{opacity:.58;transform:scale(.985);}
@@ -6449,7 +6449,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 }
 
 
-/* V35.9 — click-to-copy English name on inventory cards + average-cost audit History. */
+/* V36.0 — click-to-copy English name on inventory cards + average-cost audit History. */
 .inventory-english-copy-v359{
   appearance:none;-webkit-appearance:none;border:0;background:transparent;padding:0;margin:0;
   font:inherit;color:inherit;text-align:left;cursor:pointer;max-width:100%;
