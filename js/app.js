@@ -3381,7 +3381,9 @@ function renderCostRevisionHistory() {
       entry.importNumber,
       entry.fieldLabel,
       entry.before,
-      entry.after
+      entry.after,
+      entry.reason,
+      entry.productId
     ].some(value => String(value ?? "").toLowerCase().includes(keyword));
   });
 
@@ -3400,6 +3402,7 @@ function renderCostRevisionHistory() {
         <span>修改前：${escapeHTML(String(entry.before ?? ""))}</span>
         <span>修改后：${escapeHTML(String(entry.after ?? ""))}</span>
       </div>
+      ${entry.reason ? `<div class="cost-revision-reason-v358"><strong>原因 / 备注：</strong>${escapeHTML(String(entry.reason))}</div>` : ""}
       <small>${escapeHTML(entry.timestamp || "")}</small>
     </div>
   `).join("");
@@ -15966,107 +15969,113 @@ function bindDashboardMinimumPriceLongPress() {
   });
 }
 
-function editProductAverageCostFromImportPage(productId) {
+async function editProductAverageCostFromImportPage(productId) {
   const id = String(productId || "").trim();
   const products = getProducts();
-  const productIndex = products.findIndex(
-    product => String(product.id || "") === id
-  );
-
-  if (productIndex === -1) {
-    alert("找不到这个产品。");
-    return;
-  }
+  const productIndex = products.findIndex(product => String(product.id || "") === id);
+  if (productIndex === -1) { alert("找不到这个产品。"); return; }
 
   const product = products[productIndex];
   const currentStock = Math.max(0, Number(product.stock) || 0);
-  const currentAverageCost = Math.max(
-    0,
-    Number(product.averageCost) || 0
-  );
+  const currentAverageCost = Math.max(0, Number(product.averageCost) || 0);
+  const label = getAverageCostLabelV205(product);
 
   const entered = window.prompt(
-    `修改${getAverageCostLabelV205(product)}：${product.name}\n\n目前${getAverageCostLabelV205(product)}：${formatMoney(currentAverageCost, "RM ")}\n请输入新的${getAverageCostLabelV205(product)}`,
+    `修改${label}：${product.name}\n\n产品编号：${id || "-"}\n目前${label}：${formatMoney(currentAverageCost, "RM ")}\n请输入新的${label}`,
     currentAverageCost.toFixed(2)
   );
-
   if (entered === null) return;
 
-  const normalized = String(entered)
-    .replace(/RM/gi, "")
-    .replace(/,/g, "")
-    .trim();
-
-  if (
-    normalized === "" ||
-    !/^\d+(?:\.\d{1,2})?$/.test(normalized)
-  ) {
-    alert(`${getAverageCostLabelV205(product)}必须是0或正数，最多2位小数。`);
-    return;
+  const normalized = String(entered).replace(/RM/gi, "").replace(/,/g, "").trim();
+  if (normalized === "" || !/^\d+(?:\.\d{1,2})?$/.test(normalized)) {
+    alert(`${label}必须是0或正数，最多2位小数。`); return;
   }
-
   const nextAverageCost = Number(normalized);
-
-  if (
-    !Number.isFinite(nextAverageCost) ||
-    nextAverageCost < 0
-  ) {
-    alert(`${getAverageCostLabelV205(product)}不正确。`);
-    return;
-  }
-
+  if (!Number.isFinite(nextAverageCost) || nextAverageCost < 0) { alert(`${label}不正确。`); return; }
   if (Math.abs(nextAverageCost - currentAverageCost) < 0.005) {
     const status = document.getElementById("batchProductStockStatus");
-    if (status) status.textContent = `${getAverageCostLabelV205(product)}没有改变`;
+    if (status) status.textContent = `${label}没有改变`;
     return;
   }
+
+  const reasonEntered = window.prompt(
+    `修改原因 / 备注（必填）\n\n产品：${product.name}\n产品编号：${id || "-"}\n${label}：${formatMoney(currentAverageCost, "RM ")} → ${formatMoney(nextAverageCost, "RM ")}\n\n例如：旧批次成本录入错误、补回遗漏运费、盘点后成本修正。`,
+    ""
+  );
+  if (reasonEntered === null) return;
+  const reason = String(reasonEntered || "").trim();
+  if (!reason) { alert("人工修改平均成本必须填写原因 / 备注。资料没有修改。"); return; }
+  if (reason.length > 300) { alert("原因 / 备注最多300个字。资料没有修改。"); return; }
 
   const beforeValue = currentStock * currentAverageCost;
   const afterValue = currentStock * nextAverageCost;
   const difference = afterValue - beforeValue;
-
   const confirmed = window.confirm(
-    `确认修改${getAverageCostLabelV205(product)}？\n\n` +
-    `产品：${product.name}\n` +
-    `当前库存：${formatNumber(currentStock)}\n` +
-    `目前${getAverageCostLabelV205(product)}：${formatMoney(currentAverageCost, "RM ")}\n` +
-    `修改为：${formatMoney(nextAverageCost, "RM ")}\n\n` +
-    `这项修改会直接影响库存总值：\n` +
-    `${formatMoney(beforeValue, "RM ")} → ${formatMoney(afterValue, "RM ")}\n` +
+    `⚠️ 确认人工修改${label}？\n\n` +
+    `产品：${product.name}\n产品编号：${id || "-"}\n当前库存：${formatNumber(currentStock)}\n` +
+    `目前${label}：${formatMoney(currentAverageCost, "RM ")}\n修改为：${formatMoney(nextAverageCost, "RM ")}\n\n` +
+    `库存成本总值：${formatMoney(beforeValue, "RM ")} → ${formatMoney(afterValue, "RM ")}\n` +
     `变化：${difference >= 0 ? "+" : "-"}${formatMoney(Math.abs(difference), "RM ")}\n\n` +
-    `是否确定继续？`
+    `原因 / 备注：${reason}\n\n` +
+    `此操作会影响库存成本、利润及自动最低售价计算；不会改变库存数量。\n` +
+    `系统会保留完整人工修改审计记录。\n\n是否确定继续？`
   );
-
   if (!confirmed) return;
 
-  const now = new Date().toISOString();
+  if (typeof updateProductAverageCostFastV358 !== "function") {
+    alert("平均成本快速同步功能尚未载入，请刷新网页后再试。"); return;
+  }
 
-  products[productIndex] = {
-    ...product,
-    averageCost: nextAverageCost,
-    updatedAt: now
-  };
-
-  saveProducts(products);
-
-  appendCostRevisionHistory([{
-    timestamp: now,
-    importNumber: product.id || "-",
-    fieldLabel: `${getAverageCostLabelV205(product)} · ${product.name || "未命名产品"}`,
-    before: formatMoney(currentAverageCost, "RM "),
-    after: formatMoney(nextAverageCost, "RM ")
-  }]);
-
-  renderBatchProductStockResults();
-  renderInventoryManagementList();
-  renderDashboard();
-  renderBatchList();
-  renderCostRevisionHistory();
+  // Keep V35.7 minimum-price semantics exactly: average-cost changes recalculate
+  // the stored automatic base price only when the product is not under manual
+  // sale-price control. Promotion/exclusion remains a runtime overlay.
+  const currentManualPriceV358 = isMinimumPriceManualV160(product);
+  const nextStoredMinimumPriceV358 = currentManualPriceV358
+    ? Math.max(0, Number(product.minimumPrice) || 0)
+    : getAutomaticMinimumPriceV160(nextAverageCost, null, { ...product, averageCost: nextAverageCost });
 
   const status = document.getElementById("batchProductStockStatus");
-  if (status) {
-    status.textContent =
-      `已更新：${product.name} ${getAverageCostLabelV205(product)} ${formatMoney(nextAverageCost, "RM ")}`;
+  if (status) status.textContent = `同步中：${product.name} ${label} ${formatMoney(nextAverageCost, "RM ")}`;
+  const now = new Date().toISOString();
+
+  try {
+    const result = await updateProductAverageCostFastV358(id, nextAverageCost, nextStoredMinimumPriceV358, now, reason);
+    const latestProducts = getProducts();
+    const latestIndex = latestProducts.findIndex(item => String(item.id || "") === id);
+    if (latestIndex !== -1) {
+      latestProducts[latestIndex] = { ...latestProducts[latestIndex], averageCost: nextAverageCost, minimumPrice: nextStoredMinimumPriceV358, updatedAt: now };
+      // Fast path: backend already committed this one product. Keep local state authoritative
+      // without marking the entire Products collection dirty for another cloud write.
+      localStorage.setItem("importSystemProducts", JSON.stringify(latestProducts));
+      if (typeof historyProductLookupCacheV322 !== "undefined") historyProductLookupCacheV322 = { raw:null, byId:new Map(), byName:new Map() };
+      if (typeof inventoryPreparedRowsCacheV321 !== "undefined") inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
+    }
+
+    // Keep the existing visible modification-history panel useful on this device.
+    // The authoritative complete audit is also written atomically to the cloud Logs sheet.
+    const settings = loadJSON("importSystemSettings", {});
+    const currentHistory = Array.isArray(settings.costRevisionHistory) ? settings.costRevisionHistory : [];
+    const auditEntry = {
+      id:`AVGREV${Date.now()}${Math.random().toString(36).slice(2,7)}`,
+      timestamp:new Date().toLocaleString("zh-MY", {hour12:false}),
+      importNumber:id || "-",
+      productId:id || "-",
+      fieldLabel:`${label}人工修改 · ${product.name || "未命名产品"}`,
+      before:formatMoney(Number(result?.previousAverageCost ?? currentAverageCost), "RM "),
+      after:formatMoney(nextAverageCost, "RM "),
+      reason
+    };
+    localStorage.setItem("importSystemSettings", JSON.stringify({ ...settings, costRevisionHistory:[auditEntry, ...currentHistory].slice(0, 2000) }));
+
+    renderBatchProductStockResults();
+    renderInventoryManagementList();
+    renderDashboard();
+    if (typeof renderInventoryMasterV261 === "function" && document.getElementById("inventoryMasterPanelV264")?.open) renderInventoryMasterV261();
+    renderCostRevisionHistory();
+    if (status) status.textContent = `已更新：${product.name} ${label} ${formatMoney(nextAverageCost, "RM ")} · 已记录修改原因`;
+  } catch (error) {
+    if (status) status.textContent = "平均成本同步失败，原资料没有修改";
+    alert(String(error?.message || error || "平均成本同步失败"));
   }
 }
 
@@ -18219,7 +18228,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "35.6",
+      version: "35.8",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
