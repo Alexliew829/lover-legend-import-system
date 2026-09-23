@@ -208,7 +208,7 @@ function persistInventorySalesAnalyticsV343(value){try{const revision=getInvento
 function hasUsableInventorySalesAnalyticsV343(){return Boolean(inventorySalesAnalyticsCacheV146?.value)||hydrateInventorySalesAnalyticsV343()}
 function hasCurrentFullInventorySalesAnalyticsV360(){if(!hasUsableInventorySalesAnalyticsV343())return false;const revision=getInventoryAnalyticsCloudRevisionV360();return Boolean(inventorySalesAnalyticsFullCachedV360&&revision>0&&inventorySalesAnalyticsFullRevisionV360===revision)}
 function invalidateInventorySalesAnalyticsAfterFullLoadV360(){inventorySalesAnalyticsCacheV146={signature:"",value:null};inventoryPreparedRowsCacheV321={rawProducts:null,settings:null,imports:null,batches:null,sales:null,rows:[]};}
-function refreshProfitAnalyticsInBackgroundV360(rerender,label="profit analytics"){if(!navigator.onLine||historyAllSalesLinksLoadedV136||historyAllSalesLinksLoadingV136)return;Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(()=>{invalidateInventorySalesAnalyticsAfterFullLoadV360();try{getInventorySalesAnalyticsV146()}catch(_){};try{rerender?.()}catch(error){console.warn(`V36.1 ${label} rerender failed`,error)}}).catch(error=>console.warn(`V36.1 ${label} background refresh failed`,error))}
+function refreshProfitAnalyticsInBackgroundV360(rerender,label="profit analytics"){if(!navigator.onLine||historyAllSalesLinksLoadedV136||historyAllSalesLinksLoadingV136)return;Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(()=>{invalidateInventorySalesAnalyticsAfterFullLoadV360();try{getInventorySalesAnalyticsV146()}catch(_){};try{rerender?.()}catch(error){console.warn(`V36.3 ${label} rerender failed`,error)}}).catch(error=>console.warn(`V36.3 ${label} background refresh failed`,error))}
 const HISTORY_SALES_CACHE_KEY_V179 = "lover_import_history_sales_financial_v179";
 let historySalesCacheHydratedV179 = false;
 let historySalesCacheHasDataV179 = false;
@@ -3404,7 +3404,7 @@ async function ensureAverageCostAuditHistoryV359(force = false) {
       saveAverageCostAuditCacheV359(entries, Date.now());
       return entries;
     })
-    .catch(error => { console.warn("V36.1 average-cost audit history load failed", error); return cache.entries; })
+    .catch(error => { console.warn("V36.3 average-cost audit history load failed", error); return cache.entries; })
     .finally(() => { averageCostAuditLoadPromiseV359 = null; });
   return averageCostAuditLoadPromiseV359;
 }
@@ -4225,7 +4225,7 @@ function getEffectiveProductMinimumPriceV333(product, configuredRules = null, or
   if (!promotion || promotion.excludedProductIds.includes(productId)) return basePrice;
   const override = Math.max(0, Number(promotion.priceOverrides?.[productId]) || 0);
   if (override > 0) return override;
-  // V36.1: when 售价管理 is opened, protected/manual prices also enter promotion.
+  // V36.3: when 售价管理 is opened, protected/manual prices also enter promotion.
   // Their stored protected price remains untouched and is only used as the freight-tier base.
   return getPromotionPriceBreakdownV183({ ...product, minimumPrice:basePrice, minimumPriceManual:false }, promotion, configuredRules, originIndex).price;
 }
@@ -4348,7 +4348,7 @@ function getEffectiveProductMinimumPriceV183(product, promotion = null, rules = 
   const originalPrice = Math.max(0, Number(product?.minimumPrice) || 0);
   const active = promotion || getPromotionSettingsV183();
   const productId = String(product?.id || "").trim().toUpperCase();
-  // V36.1: default still protects manual/blue prices. Only explicit “打开售价管理”
+  // V36.3: default still protects manual/blue prices. Only explicit “打开售价管理”
   // allows them to join promotion; closing restores the original protected price instantly.
   if (isMinimumPriceManualV160(product) && active?.includeManualPriceProducts !== true) return originalPrice;
   if (!active || active.excludedProductIds.includes(productId)) return originalPrice;
@@ -4702,7 +4702,7 @@ function editPromotionPriceV194(button) {
   const id = String(button.dataset.promoPriceEditV193 || "").toUpperCase();
   const product = getProducts().find(item => String(item?.id || "").trim().toUpperCase() === id);
   const activePromotionV361 = getPromotionSettingsV183();
-  if (product && isMinimumPriceManualV160(product) && activePromotionV361?.includeManualPriceProducts !== true) { window.alert("此产品属于售价控制；请先打开售价管理，才可让它参与 Crazy Sales。"); return; }
+  if (product && isMinimumPriceManualV160(product) && activePromotionV361?.includeManualPriceProducts !== true) { window.alert("此产品属于售价控制；请先选择「精品加入促销」，并更新促销设置后，才可让它参与 Crazy Sales。"); return; }
   const current = Math.max(0, Number(button.dataset.currentPriceV193) || 0);
   const input = window.prompt(`修改本次促销最低售价（RM）\n\n只影响当前促销；原最低售价不会被修改，删除促销后恢复原最低售价。`, String(current));
   if (input === null) return;
@@ -4765,14 +4765,14 @@ function refreshPromotionUiV183() {
   const manualToggleV361 = document.getElementById("togglePromotionManualPricingV361");
   const manualStatusV361 = document.getElementById("promotionManualPricingStatusV361");
   if (manualToggleV361) {
-    manualToggleV361.textContent = promotionIncludeManualDraftV361 ? "关闭售价管理" : "打开售价管理";
+    manualToggleV361.textContent = promotionIncludeManualDraftV361 ? "精品退出促销" : "精品加入促销";
     manualToggleV361.classList.toggle("is-open-v361", promotionIncludeManualDraftV361);
   }
-  if (manualStatusV361) manualStatusV361.textContent = promotionIncludeManualDraftV361 ? "已打开" : "已关闭";
+  if (manualStatusV361) manualStatusV361.textContent = promotionIncludeManualDraftV361 ? "精品参与促销" : "精品保护中";
   const currentNameInputV361 = document.getElementById("promotionNameV183");
   if (currentNameInputV361) {
     currentNameInputV361.disabled = promotionIncludeManualDraftV361;
-    currentNameInputV361.title = promotionIncludeManualDraftV361 ? "售价管理已打开，促销名称固定为 Crazy Sales" : "";
+    currentNameInputV361.title = promotionIncludeManualDraftV361 ? "精品已参与促销，促销名称固定为 Crazy Sales" : "";
   }
   const summary = document.getElementById("promotionSummaryStatusV183");
   const deleteButton = document.getElementById("deletePromotionV183");
@@ -4840,12 +4840,18 @@ function setupPromotionSettingsV183() {
 
   const syncManualPricingToggleUiV361 = () => {
     if (manualPricingToggleV361) {
-      manualPricingToggleV361.textContent = promotionIncludeManualDraftV361 ? "关闭售价管理" : "打开售价管理";
+      manualPricingToggleV361.textContent = promotionIncludeManualDraftV361 ? "精品退出促销" : "精品加入促销";
       manualPricingToggleV361.classList.toggle("is-open-v361", promotionIncludeManualDraftV361);
     }
-    if (manualPricingStatusV361) manualPricingStatusV361.textContent = promotionIncludeManualDraftV361 ? "已打开" : "已关闭";
+    if (manualPricingStatusV361) {
+      const savedManualStateV362 = getPromotionSettingsV183()?.includeManualPriceProducts === true;
+      const pendingManualStateV362 = savedManualStateV362 !== promotionIncludeManualDraftV361;
+      manualPricingStatusV361.textContent = pendingManualStateV362
+        ? (promotionIncludeManualDraftV361 ? "精品将加入促销（待确认）" : "精品将退出促销（待确认）")
+        : (promotionIncludeManualDraftV361 ? "精品参与促销" : "精品保护中");
+    }
     nameInput.disabled = promotionIncludeManualDraftV361;
-    nameInput.title = promotionIncludeManualDraftV361 ? "售价管理已打开，促销名称固定为 Crazy Sales" : "";
+    nameInput.title = promotionIncludeManualDraftV361 ? "精品已参与促销，促销名称固定为 Crazy Sales" : "";
   };
   syncManualPricingToggleUiV361();
   manualPricingToggleV361?.addEventListener("click", async () => {
@@ -4853,7 +4859,7 @@ function setupPromotionSettingsV183() {
     const opening = !promotionIncludeManualDraftV361;
     if (opening) {
       const manualCount = getProducts().filter(product => isMinimumPriceManualV160(product)).length;
-      const ok = window.confirm(`打开售价管理？\n\n打开后，售价控制／精品保护价产品也会参加当前促销，并按促销目标利润重新计算售价。\n原保护价格不会删除；关闭售价管理后会恢复。\n\n目前售价控制产品：${manualCount} 项`);
+      const ok = window.confirm(`精品加入促销？\n\n确认后先进入待确认状态；售价控制／精品保护价产品将准备参加当前促销，并按促销目标利润重新计算售价。\n原保护价格不会删除。只有再点击「更新促销设置」并保存成功后才正式生效。\n\n目前售价控制产品：${manualCount} 项`);
       if (!ok) return;
       promotionOriginalNameDraftV361 = String(active?.originalPromotionName || active?.name || nameInput.value || "年尾清货").trim() || "年尾清货";
       promotionIncludeManualDraftV361 = true;
@@ -4865,38 +4871,9 @@ function setupPromotionSettingsV183() {
     promotionDraftTouchedV209 = true;
     syncManualPricingToggleUiV361();
     updatePromotionDraftStatusV186();
-
-    // If a promotion is already active, toggling this control takes effect immediately.
-    // Save only the current authoritative promotion plus this toggle/name change so unrelated
-    // unconfirmed exclusion/search drafts are never committed accidentally.
-    if (active) {
-      const payload = {
-        ...active,
-        active:true,
-        name:nameInput.value,
-        includeManualPriceProducts:promotionIncludeManualDraftV361,
-        originalPromotionName:promotionIncludeManualDraftV361 ? promotionOriginalNameDraftV361 : "",
-        updatedAt:new Date().toISOString()
-      };
-      manualPricingToggleV361.disabled = true;
-      if (manualPricingStatusV361) manualPricingStatusV361.textContent = "同步中…";
-      try {
-        await updatePromotionSettingsFastV185(payload);
-        const settings = loadJSON("importSystemSettings", {});
-        saveJSON("importSystemSettings", { ...settings, promotionV183:payload });
-        promotionDraftTouchedV209 = false;
-        resetPromotionDraftV183();
-        [refreshPromotionUiV183, renderPromotionPriceListV183, renderDashboard, renderInventoryManagementList, renderProductList]
-          .forEach(render => { try { render(); } catch (_) {} });
-      } catch (error) {
-        window.alert(`售价管理没有保存：${String(error?.message || error)}`);
-        resetPromotionDraftV183();
-        refreshPromotionUiV183();
-      } finally {
-        manualPricingToggleV361.disabled = false;
-        syncManualPricingToggleUiV361();
-      }
-    }
+    // V36.3: 精品加入/退出促销按钮只修改促销草稿。
+    // 必须点击「更新促销设置」并成功写入云端后，当前促销价格才会改变。
+    // 这样误触按钮不会立刻改变全系统售价；现有促销继续使用已保存的 authoritative 设置。
   });
 
   if (!window.promotionCloudRefreshBoundV209) {
@@ -4940,7 +4917,7 @@ function setupPromotionSettingsV183() {
     if (mode === "profit-desc" && !historyAllSalesLinksLoadedV136 && !hasCachedSalesV360 && navigator.onLine) {
       if (searchResults) searchResults.innerHTML = '<div class="promotion-empty-v183">正在读取完整销售利润…</div>';
       Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(() => { invalidateInventorySalesAnalyticsAfterFullLoadV360(); renderPromotionExcludeSearchV183(); })
-        .catch(error => { console.warn("V36.1 promotion profit analytics load failed", error); renderPromotionExcludeSearchV183(); });
+        .catch(error => { console.warn("V36.3 promotion profit analytics load failed", error); renderPromotionExcludeSearchV183(); });
       return;
     }
     renderPromotionExcludeSearchV183();
@@ -5099,7 +5076,7 @@ function setupPromotionSettingsV183() {
     const activeNotice = currentActive
       ? `⚠️ 促销“${currentActive.name}”已经开启。\n本次确认会更新正在进行的促销设置，不会新增第二个促销。\n\n`
       : "";
-    if (!window.confirm(`${activeNotice}确认${currentActive ? "更新并继续开启" : "保存并开启"}促销？\n\n促销：${promotion.name}\n主播佣金：${promotion.commissionRate}%\n目标净利率：${promotion.targetMarginRate}%\n应用产品：${affected.length} 项\n排除产品：${promotion.excludedProductIds.length} 项${manualNoticeV361}${warning}\n\n原最低售价不会被修改；关闭售价管理或删除促销后会立即恢复。`)) return;
+    if (!window.confirm(`${activeNotice}确认${currentActive ? "更新并继续开启" : "保存并开启"}促销？\n\n促销：${promotion.name}\n主播佣金：${promotion.commissionRate}%\n目标净利率：${promotion.targetMarginRate}%\n应用产品：${affected.length} 项\n排除产品：${promotion.excludedProductIds.length} 项${manualNoticeV361}${warning}\n\n原最低售价不会被修改；精品退出促销并更新设置，或删除促销后会恢复。`)) return;
     const now = new Date().toISOString();
     const payload = { ...promotion, active:true, createdAt:currentActive?.createdAt||now, updatedAt:now };
     const saveButtonIdleTextV350 = currentActive ? "更新促销设置" : "开启促销管理";
@@ -5194,7 +5171,7 @@ function setupPromotionSettingsV183() {
       const priceList = document.getElementById("promotionPriceListV183");
       if (priceList) priceList.innerHTML = '<div class="promotion-empty-v183">正在读取完整销售利润…</div>';
       Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(() => { invalidateInventorySalesAnalyticsAfterFullLoadV360(); if (String(priceSortV195?.value || "") === mode) renderPromotionPriceListV183(); })
-        .catch(error => { console.warn("V36.1 promotion price profit analytics load failed", error); renderPromotionPriceListV183(); });
+        .catch(error => { console.warn("V36.3 promotion price profit analytics load failed", error); renderPromotionPriceListV183(); });
       return;
     }
     renderPromotionPriceListV183();
@@ -16085,7 +16062,7 @@ async function editProductMinimumPrice(productId) {
   minimumPriceOverrides[id] = nextMinimumPriceManual;
   saveMinimumPriceManualOverridesV160(minimumPriceOverrides);
 
-  // V36.1 Local-First: first paint the exact new state immediately. This is especially
+  // V36.3 Local-First: first paint the exact new state immediately. This is especially
   // important when entering 0 to leave sale-control; the user must see the automatic
   // price/color at once instead of waiting for a full result-list rebuild.
   saveJSON("importSystemProducts", products);
@@ -16683,7 +16660,7 @@ function setupInventoryModule() {
     .addEventListener("change", event => {
       const mode = String(event.target.value || "");
       const needsSales = ["latest-sold","bestseller-desc","profit-desc"].includes(mode);
-      // V36.1: 利润最高必须使用完整 Sales History 明细。旧版仅在缓存为空时读取，
+      // V36.3: 利润最高必须使用完整 Sales History 明细。旧版仅在缓存为空时读取，
       // 若缓存存在但不完整，会产生错误排序。只在用户主动选择利润最高时补齐，
       // 不改变利润公式，也不增加日常同步负担。
       const hasCachedSalesV360 = hasUsableInventorySalesAnalyticsV343();
@@ -16697,7 +16674,7 @@ function setupInventoryModule() {
         }).catch(error => { console.warn("Sales analytics load failed:", error); renderInventoryManagementList(); });
         return;
       }
-      // V36.1: once Profit Highest has a verified local analytics cache, render it immediately.
+      // V36.3: once Profit Highest has a verified local analytics cache, render it immediately.
       // If cloud revision changed, refresh full Sales details quietly in background and repaint later.
       renderInventoryManagementList();
       if (mode === "profit-desc" && navigator.onLine && !historyAllSalesLinksLoadedV136 && !hasCurrentFullInventorySalesAnalyticsV360()) {
@@ -18521,7 +18498,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "36.1",
+      version: "36.3",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
