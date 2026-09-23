@@ -208,7 +208,7 @@ function persistInventorySalesAnalyticsV343(value){try{const revision=getInvento
 function hasUsableInventorySalesAnalyticsV343(){return Boolean(inventorySalesAnalyticsCacheV146?.value)||hydrateInventorySalesAnalyticsV343()}
 function hasCurrentFullInventorySalesAnalyticsV360(){if(!hasUsableInventorySalesAnalyticsV343())return false;const revision=getInventoryAnalyticsCloudRevisionV360();return Boolean(inventorySalesAnalyticsFullCachedV360&&revision>0&&inventorySalesAnalyticsFullRevisionV360===revision)}
 function invalidateInventorySalesAnalyticsAfterFullLoadV360(){inventorySalesAnalyticsCacheV146={signature:"",value:null};inventoryPreparedRowsCacheV321={rawProducts:null,settings:null,imports:null,batches:null,sales:null,rows:[]};}
-function refreshProfitAnalyticsInBackgroundV360(rerender,label="profit analytics"){if(!navigator.onLine||historyAllSalesLinksLoadedV136||historyAllSalesLinksLoadingV136)return;Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(()=>{invalidateInventorySalesAnalyticsAfterFullLoadV360();try{getInventorySalesAnalyticsV146()}catch(_){};try{rerender?.()}catch(error){console.warn(`V36.0 ${label} rerender failed`,error)}}).catch(error=>console.warn(`V36.0 ${label} background refresh failed`,error))}
+function refreshProfitAnalyticsInBackgroundV360(rerender,label="profit analytics"){if(!navigator.onLine||historyAllSalesLinksLoadedV136||historyAllSalesLinksLoadingV136)return;Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(()=>{invalidateInventorySalesAnalyticsAfterFullLoadV360();try{getInventorySalesAnalyticsV146()}catch(_){};try{rerender?.()}catch(error){console.warn(`V36.1 ${label} rerender failed`,error)}}).catch(error=>console.warn(`V36.1 ${label} background refresh failed`,error))}
 const HISTORY_SALES_CACHE_KEY_V179 = "lover_import_history_sales_financial_v179";
 let historySalesCacheHydratedV179 = false;
 let historySalesCacheHasDataV179 = false;
@@ -3404,7 +3404,7 @@ async function ensureAverageCostAuditHistoryV359(force = false) {
       saveAverageCostAuditCacheV359(entries, Date.now());
       return entries;
     })
-    .catch(error => { console.warn("V36.0 average-cost audit history load failed", error); return cache.entries; })
+    .catch(error => { console.warn("V36.1 average-cost audit history load failed", error); return cache.entries; })
     .finally(() => { averageCostAuditLoadPromiseV359 = null; });
   return averageCostAuditLoadPromiseV359;
 }
@@ -4216,14 +4216,17 @@ function getAverageCostLabelV205(product, originIndex = null) {
 
 function getEffectiveProductMinimumPriceV333(product, configuredRules = null, originIndex = null) {
   const storedPrice = Math.max(0, Number(product?.minimumPrice) || 0);
-  if (isMinimumPriceManualV160(product)) return storedPrice;
-  const basePrice = getAutomaticMinimumPriceV160(product?.averageCost, configuredRules, product, originIndex);
+  const manual = isMinimumPriceManualV160(product);
   const promotion = getPromotionSettingsV183();
   const productId = String(product?.id || "").trim().toUpperCase();
+  const includeManual = Boolean(promotion?.includeManualPriceProducts);
+  if (manual && !includeManual) return storedPrice;
+  const basePrice = manual ? storedPrice : getAutomaticMinimumPriceV160(product?.averageCost, configuredRules, product, originIndex);
   if (!promotion || promotion.excludedProductIds.includes(productId)) return basePrice;
   const override = Math.max(0, Number(promotion.priceOverrides?.[productId]) || 0);
   if (override > 0) return override;
-  // Use a copy with the base automatic minimum price so promotion freight remains locked to the original tier.
+  // V36.1: when 售价管理 is opened, protected/manual prices also enter promotion.
+  // Their stored protected price remains untouched and is only used as the freight-tier base.
   return getPromotionPriceBreakdownV183({ ...product, minimumPrice:basePrice, minimumPriceManual:false }, promotion, configuredRules, originIndex).price;
 }
 
@@ -4233,7 +4236,7 @@ function getProductMinimumProfitV205(product, rules = null, originIndex = null) 
   const promotion = getPromotionSettingsV183();
   const manual = isMinimumPriceManualV160(product);
   const productId = String(product?.id || "").trim().toUpperCase();
-  const promotionApplies = Boolean(promotion && !manual && !promotion.excludedProductIds.includes(productId));
+  const promotionApplies = Boolean(promotion && (!manual || promotion.includeManualPriceProducts === true) && !promotion.excludedProductIds.includes(productId));
   const price = getEffectiveProductMinimumPriceV333(product, configuredRules, index);
   const averageCost = Math.max(0, Number(product?.averageCost) || 0);
   const potCost = getVndPotCostV160(product, configuredRules, index);
@@ -4308,6 +4311,8 @@ function getPromotionSettingsV183() {
       .map(id => String(id || "").trim().toUpperCase()).filter(Boolean))),
     priceOverrides: Object.fromEntries(Object.entries(raw.priceOverrides && typeof raw.priceOverrides === "object" ? raw.priceOverrides : {})
       .map(([id, price]) => [String(id || "").trim().toUpperCase(), Math.max(0, Number(price) || 0)]).filter(([id, price]) => id && price > 0)),
+    includeManualPriceProducts: raw.includeManualPriceProducts === true,
+    originalPromotionName: String(raw.originalPromotionName || "").trim(),
     createdAt: String(raw.createdAt || ""),
     updatedAt: String(raw.updatedAt || "")
   };
@@ -4343,9 +4348,9 @@ function getEffectiveProductMinimumPriceV183(product, promotion = null, rules = 
   const originalPrice = Math.max(0, Number(product?.minimumPrice) || 0);
   const active = promotion || getPromotionSettingsV183();
   const productId = String(product?.id || "").trim().toUpperCase();
-  // V35.2: 售价控制是最高优先级。手动最低售价永远保持蓝色，完全不参与促销。
-  // 一旦解除手动状态，若促销仍开启且产品不在排除清单，会自动重新加入促销。
-  if (isMinimumPriceManualV160(product)) return originalPrice;
+  // V36.1: default still protects manual/blue prices. Only explicit “打开售价管理”
+  // allows them to join promotion; closing restores the original protected price instantly.
+  if (isMinimumPriceManualV160(product) && active?.includeManualPriceProducts !== true) return originalPrice;
   if (!active || active.excludedProductIds.includes(productId)) return originalPrice;
   const override = Math.max(0, Number(active.priceOverrides?.[productId]) || 0);
   return override > 0 ? override : getPromotionPriceBreakdownV183(product, active, rules, originIndex).price;
@@ -4372,6 +4377,9 @@ function parsePromotionPercentV211(value) {
   return Number.isFinite(parsed) ? parsed : NaN;
 }
 
+let promotionIncludeManualDraftV361 = false;
+let promotionOriginalNameDraftV361 = "";
+
 function getPromotionDraftV183() {
   return {
     active: true,
@@ -4379,7 +4387,9 @@ function getPromotionDraftV183() {
     commissionRate: parsePromotionPercentV211(document.getElementById("promotionCommissionV183")?.value),
     targetMarginRate: parsePromotionPercentV211(document.getElementById("promotionMarginV183")?.value),
     excludedProductIds: Array.from(promotionExcludedDraftV183),
-    priceOverrides: { ...promotionPriceOverridesDraftV193 }
+    priceOverrides: { ...promotionPriceOverridesDraftV193 },
+    includeManualPriceProducts: promotionIncludeManualDraftV361 === true,
+    originalPromotionName: String(promotionOriginalNameDraftV361 || "").trim()
   };
 }
 
@@ -4393,7 +4403,9 @@ function hasPromotionDraftChangesV183() {
     Math.abs(draft.commissionRate - expected.commissionRate) >= 0.005 ||
     Math.abs(draft.targetMarginRate - expected.targetMarginRate) >= 0.005 ||
     JSON.stringify([...draft.excludedProductIds].sort()) !== JSON.stringify([...(expected.excludedProductIds || [])].sort()) ||
-    JSON.stringify(draft.priceOverrides || {}) !== JSON.stringify(expected.priceOverrides || {});
+    JSON.stringify(draft.priceOverrides || {}) !== JSON.stringify(expected.priceOverrides || {}) ||
+    Boolean(draft.includeManualPriceProducts) !== Boolean(expected.includeManualPriceProducts) ||
+    String(draft.originalPromotionName || "") !== String(expected.originalPromotionName || "");
 }
 
 function resetPromotionDraftV183() {
@@ -4407,6 +4419,8 @@ function resetPromotionDraftV183() {
   if (marginInput) marginInput.value = String(active?.targetMarginRate ?? 30);
   promotionExcludedDraftV183 = new Set(active?.excludedProductIds || []);
   promotionPriceOverridesDraftV193 = { ...(active?.priceOverrides || {}) };
+  promotionIncludeManualDraftV361 = active?.includeManualPriceProducts === true;
+  promotionOriginalNameDraftV361 = String(active?.originalPromotionName || "").trim();
   promotionSearchSelectionV184 = new Set();
   promotionExcludedSelectionV184 = new Set();
   renderPromotionExcludedListV183();
@@ -4594,11 +4608,12 @@ function renderPromotionExcludeSearchV183() {
   results.innerHTML = matches.length ? matches.map(product => {
     const id = String(product.id || "").toUpperCase();
     const manual = isMinimumPriceManualV160(product);
-    const promoPrice = manual ? Math.max(0, Number(product.minimumPrice) || 0) : getPromotionPriceBreakdownV183(product, promotion, rules, originIndex).price;
-    return `<div class="promotion-search-result-v183 ${manual ? "price-control" : ""}">
+    const manualProtected = manual && promotion.includeManualPriceProducts !== true;
+    const promoPrice = manualProtected ? Math.max(0, Number(product.minimumPrice) || 0) : getPromotionPriceBreakdownV183(product, promotion, rules, originIndex).price;
+    return `<div class="promotion-search-result-v183 ${manualProtected ? "price-control" : ""}">
       <input class="promotion-row-check-v184" type="checkbox" data-select-search-v184="${escapeHTML(id)}" ${promotionSearchSelectionV184.has(id) ? "checked" : ""} aria-label="选择 ${escapeHTML(product.name)}" />
       <div><button type="button" class="inventory-product-name-copy promotion-search-name-v186" data-product-name="${escapeHTML(product.name)}" onclick="copyInventoryProductName(this)" title="点击复制产品名称">${escapeHTML(product.name)}</button>${buildProductIdCopyButtonV166(id, "promotion-product-id-v183")}
-      <span>库存 ${formatNumber(product.stock)} · ${getAverageCostLabelV205(product, originIndex)} ${formatMoney(product.averageCost, "RM ")} · 原最低售价 ${formatMoney(product.minimumPrice, "RM ")}${manual ? ` · 售价控制（当前自动不参与促销；可加入排除以保留未来解除后的排除状态）` : ` · 促销最低售价 ${formatMoney(promoPrice, "RM ")}`}</span></div>
+      <span>库存 ${formatNumber(product.stock)} · ${getAverageCostLabelV205(product, originIndex)} ${formatMoney(product.averageCost, "RM ")} · 原最低售价 ${formatMoney(product.minimumPrice, "RM ")}${manualProtected ? ` · 售价控制（精品保护价，不参与促销）` : manual ? ` · 售价控制已加入 Crazy Sales · 促销最低售价 ${formatMoney(promoPrice, "RM ")}` : ` · 促销最低售价 ${formatMoney(promoPrice, "RM ")}`}</span></div>
       <button type="button" data-add-promotion-exclusion="${escapeHTML(id)}">加入排除</button>
     </div>`;
   }).join("") : `<div class="promotion-empty-v183">${query ? "当前搜索没有更多可加入产品" : "当前筛选下没有更多可加入产品"}</div>`;
@@ -4632,22 +4647,23 @@ function renderPromotionPriceListV183() {
       const id = String(product.id || "").toUpperCase();
       const manual = isMinimumPriceManualV160(product);
       const excluded = promotion.excludedProductIds.includes(id);
+      const manualProtected = manual && promotion.includeManualPriceProducts !== true;
       const originalPrice = Math.max(0, Number(product.minimumPrice) || 0);
       const autoPromo = getPromotionPriceBreakdownV183(product, promotion, rules, originIndex).price;
       const override = Math.max(0, Number(promotion.priceOverrides?.[id]) || 0);
-      const effectivePrice = (manual || excluded) ? originalPrice : (override || autoPromo);
-      const profit = manual ? getProductMinimumProfitV205(product).profit : (excluded ? getProductMinimumProfitV205(product).profit : promotionCurrentProfitV183(product, effectivePrice, promotion, rules, originIndex));
-      return `<article class="promotion-mobile-card-v195 ${excluded ? "excluded" : ""} ${manual ? "price-control" : ""}">
+      const effectivePrice = (manualProtected || excluded) ? originalPrice : (override || autoPromo);
+      const profit = (manualProtected || excluded) ? getProductMinimumProfitV205(product).profit : promotionCurrentProfitV183(product, effectivePrice, promotion, rules, originIndex);
+      return `<article class="promotion-mobile-card-v195 ${excluded ? "excluded" : ""} ${manualProtected ? "price-control" : ""}">
         <div class="promotion-mobile-card-title-v195">
           <button type="button" class="inventory-product-name-copy" data-product-name="${escapeHTML(product.name)}" onclick="copyInventoryProductName(this)" title="点击复制产品名称">${escapeHTML(product.name)}</button>
           ${buildProductIdCopyButtonV166(product.id, "promotion-product-id-v183")}
         </div>
-        ${manual ? `<div class="promotion-mobile-price-control-v348">售价控制 · 不参与促销</div>` : excluded ? `<div class="promotion-mobile-excluded-v195">已排除 · 使用原最低售价</div>` : ""}
+        ${manualProtected ? `<div class="promotion-mobile-price-control-v348">售价控制 · 不参与促销</div>` : manual && !excluded ? `<div class="promotion-mobile-price-control-v348 promotion-manual-crazy-v361">售价控制 · Crazy Sales 促销中</div>` : excluded ? `<div class="promotion-mobile-excluded-v195">已排除 · 使用原最低售价</div>` : ""}
         <div class="promotion-mobile-grid-v195">
           <div><span>库存</span><strong>${formatNumber(product.stock)}</strong></div>
           <div><span>${getAverageCostLabelV205(product, originIndex)}</span><strong>${formatMoney(product.averageCost, "RM ")}</strong></div>
           <div><span>原最低售价</span><strong>${formatMoney(originalPrice, "RM ")}</strong></div>
-          <div><span>${manual ? "最低售价" : "促销最低售价"}</span>${manual || excluded ? `<strong class="${manual ? "promotion-price-control-value-v348" : ""}">${formatMoney(originalPrice, "RM ")}</strong>` : `<button type="button" class="promotion-price-edit-v193 promotion-mobile-price-edit-v195" data-promo-price-edit-v193="${escapeHTML(id)}" data-current-price-v193="${effectivePrice}" title="长按修改本次促销最低售价" aria-label="长按修改 ${escapeHTML(product.name)} 本次促销最低售价">${formatMoney(effectivePrice, "RM ")}</button>`}${override && !manual && !excluded ? `<small class="promotion-manual-note-v193">已手动调整</small>` : ""}</div>
+          <div><span>${manualProtected || excluded ? "最低售价" : "促销最低售价"}</span>${manualProtected || excluded ? `<strong class="${manualProtected ? "promotion-price-control-value-v348" : ""}">${formatMoney(originalPrice, "RM ")}</strong>` : `<button type="button" class="promotion-price-edit-v193 promotion-mobile-price-edit-v195" data-promo-price-edit-v193="${escapeHTML(id)}" data-current-price-v193="${effectivePrice}" title="长按修改本次促销最低售价" aria-label="长按修改 ${escapeHTML(product.name)} 本次促销最低售价">${formatMoney(effectivePrice, "RM ")}</button>`}${override && !manualProtected && !excluded ? `<small class="promotion-manual-note-v193">已手动调整</small>` : ""}</div>
           <div class="promotion-mobile-profit-v195 ${profit < 0 ? "loss" : "gain"}"><span>预计${profit < 0 ? "亏" : "赚"}</span><strong>${formatMoney(Math.abs(profit), "RM ")}</strong></div>
         </div>
       </article>`;
@@ -4658,15 +4674,16 @@ function renderPromotionPriceListV183() {
       const id = String(product.id || "").toUpperCase();
       const manual = isMinimumPriceManualV160(product);
       const excluded = promotion.excludedProductIds.includes(id);
+      const manualProtected = manual && promotion.includeManualPriceProducts !== true;
       const originalPrice = Math.max(0, Number(product.minimumPrice) || 0);
       const autoPromo = getPromotionPriceBreakdownV183(product, promotion, rules, originIndex).price;
       const override = Math.max(0, Number(promotion.priceOverrides?.[id]) || 0);
-      const effectivePrice = (manual || excluded) ? originalPrice : (override || autoPromo);
-      const profit = manual ? getProductMinimumProfitV205(product).profit : (excluded ? getProductMinimumProfitV205(product).profit : promotionCurrentProfitV183(product, effectivePrice, promotion, rules, originIndex));
-      return `<div class="promotion-compact-row-v193 ${excluded ? "excluded" : ""} ${manual ? "price-control" : ""}">
+      const effectivePrice = (manualProtected || excluded) ? originalPrice : (override || autoPromo);
+      const profit = (manualProtected || excluded) ? getProductMinimumProfitV205(product).profit : promotionCurrentProfitV183(product, effectivePrice, promotion, rules, originIndex);
+      return `<div class="promotion-compact-row-v193 ${excluded ? "excluded" : ""} ${manualProtected ? "price-control" : ""}">
         <span class="promotion-compact-product-v193"><button type="button" class="promotion-compact-name-v193" data-product-name="${escapeHTML(product.name)}" onclick="copyInventoryProductName(this)">${escapeHTML(product.name)}</button>${buildProductIdCopyButtonV166(product.id, "promotion-product-id-v183")}</span>
         <span>${formatNumber(product.stock)}</span><span>${formatPromotionMoneyV194(product.averageCost)}${isVndProductV205(product, originIndex) ? `<small class="average-cost-vnd-note-v207">（VND不含盆）</small>` : ""}</span><span>${formatPromotionMoneyV194(originalPrice)}</span>
-        <span>${manual || excluded ? `<b class="${manual ? "promotion-price-control-value-v348" : ""}">${formatPromotionMoneyV194(originalPrice)}</b>` : `<button type="button" class="promotion-price-edit-v193" data-promo-price-edit-v193="${escapeHTML(id)}" data-current-price-v193="${effectivePrice}" title="长按修改本次促销最低售价" aria-label="长按修改 ${escapeHTML(product.name)} 本次促销最低售价">${formatPromotionMoneyV194(effectivePrice)}</button>`}${override && !excluded ? `<small class="promotion-manual-note-v193">已手动调整</small>` : ""}</span>
+        <span>${manualProtected || excluded ? `<b class="${manualProtected ? "promotion-price-control-value-v348" : ""}">${formatPromotionMoneyV194(originalPrice)}</b>` : `<button type="button" class="promotion-price-edit-v193" data-promo-price-edit-v193="${escapeHTML(id)}" data-current-price-v193="${effectivePrice}" title="长按修改本次促销最低售价" aria-label="长按修改 ${escapeHTML(product.name)} 本次促销最低售价">${formatPromotionMoneyV194(effectivePrice)}</button>`}${override && !excluded ? `<small class="promotion-manual-note-v193">已手动调整</small>` : ""}</span>
         <span class="${profit < 0 ? "loss" : "gain"}">${profit < 0 ? "亏 " : "赚 "}${formatPromotionMoneyV194(Math.abs(profit))}</span>
       </div>`;
     }).join("") || `<div class="promotion-empty-v183">没有符合的产品</div>`;
@@ -4684,7 +4701,8 @@ function editPromotionPriceV194(button) {
   if (!button) return;
   const id = String(button.dataset.promoPriceEditV193 || "").toUpperCase();
   const product = getProducts().find(item => String(item?.id || "").trim().toUpperCase() === id);
-  if (product && isMinimumPriceManualV160(product)) { window.alert("此产品属于售价控制，促销不会修改它的最低售价。"); return; }
+  const activePromotionV361 = getPromotionSettingsV183();
+  if (product && isMinimumPriceManualV160(product) && activePromotionV361?.includeManualPriceProducts !== true) { window.alert("此产品属于售价控制；请先打开售价管理，才可让它参与 Crazy Sales。"); return; }
   const current = Math.max(0, Number(button.dataset.currentPriceV193) || 0);
   const input = window.prompt(`修改本次促销最低售价（RM）\n\n只影响当前促销；原最低售价不会被修改，删除促销后恢复原最低售价。`, String(current));
   if (input === null) return;
@@ -4722,7 +4740,7 @@ window.refreshPromotionCloudStateV209 = refreshPromotionCloudStateV209;
 function getPromotionMarginBadgeV209(product, profitInfo = null) {
   const promotion = getPromotionSettingsV183();
   const id = String(product?.id || "").trim().toUpperCase();
-  if (!promotion || isMinimumPriceManualV160(product) || promotion.excludedProductIds.includes(id)) return "";
+  if (!promotion || (isMinimumPriceManualV160(product) && promotion.includeManualPriceProducts !== true) || promotion.excludedProductIds.includes(id)) return "";
   const info = profitInfo || getProductMinimumProfitV205(product);
   const cls = info.profit < -0.005 ? "loss" : info.profit > 0.005 ? "gain" : "neutral";
   const rate = Number(promotion.targetMarginRate);
@@ -4741,6 +4759,20 @@ function refreshPromotionUiV183() {
     if (marginInput) marginInput.value = String(promotion?.targetMarginRate ?? 30);
     promotionExcludedDraftV183 = new Set(promotion?.excludedProductIds || []);
     promotionPriceOverridesDraftV193 = { ...(promotion?.priceOverrides || {}) };
+    promotionIncludeManualDraftV361 = promotion?.includeManualPriceProducts === true;
+    promotionOriginalNameDraftV361 = String(promotion?.originalPromotionName || "").trim();
+  }
+  const manualToggleV361 = document.getElementById("togglePromotionManualPricingV361");
+  const manualStatusV361 = document.getElementById("promotionManualPricingStatusV361");
+  if (manualToggleV361) {
+    manualToggleV361.textContent = promotionIncludeManualDraftV361 ? "关闭售价管理" : "打开售价管理";
+    manualToggleV361.classList.toggle("is-open-v361", promotionIncludeManualDraftV361);
+  }
+  if (manualStatusV361) manualStatusV361.textContent = promotionIncludeManualDraftV361 ? "已打开" : "已关闭";
+  const currentNameInputV361 = document.getElementById("promotionNameV183");
+  if (currentNameInputV361) {
+    currentNameInputV361.disabled = promotionIncludeManualDraftV361;
+    currentNameInputV361.title = promotionIncludeManualDraftV361 ? "售价管理已打开，促销名称固定为 Crazy Sales" : "";
   }
   const summary = document.getElementById("promotionSummaryStatusV183");
   const deleteButton = document.getElementById("deletePromotionV183");
@@ -4794,6 +4826,8 @@ function setupPromotionSettingsV183() {
   const saveButton = document.getElementById("savePromotionV183");
   const deleteButton = document.getElementById("deletePromotionV183");
   const toggleButton = document.getElementById("togglePromotionPriceListV183");
+  const manualPricingToggleV361 = document.getElementById("togglePromotionManualPricingV361");
+  const manualPricingStatusV361 = document.getElementById("promotionManualPricingStatusV361");
   const pricePanel = document.getElementById("promotionPriceListPanelV183");
   const priceSearch = document.getElementById("promotionPriceListSearchV183");
   const status = document.getElementById("promotionStatusV183");
@@ -4803,6 +4837,68 @@ function setupPromotionSettingsV183() {
   promotionDetails?.addEventListener("toggle", refreshToggleHintV192);
   refreshToggleHintV192();
   if (!nameInput || !saveButton) return;
+
+  const syncManualPricingToggleUiV361 = () => {
+    if (manualPricingToggleV361) {
+      manualPricingToggleV361.textContent = promotionIncludeManualDraftV361 ? "关闭售价管理" : "打开售价管理";
+      manualPricingToggleV361.classList.toggle("is-open-v361", promotionIncludeManualDraftV361);
+    }
+    if (manualPricingStatusV361) manualPricingStatusV361.textContent = promotionIncludeManualDraftV361 ? "已打开" : "已关闭";
+    nameInput.disabled = promotionIncludeManualDraftV361;
+    nameInput.title = promotionIncludeManualDraftV361 ? "售价管理已打开，促销名称固定为 Crazy Sales" : "";
+  };
+  syncManualPricingToggleUiV361();
+  manualPricingToggleV361?.addEventListener("click", async () => {
+    const active = getPromotionSettingsV183();
+    const opening = !promotionIncludeManualDraftV361;
+    if (opening) {
+      const manualCount = getProducts().filter(product => isMinimumPriceManualV160(product)).length;
+      const ok = window.confirm(`打开售价管理？\n\n打开后，售价控制／精品保护价产品也会参加当前促销，并按促销目标利润重新计算售价。\n原保护价格不会删除；关闭售价管理后会恢复。\n\n目前售价控制产品：${manualCount} 项`);
+      if (!ok) return;
+      promotionOriginalNameDraftV361 = String(active?.originalPromotionName || active?.name || nameInput.value || "年尾清货").trim() || "年尾清货";
+      promotionIncludeManualDraftV361 = true;
+      nameInput.value = "Crazy Sales";
+    } else {
+      promotionIncludeManualDraftV361 = false;
+      nameInput.value = String(promotionOriginalNameDraftV361 || active?.originalPromotionName || "年尾清货").trim() || "年尾清货";
+    }
+    promotionDraftTouchedV209 = true;
+    syncManualPricingToggleUiV361();
+    updatePromotionDraftStatusV186();
+
+    // If a promotion is already active, toggling this control takes effect immediately.
+    // Save only the current authoritative promotion plus this toggle/name change so unrelated
+    // unconfirmed exclusion/search drafts are never committed accidentally.
+    if (active) {
+      const payload = {
+        ...active,
+        active:true,
+        name:nameInput.value,
+        includeManualPriceProducts:promotionIncludeManualDraftV361,
+        originalPromotionName:promotionIncludeManualDraftV361 ? promotionOriginalNameDraftV361 : "",
+        updatedAt:new Date().toISOString()
+      };
+      manualPricingToggleV361.disabled = true;
+      if (manualPricingStatusV361) manualPricingStatusV361.textContent = "同步中…";
+      try {
+        await updatePromotionSettingsFastV185(payload);
+        const settings = loadJSON("importSystemSettings", {});
+        saveJSON("importSystemSettings", { ...settings, promotionV183:payload });
+        promotionDraftTouchedV209 = false;
+        resetPromotionDraftV183();
+        [refreshPromotionUiV183, renderPromotionPriceListV183, renderDashboard, renderInventoryManagementList, renderProductList]
+          .forEach(render => { try { render(); } catch (_) {} });
+      } catch (error) {
+        window.alert(`售价管理没有保存：${String(error?.message || error)}`);
+        resetPromotionDraftV183();
+        refreshPromotionUiV183();
+      } finally {
+        manualPricingToggleV361.disabled = false;
+        syncManualPricingToggleUiV361();
+      }
+    }
+  });
+
   if (!window.promotionCloudRefreshBoundV209) {
     window.promotionCloudRefreshBoundV209 = true;
     window.addEventListener("focus", () => refreshPromotionCloudStateV209(false));
@@ -4844,7 +4940,7 @@ function setupPromotionSettingsV183() {
     if (mode === "profit-desc" && !historyAllSalesLinksLoadedV136 && !hasCachedSalesV360 && navigator.onLine) {
       if (searchResults) searchResults.innerHTML = '<div class="promotion-empty-v183">正在读取完整销售利润…</div>';
       Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(() => { invalidateInventorySalesAnalyticsAfterFullLoadV360(); renderPromotionExcludeSearchV183(); })
-        .catch(error => { console.warn("V36.0 promotion profit analytics load failed", error); renderPromotionExcludeSearchV183(); });
+        .catch(error => { console.warn("V36.1 promotion profit analytics load failed", error); renderPromotionExcludeSearchV183(); });
       return;
     }
     renderPromotionExcludeSearchV183();
@@ -4991,15 +5087,19 @@ function setupPromotionSettingsV183() {
     const products = getProducts();
     const rules = getMinimumPriceRulesV160();
     const originIndex = getMinimumPriceOriginIndexV160();
-    const affected = products.filter(product => !isMinimumPriceManualV160(product) && !promotion.excludedProductIds.includes(String(product.id || "").toUpperCase()));
+    const affected = products.filter(product => (!isMinimumPriceManualV160(product) || promotion.includeManualPriceProducts === true) && !promotion.excludedProductIds.includes(String(product.id || "").toUpperCase()));
     const losses = affected.filter(product => getPromotionPriceBreakdownV183(product, promotion, rules, originIndex).profit < -0.005);
+    const manualIncludedCountV361 = promotion.includeManualPriceProducts === true
+      ? affected.filter(product => isMinimumPriceManualV160(product)).length : 0;
     const warning = promotion.targetMarginRate < 0 || losses.length
       ? `\n\n⚠️ 其中 ${losses.length} 项预计亏损；你设置的目标净利率为 ${promotion.targetMarginRate}%。` : "";
+    const manualNoticeV361 = promotion.includeManualPriceProducts === true
+      ? `\n售价管理：已打开（${manualIncludedCountV361} 项精品保护价产品也参与 Crazy Sales）` : "\n售价管理：已关闭（精品保护价不参与促销）";
     const currentActive = getPromotionSettingsV183();
     const activeNotice = currentActive
       ? `⚠️ 促销“${currentActive.name}”已经开启。\n本次确认会更新正在进行的促销设置，不会新增第二个促销。\n\n`
       : "";
-    if (!window.confirm(`${activeNotice}确认${currentActive ? "更新并继续开启" : "保存并开启"}促销？\n\n促销：${promotion.name}\n主播佣金：${promotion.commissionRate}%\n目标净利率：${promotion.targetMarginRate}%\n应用产品：${affected.length} 项\n排除产品：${promotion.excludedProductIds.length} 项${warning}\n\n原最低售价不会被修改；删除促销后会立即恢复。`)) return;
+    if (!window.confirm(`${activeNotice}确认${currentActive ? "更新并继续开启" : "保存并开启"}促销？\n\n促销：${promotion.name}\n主播佣金：${promotion.commissionRate}%\n目标净利率：${promotion.targetMarginRate}%\n应用产品：${affected.length} 项\n排除产品：${promotion.excludedProductIds.length} 项${manualNoticeV361}${warning}\n\n原最低售价不会被修改；关闭售价管理或删除促销后会立即恢复。`)) return;
     const now = new Date().toISOString();
     const payload = { ...promotion, active:true, createdAt:currentActive?.createdAt||now, updatedAt:now };
     const saveButtonIdleTextV350 = currentActive ? "更新促销设置" : "开启促销管理";
@@ -5055,6 +5155,8 @@ function setupPromotionSettingsV183() {
     if (deleted) {
       promotionExcludedDraftV183 = new Set();
       promotionPriceOverridesDraftV193 = {};
+      promotionIncludeManualDraftV361 = false;
+      promotionOriginalNameDraftV361 = "";
       promotionSearchSelectionV184 = new Set();
       promotionExcludedSelectionV184 = new Set();
       promotionDraftTouchedV209 = false;
@@ -5092,7 +5194,7 @@ function setupPromotionSettingsV183() {
       const priceList = document.getElementById("promotionPriceListV183");
       if (priceList) priceList.innerHTML = '<div class="promotion-empty-v183">正在读取完整销售利润…</div>';
       Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(() => { invalidateInventorySalesAnalyticsAfterFullLoadV360(); if (String(priceSortV195?.value || "") === mode) renderPromotionPriceListV183(); })
-        .catch(error => { console.warn("V36.0 promotion price profit analytics load failed", error); renderPromotionPriceListV183(); });
+        .catch(error => { console.warn("V36.1 promotion price profit analytics load failed", error); renderPromotionPriceListV183(); });
       return;
     }
     renderPromotionPriceListV183();
@@ -15983,7 +16085,7 @@ async function editProductMinimumPrice(productId) {
   minimumPriceOverrides[id] = nextMinimumPriceManual;
   saveMinimumPriceManualOverridesV160(minimumPriceOverrides);
 
-  // V36.0 Local-First: first paint the exact new state immediately. This is especially
+  // V36.1 Local-First: first paint the exact new state immediately. This is especially
   // important when entering 0 to leave sale-control; the user must see the automatic
   // price/color at once instead of waiting for a full result-list rebuild.
   saveJSON("importSystemProducts", products);
@@ -16581,7 +16683,7 @@ function setupInventoryModule() {
     .addEventListener("change", event => {
       const mode = String(event.target.value || "");
       const needsSales = ["latest-sold","bestseller-desc","profit-desc"].includes(mode);
-      // V36.0: 利润最高必须使用完整 Sales History 明细。旧版仅在缓存为空时读取，
+      // V36.1: 利润最高必须使用完整 Sales History 明细。旧版仅在缓存为空时读取，
       // 若缓存存在但不完整，会产生错误排序。只在用户主动选择利润最高时补齐，
       // 不改变利润公式，也不增加日常同步负担。
       const hasCachedSalesV360 = hasUsableInventorySalesAnalyticsV343();
@@ -16595,7 +16697,7 @@ function setupInventoryModule() {
         }).catch(error => { console.warn("Sales analytics load failed:", error); renderInventoryManagementList(); });
         return;
       }
-      // V36.0: once Profit Highest has a verified local analytics cache, render it immediately.
+      // V36.1: once Profit Highest has a verified local analytics cache, render it immediately.
       // If cloud revision changed, refresh full Sales details quietly in background and repaint later.
       renderInventoryManagementList();
       if (mode === "profit-desc" && navigator.onLine && !historyAllSalesLinksLoadedV136 && !hasCurrentFullInventorySalesAnalyticsV360()) {
@@ -17727,11 +17829,12 @@ function getOriginalCostSummaryRows() {
 function getMinimumPriceDisplayStateV315(product) {
   const manual = isMinimumPriceManualV160(product);
   const info = getProductMinimumProfitV205(product);
-  const className = manual
+  const protectedManual = manual && !info.promotionApplies;
+  const className = protectedManual
     ? "minimum-price-manual-v315"
     : (info.profit < -0.005 ? "minimum-price-loss-v302" : info.profit > 0.005 ? "minimum-price-gain-v302" : "minimum-price-neutral-v302");
-  const state = manual ? "manual" : (info.profit < -0.005 ? "loss" : info.profit > 0.005 ? "gain" : "neutral");
-  return { manual, state, className, label:info.promotionApplies ? "促销最低售价" : "最低售价", price:info.price, profitInfo:info };
+  const state = protectedManual ? "manual" : (info.profit < -0.005 ? "loss" : info.profit > 0.005 ? "gain" : "neutral");
+  return { manual, protectedManual, state, className, label:info.promotionApplies ? "促销最低售价" : "最低售价", price:info.price, profitInfo:info };
 }
 
 // V34.3: one visual state for desktop/mobile/card/original-cost/master table.
@@ -18418,7 +18521,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "36.0",
+      version: "36.1",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),

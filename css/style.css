@@ -6437,7 +6437,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 }
 
 
-/* V36.0 — Inventory Master is the single edit center; Original Cost list is read-only except product-name copy. */
+/* V36.1 — Inventory Master is the single edit center; Original Cost list is read-only except product-name copy. */
 .original-cost-readonly-v356{display:inline-block;font:inherit;font-weight:inherit;color:inherit;}
 .master-value-btn-v356{appearance:none;border:0;background:transparent;padding:0;margin:0;font:inherit;font-weight:inherit;color:inherit;text-align:right;cursor:pointer;font-variant-numeric:tabular-nums;white-space:nowrap;}
 .master-edit-v356.long-press-active{opacity:.58;transform:scale(.985);}
@@ -6449,7 +6449,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 }
 
 
-/* V36.0 — click-to-copy English name on inventory cards + average-cost audit History. */
+/* V36.1 — click-to-copy English name on inventory cards + average-cost audit History. */
 .inventory-english-copy-v359{
   appearance:none;-webkit-appearance:none;border:0;background:transparent;padding:0;margin:0;
   font:inherit;color:inherit;text-align:left;cursor:pointer;max-width:100%;
@@ -6465,3 +6465,18 @@ body.system-media-preview-open-v305{overflow:hidden}
 .average-cost-audit-values-v359 em.gain{color:#087a43}.average-cost-audit-values-v359 em.loss{color:#c62828}
 .average-cost-audit-reason-v359{line-height:1.45;word-break:break-word;}
 .average-cost-audit-inventory-v359{font-size:.92em;opacity:.82;}
+
+/* V36.1 Crazy Sales / 售价管理 */
+.promotion-name-row-v361{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:stretch;margin:10px 0 12px}
+.promotion-name-box-v361,.promotion-manual-toggle-box-v361{min-width:0;margin:0}
+.promotion-name-box-v361{display:flex;flex-direction:column;gap:6px}
+.promotion-name-box-v361 input{width:100%;box-sizing:border-box}
+.promotion-manual-toggle-box-v361{display:flex;flex-direction:column;gap:6px}
+.promotion-manual-toggle-box-v361>span{font-weight:700;color:#56645b;display:flex;justify-content:space-between;gap:8px}
+.promotion-manual-toggle-box-v361>span small{font-weight:800;color:#7b8680}
+#togglePromotionManualPricingV361{width:100%;min-height:44px;border:1.5px solid #27845c;border-radius:11px;background:#f2faf6;color:#176941;font-weight:900;font-size:16px;padding:10px 12px}
+#togglePromotionManualPricingV361.is-open-v361{background:#176941;color:#fff;border-color:#176941}
+.promotion-main-grid-v183{grid-template-columns:1fr 1fr!important}
+.promotion-main-grid-v183 label:first-child{grid-column:auto!important}
+.promotion-manual-crazy-v361{background:#fff1f1!important;color:#b42318!important;border-color:#f1b6b6!important}
+@media(max-width:719px){.promotion-name-row-v361{grid-template-columns:1fr 1fr;gap:9px}.promotion-name-row-v361 label,.promotion-manual-toggle-box-v361{font-size:14px}.promotion-name-row-v361 input,#togglePromotionManualPricingV361{min-height:46px;font-size:15px}.promotion-main-grid-v183{grid-template-columns:1fr 1fr!important}}
