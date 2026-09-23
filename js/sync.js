@@ -26,9 +26,12 @@ const cloudQueueWasDirtyAtScriptLoadV337 = (() => {
 let cloudLastForegroundCheckAt = 0;
 let cloudForegroundCheckTimer = null;
 let cloudBackgroundRevisionTimerV367 = null;
+let promotionLightSyncTimerV372 = null;
+let promotionLightSyncBusyV372 = false;
 let cloudLastErrorMessage = "";
 const CLOUD_FOREGROUND_CHECK_GAP = 1500;
 const CLOUD_BACKGROUND_REVISION_MS_V367 = 8000;
+const PROMOTION_LIGHT_SYNC_MS_V372 = 3000;
 
 function getCloudConfig() {
   const saved = loadJSON(CLOUD_CONFIG_KEY, {});
@@ -135,7 +138,7 @@ function isApplyingGoogleData() {
 function setupCloudSync() {
   const startupConfigV338 = getCloudConfig();
   renderCloudMeta(startupConfigV338);
-  // V37.1 repairs a stale PZ+BS local cache before deciding whether Local-First is safe.
+  // V37.2 repairs a stale PZ+BS local cache before deciding whether Local-First is safe.
   repairLocalBsCanonicalCacheV365();
   const startupSnapshotV338 = makeLocalSnapshot();
   const cachedCanonicalV365 = isCanonicalBsSnapshotV365(startupSnapshotV338.products || []);
@@ -182,7 +185,7 @@ function setupCloudSync() {
     );
   });
 
-  // V37.1: while the page is visible, do a lightweight revision check every 8 seconds.
+  // V37.2: while the page is visible, do a lightweight revision check every 8 seconds.
   // An unchanged revision returns only metadata, so another device's single-product
   // minimum-price/manual-protection edit is picked up automatically without a manual refresh.
   window.clearInterval(cloudBackgroundRevisionTimerV367);
@@ -191,6 +194,16 @@ function setupCloudSync() {
     if (getCloudQueue().dirty) return;
     scheduleForegroundCloudCheck(0);
   }, CLOUD_BACKGROUND_REVISION_MS_V367);
+
+  // V37.2: Promotion Settings gets its own very small read channel while the
+  // promotion panel is open. This lets phone/desktop mirror join/exit/margin
+  // changes quickly without reading Products/Imports/Batches just to repaint
+  // two promotion controls. It never advances the global revision unless the
+  // server proves the only unseen revision is a promotion-only write.
+  window.clearInterval(promotionLightSyncTimerV372);
+  promotionLightSyncTimerV372 = window.setInterval(() => {
+    try { pollPromotionStateLightV372(); } catch (_) {}
+  }, PROMOTION_LIGHT_SYNC_MS_V372);
 
   // 首次开启只由这里执行一次同步。
   window.setTimeout(() => runCloudSync(), 0);
@@ -274,7 +287,10 @@ async function callGoogleApi(payload, attempt = 0) {
     }
 
     const data = await response.json();
-    if (!data.ok) throw new Error(data.error || "Google sync failed");
+    // V37.2: revision conflicts are structured control flow, not transport failures.
+    // Let the caller resolve/retry them instead of collapsing them into
+    // the misleading generic "Google sync failed" message.
+    if (!data.ok && !data.conflict) throw new Error(data.error || data.message || "Google sync failed");
     return data;
   } catch (error) {
     const retryable =
@@ -433,7 +449,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V37.1 Stable",
+      updatedBy: "System V37.2 Stable",
       ...payload
     });
 
@@ -469,7 +485,7 @@ async function commitSalesInventoryBatchToCloudV125(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V37.1 Stable",
+      updatedBy: "System V37.2 Stable",
       ...payload
     });
     if (data.conflict || data.stockChanged) {
@@ -492,7 +508,7 @@ window.commitSalesInventoryBatchToCloudV125 = commitSalesInventoryBatchToCloudV1
 
 async function commitSalesCorrectionBatchToCloudV110(payload) {
   await flushCloudQueueStrictV83(); const config=getCloudConfig(); setCloudState("syncing");
-  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V37.1 Stable",...payload});
+  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V37.2 Stable",...payload});
     if(data.conflict||data.stockChanged) throw new Error(data.message||"Google Sheet 资料已改变，全部库存差异没有处理。请同步后重试。");
     config.revision=Number(data.revision)||Number(config.revision)||0; config.lastSyncAt=new Date().toISOString(); config.bootstrapToken=String(data.bootstrapToken||config.bootstrapToken||""); config.bootstrapRevision=Number(data.revision)||Number(config.bootstrapRevision)||0; saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced"); return data;
   } catch(error){setCloudState("failed");throw error;}
@@ -506,7 +522,7 @@ async function migrateProductPrefixesV164() {
     action: "migrateProductPrefixesV164", clientVersion: APP_VERSION,
     schemaVersion: CLOUD_SCHEMA_VERSION, baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""), bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V37.1 Stable"
+    updatedBy: "System V37.2 Stable"
   });
   if (data.conflict) throw new Error(data.message || "资料已改变，请同步后重试。");
   config.revision = Number(data.revision) || Number(config.revision) || 0;
@@ -629,7 +645,7 @@ function hasBsLegacyIdsV364(products = []) {
   return ["PZ0001","PZ0036","PZ0175","PZ0176","PZ0192"].some(oldId => ids.has(oldId));
 }
 
-// V37.1: canonical BS guard used before the first UI paint and before every cloud apply.
+// V37.2: canonical BS guard used before the first UI paint and before every cloud apply.
 // A device may still carry the temporary V36.3 snapshot that contained both PZ and BS rows.
 // Repair that cache locally without marking it dirty: BS stays authoritative, PZ is only an alias.
 const BS_CANONICAL_ALIASES_V365 = {
@@ -706,7 +722,7 @@ function repairLocalBsCanonicalCacheV365() {
     localStorage.setItem("importSystemSettings", JSON.stringify(nextSettings));
     return true;
   } catch (error) {
-    console.warn("V37.1 local BS canonical cache repair skipped", error);
+    console.warn("V37.2 local BS canonical cache repair skipped", error);
     return false;
   }
 }
@@ -759,7 +775,7 @@ async function pullLatestSnapshot(forceBootstrap = false) {
     const repair = await callGoogleApi({
       action:"repairBsCanonicalV364", clientVersion:APP_VERSION, schemaVersion:CLOUD_SCHEMA_VERSION,
       baseRevision:Number(data.revision)||0, bootstrapToken:String(data.bootstrapToken||""),
-      bootstrapRevision:Number(data.revision)||0, updatedBy:"System V37.1 Stable"
+      bootstrapRevision:Number(data.revision)||0, updatedBy:"System V37.2 Stable"
     });
     if (!repair?.ok || repair?.conflict || repair?.writeBlocked) throw new Error(repair?.message || "BS 编号修复失败，已停止载入重复库存。");
     data = await callGoogleApi({
@@ -769,7 +785,7 @@ async function pullLatestSnapshot(forceBootstrap = false) {
     if (!Array.isArray(data.products) || hasBsLegacyIdsV364(data.products)) throw new Error("BS 编号修复后仍检测到旧 PZ 资料，已停止覆盖本机库存。");
   }
 
-  // V37.1: never paint an intermediate/legacy snapshot as authoritative inventory.
+  // V37.2: never paint an intermediate/legacy snapshot as authoritative inventory.
   if (!isCanonicalBsSnapshotV365(data.products)) {
     throw new Error("云端产品编号仍处于迁移中间状态，已停止显示，等待下一次完整同步。");
   }
@@ -834,7 +850,7 @@ function retryPendingMinimumPriceV345(){
   if(!pending?.productId||minimumPricePendingRetryBusyV345||!navigator.onLine||!isCloudBootstrapComplete())return;
   minimumPricePendingRetryBusyV345=true;
   Promise.resolve(updateProductMinimumPriceFast(pending.productId,pending.minimumPrice,pending.updatedAt,pending.minimumPriceManual))
-    .catch(error=>console.warn("V37.1 pending minimum-price retry kept for next sync",error))
+    .catch(error=>console.warn("V37.2 pending minimum-price retry kept for next sync",error))
     .finally(()=>{minimumPricePendingRetryBusyV345=false;});
 }
 window.retryPendingMinimumPriceV345=retryPendingMinimumPriceV345;
@@ -861,7 +877,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V37.1 Stable",
+    updatedBy: "System V37.2 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     minimumPriceManual: Boolean(minimumPriceManual),
@@ -919,13 +935,13 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
       inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
     }
   } catch (localErrorV341) {
-    console.warn("V37.1 minimum-price local refresh skipped", localErrorV341);
+    console.warn("V37.2 minimum-price local refresh skipped", localErrorV341);
   }
 
   setMinimumPricePendingV345(null);
   renderCloudMeta(config);
   setCloudState("synced");
-  window.setTimeout(()=>{try{if(typeof refreshSystemViewsAfterSync==="function")refreshSystemViewsAfterSync()}catch(refreshErrorV343){console.warn("V37.1 deferred minimum-price refresh skipped",refreshErrorV343)}},0);
+  window.setTimeout(()=>{try{if(typeof refreshSystemViewsAfterSync==="function")refreshSystemViewsAfterSync()}catch(refreshErrorV343){console.warn("V37.2 deferred minimum-price refresh skipped",refreshErrorV343)}},0);
   return data;
 }
 
@@ -944,7 +960,7 @@ async function updateProductAverageCostFastV358(productId, averageCost, minimumP
     clientVersion:APP_VERSION, schemaVersion:CLOUD_SCHEMA_VERSION,
     baseRevision:Number(config.revision)||0,
     bootstrapToken:String(config.bootstrapToken||""), bootstrapRevision:Number(config.bootstrapRevision)||0,
-    updatedBy:"System V37.1 Stable",
+    updatedBy:"System V37.2 Stable",
     productId:String(productId||"").trim(),
     averageCost:Number(averageCost),
     minimumPrice:Number(minimumPrice),
@@ -988,33 +1004,51 @@ async function fetchAverageCostManualHistoryV359(limit = 500) {
 }
 window.fetchAverageCostManualHistoryV359 = fetchAverageCostManualHistoryV359;
 
-async function updatePromotionSettingsFastV185(promotion) {
+async function updatePromotionSettingsFastV185(promotion, retryCountV372 = 0) {
   if (!navigator.onLine) throw new Error("目前离线，促销设置尚未同步。");
   if (!isCloudBootstrapComplete()) throw new Error("首次同步尚未完成，请稍后再试。");
   await waitForCloudIdleV83();
   const config = getCloudConfig();
+  const sentBaseRevisionV372 = Number(config.revision) || 0;
   setCloudState("syncing");
   const data = await callGoogleApi({
     action: "updatePromotionSettingsV185",
     clientVersion: APP_VERSION,
     schemaVersion: CLOUD_SCHEMA_VERSION,
-    baseRevision: Number(config.revision) || 0,
+    baseRevision: sentBaseRevisionV372,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V37.1 Stable",
+    updatedBy: "System V37.2 Stable",
     promotion: promotion || null
   });
   if (data.conflict) {
-    // V36.3: preserve the cloud's currently active promotion. A failed update is
-    // not a request to close promotion. Refresh the latest authoritative state,
-    // keep the user's draft untouched, and ask for one deliberate retry.
-    config.revision = Number(data.revision) || Number(config.revision) || 0;
-    config.bootstrapToken = String(data.bootstrapToken || config.bootstrapToken || "");
-    config.bootstrapRevision = Number(data.revision) || Number(config.bootstrapRevision) || 0;
-    saveCloudConfig(config);
-    try { await pullLatestSnapshot(false); } catch (pullErrorV350) { console.warn("V37.1 promotion conflict refresh skipped", pullErrorV350); }
+    const currentRevisionV372 = Number(data.revision) || 0;
+    const promotionRevisionV372 = Number(data.promotionRevision) || 0;
+    const onlyOnePromotionRevisionV372 = currentRevisionV372 === sentBaseRevisionV372 + 1 && promotionRevisionV372 === currentRevisionV372;
+
+    if (retryCountV372 < 1 && onlyOnePromotionRevisionV372) {
+      // Fast path: the only unseen revision was another device changing promotion.
+      // It is safe to advance only metadata and retry the Settings-only write once.
+      config.revision = currentRevisionV372 || Number(config.revision) || 0;
+      config.bootstrapToken = String(data.bootstrapToken || config.bootstrapToken || "");
+      config.bootstrapRevision = currentRevisionV372 || Number(config.bootstrapRevision) || 0;
+      saveCloudConfig(config);
+      return updatePromotionSettingsFastV185(promotion, retryCountV372 + 1);
+    }
+
+    if (retryCountV372 < 1) {
+      // Safety path: do NOT advance local revision before Pull. Another kind of
+      // data may have changed, so the normal Pull must still see the revision gap
+      // and fetch Products/Imports/Batches before we retry the user's promotion draft.
+      try {
+        await pullLatestSnapshot(false);
+        return updatePromotionSettingsFastV185(promotion, retryCountV372 + 1);
+      } catch (pullErrorV372) {
+        console.warn("V37.2 promotion conflict refresh failed", pullErrorV372);
+      }
+    }
     try { setCloudState("synced"); } catch (_) {}
-    throw new Error("资料版本刚刚发生变化，系统已重新同步；原本已开启的促销保持不变。本次修改尚未保存，请再试一次。");
+    throw new Error("资料版本刚刚发生变化，系统已同步最新资料；促销修改尚未保存，请再按一次更新。 ");
   }
   config.revision = Number(data.revision) || Number(config.revision) || 0;
   config.lastSyncAt = new Date().toISOString();
@@ -1025,10 +1059,84 @@ async function updatePromotionSettingsFastV185(promotion) {
 }
 window.updatePromotionSettingsFastV185 = updatePromotionSettingsFastV185;
 
+function normalizePromotionStateForCompareV372(value) {
+  const p = value && value.active === true ? value : null;
+  if (!p) return "";
+  return JSON.stringify({
+    active:true,
+    name:String(p.name || ""),
+    commissionRate:Number(p.commissionRate),
+    targetMarginRate:Number(p.targetMarginRate),
+    excludedProductIds:[...(Array.isArray(p.excludedProductIds)?p.excludedProductIds:[])].map(String).sort(),
+    priceOverrides:Object.fromEntries(Object.entries(p.priceOverrides && typeof p.priceOverrides === "object" ? p.priceOverrides : {}).sort(([a],[b])=>a.localeCompare(b))),
+    includeManualPriceProducts:p.includeManualPriceProducts === true,
+    originalPromotionName:String(p.originalPromotionName || ""),
+    updatedAt:String(p.updatedAt || "")
+  });
+}
+
+async function pollPromotionStateLightV372(force = false) {
+  if (promotionLightSyncBusyV372 || document.hidden || !navigator.onLine || !cloudInitialSyncComplete || cloudApplyingRemote || cloudSyncBusy) return false;
+  if (getCloudQueue().dirty) return false;
+  const nameInputV372 = document.getElementById("promotionNameV183");
+  const detailsV372 = nameInputV372?.closest("details");
+  if (!force && (!detailsV372 || !detailsV372.open)) return false;
+
+  promotionLightSyncBusyV372 = true;
+  try {
+    const data = await callGoogleApi({
+      action:"getPromotionStateV372",
+      clientVersion:APP_VERSION,
+      schemaVersion:CLOUD_SCHEMA_VERSION
+    });
+    const remotePromotionV372 = data.promotionV183 && data.promotionV183.active === true ? data.promotionV183 : null;
+    const settingsV372 = loadJSON("importSystemSettings", {});
+    const localPromotionV372 = settingsV372?.promotionV183?.active === true ? settingsV372.promotionV183 : null;
+    const changedV372 = normalizePromotionStateForCompareV372(remotePromotionV372) !== normalizePromotionStateForCompareV372(localPromotionV372);
+
+    if (changedV372) {
+      const nextSettingsV372 = { ...settingsV372 };
+      if (remotePromotionV372) nextSettingsV372.promotionV183 = remotePromotionV372;
+      else delete nextSettingsV372.promotionV183;
+      localStorage.setItem("importSystemSettings", JSON.stringify(nextSettingsV372));
+      try {
+        if (typeof window.refreshPromotionSettingsAfterCloudSyncV370 === "function") window.refreshPromotionSettingsAfterCloudSyncV370();
+        else if (typeof window.refreshPromotionUiV183 === "function") window.refreshPromotionUiV183();
+      } catch (error) { console.warn("V37.2 promotion light repaint skipped", error); }
+    }
+
+    // Safe revision shortcut: if this device is exactly one revision behind and
+    // that revision is confirmed as promotion-only, advancing metadata prevents
+    // the normal 8-second checker from doing an unnecessary full inventory Pull.
+    const configV372 = getCloudConfig();
+    const remoteRevisionV372 = Number(data.revision) || 0;
+    const promotionRevisionV372 = Number(data.promotionRevision) || 0;
+    const localRevisionV372 = Number(configV372.revision) || 0;
+    if (remoteRevisionV372 === localRevisionV372 + 1 && promotionRevisionV372 === remoteRevisionV372) {
+      configV372.revision = remoteRevisionV372;
+      configV372.lastSyncAt = new Date().toISOString();
+      if (data.bootstrapToken) {
+        configV372.bootstrapToken = String(data.bootstrapToken);
+        configV372.bootstrapRevision = remoteRevisionV372;
+      }
+      saveCloudConfig(configV372);
+      renderCloudMeta(configV372);
+      setCloudState("synced");
+    }
+    return changedV372;
+  } catch (error) {
+    console.warn("V37.2 promotion light sync skipped", error);
+    return false;
+  } finally {
+    promotionLightSyncBusyV372 = false;
+  }
+}
+window.pollPromotionStateLightV372 = pollPromotionStateLightV372;
+
 
 async function pushPendingSnapshot(queue, retryCount = 0) {
   const config = getCloudConfig();
-  // V37.1: a stale device must canonicalize the five IDs before it is allowed to build a write snapshot.
+  // V37.2: a stale device must canonicalize the five IDs before it is allowed to build a write snapshot.
   repairLocalBsCanonicalCacheV365();
   const snapshot = makeLocalSnapshot();
   if (!isCanonicalBsSnapshotV365(snapshot.products || [])) throw new Error("本机仍有旧 PZ 编号，已阻止写入以保护库存。请重新同步。");
@@ -1041,7 +1149,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     action: "pushDeltaV346",
     clientVersion: APP_VERSION, schemaVersion: CLOUD_SCHEMA_VERSION, force:false,
     baseRevision:Number(config.revision)||0, bootstrapToken:String(config.bootstrapToken||""), bootstrapRevision:Number(config.bootstrapRevision)||0,
-    updatedBy:"System V37.1 Stable", collections,
+    updatedBy:"System V37.2 Stable", collections,
     ...(collections.includes("settings")?{settings:snapshot.settings,productIds:(snapshot.products||[]).map(item=>String(item?.id||"").trim()).filter(Boolean)}:{}),
     ...(collections.includes("products")?{products:snapshot.products}:{}),
     ...(collections.includes("imports")?{imports:snapshot.imports}:{}),
@@ -1328,7 +1436,7 @@ function refreshSystemViewsAfterSync() {
     "renderInventoryManagementList",
     "renderImportDraftsV242",
     "updatePasswordHintDisplays",
-    // V37.1: a remote promotion revision must repaint the Settings form too,
+    // V37.2: a remote promotion revision must repaint the Settings form too,
     // not only Dashboard/inventory. The app-side helper preserves any local
     // unsaved promotion draft and otherwise reloads the latest cloud settings.
     "refreshPromotionSettingsAfterCloudSyncV370"
