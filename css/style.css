@@ -6481,12 +6481,15 @@ body.system-media-preview-open-v305{overflow:hidden}
 .promotion-manual-crazy-v361{background:#fff1f1!important;color:#b42318!important;border-color:#f1b6b6!important}
 @media(max-width:719px){.promotion-name-row-v361{grid-template-columns:1fr 1fr;gap:9px}.promotion-name-row-v361 label,.promotion-manual-toggle-box-v361{font-size:14px}.promotion-name-row-v361 input,#togglePromotionManualPricingV361{min-height:46px;font-size:15px}.promotion-main-grid-v183{grid-template-columns:1fr 1fr!important}}
 
-/* V36.8 — promotion status visibility + inventory master price alignment */
-#promotionManualPricingStatusV361{display:inline-flex;align-items:center;justify-content:center;min-height:28px;padding:3px 9px;border-radius:999px;border:1.5px solid #2a7c55;background:#edf8f1;color:#176941!important;font-size:12px;font-weight:900!important;line-height:1.15;white-space:nowrap;box-shadow:0 1px 2px rgba(23,105,65,.08)}
+/* V36.9 — promotion status badge colors + V36.8 inventory master alignment */
+#promotionManualPricingStatusV361{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:30px;padding:4px 10px;border-radius:999px;border:1.5px solid #2f80d0;background:#eef6ff;color:#1767ad!important;font-size:12px;font-weight:900!important;line-height:1.15;white-space:nowrap;box-shadow:0 1px 3px rgba(23,103,173,.14)}
+#promotionManualPricingStatusV361::before{content:"";display:inline-block;width:9px;height:9px;flex:0 0 9px;border-radius:50%;background:#2584d8;box-shadow:0 0 0 3px rgba(37,132,216,.12)}
 .promotion-manual-toggle-box-v361>span{align-items:center}
 .inventory-master-table-v261 th:nth-child(6),.inventory-master-table-v261 td:nth-child(6){text-align:right!important}
 .inventory-master-table-v261 td:nth-child(6) .master-value-btn-v356{display:block;width:100%;text-align:right!important;margin-left:auto;font-variant-numeric:tabular-nums}
-@media(max-width:719px){#promotionManualPricingStatusV361{font-size:11px;padding:3px 7px;min-height:26px}}
+@media(max-width:719px){#promotionManualPricingStatusV361{font-size:11px;padding:4px 8px;min-height:28px;gap:5px}}
 
-#promotionManualPricingStatusV361.is-participating-v368{border-color:#b87500;background:#fff4d7;color:#8a5a00!important}
+#promotionManualPricingStatusV361.is-participating-v368{border-color:#d63c3c;background:#fff0f0;color:#b42318!important;box-shadow:0 1px 3px rgba(180,35,24,.14)}
+#promotionManualPricingStatusV361.is-participating-v368::before{background:#dc2626;box-shadow:0 0 0 3px rgba(220,38,38,.12)}
 #promotionManualPricingStatusV361.is-pending-v368{border-color:#c88b13;background:#fff8df;color:#8b6500!important;max-width:100%;white-space:normal;text-align:center}
+#promotionManualPricingStatusV361.is-pending-v368::before{background:#d99a16;box-shadow:0 0 0 3px rgba(217,154,22,.12)}
