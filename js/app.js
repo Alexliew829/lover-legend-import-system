@@ -102,6 +102,8 @@ function cleanupLegacySettingsResidueV323() {
 document.addEventListener("DOMContentLoaded", () => {
   clearTransientSearchInputsOnReloadV304();
   setupAccessLock();
+  // V36.5: clean any stale PZ+BS duplicate cache before Dashboard/Inventory first paint.
+  if (typeof repairLocalBsCanonicalCacheV365 === "function") repairLocalBsCanonicalCacheV365();
   cleanupLegacySettingsResidueV323();
   repairLegacyImportDates();
   setupNavigation();
@@ -208,7 +210,7 @@ function persistInventorySalesAnalyticsV343(value){try{const revision=getInvento
 function hasUsableInventorySalesAnalyticsV343(){return Boolean(inventorySalesAnalyticsCacheV146?.value)||hydrateInventorySalesAnalyticsV343()}
 function hasCurrentFullInventorySalesAnalyticsV360(){if(!hasUsableInventorySalesAnalyticsV343())return false;const revision=getInventoryAnalyticsCloudRevisionV360();return Boolean(inventorySalesAnalyticsFullCachedV360&&revision>0&&inventorySalesAnalyticsFullRevisionV360===revision)}
 function invalidateInventorySalesAnalyticsAfterFullLoadV360(){inventorySalesAnalyticsCacheV146={signature:"",value:null};inventoryPreparedRowsCacheV321={rawProducts:null,settings:null,imports:null,batches:null,sales:null,rows:[]};}
-function refreshProfitAnalyticsInBackgroundV360(rerender,label="profit analytics"){if(!navigator.onLine||historyAllSalesLinksLoadedV136||historyAllSalesLinksLoadingV136)return;Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(()=>{invalidateInventorySalesAnalyticsAfterFullLoadV360();try{getInventorySalesAnalyticsV146()}catch(_){};try{rerender?.()}catch(error){console.warn(`V36.4 ${label} rerender failed`,error)}}).catch(error=>console.warn(`V36.4 ${label} background refresh failed`,error))}
+function refreshProfitAnalyticsInBackgroundV360(rerender,label="profit analytics"){if(!navigator.onLine||historyAllSalesLinksLoadedV136||historyAllSalesLinksLoadingV136)return;Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(()=>{invalidateInventorySalesAnalyticsAfterFullLoadV360();try{getInventorySalesAnalyticsV146()}catch(_){};try{rerender?.()}catch(error){console.warn(`V36.5 ${label} rerender failed`,error)}}).catch(error=>console.warn(`V36.5 ${label} background refresh failed`,error))}
 const HISTORY_SALES_CACHE_KEY_V179 = "lover_import_history_sales_financial_v179";
 let historySalesCacheHydratedV179 = false;
 let historySalesCacheHasDataV179 = false;
@@ -3404,7 +3406,7 @@ async function ensureAverageCostAuditHistoryV359(force = false) {
       saveAverageCostAuditCacheV359(entries, Date.now());
       return entries;
     })
-    .catch(error => { console.warn("V36.4 average-cost audit history load failed", error); return cache.entries; })
+    .catch(error => { console.warn("V36.5 average-cost audit history load failed", error); return cache.entries; })
     .finally(() => { averageCostAuditLoadPromiseV359 = null; });
   return averageCostAuditLoadPromiseV359;
 }
@@ -4917,7 +4919,7 @@ function setupPromotionSettingsV183() {
     if (mode === "profit-desc" && !historyAllSalesLinksLoadedV136 && !hasCachedSalesV360 && navigator.onLine) {
       if (searchResults) searchResults.innerHTML = '<div class="promotion-empty-v183">正在读取完整销售利润…</div>';
       Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(() => { invalidateInventorySalesAnalyticsAfterFullLoadV360(); renderPromotionExcludeSearchV183(); })
-        .catch(error => { console.warn("V36.4 promotion profit analytics load failed", error); renderPromotionExcludeSearchV183(); });
+        .catch(error => { console.warn("V36.5 promotion profit analytics load failed", error); renderPromotionExcludeSearchV183(); });
       return;
     }
     renderPromotionExcludeSearchV183();
@@ -5171,7 +5173,7 @@ function setupPromotionSettingsV183() {
       const priceList = document.getElementById("promotionPriceListV183");
       if (priceList) priceList.innerHTML = '<div class="promotion-empty-v183">正在读取完整销售利润…</div>';
       Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(() => { invalidateInventorySalesAnalyticsAfterFullLoadV360(); if (String(priceSortV195?.value || "") === mode) renderPromotionPriceListV183(); })
-        .catch(error => { console.warn("V36.4 promotion price profit analytics load failed", error); renderPromotionPriceListV183(); });
+        .catch(error => { console.warn("V36.5 promotion price profit analytics load failed", error); renderPromotionPriceListV183(); });
       return;
     }
     renderPromotionPriceListV183();
@@ -16062,7 +16064,7 @@ async function editProductMinimumPrice(productId) {
   minimumPriceOverrides[id] = nextMinimumPriceManual;
   saveMinimumPriceManualOverridesV160(minimumPriceOverrides);
 
-  // V36.4 Local-First: first paint the exact new state immediately. This is especially
+  // V36.5 Local-First: first paint the exact new state immediately. This is especially
   // important when entering 0 to leave sale-control; the user must see the automatic
   // price/color at once instead of waiting for a full result-list rebuild.
   saveJSON("importSystemProducts", products);
@@ -18498,7 +18500,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "36.4",
+      version: "36.5",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
