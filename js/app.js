@@ -4245,7 +4245,7 @@ function getEffectiveProductMinimumPriceV183(product, promotion = null, rules = 
   const originalPrice = Math.max(0, Number(product?.minimumPrice) || 0);
   const active = promotion || getPromotionSettingsV183();
   const productId = String(product?.id || "").trim().toUpperCase();
-  // V35.4: 售价控制是最高优先级。手动最低售价永远保持蓝色，完全不参与促销。
+  // V35.5: 售价控制是最高优先级。手动最低售价永远保持蓝色，完全不参与促销。
   // 一旦解除手动状态，若促销仍开启且产品不在排除清单，会自动重新加入促销。
   if (isMinimumPriceManualV160(product)) return originalPrice;
   if (!active || active.excludedProductIds.includes(productId)) return originalPrice;
@@ -4406,7 +4406,7 @@ function updatePromotionDraftStatusV186() {
     // what still needs confirmation and offer the two safe choices.
     const hasPendingAdd = [...promotionSearchSelectionV184].some(id => !promotionExcludedDraftV183.has(id));
     const hasPendingRemove = [...promotionExcludedSelectionV184].some(id => promotionExcludedDraftV183.has(id));
-    // V35.4: idle active promotion must never look like it is still loading.
+    // V35.5: idle active promotion must never look like it is still loading.
     // Keep the update button available even when there are no draft changes;
     // only the actual save transaction may disable it.
     save.disabled = false;
@@ -4819,7 +4819,7 @@ function setupPromotionSettingsV183() {
   excludeSelected?.addEventListener("click", () => {
     const ids = [...promotionSearchSelectionV184].filter(id => !promotionExcludedDraftV183.has(id));
     if (!ids.length || !window.confirm(`确认批量排除已选择的 ${ids.length} 项产品？\n\n保存促销后，这些产品会继续使用原最低售价。`)) return;
-    // V35.4: confirmed exclusions accumulate across searches (e.g. 3 水梅 + 3 真柏 = 6).
+    // V35.5: confirmed exclusions accumulate across searches (e.g. 3 水梅 + 3 真柏 = 6).
     ids.forEach(id => promotionExcludedDraftV183.add(id));
     promotionDraftTouchedV209 = true;
     promotionSearchSelectionV184.clear();
@@ -5650,7 +5650,7 @@ function setupProductPrefixSettingsV181() {
       }
       renderProductPrefixRulesV181(); setProductPrefixEditorV333(); setPrefixSaveButtonStateV340("修改成功", true); resetPrefixSaveButtonV340(); return;
     }
-    // V35.4: a bonsai ID prefix may intentionally be shared by different species.
+    // V35.5: a bonsai ID prefix may intentionally be shared by different species.
     // Example: 真柏 / 系鱼川 / 香松 may all use JU; 仙丹 and 人参果矮霸 may both use IX.
     // What is forbidden is redefining the SAME Chinese keyword to another prefix.
     if(getProductPrefixRulesV181().some(([k])=>normalizeProductPrefixKeywordV181(k)===normalizeProductPrefixKeywordV181(keyword))){if(status)status.textContent=`“${keyword}”已经存在，不能再新增另一个前缀`;return;}
@@ -5672,7 +5672,7 @@ function findBestProductPrefixRuleV343(name = "") {
     const key=normalizeProductPrefixKeywordV181(rule[0]);
     return {rule,key,index:key?compact.indexOf(key):-1};
   }).filter(x=>x.index>=0);
-  // V35.4: whichever species keyword appears FIRST in the product name wins.
+  // V35.5: whichever species keyword appears FIRST in the product name wins.
   // Same-position ties prefer the longer/more-specific keyword.
   matched.sort((a,b)=>a.index-b.index || b.key.length-a.key.length);
   return matched[0]?.rule||null;
@@ -6001,7 +6001,7 @@ function getProductSearchPrefixAliasesV238(product) {
 
 function productExactOrPrefixSearchMatchesV238(product, queryValue) {
   const raw = String(queryValue || "").normalize("NFKC").trim();
-  // V35.4: migrated legacy Product IDs (notably PZxxxx / PSxxxx aliases) are
+  // V35.5: migrated legacy Product IDs (notably PZxxxx / PSxxxx aliases) are
   // internal compatibility only and must not produce front-end search hits.
   if (/^(?:PZ|PS)(?:\d{0,4})?$/i.test(raw)) {
     const formalId=String(product?.id||product?.productId||"").trim().toUpperCase();
@@ -6991,7 +6991,7 @@ function renderImportDraftsV242() {
       label.textContent = "未保存 · 当前资料尚未保存为草稿";
       label.dataset.draftStateV249 = "unsaved";
     } else {
-      // V35.4: a completely empty editor should not show a residual "未保存" bar.
+      // V35.5: a completely empty editor should not show a residual "未保存" bar.
       label.textContent = "";
       label.dataset.draftStateV249 = "empty";
     }
@@ -10797,7 +10797,7 @@ function buildHistorySoldCostSummary(options = {}) {
   `;
 }
 
-// V35.4 History import-date rule:
+// V35.5 History import-date rule:
 // Every import record is searched by ARRIVAL DATE only. Container/save/created dates
 // are display/audit metadata and must not decide Date Range results.
 function getHistoryImportTransactionDate(batch, item = null) {
@@ -14127,7 +14127,7 @@ function renderBatchList() {
     const arrival = normalizeDateToDDMMYYYY(batch?.arrivalDate || "");
     if (recentStartDateV345 || recentEndDateV345) {
       const arrivalTime = parseDDMMYYYY(arrival);
-      // V35.4: one selected date means that exact arrival day. Two selected dates
+      // V35.5: one selected date means that exact arrival day. Two selected dates
       // mean an inclusive arrival-date range. Import history never uses container date.
       const singleDate = recentStartDateV345 && !recentEndDateV345
         ? recentStartDateV345
@@ -15751,7 +15751,7 @@ async function editProductMinimumPrice(productId) {
   const product = products[productIndex];
   const storedMinimumPriceV351 = Math.max(0, Number(product.minimumPrice) || 0);
   const currentMinimumPriceManual = isMinimumPriceManualV160(product);
-  // V35.4: the edit dialog must reflect the price the user is actually seeing now.
+  // V35.5: the edit dialog must reflect the price the user is actually seeing now.
   // During an active promotion, a non-manual, non-excluded product therefore shows
   // the promotion minimum price instead of the underlying automatic base price.
   const currentMinimumPrice = Math.max(0, Number(getEffectiveProductMinimumPriceV333(product)) || 0);
@@ -15824,7 +15824,7 @@ async function editProductMinimumPrice(productId) {
   } catch (error) {
     const pendingSameProductV351 = typeof hasPendingMinimumPriceV345 === "function" && hasPendingMinimumPriceV345();
     if (pendingSameProductV351) {
-      // V35.4: a revision conflict is not a user cancellation. Keep the user's
+      // V35.5: a revision conflict is not a user cancellation. Keep the user's
       // optimistic manual price visible and let the existing pending retry finish.
       // This prevents the card from flickering 11,800 -> promotion price -> 11,800.
       const latestProducts = getProducts();
@@ -17262,7 +17262,7 @@ function openSystemMediaPreviewV305(type, url, label = "") {
     return;
   }
 
-  // V35.4 video compatibility: restore the proven Google Drive preview player.
+  // V35.5 video compatibility: restore the proven Google Drive preview player.
   // Direct <video> streaming is unreliable for Drive links on iPhone/Safari.
   // Keep playback inside the Import System shell and show no permission/error banner.
   if (mediaType === "video") {
@@ -17563,7 +17563,6 @@ function updateInventoryMasterPriceControlActionsV354(rows = []) {
   const actions = document.getElementById("inventoryMasterPriceControlActionsV354");
   const selectAll = document.getElementById("inventoryMasterSelectAllCurrentV354");
   const batchButton = document.getElementById("inventoryMasterBatchReleaseControlV354");
-  const allButton = document.getElementById("inventoryMasterReleaseAllControlV354");
   const resetButton = document.getElementById("inventoryMasterResetFactoryV354");
   const active = isInventoryMasterPriceControlModeV354();
   if (!actions) return;
@@ -17588,18 +17587,16 @@ function updateInventoryMasterPriceControlActionsV354(rows = []) {
     selectAll.disabled = inventoryMasterPriceControlBusyV354 || currentIds.length === 0;
     selectAll.checked = currentIds.length > 0 && selectedCurrent === currentIds.length;
     selectAll.indeterminate = selectedCurrent > 0 && selectedCurrent < currentIds.length;
+    const selectAllTextV355 = document.getElementById("inventoryMasterSelectAllCurrentTextV355");
+    if (selectAllTextV355) {
+      selectAllTextV355.textContent = selectAll.checked ? "取消全选" : "全选当前结果";
+    }
   }
   if (batchButton) {
     batchButton.disabled = inventoryMasterPriceControlBusyV354 || inventoryMasterPriceControlSelectionV354.size === 0;
     batchButton.textContent = inventoryMasterPriceControlBusyV354
       ? "正在放弃控制…"
       : `批量放弃控制（${inventoryMasterPriceControlSelectionV354.size}）`;
-  }
-  if (allButton) {
-    const totalManual = liveManualIds.size;
-    allButton.disabled = inventoryMasterPriceControlBusyV354 || totalManual === 0;
-    allButton.textContent = inventoryMasterPriceControlBusyV354 ? "正在放弃全部控制…" : "一键全部放弃控制";
-    allButton.title = totalManual ? `当前共有 ${totalManual} 项售价控制产品` : "目前没有售价控制产品";
   }
   if (resetButton) {
     const snapshot = getInventoryMasterFactorySnapshotV354();
@@ -17803,11 +17800,6 @@ function bindInventoryMasterPriceControlActionsV354() {
 
   document.getElementById("inventoryMasterBatchReleaseControlV354")?.addEventListener("click", () => {
     void releaseMinimumPriceControlBatchV354(Array.from(inventoryMasterPriceControlSelectionV354), "所选产品");
-  });
-
-  document.getElementById("inventoryMasterReleaseAllControlV354")?.addEventListener("click", () => {
-    const allIds = getManualPriceControlProductsV354().map(product => String(product.id || "").trim()).filter(Boolean);
-    void releaseMinimumPriceControlBatchV354(allIds, "全部产品");
   });
 
   document.getElementById("inventoryMasterResetFactoryV354")?.addEventListener("click", () => {
@@ -18637,7 +18629,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "35.4",
+      version: "35.5",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
