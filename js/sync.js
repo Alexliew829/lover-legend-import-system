@@ -138,7 +138,7 @@ function setupCloudSync() {
     (startupSnapshotV338.products || []).length > 0 ||
     (startupSnapshotV338.imports || []).length > 0 ||
     (startupSnapshotV338.batches || []).length > 0;
-  // V36.3 Local-First: when a valid V32.5-style bootstrap and cached core data
+  // V36.4 Local-First: when a valid V32.5-style bootstrap and cached core data
   // already exist, show the last successful state immediately while the
   // revision check runs silently in the background.
   if (isCloudBootstrapComplete() && Number(startupConfigV338.revision) > 0 && hasCachedCoreV338 && !getCloudQueue().dirty) {
@@ -418,7 +418,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V36.3 Stable",
+      updatedBy: "System V36.4 Stable",
       ...payload
     });
 
@@ -454,7 +454,7 @@ async function commitSalesInventoryBatchToCloudV125(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V36.3 Stable",
+      updatedBy: "System V36.4 Stable",
       ...payload
     });
     if (data.conflict || data.stockChanged) {
@@ -477,7 +477,7 @@ window.commitSalesInventoryBatchToCloudV125 = commitSalesInventoryBatchToCloudV1
 
 async function commitSalesCorrectionBatchToCloudV110(payload) {
   await flushCloudQueueStrictV83(); const config=getCloudConfig(); setCloudState("syncing");
-  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V36.3 Stable",...payload});
+  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V36.4 Stable",...payload});
     if(data.conflict||data.stockChanged) throw new Error(data.message||"Google Sheet 资料已改变，全部库存差异没有处理。请同步后重试。");
     config.revision=Number(data.revision)||Number(config.revision)||0; config.lastSyncAt=new Date().toISOString(); config.bootstrapToken=String(data.bootstrapToken||config.bootstrapToken||""); config.bootstrapRevision=Number(data.revision)||Number(config.bootstrapRevision)||0; saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced"); return data;
   } catch(error){setCloudState("failed");throw error;}
@@ -491,7 +491,7 @@ async function migrateProductPrefixesV164() {
     action: "migrateProductPrefixesV164", clientVersion: APP_VERSION,
     schemaVersion: CLOUD_SCHEMA_VERSION, baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""), bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V36.3 Stable"
+    updatedBy: "System V36.4 Stable"
   });
   if (data.conflict) throw new Error(data.message || "资料已改变，请同步后重试。");
   config.revision = Number(data.revision) || Number(config.revision) || 0;
@@ -609,6 +609,11 @@ async function runCloudSync() {
   }
 }
 
+function hasBsLegacyIdsV364(products = []) {
+  const ids = new Set((products || []).map(p => String(p?.id || "").trim().toUpperCase()));
+  return ["PZ0001","PZ0036","PZ0175","PZ0176","PZ0192"].some(oldId => ids.has(oldId));
+}
+
 async function pullLatestSnapshot(forceBootstrap = false) {
   const config = getCloudConfig();
   const local = makeLocalSnapshot();
@@ -617,7 +622,7 @@ async function pullLatestSnapshot(forceBootstrap = false) {
     (local.imports || []).length > 0 ||
     (local.batches || []).length > 0;
 
-  const data = await callGoogleApi({
+  let data = await callGoogleApi({
     action: "pull",
     clientVersion: APP_VERSION,
     schemaVersion: CLOUD_SCHEMA_VERSION,
@@ -647,6 +652,23 @@ async function pullLatestSnapshot(forceBootstrap = false) {
 
   if (!Array.isArray(data.products) || !Array.isArray(data.imports) || !Array.isArray(data.batches)) {
     throw new Error("Google Sheet返回资料不完整");
+  }
+
+  // V36.4: if the cloud contains both old PZ and new BS copies, repair the cloud
+  // BEFORE applying it locally. This prevents the +57 duplicate stock from becoming
+  // a new local authoritative snapshot or being pushed from another device.
+  if (hasBsLegacyIdsV364(data.products)) {
+    const repair = await callGoogleApi({
+      action:"repairBsCanonicalV364", clientVersion:APP_VERSION, schemaVersion:CLOUD_SCHEMA_VERSION,
+      baseRevision:Number(data.revision)||0, bootstrapToken:String(data.bootstrapToken||""),
+      bootstrapRevision:Number(data.revision)||0, updatedBy:"System V36.4 Stable"
+    });
+    if (!repair?.ok || repair?.conflict || repair?.writeBlocked) throw new Error(repair?.message || "BS 编号修复失败，已停止载入重复库存。");
+    data = await callGoogleApi({
+      action:"pull", clientVersion:APP_VERSION, schemaVersion:CLOUD_SCHEMA_VERSION,
+      knownRevision:0, hasLocalData:false, forceFull:true
+    });
+    if (!Array.isArray(data.products) || hasBsLegacyIdsV364(data.products)) throw new Error("BS 编号修复后仍检测到旧 PZ 资料，已停止覆盖本机库存。");
   }
 
   // 正常启动拉取以Google Sheet为准；只有明确dirty的本地修改才可推送。
@@ -709,7 +731,7 @@ function retryPendingMinimumPriceV345(){
   if(!pending?.productId||minimumPricePendingRetryBusyV345||!navigator.onLine||!isCloudBootstrapComplete())return;
   minimumPricePendingRetryBusyV345=true;
   Promise.resolve(updateProductMinimumPriceFast(pending.productId,pending.minimumPrice,pending.updatedAt,pending.minimumPriceManual))
-    .catch(error=>console.warn("V36.3 pending minimum-price retry kept for next sync",error))
+    .catch(error=>console.warn("V36.4 pending minimum-price retry kept for next sync",error))
     .finally(()=>{minimumPricePendingRetryBusyV345=false;});
 }
 window.retryPendingMinimumPriceV345=retryPendingMinimumPriceV345;
@@ -736,7 +758,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V36.3 Stable",
+    updatedBy: "System V36.4 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     minimumPriceManual: Boolean(minimumPriceManual),
@@ -794,13 +816,13 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
       inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
     }
   } catch (localErrorV341) {
-    console.warn("V36.3 minimum-price local refresh skipped", localErrorV341);
+    console.warn("V36.4 minimum-price local refresh skipped", localErrorV341);
   }
 
   setMinimumPricePendingV345(null);
   renderCloudMeta(config);
   setCloudState("synced");
-  window.setTimeout(()=>{try{if(typeof refreshSystemViewsAfterSync==="function")refreshSystemViewsAfterSync()}catch(refreshErrorV343){console.warn("V36.3 deferred minimum-price refresh skipped",refreshErrorV343)}},0);
+  window.setTimeout(()=>{try{if(typeof refreshSystemViewsAfterSync==="function")refreshSystemViewsAfterSync()}catch(refreshErrorV343){console.warn("V36.4 deferred minimum-price refresh skipped",refreshErrorV343)}},0);
   return data;
 }
 
@@ -819,7 +841,7 @@ async function updateProductAverageCostFastV358(productId, averageCost, minimumP
     clientVersion:APP_VERSION, schemaVersion:CLOUD_SCHEMA_VERSION,
     baseRevision:Number(config.revision)||0,
     bootstrapToken:String(config.bootstrapToken||""), bootstrapRevision:Number(config.bootstrapRevision)||0,
-    updatedBy:"System V36.3 Stable",
+    updatedBy:"System V36.4 Stable",
     productId:String(productId||"").trim(),
     averageCost:Number(averageCost),
     minimumPrice:Number(minimumPrice),
@@ -876,7 +898,7 @@ async function updatePromotionSettingsFastV185(promotion) {
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V36.3 Stable",
+    updatedBy: "System V36.4 Stable",
     promotion: promotion || null
   });
   if (data.conflict) {
@@ -887,7 +909,7 @@ async function updatePromotionSettingsFastV185(promotion) {
     config.bootstrapToken = String(data.bootstrapToken || config.bootstrapToken || "");
     config.bootstrapRevision = Number(data.revision) || Number(config.bootstrapRevision) || 0;
     saveCloudConfig(config);
-    try { await pullLatestSnapshot(false); } catch (pullErrorV350) { console.warn("V36.3 promotion conflict refresh skipped", pullErrorV350); }
+    try { await pullLatestSnapshot(false); } catch (pullErrorV350) { console.warn("V36.4 promotion conflict refresh skipped", pullErrorV350); }
     try { setCloudState("synced"); } catch (_) {}
     throw new Error("资料版本刚刚发生变化，系统已重新同步；原本已开启的促销保持不变。本次修改尚未保存，请再试一次。");
   }
@@ -913,7 +935,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     action: "pushDeltaV346",
     clientVersion: APP_VERSION, schemaVersion: CLOUD_SCHEMA_VERSION, force:false,
     baseRevision:Number(config.revision)||0, bootstrapToken:String(config.bootstrapToken||""), bootstrapRevision:Number(config.bootstrapRevision)||0,
-    updatedBy:"System V36.3 Stable", collections,
+    updatedBy:"System V36.4 Stable", collections,
     ...(collections.includes("settings")?{settings:snapshot.settings,productIds:(snapshot.products||[]).map(item=>String(item?.id||"").trim()).filter(Boolean)}:{}),
     ...(collections.includes("products")?{products:snapshot.products}:{}),
     ...(collections.includes("imports")?{imports:snapshot.imports}:{}),
@@ -1031,7 +1053,42 @@ function markCloudExplicitDeletedIdsV323({ products = [], imports = [], batches 
 }
 window.markCloudExplicitDeletedIdsV323 = markCloudExplicitDeletedIdsV323;
 
+function replaceProductIdsDeepV364(value, aliases = {}) {
+  if (typeof value === "string") {
+    let next = aliases[value] || value;
+    Object.keys(aliases).forEach(oldId => { if (next.includes(oldId)) next = next.split(oldId).join(aliases[oldId]); });
+    return next;
+  }
+  if (Array.isArray(value)) return value.map(item => replaceProductIdsDeepV364(item, aliases));
+  if (value && typeof value === "object") {
+    const out = {};
+    Object.keys(value).forEach(key => { out[replaceProductIdsDeepV364(key, aliases)] = replaceProductIdsDeepV364(value[key], aliases); });
+    return out;
+  }
+  return value;
+}
+function canonicalizeCollectionsV364(snapshot, aliases = {}) {
+  const out = { ...(snapshot || {}) };
+  out.products = (snapshot?.products || []).map(p => ({ ...p, id: aliases[String(p?.id||"")] || String(p?.id||"") }));
+  out.imports = replaceProductIdsDeepV364(snapshot?.imports || [], aliases);
+  out.batches = replaceProductIdsDeepV364(snapshot?.batches || [], aliases);
+  out.settings = replaceProductIdsDeepV364(snapshot?.settings || {}, aliases);
+  return out;
+}
+
 function mergeSnapshots(remote, local, queue) {
+  // V36.4: stale PZ copies must never reappear beside their canonical BS IDs.
+  const fixedAliasesV364 = {PZ0001:"BS0001",PZ0036:"BS0036",PZ0175:"BS0175",PZ0176:"BS0176",PZ0192:"BS0192"};
+  const aliasSourceV364 = { ...fixedAliasesV364, ...(remote?.settings?.productIdAliases || {}), ...(local?.settings?.productIdAliases || {}) };
+  remote = canonicalizeCollectionsV364(remote, aliasSourceV364);
+  const remoteCanonicalIdsV364 = new Set((remote.products || []).map(p => String(p?.id || "")));
+  // If cloud already has the canonical target, an old cached alias is stale and must
+  // not win by updatedAt during conflict merge. This is the exact +57 prevention rule.
+  local = { ...(local || {}), products:(local?.products || []).filter(p => {
+    const oldId=String(p?.id||""); const target=aliasSourceV364[oldId];
+    return !(target && remoteCanonicalIdsV364.has(target));
+  }) };
+  local = canonicalizeCollectionsV364(local, aliasSourceV364);
   const deletedImportNumbers = new Set((queue.deleted?.importNumbers || []).map(value => String(value || "").trim().toLowerCase()).filter(Boolean));
   const deletedBatchIds = new Set((queue.deleted?.batchIds || []).map(value => String(value || "").trim()).filter(Boolean));
   const keepImport = item => {
