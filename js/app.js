@@ -73,6 +73,7 @@ function cleanupLegacySettingsResidueV323() {
   if (validIds.size) {
     pruneByLiveProductId("minimumPriceManualOverrides");
     pruneByLiveProductId("productLanguageMetaV262");
+    pruneByLiveProductId("productEnglishNameManualOverridesV356");
     pruneByLiveProductId("productMediaLinksV229");
   }
 
@@ -4245,7 +4246,7 @@ function getEffectiveProductMinimumPriceV183(product, promotion = null, rules = 
   const originalPrice = Math.max(0, Number(product?.minimumPrice) || 0);
   const active = promotion || getPromotionSettingsV183();
   const productId = String(product?.id || "").trim().toUpperCase();
-  // V35.5: 售价控制是最高优先级。手动最低售价永远保持蓝色，完全不参与促销。
+  // V35.2: 售价控制是最高优先级。手动最低售价永远保持蓝色，完全不参与促销。
   // 一旦解除手动状态，若促销仍开启且产品不在排除清单，会自动重新加入促销。
   if (isMinimumPriceManualV160(product)) return originalPrice;
   if (!active || active.excludedProductIds.includes(productId)) return originalPrice;
@@ -4406,7 +4407,7 @@ function updatePromotionDraftStatusV186() {
     // what still needs confirmation and offer the two safe choices.
     const hasPendingAdd = [...promotionSearchSelectionV184].some(id => !promotionExcludedDraftV183.has(id));
     const hasPendingRemove = [...promotionExcludedSelectionV184].some(id => promotionExcludedDraftV183.has(id));
-    // V35.5: idle active promotion must never look like it is still loading.
+    // V35.2: idle active promotion must never look like it is still loading.
     // Keep the update button available even when there are no draft changes;
     // only the actual save transaction may disable it.
     save.disabled = false;
@@ -4819,7 +4820,7 @@ function setupPromotionSettingsV183() {
   excludeSelected?.addEventListener("click", () => {
     const ids = [...promotionSearchSelectionV184].filter(id => !promotionExcludedDraftV183.has(id));
     if (!ids.length || !window.confirm(`确认批量排除已选择的 ${ids.length} 项产品？\n\n保存促销后，这些产品会继续使用原最低售价。`)) return;
-    // V35.5: confirmed exclusions accumulate across searches (e.g. 3 水梅 + 3 真柏 = 6).
+    // V35.2: confirmed exclusions accumulate across searches (e.g. 3 水梅 + 3 真柏 = 6).
     ids.forEach(id => promotionExcludedDraftV183.add(id));
     promotionDraftTouchedV209 = true;
     promotionSearchSelectionV184.clear();
@@ -5650,7 +5651,7 @@ function setupProductPrefixSettingsV181() {
       }
       renderProductPrefixRulesV181(); setProductPrefixEditorV333(); setPrefixSaveButtonStateV340("修改成功", true); resetPrefixSaveButtonV340(); return;
     }
-    // V35.5: a bonsai ID prefix may intentionally be shared by different species.
+    // V35.2: a bonsai ID prefix may intentionally be shared by different species.
     // Example: 真柏 / 系鱼川 / 香松 may all use JU; 仙丹 and 人参果矮霸 may both use IX.
     // What is forbidden is redefining the SAME Chinese keyword to another prefix.
     if(getProductPrefixRulesV181().some(([k])=>normalizeProductPrefixKeywordV181(k)===normalizeProductPrefixKeywordV181(keyword))){if(status)status.textContent=`“${keyword}”已经存在，不能再新增另一个前缀`;return;}
@@ -5672,7 +5673,7 @@ function findBestProductPrefixRuleV343(name = "") {
     const key=normalizeProductPrefixKeywordV181(rule[0]);
     return {rule,key,index:key?compact.indexOf(key):-1};
   }).filter(x=>x.index>=0);
-  // V35.5: whichever species keyword appears FIRST in the product name wins.
+  // V35.2: whichever species keyword appears FIRST in the product name wins.
   // Same-position ties prefer the longer/more-specific keyword.
   matched.sort((a,b)=>a.index-b.index || b.key.length-a.key.length);
   return matched[0]?.rule||null;
@@ -6001,7 +6002,7 @@ function getProductSearchPrefixAliasesV238(product) {
 
 function productExactOrPrefixSearchMatchesV238(product, queryValue) {
   const raw = String(queryValue || "").normalize("NFKC").trim();
-  // V35.5: migrated legacy Product IDs (notably PZxxxx / PSxxxx aliases) are
+  // V35.2: migrated legacy Product IDs (notably PZxxxx / PSxxxx aliases) are
   // internal compatibility only and must not produce front-end search hits.
   if (/^(?:PZ|PS)(?:\d{0,4})?$/i.test(raw)) {
     const formalId=String(product?.id||product?.productId||"").trim().toUpperCase();
@@ -6991,7 +6992,7 @@ function renderImportDraftsV242() {
       label.textContent = "未保存 · 当前资料尚未保存为草稿";
       label.dataset.draftStateV249 = "unsaved";
     } else {
-      // V35.5: a completely empty editor should not show a residual "未保存" bar.
+      // V35.2: a completely empty editor should not show a residual "未保存" bar.
       label.textContent = "";
       label.dataset.draftStateV249 = "empty";
     }
@@ -10797,7 +10798,7 @@ function buildHistorySoldCostSummary(options = {}) {
   `;
 }
 
-// V35.5 History import-date rule:
+// V35.2 History import-date rule:
 // Every import record is searched by ARRIVAL DATE only. Container/save/created dates
 // are display/audit metadata and must not decide Date Range results.
 function getHistoryImportTransactionDate(batch, item = null) {
@@ -14127,7 +14128,7 @@ function renderBatchList() {
     const arrival = normalizeDateToDDMMYYYY(batch?.arrivalDate || "");
     if (recentStartDateV345 || recentEndDateV345) {
       const arrivalTime = parseDDMMYYYY(arrival);
-      // V35.5: one selected date means that exact arrival day. Two selected dates
+      // V35.2: one selected date means that exact arrival day. Two selected dates
       // mean an inclusive arrival-date range. Import history never uses container date.
       const singleDate = recentStartDateV345 && !recentEndDateV345
         ? recentStartDateV345
@@ -15180,7 +15181,40 @@ function editProductNameFromImportPage(productId) {
 }
 
 function editProductEnglishNameFromImportPageV266(productId){
-  alert("英文名由“产品编号与类别管理”的分类／树种规则统一管理。\n产品查询这里只能点击复制，不能单独修改。");
+  const id=String(productId||"").trim().toUpperCase();
+  const product=getProducts().find(item=>String(item?.id||"").trim().toUpperCase()===id);
+  if(!product){alert("找不到这个产品。");return;}
+  const overrides={...getProductEnglishManualOverridesV356()};
+  const current=String(productEnglishNameV262(product)||"").trim();
+  const automatic=String(getAutomaticProductEnglishNameV356(product)||"").trim();
+  const entered=window.prompt(
+    `修改英文名\n\n产品：${product.name||"未命名产品"}\n产品编号：${id||"-"}\n目前英文名：${current||"未设置"}\n\n请输入新的英文名；留空会恢复系统自动英文名${automatic?`（${automatic}）`:""}`,
+    current
+  );
+  if(entered===null)return;
+  const nextManual=String(entered||"").trim();
+  const nextEffective=nextManual||automatic;
+  const hadManual=Object.prototype.hasOwnProperty.call(overrides,id);
+  if((hadManual?String(overrides[id]||"").trim():current)===nextManual && (nextManual||automatic)===current)return;
+  const confirmed=window.confirm(
+    `确认修改英文名？\n\n产品：${product.name||"未命名产品"}\n产品编号：${id||"-"}\n目前：${current||"未设置"}\n修改后：${nextEffective||"未设置"}\n\n只修改英文显示名称；产品编号、库存、平均成本、最低售价及进口资料不会改变。`
+  );
+  if(!confirmed)return;
+  if(nextManual)overrides[id]=nextManual;else delete overrides[id];
+  saveProductEnglishManualOverridesV356(overrides);
+  appendCostRevisionHistory([{
+    id:`DATAREV${Date.now()}${Math.random().toString(36).slice(2,7)}`,
+    timestamp:new Date().toLocaleString("zh-MY",{hour12:false}),
+    importNumber:id||"-",
+    fieldLabel:`英文名 · ${product.name||"未命名产品"}`,
+    before:current||"未设置",
+    after:nextEffective||"未设置"
+  }]);
+  try{renderCostRevisionHistory()}catch(_){}
+  try{renderBatchProductStockResults()}catch(_){}
+  try{renderInventoryManagementList()}catch(_){}
+  try{renderDashboard()}catch(_){}
+  try{renderInventoryMasterV261()}catch(_){}
 }
 
 function bindProductEnglishNameEditV266(){
@@ -15751,7 +15785,7 @@ async function editProductMinimumPrice(productId) {
   const product = products[productIndex];
   const storedMinimumPriceV351 = Math.max(0, Number(product.minimumPrice) || 0);
   const currentMinimumPriceManual = isMinimumPriceManualV160(product);
-  // V35.5: the edit dialog must reflect the price the user is actually seeing now.
+  // V35.2: the edit dialog must reflect the price the user is actually seeing now.
   // During an active promotion, a non-manual, non-excluded product therefore shows
   // the promotion minimum price instead of the underlying automatic base price.
   const currentMinimumPrice = Math.max(0, Number(getEffectiveProductMinimumPriceV333(product)) || 0);
@@ -15824,7 +15858,7 @@ async function editProductMinimumPrice(productId) {
   } catch (error) {
     const pendingSameProductV351 = typeof hasPendingMinimumPriceV345 === "function" && hasPendingMinimumPriceV345();
     if (pendingSameProductV351) {
-      // V35.5: a revision conflict is not a user cancellation. Keep the user's
+      // V35.2: a revision conflict is not a user cancellation. Keep the user's
       // optimistic manual price visible and let the existing pending retry finish.
       // This prevents the card from flickering 11,800 -> promotion price -> 11,800.
       const latestProducts = getProducts();
@@ -17262,7 +17296,7 @@ function openSystemMediaPreviewV305(type, url, label = "") {
     return;
   }
 
-  // V35.5 video compatibility: restore the proven Google Drive preview player.
+  // V35.2 video compatibility: restore the proven Google Drive preview player.
   // Direct <video> streaming is unreliable for Drive links on iPhone/Safari.
   // Keep playback inside the Import System shell and show no permission/error banner.
   if (mediaType === "video") {
@@ -17520,303 +17554,6 @@ function applyMinimumPriceVisualStateV340(element, displayState) {
   element.querySelectorAll("span,strong,.master-price-main-v266").forEach(child => child.style.setProperty("color", color || "inherit", "important"));
 }
 
-const inventoryMasterPriceControlSelectionV354 = new Set();
-let inventoryMasterPriceControlBusyV354 = false;
-const INVENTORY_MASTER_PRICE_CONTROL_FACTORY_KEY_V354 = "inventoryMasterPriceControlFactoryV354";
-
-function isInventoryMasterPriceControlModeV354() {
-  return String(document.getElementById("inventoryMasterSortV264")?.value || "") === "price-control";
-}
-
-function getManualPriceControlProductsV354() {
-  return getProducts().filter(product => isMinimumPriceManualV160(product));
-}
-
-function getInventoryMasterFactorySnapshotV354() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(INVENTORY_MASTER_PRICE_CONTROL_FACTORY_KEY_V354) || "null");
-    if (!parsed || !Array.isArray(parsed.items) || !parsed.items.length) return null;
-    return parsed;
-  } catch (error) {
-    return null;
-  }
-}
-
-function saveInventoryMasterFactorySnapshotV354(targets) {
-  const items = (Array.isArray(targets) ? targets : []).map(product => ({
-    productId: String(product?.id || "").trim(),
-    minimumPrice: Number(product?.minimumPrice) || 0,
-    minimumPriceManual: true
-  })).filter(item => item.productId);
-  if (!items.length) return;
-  localStorage.setItem(INVENTORY_MASTER_PRICE_CONTROL_FACTORY_KEY_V354, JSON.stringify({
-    savedAt: new Date().toISOString(),
-    items
-  }));
-}
-
-function clearInventoryMasterFactorySnapshotV354() {
-  localStorage.removeItem(INVENTORY_MASTER_PRICE_CONTROL_FACTORY_KEY_V354);
-}
-
-function updateInventoryMasterPriceControlActionsV354(rows = []) {
-  const actions = document.getElementById("inventoryMasterPriceControlActionsV354");
-  const selectAll = document.getElementById("inventoryMasterSelectAllCurrentV354");
-  const batchButton = document.getElementById("inventoryMasterBatchReleaseControlV354");
-  const resetButton = document.getElementById("inventoryMasterResetFactoryV354");
-  const active = isInventoryMasterPriceControlModeV354();
-  if (!actions) return;
-
-  actions.hidden = !active;
-  if (!active) {
-    inventoryMasterPriceControlSelectionV354.clear();
-    if (selectAll) { selectAll.checked = false; selectAll.indeterminate = false; }
-    return;
-  }
-
-  const currentIds = (Array.isArray(rows) ? rows : [])
-    .map(row => String(row?.productId || row?.id || "").trim())
-    .filter(Boolean);
-  const liveManualIds = new Set(getManualPriceControlProductsV354().map(product => String(product.id || "").trim()));
-  Array.from(inventoryMasterPriceControlSelectionV354).forEach(id => {
-    if (!liveManualIds.has(id)) inventoryMasterPriceControlSelectionV354.delete(id);
-  });
-
-  const selectedCurrent = currentIds.filter(id => inventoryMasterPriceControlSelectionV354.has(id)).length;
-  if (selectAll) {
-    selectAll.disabled = inventoryMasterPriceControlBusyV354 || currentIds.length === 0;
-    selectAll.checked = currentIds.length > 0 && selectedCurrent === currentIds.length;
-    selectAll.indeterminate = selectedCurrent > 0 && selectedCurrent < currentIds.length;
-    const selectAllTextV355 = document.getElementById("inventoryMasterSelectAllCurrentTextV355");
-    if (selectAllTextV355) {
-      selectAllTextV355.textContent = selectAll.checked ? "取消全选" : "全选当前结果";
-    }
-  }
-  if (batchButton) {
-    batchButton.disabled = inventoryMasterPriceControlBusyV354 || inventoryMasterPriceControlSelectionV354.size === 0;
-    batchButton.textContent = inventoryMasterPriceControlBusyV354
-      ? "正在放弃控制…"
-      : `批量放弃控制（${inventoryMasterPriceControlSelectionV354.size}）`;
-  }
-  if (resetButton) {
-    const snapshot = getInventoryMasterFactorySnapshotV354();
-    const count = snapshot?.items?.length || 0;
-    resetButton.disabled = inventoryMasterPriceControlBusyV354 || count === 0;
-    resetButton.title = count ? `恢复最近一次批量放弃前的 ${count} 项售价控制设置` : "目前没有可恢复的批量放弃记录";
-  }
-}
-
-function refreshInventoryMasterPriceControlCheckboxesV354(rows = []) {
-  document.querySelectorAll(".inventory-master-price-control-checkbox-v354").forEach(input => {
-    const id = String(input.dataset.productId || "").trim();
-    input.checked = inventoryMasterPriceControlSelectionV354.has(id);
-    input.disabled = inventoryMasterPriceControlBusyV354;
-  });
-  updateInventoryMasterPriceControlActionsV354(rows);
-}
-
-async function releaseMinimumPriceControlBatchV354(productIds, label = "所选产品") {
-  const ids = Array.from(new Set((Array.isArray(productIds) ? productIds : []).map(id => String(id || "").trim()).filter(Boolean)));
-  if (!ids.length || inventoryMasterPriceControlBusyV354) return;
-
-  const products = getProducts();
-  const targets = ids
-    .map(id => products.find(product => String(product.id || "").trim() === id))
-    .filter(product => product && isMinimumPriceManualV160(product));
-  if (!targets.length) {
-    inventoryMasterPriceControlSelectionV354.clear();
-    renderInventoryMasterV261();
-    return;
-  }
-
-  const confirmed = window.confirm(
-    `确认放弃${label}的售价控制？\n\n共 ${targets.length} 项。\n解除后将恢复系统自动计算；若促销正在进行且产品未被排除，会立即重新使用促销最低售价。\n\n可使用「Reset To Factory」恢复到这次批量放弃前的售价控制设置。\n库存数量、平均成本及库存总值不会改变。`
-  );
-  if (!confirmed) return;
-
-  if (typeof updateMinimumPriceBatchV353 !== "function") {
-    window.alert("批量售价控制同步功能尚未载入，请刷新网页后再试。");
-    return;
-  }
-
-  inventoryMasterPriceControlBusyV354 = true;
-  updateInventoryMasterPriceControlActionsV354();
-  refreshInventoryMasterPriceControlCheckboxesV354();
-
-  const updatedAt = new Date().toISOString();
-  const changes = targets.map(product => ({
-    productId: String(product.id || "").trim(),
-    minimumPrice: getAutomaticMinimumPriceV160(product.averageCost, null, product),
-    minimumPriceManual: false,
-    updatedAt
-  }));
-
-  const previousProducts = products.map(product => ({ ...product }));
-  const previousOverrides = { ...getMinimumPriceManualOverridesV160() };
-  const byId = new Map(changes.map(change => [change.productId, change]));
-  const nextProducts = products.map(product => {
-    const change = byId.get(String(product.id || "").trim());
-    return change ? { ...product, minimumPrice: change.minimumPrice, minimumPriceManual: false, updatedAt } : product;
-  });
-  const nextOverrides = { ...previousOverrides };
-  changes.forEach(change => { nextOverrides[change.productId] = false; });
-
-  saveJSON("importSystemProducts", nextProducts);
-  saveMinimumPriceManualOverridesV160(nextOverrides);
-  inventoryMasterPriceControlSelectionV354.clear();
-  if (typeof inventoryPreparedRowsCacheV321 !== "undefined") {
-    inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
-  }
-  renderInventoryManagementList();
-  renderDashboard();
-  renderInventoryMasterV261();
-
-  try {
-    await updateMinimumPriceBatchV353(changes);
-    saveInventoryMasterFactorySnapshotV354(targets);
-    appendCostRevisionHistory(changes.map(change => {
-      const before = previousProducts.find(product => String(product.id || "").trim() === change.productId);
-      return {
-        id: `DATAREV${Date.now()}${Math.random().toString(36).slice(2, 7)}`,
-        timestamp: new Date().toLocaleString("zh-MY", { hour12: false }),
-        importNumber: change.productId || "-",
-        fieldLabel: `放弃售价控制 · ${before?.name || change.productId}`,
-        before: formatMoney(before?.minimumPrice || 0, "RM "),
-        after: formatMoney(change.minimumPrice, "RM ")
-      };
-    }));
-    renderCostRevisionHistory();
-  } catch (error) {
-    saveJSON("importSystemProducts", previousProducts);
-    saveMinimumPriceManualOverridesV160(previousOverrides);
-    if (typeof inventoryPreparedRowsCacheV321 !== "undefined") {
-      inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
-    }
-    renderInventoryManagementList();
-    renderDashboard();
-    renderInventoryMasterV261();
-    window.alert(String(error?.message || error || "批量放弃售价控制失败"));
-  } finally {
-    inventoryMasterPriceControlBusyV354 = false;
-    renderInventoryMasterV261();
-  }
-}
-
-async function resetInventoryMasterPriceControlFactoryV354() {
-  if (inventoryMasterPriceControlBusyV354) return;
-  const snapshot = getInventoryMasterFactorySnapshotV354();
-  if (!snapshot?.items?.length) {
-    window.alert("目前没有可恢复的批量放弃记录。");
-    return;
-  }
-  const products = getProducts();
-  const items = snapshot.items
-    .map(item => ({
-      productId: String(item?.productId || "").trim(),
-      minimumPrice: Number(item?.minimumPrice) || 0,
-      minimumPriceManual: true
-    }))
-    .filter(item => item.productId && products.some(product => String(product.id || "").trim() === item.productId));
-  if (!items.length) {
-    clearInventoryMasterFactorySnapshotV354();
-    renderInventoryMasterV261();
-    return;
-  }
-  if (!window.confirm(`Reset To Factory？\n\n将恢复最近一次「批量放弃控制」前的售价控制设置，共 ${items.length} 项。\n原本的手动最低售价与蓝色售价控制状态都会恢复。\n\n库存、成本、Import、Sales、促销及排除清单都不会改变。`)) return;
-  if (typeof updateMinimumPriceBatchV353 !== "function") {
-    window.alert("批量售价控制同步功能尚未载入，请刷新网页后再试。");
-    return;
-  }
-
-  inventoryMasterPriceControlBusyV354 = true;
-  updateInventoryMasterPriceControlActionsV354();
-  const previousProducts = products.map(product => ({ ...product }));
-  const previousOverrides = { ...getMinimumPriceManualOverridesV160() };
-  const updatedAt = new Date().toISOString();
-  const changes = items.map(item => ({ ...item, updatedAt }));
-  const byId = new Map(changes.map(change => [change.productId, change]));
-  const nextProducts = products.map(product => {
-    const change = byId.get(String(product.id || "").trim());
-    return change ? { ...product, minimumPrice: change.minimumPrice, minimumPriceManual: true, updatedAt } : product;
-  });
-  const nextOverrides = { ...previousOverrides };
-  changes.forEach(change => { nextOverrides[change.productId] = true; });
-  saveJSON("importSystemProducts", nextProducts);
-  saveMinimumPriceManualOverridesV160(nextOverrides);
-  if (typeof inventoryPreparedRowsCacheV321 !== "undefined") {
-    inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
-  }
-  renderInventoryManagementList();
-  renderDashboard();
-  renderInventoryMasterV261();
-
-  try {
-    await updateMinimumPriceBatchV353(changes);
-    clearInventoryMasterFactorySnapshotV354();
-    appendCostRevisionHistory(changes.map(change => {
-      const before = previousProducts.find(product => String(product.id || "").trim() === change.productId);
-      return {
-        id: `DATAREV${Date.now()}${Math.random().toString(36).slice(2, 7)}`,
-        timestamp: new Date().toLocaleString("zh-MY", { hour12: false }),
-        importNumber: change.productId || "-",
-        fieldLabel: `Reset To Factory · ${before?.name || change.productId}`,
-        before: formatMoney(before?.minimumPrice || 0, "RM "),
-        after: formatMoney(change.minimumPrice, "RM ")
-      };
-    }));
-    renderCostRevisionHistory();
-  } catch (error) {
-    saveJSON("importSystemProducts", previousProducts);
-    saveMinimumPriceManualOverridesV160(previousOverrides);
-    if (typeof inventoryPreparedRowsCacheV321 !== "undefined") {
-      inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
-    }
-    renderInventoryManagementList();
-    renderDashboard();
-    renderInventoryMasterV261();
-    window.alert(String(error?.message || error || "Reset To Factory 失败"));
-  } finally {
-    inventoryMasterPriceControlBusyV354 = false;
-    renderInventoryMasterV261();
-  }
-}
-
-function bindInventoryMasterPriceControlActionsV354() {
-  const actions = document.getElementById("inventoryMasterPriceControlActionsV354");
-  const body = document.getElementById("inventoryMasterBodyV261");
-  if (!actions || !body || actions.dataset.boundV354 === "1") return;
-  actions.dataset.boundV354 = "1";
-
-  document.getElementById("inventoryMasterSelectAllCurrentV354")?.addEventListener("change", event => {
-    const checked = Boolean(event.target.checked);
-    document.querySelectorAll(".inventory-master-price-control-checkbox-v354").forEach(input => {
-      const id = String(input.dataset.productId || "").trim();
-      if (!id) return;
-      if (checked) inventoryMasterPriceControlSelectionV354.add(id);
-      else inventoryMasterPriceControlSelectionV354.delete(id);
-    });
-    refreshInventoryMasterPriceControlCheckboxesV354();
-  });
-
-  document.getElementById("inventoryMasterBatchReleaseControlV354")?.addEventListener("click", () => {
-    void releaseMinimumPriceControlBatchV354(Array.from(inventoryMasterPriceControlSelectionV354), "所选产品");
-  });
-
-  document.getElementById("inventoryMasterResetFactoryV354")?.addEventListener("click", () => {
-    void resetInventoryMasterPriceControlFactoryV354();
-  });
-
-  body.addEventListener("change", event => {
-    const checkbox = event.target.closest(".inventory-master-price-control-checkbox-v354");
-    if (!checkbox) return;
-    const id = String(checkbox.dataset.productId || "").trim();
-    if (!id) return;
-    if (checkbox.checked) inventoryMasterPriceControlSelectionV354.add(id);
-    else inventoryMasterPriceControlSelectionV354.delete(id);
-    updateInventoryMasterPriceControlActionsV354();
-  });
-}
-
 function renderOriginalCostPanel(visibleProducts = inventoryVisibleProductsV153) {
   const body = document.getElementById("originalCostTableBody");
   const dateField = document.getElementById("originalCostPanelDate");
@@ -17848,162 +17585,15 @@ function renderOriginalCostPanel(visibleProducts = inventoryVisibleProductsV153)
             onclick="copyInventoryProductName(this)"
             title="点击复制产品名称">${escapeHTML(row.name)}</button>${row.englishName?`<small class="product-english-name-v262">${escapeHTML(row.englishName)}</small>`:""}
         </td>
-        <td class="number-cell">
-          <button class="original-cost-stock-edit-v151" type="button"
-                  data-product-id="${escapeHTML(row.id)}"
-                  aria-label="长按修改 ${escapeHTML(row.name)} 当前库存"
-                  title="长按修改当前库存">${formatNumber(row.stock)}</button>
-        </td>
+        <td class="number-cell"><span class="original-cost-readonly-v356">${formatNumber(row.stock)}</span></td>
         <td class="money-cell original-currency-cell">${originalCostText}</td>
         <td class="money-cell">${formatMoney(row.averageCost, "RM ")}${row.originalCurrency === "VND" ? `<small class="average-cost-vnd-note-v207">（VND不含盆）</small>` : ""}</td>
         <td class="money-cell minimum-price-cell">
-          <button class="original-cost-minimum-price-btn ${displayStateV315.className}" data-minimum-price-state-v324="${displayStateV315.state}" style="color:${getMinimumPriceColorV340(displayStateV315.state) || 'inherit'} !important" type="button"
-                  data-product-id="${escapeHTML(row.id)}"
-                  aria-label="长按修改最低售价" title="长按修改最低售价">${formatMoney(displayStateV315.price, "RM ")}</button>
+          <span class="original-cost-readonly-v356 ${displayStateV315.className}" data-minimum-price-state-v324="${displayStateV315.state}" style="color:${getMinimumPriceColorV340(displayStateV315.state) || 'inherit'} !important">${formatMoney(displayStateV315.price, "RM ")}</span>
         </td>
       </tr>
     `;
   }).join("");
-  bindOriginalCostStockLongPressV151();
-  bindOriginalCostMinimumPriceLongPress();
-}
-
-function bindOriginalCostStockLongPressV151() {
-  const body = document.getElementById("originalCostTableBody");
-  if (!body || body.dataset.stockLongPressBoundV151 === "1") return;
-  body.dataset.stockLongPressBoundV151 = "1";
-
-  let timer = null;
-  let activeButton = null;
-  let startX = 0;
-  let startY = 0;
-  let editing = false;
-
-  const cancel = () => {
-    if (timer) window.clearTimeout(timer);
-    timer = null;
-    activeButton?.classList.remove("long-press-active");
-    activeButton = null;
-  };
-
-  const editSelectedStock = async button => {
-    if (!button || button.disabled || editing) return;
-    const tableWrap = button.closest(".original-cost-table-wrap");
-    const windowScrollX = window.scrollX;
-    const windowScrollY = window.scrollY;
-    const tableScrollLeft = Number(tableWrap?.scrollLeft) || 0;
-    const tableScrollTop = Number(tableWrap?.scrollTop) || 0;
-    const productId = String(button.dataset.productId || "").trim();
-
-    editing = true;
-    button.disabled = true;
-    try {
-      await editProductStockFromImportPage(productId);
-    } finally {
-      editing = false;
-      renderOriginalCostPanel();
-      window.requestAnimationFrame(() => {
-        const refreshedWrap = document.querySelector("#originalCostPanel .original-cost-table-wrap");
-        if (refreshedWrap) {
-          refreshedWrap.scrollLeft = tableScrollLeft;
-          refreshedWrap.scrollTop = tableScrollTop;
-        }
-        window.scrollTo(windowScrollX, windowScrollY);
-        Array.from(document.querySelectorAll(".original-cost-stock-edit-v151"))
-          .find(item => String(item.dataset.productId || "") === productId)
-          ?.focus({ preventScroll: true });
-      });
-    }
-  };
-
-  const start = event => {
-    const button = event.target.closest(".original-cost-stock-edit-v151");
-    if (!button || button.disabled || editing) return;
-    cancel();
-    const point = event.touches?.[0] || event;
-    startX = Number(point.clientX) || 0;
-    startY = Number(point.clientY) || 0;
-    activeButton = button;
-    button.classList.add("long-press-active");
-    timer = window.setTimeout(() => {
-      timer = null;
-      button.classList.remove("long-press-active");
-      activeButton = null;
-      void editSelectedStock(button);
-    }, 650);
-  };
-
-  const move = event => {
-    if (!timer) return;
-    const point = event.touches?.[0] || event;
-    if (Math.abs((Number(point.clientX) || 0) - startX) > 12 || Math.abs((Number(point.clientY) || 0) - startY) > 12) cancel();
-  };
-
-  body.addEventListener("touchstart", start, { passive: true });
-  body.addEventListener("touchmove", move, { passive: true });
-  body.addEventListener("touchend", cancel, { passive: true });
-  body.addEventListener("touchcancel", cancel, { passive: true });
-  body.addEventListener("mousedown", event => { if (event.button === 0) start(event); });
-  body.addEventListener("mousemove", move);
-  body.addEventListener("mouseup", cancel);
-  body.addEventListener("mouseleave", cancel);
-  body.addEventListener("dragstart", event => {
-    if (event.target.closest(".original-cost-stock-edit-v151")) event.preventDefault();
-  });
-  body.addEventListener("contextmenu", event => {
-    if (event.target.closest(".original-cost-stock-edit-v151")) event.preventDefault();
-  });
-}
-
-function bindOriginalCostMinimumPriceLongPress() {
-  const body = document.getElementById("originalCostTableBody");
-  if (!body || body.dataset.minimumPriceLongPressBound === "1") return;
-  body.dataset.minimumPriceLongPressBound = "1";
-
-  let timer = null;
-  let activeButton = null;
-  let startX = 0;
-  let startY = 0;
-
-  const cancel = () => {
-    if (timer) window.clearTimeout(timer);
-    timer = null;
-    activeButton?.classList.remove("long-press-active");
-    activeButton = null;
-  };
-
-  const start = event => {
-    const button = event.target.closest(".original-cost-minimum-price-btn");
-    if (!button) return;
-    const point = event.touches?.[0] || event;
-    startX = Number(point.clientX) || 0;
-    startY = Number(point.clientY) || 0;
-    activeButton = button;
-    button.classList.add("long-press-active");
-    timer = window.setTimeout(() => {
-      timer = null;
-      button.classList.remove("long-press-active");
-      editDisplayedMinimumPriceV199(String(button.dataset.productId || ""));
-    }, 650);
-  };
-
-  const move = event => {
-    if (!timer) return;
-    const point = event.touches?.[0] || event;
-    if (Math.abs((Number(point.clientX) || 0) - startX) > 12 || Math.abs((Number(point.clientY) || 0) - startY) > 12) cancel();
-  };
-
-  body.addEventListener("touchstart", start, { passive: true });
-  body.addEventListener("touchmove", move, { passive: true });
-  body.addEventListener("touchend", cancel, { passive: true });
-  body.addEventListener("touchcancel", cancel, { passive: true });
-  body.addEventListener("mousedown", event => { if (event.button === 0) start(event); });
-  body.addEventListener("mousemove", move);
-  body.addEventListener("mouseup", cancel);
-  body.addEventListener("mouseleave", cancel);
-  body.addEventListener("contextmenu", event => {
-    if (event.target.closest(".original-cost-minimum-price-btn")) event.preventDefault();
-  });
 }
 
 function toggleOriginalCostPanel() {
@@ -18629,7 +18219,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "35.5",
+      version: "35.6",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -19152,7 +18742,11 @@ function resolveProductTreeRuleV343(product){
   return null;
 }
 function getProductTreeRuleIdV343(product){return resolveProductTreeRuleV343(product)?.ruleId||""}
-function productEnglishNameV262(product){if(!product)return"";const rule=resolveProductTreeRuleV343(product);if(rule)return getPrefixEnglishMetaV319(rule.cn).english||rule.en||"";return speciesRuleV262(product.name)?.en||""}
+const PRODUCT_ENGLISH_MANUAL_KEY_V356="productEnglishNameManualOverridesV356";
+function getProductEnglishManualOverridesV356(){const s=getCachedSettingsV317();const raw=s&&s[PRODUCT_ENGLISH_MANUAL_KEY_V356];return raw&&typeof raw==="object"&&!Array.isArray(raw)?raw:{}}
+function saveProductEnglishManualOverridesV356(overrides){const s=loadJSON("importSystemSettings",{});saveJSON("importSystemSettings",{...s,[PRODUCT_ENGLISH_MANUAL_KEY_V356]:overrides||{}});if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved()}
+function getAutomaticProductEnglishNameV356(product){if(!product)return"";const rule=resolveProductTreeRuleV343(product);if(rule)return getPrefixEnglishMetaV319(rule.cn).english||rule.en||"";return speciesRuleV262(product.name)?.en||""}
+function productEnglishNameV262(product){if(!product)return"";const id=String(product.id||"").trim().toUpperCase();const overrides=getProductEnglishManualOverridesV356();if(id&&Object.prototype.hasOwnProperty.call(overrides,id))return String(overrides[id]||"").trim();return getAutomaticProductEnglishNameV356(product)}
 function productSearchTextV262(product){const sup=typeof inferSupplierFromProductV261==="function"?inferSupplierFromProductV261(product):null;return [product?.id,product?.name,productEnglishNameV262(product),sup?.name,sup?.prefix,...(sup?.aliases||[])].filter(Boolean).join(" ")}
 function productNameWithEnglishV262(product){const en=productEnglishNameV262(product);return `${escapeHTML(product?.name||"未命名产品")}${en?`<small class="product-english-name-v262">${escapeHTML(en)}</small>`:""}`}
 function rememberProductLanguageV262(productId, chineseName, englishName){const id=String(productId||"").toUpperCase();if(!id)return;const meta=getProductLanguageMetaV262();meta[id]={chineseName:String(chineseName||"").trim(),englishName:String(englishName||"").trim()};saveProductLanguageMetaV262(meta)}
@@ -19177,25 +18771,96 @@ function inventoryMasterRowsV261(){
   });
 }
 function renderInventoryMasterV261(){
-  const body=document.getElementById("inventoryMasterBodyV261"),count=document.getElementById("inventoryMasterCountV261"),rawQuery=String(document.getElementById("inventoryMasterSearchV261")?.value||"").trim(),keyword=rawQuery.toLowerCase(),sort=String(document.getElementById("inventoryMasterSortV264")?.value||"latest");
+  const body=document.getElementById("inventoryMasterBodyV261");
+  const count=document.getElementById("inventoryMasterCountV261");
+  const rawQuery=String(document.getElementById("inventoryMasterSearchV261")?.value||"").trim();
+  const keyword=rawQuery.toLowerCase();
+  const sort=String(document.getElementById("inventoryMasterSortV264")?.value||"latest");
   if(!body)return;
   const canonicalRows=filterSortInventoryProductsV324(keyword,sort,getInventoryPreparedRowsV321());
-  let rows=canonicalRows.map(p=>{
+  const rows=canonicalRows.map(p=>{
     const sup=inferSupplierFromProductV261(p),state=getMinimumPriceDisplayStateV315(p);
     return {product:p,productId:p.id||"",cnName:p.name||"",enName:productEnglishNameV262(p),supplierPrefix:supplierPrefixV261(sup?.prefix||""),category:p.category||"",stock:Number(p.stock)||0,originalCost:Math.max(0,Number(p.latestOriginalCost)||0),averageCost:Number(p.averageCost)||0,inventoryValue:(Number(p.stock)||0)*(Number(p.averageCost)||0),minimumPrice:state.price,lastImportDate:p.displayLastImport||"",lastImportNumber:String(p.latestImportNumber||""),remark:String(p.remark||""),importNumbers:String(p.importNumbers||""),overseasTrackingNumbers:String(p.overseasTrackingNumbers||""),originalCostValuesV216:Array.isArray(p.originalCostValuesV216)?p.originalCostValuesV216:[],latestSoldAt:Number(p.latestSoldAt)||0,netSoldQuantity:Number(p.netSoldQuantity)||0,cumulativeSoldProfit:Number(p.cumulativeSoldProfit)||0};
   });
   const matchedBatch=keyword?getBatches().find(b=>String(b.importNumber||"").trim().toLowerCase()===keyword):null;
   const totalStock=matchedBatch?getBatchItemsForDisplay(matchedBatch).reduce((sum,item)=>{const oq=Math.max(0,Number(item.originalQuantity??item.quantity)||0),rr=Number(item.remainingQuantity??item.quantity),rq=Number.isFinite(rr)?Math.min(oq,Math.max(0,Math.floor(rr))):oq;return sum+rq},0):rows.reduce((n,r)=>n+(Number(r.stock)||0),0);
   const totalValue=matchedBatch?(Number(matchedBatch.grandTotal)||0):rows.reduce((n,r)=>n+(Number(r.inventoryValue)||0),0);
-  if(count)count.textContent=`${rows.length} 项`;const st=document.getElementById("inventoryMasterStockV264"),val=document.getElementById("inventoryMasterValueV264");if(st)st.textContent=formatNumber(totalStock);if(val)val.textContent=`RM ${formatMoney(totalValue)}`;
-  const masterHeaderV315=document.getElementById("inventoryMasterMinimumHeaderV315"); if(masterHeaderV315)masterHeaderV315.textContent="最低售价";
-  const priceControlModeV354=isInventoryMasterPriceControlModeV354();
-  if(!priceControlModeV354)inventoryMasterPriceControlSelectionV354.clear();
-  body.innerHTML=rows.map(r=>{const stateV315=getMinimumPriceDisplayStateV315(r.product);const id=String(r.productId||"").trim();return `<tr><td>${priceControlModeV354?`<label class="inventory-master-product-select-v354"><input class="inventory-master-price-control-checkbox-v354" type="checkbox" data-product-id="${escapeHTML(id)}" aria-label="选择 ${escapeHTML(r.cnName)}" ${inventoryMasterPriceControlSelectionV354.has(id)?"checked":""} /></label>`:""}<button type="button" class="master-copy-v263" data-master-copy-v263="${escapeHTML(r.productId)}">${escapeHTML(r.productId)}</button></td><td><button type="button" class="master-copy-v263 master-name-v262" data-master-copy-v263="${escapeHTML(r.cnName)}">${escapeHTML(r.cnName)}</button></td><td><button type="button" class="master-copy-v263 master-en-v262" data-master-copy-v263="${escapeHTML(r.enName)}">${escapeHTML(r.enName)}</button></td><td class="master-num-v264">${formatNumber(r.stock)}</td><td class="master-num-v264">${formatMoney(r.averageCost)}</td><td class="master-num-v264 ${stateV315.className}" data-minimum-price-state-v324="${stateV315.state}" style="color:${getMinimumPriceColorV340(stateV315.state) || 'inherit'} !important"><span class="master-price-main-v266" style="color:${getMinimumPriceColorV340(stateV315.state) || 'inherit'} !important">${formatMoney(r.minimumPrice)}</span></td></tr>`}).join("")||'<tr><td colspan="6">暂无符合资料</td></tr>';
-  body.querySelectorAll("[data-master-copy-v263]").forEach(btn=>btn.addEventListener("click",()=>copyRuleLabelV232(btn,btn.dataset.masterCopyV263||"")));
-  bindInventoryMasterPriceControlActionsV354();
-  refreshInventoryMasterPriceControlCheckboxesV354(rows);
+  if(count)count.textContent=`${rows.length} 项`;
+  const st=document.getElementById("inventoryMasterStockV264"),val=document.getElementById("inventoryMasterValueV264");
+  if(st)st.textContent=formatNumber(totalStock);
+  if(val)val.textContent=`RM ${formatMoney(totalValue)}`;
+  const masterHeaderV315=document.getElementById("inventoryMasterMinimumHeaderV315");
+  if(masterHeaderV315)masterHeaderV315.textContent="最低售价";
+
+  body.innerHTML=rows.map(r=>{
+    const stateV315=getMinimumPriceDisplayStateV315(r.product);
+    const priceColor=getMinimumPriceColorV340(stateV315.state)||"inherit";
+    const enDisplay=r.enName||"—";
+    return `<tr>
+      <td><button type="button" class="master-copy-v263 master-edit-v356" data-product-id-v356="${escapeHTML(r.productId)}" data-master-edit-v356="productId" data-master-copy-v356="${escapeHTML(r.productId)}" title="点击复制产品编号；长按修改">${escapeHTML(r.productId)}</button></td>
+      <td><button type="button" class="master-copy-v263 master-name-v262 master-edit-v356" data-product-id-v356="${escapeHTML(r.productId)}" data-master-edit-v356="name" data-master-copy-v356="${escapeHTML(r.cnName)}" title="点击复制中文名；长按修改">${escapeHTML(r.cnName)}</button></td>
+      <td><button type="button" class="master-copy-v263 master-en-v262 master-edit-v356" data-product-id-v356="${escapeHTML(r.productId)}" data-master-edit-v356="english" data-master-copy-v356="${escapeHTML(r.enName)}" title="点击复制英文名；长按修改">${escapeHTML(enDisplay)}</button></td>
+      <td class="master-num-v264"><button type="button" class="master-value-btn-v356 master-edit-v356" data-product-id-v356="${escapeHTML(r.productId)}" data-master-edit-v356="stock" title="长按修改当前库存">${formatNumber(r.stock)}</button></td>
+      <td class="master-num-v264"><button type="button" class="master-value-btn-v356 master-edit-v356" data-product-id-v356="${escapeHTML(r.productId)}" data-master-edit-v356="averageCost" title="长按修改平均成本">${formatMoney(r.averageCost)}</button></td>
+      <td class="master-num-v264 ${stateV315.className}" data-minimum-price-state-v324="${stateV315.state}" style="color:${priceColor} !important"><button type="button" class="master-value-btn-v356 master-price-main-v266 master-edit-v356 ${stateV315.className}" data-product-id-v356="${escapeHTML(r.productId)}" data-master-edit-v356="minimumPrice" data-minimum-price-state-v324="${stateV315.state}" style="color:${priceColor} !important" title="长按修改最低售价">${formatMoney(r.minimumPrice)}</button></td>
+    </tr>`;
+  }).join("")||'<tr><td colspan="6">暂无符合资料</td></tr>';
 }
+
+function bindInventoryMasterInteractionsV356(){
+  const body=document.getElementById("inventoryMasterBodyV261");
+  if(!body||body.dataset.masterInteractionsV356==="1")return;
+  body.dataset.masterInteractionsV356="1";
+  let timer=null,active=null,pointerId=null,startX=0,startY=0,moved=false,longPressed=false;
+  const clearTimer=()=>{if(timer!==null){window.clearTimeout(timer);timer=null;}};
+  const reset=()=>{clearTimer();active?.classList.remove("long-press-active");active=null;pointerId=null;moved=false;longPressed=false;};
+  const refreshMaster=()=>{try{if(document.getElementById("inventoryMasterPanelV264")?.open)renderInventoryMasterV261()}catch(_){}};
+  const runEdit=async button=>{
+    const productId=String(button?.dataset?.productIdV356||"").trim();
+    const type=String(button?.dataset?.masterEditV356||"").trim();
+    if(!productId||!type)return;
+    try{
+      if(type==="productId") editProductIdFromManagementV302(productId);
+      else if(type==="name") editProductNameFromImportPage(productId);
+      else if(type==="english") editProductEnglishNameFromImportPageV266(productId);
+      else if(type==="stock") await Promise.resolve(editProductStockFromImportPage(productId));
+      else if(type==="averageCost") editProductAverageCostFromImportPage(productId);
+      else if(type==="minimumPrice") await Promise.resolve(editDisplayedMinimumPriceV199(productId));
+    }finally{
+      window.setTimeout(refreshMaster,0);
+    }
+  };
+  body.addEventListener("pointerdown",event=>{
+    const button=event.target.closest(".master-edit-v356[data-master-edit-v356]");
+    if(!button||(event.pointerType==="mouse"&&event.button!==0))return;
+    reset();
+    active=button;pointerId=event.pointerId;startX=Number(event.clientX)||0;startY=Number(event.clientY)||0;
+    button.classList.add("long-press-active");
+    timer=window.setTimeout(()=>{
+      timer=null;
+      if(!active||moved)return;
+      longPressed=true;
+      const target=active;
+      target.classList.remove("long-press-active");
+      void runEdit(target);
+    },650);
+  });
+  body.addEventListener("pointermove",event=>{
+    if(!active||event.pointerId!==pointerId)return;
+    if(Math.abs((Number(event.clientX)||0)-startX)>12||Math.abs((Number(event.clientY)||0)-startY)>12){moved=true;clearTimer();active.classList.remove("long-press-active");}
+  });
+  body.addEventListener("pointerup",event=>{
+    if(!active||event.pointerId!==pointerId)return;
+    const button=active;
+    const shouldCopy=!moved&&!longPressed&&button.hasAttribute("data-master-copy-v356");
+    clearTimer();button.classList.remove("long-press-active");active=null;pointerId=null;moved=false;longPressed=false;
+    if(shouldCopy){const value=String(button.dataset.masterCopyV356||"").trim();if(value)void copyRuleLabelV232(button,value);}
+  });
+  body.addEventListener("pointercancel",event=>{if(pointerId!==null&&event.pointerId!==pointerId)return;reset();});
+  body.addEventListener("contextmenu",event=>{if(event.target.closest(".master-edit-v356"))event.preventDefault();});
+  body.addEventListener("click",event=>{if(!event.target.closest(".master-edit-v356"))return;event.preventDefault();event.stopPropagation();});
+}
+
 function excelWorkbookV263(worksheets){return `<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:html="http://www.w3.org/TR/REC-html40"><Styles><Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Bottom"/><Font ss:FontName="Arial" ss:Size="10"/></Style><Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="#D9EAD3" ss:Pattern="Solid"/></Style><Style ss:ID="HeaderRow"/><Style ss:ID="Number2"><NumberFormat ss:Format="#,##0.00"/></Style><Style ss:ID="Integer"><NumberFormat ss:Format="#,##0"/></Style><Style ss:ID="GeneralNumber"><NumberFormat ss:Format="#,##0.00"/></Style></Styles>${worksheets}</Workbook>`}
 function exportInventoryMasterExcelV261(){
   const rows=inventoryMasterRowsV261().map(r=>[r.productId,r.cnName,r.enName,r.supplierPrefix,r.category,r.stock,r.originalCost,r.averageCost,r.inventoryValue,r.minimumPrice,r.lastImportDate,r.lastImportNumber,r.remark]);
@@ -19204,6 +18869,7 @@ function exportInventoryMasterExcelV261(){
 }
 function setupInventoryMasterV299(){
   const search=document.getElementById("inventoryMasterSearchV261"),exp=document.getElementById("exportInventoryMasterExcelV261"),panel=document.getElementById("inventoryMasterPanelV264");
+  bindInventoryMasterInteractionsV356();
   const renderIfOpenV318=()=>{if(panel?.open)renderInventoryMasterV261()};
   search?.addEventListener("input",()=>{if(panel?.open)scheduleSearchRenderV302("inventory-master",renderInventoryMasterV261,90)});
   document.getElementById("inventoryMasterSortV264")?.addEventListener("change",event=>{
@@ -19223,7 +18889,5 @@ function setupInventoryMasterV299(){
   });
   panel?.addEventListener("toggle",e=>{if(e.currentTarget.open)renderInventoryMasterV261()});
   exp?.addEventListener("click",exportInventoryMasterExcelV261);
-  bindInventoryMasterPriceControlActionsV354();
-  updateInventoryMasterPriceControlActionsV354();
 }
 
