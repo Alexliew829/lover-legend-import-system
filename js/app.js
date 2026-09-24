@@ -15,6 +15,7 @@ function clearTransientSearchInputsOnReloadV304() {
     "historyLookupInput",
     "batchProductStockSearch",
     "inventoryMasterSearchV261",
+    "boutiquePriceHistorySearchV374",
     "costRevisionHistorySearch"
   ].forEach(id => {
     const field = document.getElementById(id);
@@ -25,7 +26,7 @@ function clearTransientSearchInputsOnReloadV304() {
 window.addEventListener("pageshow", () => {
   if (!isPageReloadV304()) return;
   window.setTimeout(() => {
-    const ids = ["inventorySearch","batchSearch","batchLookupInput","historyLookupInput","batchProductStockSearch","inventoryMasterSearchV261","costRevisionHistorySearch"];
+    const ids = ["inventorySearch","batchSearch","batchLookupInput","historyLookupInput","batchProductStockSearch","inventoryMasterSearchV261","boutiquePriceHistorySearchV374","costRevisionHistorySearch"];
     const hadRestoredValue = ids.some(id => String(document.getElementById(id)?.value || "").length > 0);
     clearTransientSearchInputsOnReloadV304();
     if (!hadRestoredValue) return;
@@ -102,13 +103,14 @@ function cleanupLegacySettingsResidueV323() {
 document.addEventListener("DOMContentLoaded", () => {
   clearTransientSearchInputsOnReloadV304();
   setupAccessLock();
-  // V37.3: clean any stale PZ+BS duplicate cache before Dashboard/Inventory first paint.
+  // V37.4: clean any stale PZ+BS duplicate cache before Dashboard/Inventory first paint.
   if (typeof repairLocalBsCanonicalCacheV365 === "function") repairLocalBsCanonicalCacheV365();
   cleanupLegacySettingsResidueV323();
   repairLegacyImportDates();
   setupNavigation();
   setupSettings();
   setupInventoryMasterV299();
+  setupBoutiquePriceHistoryV374();
   const requestedPageV210 = String(new URLSearchParams(window.location.search).get("page") || "").trim().toLowerCase();
   const deepLinkPageMapV210 = {
     home: "dashboardPage",
@@ -210,7 +212,7 @@ function persistInventorySalesAnalyticsV343(value){try{const revision=getInvento
 function hasUsableInventorySalesAnalyticsV343(){return Boolean(inventorySalesAnalyticsCacheV146?.value)||hydrateInventorySalesAnalyticsV343()}
 function hasCurrentFullInventorySalesAnalyticsV360(){if(!hasUsableInventorySalesAnalyticsV343())return false;const revision=getInventoryAnalyticsCloudRevisionV360();return Boolean(inventorySalesAnalyticsFullCachedV360&&revision>0&&inventorySalesAnalyticsFullRevisionV360===revision)}
 function invalidateInventorySalesAnalyticsAfterFullLoadV360(){inventorySalesAnalyticsCacheV146={signature:"",value:null};inventoryPreparedRowsCacheV321={rawProducts:null,settings:null,imports:null,batches:null,sales:null,rows:[]};}
-function refreshProfitAnalyticsInBackgroundV360(rerender,label="profit analytics"){if(!navigator.onLine||historyAllSalesLinksLoadedV136||historyAllSalesLinksLoadingV136)return;Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(()=>{invalidateInventorySalesAnalyticsAfterFullLoadV360();try{getInventorySalesAnalyticsV146()}catch(_){};try{rerender?.()}catch(error){console.warn(`V37.3 ${label} rerender failed`,error)}}).catch(error=>console.warn(`V37.3 ${label} background refresh failed`,error))}
+function refreshProfitAnalyticsInBackgroundV360(rerender,label="profit analytics"){if(!navigator.onLine||historyAllSalesLinksLoadedV136||historyAllSalesLinksLoadingV136)return;Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(()=>{invalidateInventorySalesAnalyticsAfterFullLoadV360();try{getInventorySalesAnalyticsV146()}catch(_){};try{rerender?.()}catch(error){console.warn(`V37.4 ${label} rerender failed`,error)}}).catch(error=>console.warn(`V37.4 ${label} background refresh failed`,error))}
 const HISTORY_SALES_CACHE_KEY_V179 = "lover_import_history_sales_financial_v179";
 let historySalesCacheHydratedV179 = false;
 let historySalesCacheHasDataV179 = false;
@@ -2790,6 +2792,10 @@ function setupNavigation() {
         renderDashboard();
       }
 
+      if (target === "supplierPage") {
+        renderProductList();
+      }
+
       if (target === "settingsPage") {
         collapseStaleZeroStockPanelV227();
       }
@@ -3230,7 +3236,7 @@ function getCostRevisionHistory() {
   const rows = Array.isArray(settings.costRevisionHistory)
     ? settings.costRevisionHistory
     : [];
-  // V37.3: this panel is strictly for changes that affect cost, stock quantity,
+  // V37.4: this panel is strictly for changes that affect cost, stock quantity,
   // or inventory value. Legacy price/name/ID audit rows remain untouched in the
   // stored backup but are no longer shown here.
   return rows.filter(isCostOrInventoryRevisionV368);
@@ -3439,7 +3445,7 @@ async function ensureAverageCostAuditHistoryV359(force = false) {
       saveAverageCostAuditCacheV359(entries, Date.now());
       return entries;
     })
-    .catch(error => { console.warn("V37.3 average-cost audit history load failed", error); return cache.entries; })
+    .catch(error => { console.warn("V37.4 average-cost audit history load failed", error); return cache.entries; })
     .finally(() => { averageCostAuditLoadPromiseV359 = null; });
   return averageCostAuditLoadPromiseV359;
 }
@@ -3763,7 +3769,7 @@ function getImportAnomaliesV201() {
   if (cloudLastErrorMessage) {
     issues.push({severity:"critical", type:"sync-error", title:"最近同步失败", detail:String(cloudLastErrorMessage), action:"请先检查网络和 Google Web App，再按重新检查。"});
   }
-  // V37.3: Sales feed is a read-only reminder channel. A mobile browser can transiently
+  // V37.4: Sales feed is a read-only reminder channel. A mobile browser can transiently
   // fail a JSONP request even while Import cloud sync is healthy. Do not keep the whole
   // Import System in a red "needs check" state merely because an old/processed Sales feed
   // snapshot exists. Only a currently known pending Sales inventory task can escalate the
@@ -4778,7 +4784,7 @@ async function refreshPromotionCloudStateV209(force = false) {
 }
 window.refreshPromotionCloudStateV209 = refreshPromotionCloudStateV209;
 
-// V37.3: when another device changes promotion settings, background revision
+// V37.4: when another device changes promotion settings, background revision
 // sync must refresh the entire Promotion Settings form, including the manual-price
 // participation flag. Preserve a truly edited local draft, but do not let a stale
 // pre-sync snapshot masquerade as an unsaved draft and block the cloud state.
@@ -4823,12 +4829,27 @@ function refreshPromotionSettingsAfterCloudSyncV370() {
     updatePromotionDraftStatusV186();
     capturePromotionDraftBaselineV370();
   } catch (error) {
-    console.warn("V37.3 promotion settings cloud repaint skipped", error);
+    console.warn("V37.4 promotion settings cloud repaint skipped", error);
   }
 }
 window.refreshPromotionSettingsAfterCloudSyncV370 = refreshPromotionSettingsAfterCloudSyncV370;
 // Backward name kept so any already-bound V36.9 callback still resolves during hot upgrade.
 window.refreshPromotionSettingsAfterCloudSyncV369 = refreshPromotionSettingsAfterCloudSyncV370;
+
+// V37.5: promotion changes repaint only the currently visible heavy view.
+// Hidden pages are refreshed naturally when the user navigates to them.
+function refreshPromotionDependentVisibleViewsV375() {
+  const pageIdV375 = document.querySelector(".page.active")?.id || "";
+  if (pageIdV375 === "dashboardPage") {
+    try { renderDashboard(); } catch (error) { console.warn("V37.5 visible dashboard promotion repaint skipped", error); }
+    try { renderInventoryManagementList(); } catch (error) { console.warn("V37.5 visible inventory promotion repaint skipped", error); }
+    return;
+  }
+  if (pageIdV375 === "supplierPage") {
+    try { renderProductList(); } catch (error) { console.warn("V37.5 visible product promotion repaint skipped", error); }
+  }
+}
+window.refreshPromotionDependentVisibleViewsV375 = refreshPromotionDependentVisibleViewsV375;
 
 function getPromotionMarginBadgeV209(product, profitInfo = null) {
   const promotion = getPromotionSettingsV183();
@@ -4862,9 +4883,13 @@ function refreshPromotionUiV183() {
     manualToggleV361.classList.toggle("is-open-v361", promotionIncludeManualDraftV361);
   }
   if (manualStatusV361) {
-    manualStatusV361.textContent = promotionIncludeManualDraftV361 ? "参与促销中" : "售价控制中";
-    manualStatusV361.classList.toggle("is-participating-v368", promotionIncludeManualDraftV361);
-    manualStatusV361.classList.remove("is-pending-v368");
+    const savedManualStateV375 = promotion?.includeManualPriceProducts === true;
+    const pendingManualStateV375 = promotionDraftTouchedV209 && savedManualStateV375 !== promotionIncludeManualDraftV361;
+    manualStatusV361.textContent = pendingManualStateV375
+      ? (promotionIncludeManualDraftV361 ? "精品将加入促销（待确认）" : "精品将退出促销（待确认）")
+      : (promotionIncludeManualDraftV361 ? "参与促销中" : "售价控制中");
+    manualStatusV361.classList.toggle("is-participating-v368", !pendingManualStateV375 && promotionIncludeManualDraftV361);
+    manualStatusV361.classList.toggle("is-pending-v368", pendingManualStateV375);
   }
   const currentNameInputV361 = document.getElementById("promotionNameV183");
   if (currentNameInputV361) {
@@ -4934,7 +4959,7 @@ function setupPromotionSettingsV183() {
   promotionDetails?.addEventListener("toggle", () => {
     refreshToggleHintV192();
     if (promotionDetails.open && typeof window.pollPromotionStateLightV372 === "function") {
-      window.pollPromotionStateLightV372(true).catch(error => console.warn("V37.3 promotion open refresh skipped", error));
+      window.pollPromotionStateLightV372(true).catch(error => console.warn("V37.4 promotion open refresh skipped", error));
     }
   });
   refreshToggleHintV192();
@@ -5022,7 +5047,7 @@ function setupPromotionSettingsV183() {
     if (mode === "profit-desc" && !historyAllSalesLinksLoadedV136 && !hasCachedSalesV360 && navigator.onLine) {
       if (searchResults) searchResults.innerHTML = '<div class="promotion-empty-v183">正在读取完整销售利润…</div>';
       Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(() => { invalidateInventorySalesAnalyticsAfterFullLoadV360(); renderPromotionExcludeSearchV183(); })
-        .catch(error => { console.warn("V37.3 promotion profit analytics load failed", error); renderPromotionExcludeSearchV183(); });
+        .catch(error => { console.warn("V37.4 promotion profit analytics load failed", error); renderPromotionExcludeSearchV183(); });
       return;
     }
     renderPromotionExcludeSearchV183();
@@ -5210,15 +5235,14 @@ function setupPromotionSettingsV183() {
       saveButton.textContent = saveButtonIdleTextV350;
     }
     if (saved) {
-      // V37.3 mobile speed: finish the promotion controls first. Heavy list/card
+      // V37.4 mobile speed: finish the promotion controls first. Heavy list/card
       // repaints are deferred so a successful Settings-only save does not feel
       // blocked by rebuilding every hidden page before the button becomes usable.
-      try { refreshPromotionUiV183(); } catch (error) { console.warn("V37.3 promotion post-save UI skipped", error); }
-      try { if (pricePanel && !pricePanel.hidden) renderPromotionPriceListV183(); } catch (error) { console.warn("V37.3 promotion price repaint skipped", error); }
+      try { refreshPromotionUiV183(); } catch (error) { console.warn("V37.4 promotion post-save UI skipped", error); }
+      try { if (pricePanel && !pricePanel.hidden) renderPromotionPriceListV183(); } catch (error) { console.warn("V37.4 promotion price repaint skipped", error); }
       updatePromotionDraftStatusV186();
       window.requestAnimationFrame(() => {
-        [renderDashboard, renderInventoryManagementList].forEach(render => { try { render(); } catch (error) { console.warn("V37.3 deferred promotion refresh skipped", error); } });
-        window.setTimeout(() => { try { renderProductList(); } catch (error) { console.warn("V37.3 deferred product refresh skipped", error); } }, 0);
+        refreshPromotionDependentVisibleViewsV375();
       });
     }
   });
@@ -5261,12 +5285,11 @@ function setupPromotionSettingsV183() {
       const priceList = document.getElementById("promotionPriceListV183");
       if (priceList) priceList.innerHTML = "";
       if (toggleButton) toggleButton.textContent = "查看全部促销价格";
-      try { renderPromotionExcludedListV183(); } catch (error) { console.warn("V37.3 promotion exclusion clear repaint skipped", error); }
-      try { refreshPromotionUiV183(); } catch (error) { console.warn("V37.3 promotion post-delete UI skipped", error); }
+      try { renderPromotionExcludedListV183(); } catch (error) { console.warn("V37.4 promotion exclusion clear repaint skipped", error); }
+      try { refreshPromotionUiV183(); } catch (error) { console.warn("V37.4 promotion post-delete UI skipped", error); }
       if (status) status.textContent = "促销管理已关闭并恢复默认最低售价";
       window.requestAnimationFrame(() => {
-        [renderDashboard, renderInventoryManagementList].forEach(render => { try { render(); } catch (error) { console.warn("V37.3 deferred promotion delete refresh skipped", error); } });
-        window.setTimeout(() => { try { renderProductList(); } catch (error) { console.warn("V37.3 deferred product delete refresh skipped", error); } }, 0);
+        refreshPromotionDependentVisibleViewsV375();
       });
     }
 
@@ -5289,7 +5312,7 @@ function setupPromotionSettingsV183() {
       const priceList = document.getElementById("promotionPriceListV183");
       if (priceList) priceList.innerHTML = '<div class="promotion-empty-v183">正在读取完整销售利润…</div>';
       Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(() => { invalidateInventorySalesAnalyticsAfterFullLoadV360(); if (String(priceSortV195?.value || "") === mode) renderPromotionPriceListV183(); })
-        .catch(error => { console.warn("V37.3 promotion price profit analytics load failed", error); renderPromotionPriceListV183(); });
+        .catch(error => { console.warn("V37.4 promotion price profit analytics load failed", error); renderPromotionPriceListV183(); });
       return;
     }
     renderPromotionPriceListV183();
@@ -16120,6 +16143,29 @@ function applyMinimumPriceOptimisticViewV359(product) {
   });
 }
 
+function minimumPriceHistoryMetaV374(product, price, manual, stateLabel = "") {
+  const p={...product,minimumPrice:Number(price)||0,minimumPriceManual:Boolean(manual)};
+  const rules=getMinimumPriceRulesV160();
+  const index=getMinimumPriceOriginIndexV160();
+  const salePrice=Math.max(0,Number(price)||0);
+  const averageCost=Math.max(0,Number(p.averageCost)||0);
+  const potCost=getVndPotCostV160(p,rules,index);
+  const commissionRate=Math.max(0,Number(rules.commissionRate)||0);
+  const freight=getMinimumFreightTierV188(salePrice,rules).amount;
+  const profit=salePrice-averageCost-potCost-(salePrice*commissionRate/100)-freight;
+  const state=stateLabel || (manual ? "控制精品售价" : "系统计算");
+  return {
+    productName:String(product?.name||""),
+    state,
+    tone:profit < -0.005 ? "red" : (manual ? "blue" : "green"),
+    profit:Number(profit)||0,
+    averageCost,
+    potCost,
+    commissionRate,
+    freight
+  };
+}
+
 async function editProductMinimumPrice(productId) {
   const id = String(productId || "").trim();
   const products = getProducts();
@@ -16180,7 +16226,7 @@ async function editProductMinimumPrice(productId) {
   minimumPriceOverrides[id] = nextMinimumPriceManual;
   saveMinimumPriceManualOverridesV160(minimumPriceOverrides);
 
-  // V37.3 Local-First: first paint the exact new state immediately. This is especially
+  // V37.4 Local-First: first paint the exact new state immediately. This is especially
   // important when entering 0 to leave sale-control; the user must see the automatic
   // price/color at once instead of waiting for a full result-list rebuild.
   saveJSON("importSystemProducts", products);
@@ -16196,7 +16242,14 @@ async function editProductMinimumPrice(productId) {
   if (status) status.textContent = `同步中：${product.name} 最低售价 ${formatMoney(nextMinimumPrice, "RM ")}（未完成前离开会提示）`;
 
   try {
-    await updateProductMinimumPriceFast(id, nextMinimumPrice, updatedAt, nextMinimumPriceManual);
+    const previousHistoryMetaV374 = minimumPriceHistoryMetaV374(product, storedMinimumPriceV351, currentMinimumPriceManual, currentMinimumPriceManual ? "控制精品售价" : "系统计算");
+    const historyMetaV374 = {
+      ...minimumPriceHistoryMetaV374(product, nextMinimumPrice, nextMinimumPriceManual, restoreAutomatic ? "放弃控制" : "控制精品售价"),
+      previousTone: previousHistoryMetaV374.tone,
+      previousState: previousHistoryMetaV374.state,
+      previousProfit: previousHistoryMetaV374.profit
+    };
+    await updateProductMinimumPriceFast(id, nextMinimumPrice, updatedAt, nextMinimumPriceManual, 0, historyMetaV374);
     renderCostRevisionHistory();
     if (status) status.textContent = `已更新：${product.name} 最低售价 ${formatMoney(nextMinimumPrice, "RM ")}`;
   } catch (error) {
@@ -18608,7 +18661,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "37.3",
+      version: "37.5",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -19140,6 +19193,95 @@ function productSearchTextV262(product){const sup=typeof inferSupplierFromProduc
 function productNameWithEnglishV262(product){const en=productEnglishNameV262(product);return `${escapeHTML(product?.name||"未命名产品")}${en?`<small class="product-english-name-v262">${escapeHTML(en)}</small>`:""}`}
 function rememberProductLanguageV262(productId, chineseName, englishName){const id=String(productId||"").toUpperCase();if(!id)return;const meta=getProductLanguageMetaV262();meta[id]={chineseName:String(chineseName||"").trim(),englishName:String(englishName||"").trim()};saveProductLanguageMetaV262(meta)}
 function inferSimpleBilingualV262(text){const raw=String(text||"").trim();const rule=speciesRuleV262(raw);return{chineseName:rule?.cn||(/[\u3400-\u9fff]/.test(raw)?raw:""),englishName:rule?.en||(!/[\u3400-\u9fff]/.test(raw)?raw.replace(/\b(?:P?\d{2,4}|\d+(?:\.\d+)?C|\d+[xX]\d+)\b.*$/i,"").trim():""),prefix:rule?.prefix||""}}
+
+
+// ================= V37.4 精品售价记录 / 售价历史 =================
+let boutiquePriceHistoryEntriesV374=[];
+let boutiquePriceHistoryLoadingV374=false;
+function boutiquePriceHistoryDateV374(value){
+  const d=new Date(value||"");
+  if(Number.isNaN(d.getTime()))return String(value||"");
+  return `${String(d.getDate()).padStart(2,"0")}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getFullYear()).slice(-2)}`;
+}
+function normalizeBoutiqueHistoryEntryV374(entry){
+  const state=["系统计算","控制精品售价","放弃控制"].includes(String(entry?.state||""))?String(entry.state):"系统计算";
+  const tone=String(entry?.tone||"").toLowerCase();
+  const normalizedTone=tone==="red"?"red":(state==="控制精品售价"?"blue":"green");
+  return {...entry,state,tone:normalizedTone,productId:String(entry?.productId||"").trim(),productName:String(entry?.productName||"").trim(),price:Math.max(0,Number(entry?.price)||0),minimumPriceManual:entry?.minimumPriceManual===true};
+}
+async function loadBoutiquePriceHistoryV374(force=false){
+  if(boutiquePriceHistoryLoadingV374)return boutiquePriceHistoryEntriesV374;
+  if(!force&&boutiquePriceHistoryEntriesV374.length)return boutiquePriceHistoryEntriesV374;
+  if(typeof fetchBoutiquePriceHistoryV374!=="function")return boutiquePriceHistoryEntriesV374;
+  boutiquePriceHistoryLoadingV374=true;
+  const status=document.getElementById("boutiquePriceHistoryStatusV374");
+  if(status)status.textContent="正在读取精品售价历史…";
+  try{
+    const data=await fetchBoutiquePriceHistoryV374(2000);
+    boutiquePriceHistoryEntriesV374=(Array.isArray(data?.entries)?data.entries:[]).map(normalizeBoutiqueHistoryEntryV374);
+    if(status)status.textContent=`共 ${boutiquePriceHistoryEntriesV374.length} 条售价记录`;
+  }catch(error){if(status)status.textContent=`读取失败：${error?.message||error}`;}
+  finally{boutiquePriceHistoryLoadingV374=false;}
+  return boutiquePriceHistoryEntriesV374;
+}
+function getFilteredBoutiquePriceHistoryV374(){
+  const q=String(document.getElementById("boutiquePriceHistorySearchV374")?.value||"").trim().toLowerCase();
+  if(!q)return boutiquePriceHistoryEntriesV374;
+  return boutiquePriceHistoryEntriesV374.filter(e=>{
+    const hay=[e.productId,e.productName,e.state,e.price,boutiquePriceHistoryDateV374(e.timestamp||e.updatedAt),e.displayTimestamp].map(x=>String(x??"").toLowerCase()).join(" ");
+    return smartSearchMatches(hay,q)||hay.includes(q);
+  });
+}
+function renderBoutiquePriceHistoryV374(){
+  const list=document.getElementById("boutiquePriceHistoryListV374");if(!list)return;
+  const rows=getFilteredBoutiquePriceHistoryV374();
+  list.innerHTML=rows.map((e,i)=>{
+    const key=escapeHTML(String(e.id||`${e.productId}|${e.timestamp||e.updatedAt||i}|${e.price}`));
+    const cls=e.tone==="red"?"is-red-v374":(e.tone==="blue"?"is-blue-v374":"is-green-v374");
+    const manual=e.state==="控制精品售价";
+    return `<div class="boutique-price-history-row-v374 ${cls}" data-history-id-v374="${key}">
+      <input class="boutique-price-history-check-v374" type="checkbox" data-history-select-v374="${key}" aria-label="选择这笔售价记录" />
+      <div class="boutique-price-name-v374">${escapeHTML(e.productName||"未命名产品")}<span class="boutique-price-id-v374">${escapeHTML(e.productId||"")}</span></div>
+      <div class="boutique-price-date-v374">${escapeHTML(boutiquePriceHistoryDateV374(e.timestamp||e.updatedAt))}</div>
+      <div class="boutique-price-value-v374">${formatMoney(e.price,"RM ")}</div>
+      <div class="boutique-price-state-v374 ${cls}">${escapeHTML(e.state)}</div>
+      <button type="button" class="secondary-btn boutique-price-restore-v374" data-history-restore-v374="${key}">恢复</button>
+    </div>`;
+  }).join("")||'<div class="empty-state">没有符合的精品售价历史</div>';
+  updateBoutiquePriceHistorySelectionV374();
+}
+function findBoutiqueHistoryEntryV374(id){return boutiquePriceHistoryEntriesV374.find(e=>String(e.id||`${e.productId}|${e.timestamp||e.updatedAt||""}|${e.price}`)===String(id||""));}
+function updateBoutiquePriceHistorySelectionV374(){
+  const btn=document.getElementById("restoreSelectedBoutiquePricesV374");if(!btn)return;
+  const n=document.querySelectorAll('#boutiquePriceHistoryListV374 [data-history-select-v374]:checked').length;
+  btn.disabled=n===0;btn.textContent=n?`批量恢复所选（${n}）`:"批量恢复所选";
+}
+async function performBoutiquePriceRestoreV374(entries,label){
+  const clean=(entries||[]).filter(Boolean);if(!clean.length)return;
+  const seen=new Set();for(const e of clean){if(seen.has(e.productId)){alert("同一个产品一次只能选择一笔历史售价，请取消重复选择。");return;}seen.add(e.productId);}
+  const lines=clean.slice(0,8).map(e=>`${e.productName||e.productId} → ${formatMoney(e.price,"RM ")}（${e.state}）`).join("\n");
+  const more=clean.length>8?`\n…另外 ${clean.length-8} 项`:"";
+  if(!confirm(`确认${label}？\n\n${lines}${more}\n\n只恢复最低售价与售价控制状态，不会改变库存、成本、Import、FIFO、Sales ACK 或促销设置。`))return;
+  if(clean.length>1&&!confirm(`最后确认：将恢复 ${clean.length} 个产品的最低售价。确定继续？`))return;
+  const status=document.getElementById("boutiquePriceHistoryStatusV374");if(status)status.textContent="正在恢复精品售价…";
+  try{
+    await restoreBoutiquePricesV374(clean.map(e=>({productId:e.productId,minimumPrice:e.price,minimumPriceManual:e.state==="控制精品售价",state:e.state,tone:e.tone,sourceHistoryId:e.id||""})));
+    await loadBoutiquePriceHistoryV374(true);renderBoutiquePriceHistoryV374();
+    try{renderBatchProductStockResults();renderInventoryManagementList();renderDashboard();if(document.getElementById("inventoryMasterPanelV264")?.open)renderInventoryMasterV261();}catch(_){}
+    if(status)status.textContent=`已恢复 ${clean.length} 个产品的售价记录。`;
+  }catch(error){if(status)status.textContent=`恢复失败：${error?.message||error}`;alert(error?.message||error);}
+}
+function setupBoutiquePriceHistoryV374(){
+  const panel=document.getElementById("boutiquePriceHistoryPanelV374"),list=document.getElementById("boutiquePriceHistoryListV374"),search=document.getElementById("boutiquePriceHistorySearchV374");
+  if(!panel||panel.dataset.boundV374==="1")return;panel.dataset.boundV374="1";
+  panel.addEventListener("toggle",async()=>{if(!panel.open)return;await loadBoutiquePriceHistoryV374();renderBoutiquePriceHistoryV374();});
+  search?.addEventListener("input",()=>scheduleSearchRenderV302("boutique-price-history",renderBoutiquePriceHistoryV374,80));
+  list?.addEventListener("change",e=>{if(e.target.matches("[data-history-select-v374]"))updateBoutiquePriceHistorySelectionV374();});
+  list?.addEventListener("click",e=>{const b=e.target.closest("[data-history-restore-v374]");if(!b)return;const item=findBoutiqueHistoryEntryV374(b.dataset.historyRestoreV374);if(item)void performBoutiquePriceRestoreV374([item],"恢复这笔历史售价");});
+  document.getElementById("restoreSelectedBoutiquePricesV374")?.addEventListener("click",()=>{const selected=[...document.querySelectorAll('#boutiquePriceHistoryListV374 [data-history-select-v374]:checked')].map(x=>findBoutiqueHistoryEntryV374(x.dataset.historySelectV374)).filter(Boolean);void performBoutiquePriceRestoreV374(selected,"批量恢复所选售价");});
+  document.getElementById("restoreAllBoutiquePricesV374")?.addEventListener("click",()=>{const latest=new Map();boutiquePriceHistoryEntriesV374.forEach(e=>{if(e.state!=="控制精品售价"||latest.has(e.productId))return;latest.set(e.productId,e);});const rows=[...latest.values()];if(!rows.length){alert("目前没有可恢复的精品售价记录。");return;}void performBoutiquePriceRestoreV374(rows,"全部恢复每个产品最近一次精品售价");});
+}
+window.renderBoutiquePriceHistoryV374=renderBoutiquePriceHistoryV374;
 
 // ================= V34.3 Product Inventory Master =================
 const SUPPLIER_ALIASES_V261 = Object.freeze([
