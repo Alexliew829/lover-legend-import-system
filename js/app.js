@@ -4996,7 +4996,7 @@ function setupPromotionSettingsV183() {
   promotionDetails?.addEventListener("toggle", () => {
     refreshToggleHintV192();
     if (promotionDetails.open && typeof window.pollPromotionStateLightV372 === "function") {
-      window.pollPromotionStateLightV372(true).catch(error => console.warn("V37.7 promotion open refresh skipped", error));
+      window.pollPromotionStateLightV372(true).catch(error => console.warn("V37.9 promotion open refresh skipped", error));
     }
   });
   refreshToggleHintV192();
@@ -16189,6 +16189,13 @@ function applyInitialMinimumPriceMapLocalV376(map){
   const settings=loadJSON("importSystemSettings",{});
   localStorage.setItem("importSystemSettings",JSON.stringify({...settings,[INITIAL_MINIMUM_PRICE_KEY_V376]:{...(map||{})}}));
 }
+function hasExplicitInitialMinimumPriceV379(productId){
+  const id=String(productId||"").trim().toUpperCase();
+  if(!id)return false;
+  const map=getInitialMinimumPriceMapV376();
+  return Object.keys(map||{}).some(key=>String(key||"").trim().toUpperCase()===id);
+}
+window.hasExplicitInitialMinimumPriceV379=hasExplicitInitialMinimumPriceV379;
 async function editInitialMinimumPriceV376(productId){
   const id=String(productId||"").trim(), product=getProducts().find(p=>String(p?.id||"").trim()===id);
   if(!product){alert("找不到这个产品。");return;}
@@ -16215,15 +16222,19 @@ async function restoreInitialMinimumPricesV376(){
   button.disabled=true; button.textContent="恢复中...";
   try{
     const data=await restoreInitialMinimumPricesFastV376();
+    if(data?.verified!==true) throw new Error(data?.message||"恢复后的实际资料验证失败");
     if(data?.initialMinimumPricesV376) applyInitialMinimumPriceMapLocalV376(data.initialMinimumPricesV376);
     const restoredPrices=data?.restoredPrices&&typeof data.restoredPrices==="object"?data.restoredPrices:{};
     if(Object.keys(restoredPrices).length){
       const products=getProducts().map(product=>{
         const id=String(product?.id||"").trim().toUpperCase();
         if(!Object.prototype.hasOwnProperty.call(restoredPrices,id))return product;
-        return {...product,minimumPrice:Number(restoredPrices[id]),updatedAt:data.updatedAt||product.updatedAt};
+        return {...product,minimumPrice:Number(restoredPrices[id]),minimumPriceManual:true,updatedAt:data.updatedAt||product.updatedAt};
       });
       localStorage.setItem("importSystemProducts",JSON.stringify(products));
+      const restoredOverrides={...getMinimumPriceManualOverridesV160()};
+      Object.keys(restoredPrices).forEach(id=>{restoredOverrides[id]=true;});
+      saveMinimumPriceManualOverridesV160(restoredOverrides);
     }
     try{refreshSystemViewsAfterSync();}catch(_){renderBatchProductStockResults();renderInventoryManagementList();renderDashboard();}
     const failed=Array.isArray(data?.failedProductIds)?data.failedProductIds:[];
@@ -16247,8 +16258,10 @@ async function editProductMinimumPrice(productId) {
   const product = products[productIndex];
   const storedMinimumPriceV351 = Math.max(0, Number(product.minimumPrice) || 0);
   const initialMapBeforeV376 = getInitialMinimumPriceMapV376();
-  const initialPriceWasImplicitV376 = !Object.prototype.hasOwnProperty.call(initialMapBeforeV376, id);
-  if (initialPriceWasImplicitV376) applyInitialMinimumPriceMapLocalV376({ ...initialMapBeforeV376, [id]: storedMinimumPriceV351 });
+  // V37.9: an automatic price is only an implicit candidate. The first real manual
+  // minimum-price save becomes the authoritative initial minimum price. After that,
+  // ordinary minimum-price edits must never move the initial baseline again.
+  const initialPriceWasImplicitV376 = !hasExplicitInitialMinimumPriceV379(id);
   const currentMinimumPriceManual = isMinimumPriceManualV160(product);
   // V35.2: the edit dialog must reflect the price the user is actually seeing now.
   // During an active promotion, a non-manual, non-excluded product therefore shows
@@ -16288,6 +16301,12 @@ async function editProductMinimumPrice(productId) {
   }
 
   const updatedAt = new Date().toISOString();
+  const shouldCaptureInitialMinimumPriceV379 = initialPriceWasImplicitV376 && nextMinimumPriceManual;
+  if (shouldCaptureInitialMinimumPriceV379) {
+    // First formal manual price: lock the NEW manual value, not the previous auto value.
+    // Example: auto 9,360 -> first manual 10,000 => initial minimum price = 10,000.
+    applyInitialMinimumPriceMapLocalV376({ ...getInitialMinimumPriceMapV376(), [id]: nextMinimumPrice });
+  }
   products[productIndex] = {
     ...product,
     minimumPrice: nextMinimumPrice,
@@ -16341,7 +16360,7 @@ async function editProductMinimumPrice(productId) {
         };
         saveJSON("importSystemProducts", latestProducts);
       }
-      if (initialPriceWasImplicitV376) applyInitialMinimumPriceMapLocalV376({ ...getInitialMinimumPriceMapV376(), [id]: storedMinimumPriceV351 });
+      if (shouldCaptureInitialMinimumPriceV379) applyInitialMinimumPriceMapLocalV376({ ...getInitialMinimumPriceMapV376(), [id]: nextMinimumPrice });
       const keepOverridesV351 = { ...getMinimumPriceManualOverridesV160() };
       keepOverridesV351[id] = nextMinimumPriceManual;
       saveMinimumPriceManualOverridesV160(keepOverridesV351);
@@ -16364,9 +16383,9 @@ async function editProductMinimumPrice(productId) {
       };
       saveJSON("importSystemProducts", latestProducts);
     }
-    if (initialPriceWasImplicitV376) {
+    if (shouldCaptureInitialMinimumPriceV379) {
       const rollbackInitialMapV376 = { ...getInitialMinimumPriceMapV376() };
-      delete rollbackInitialMapV376[id];
+      Object.keys(rollbackInitialMapV376).forEach(key=>{if(String(key||"").trim().toUpperCase()===String(id||"").trim().toUpperCase())delete rollbackInitialMapV376[key];});
       applyInitialMinimumPriceMapLocalV376(rollbackInitialMapV376);
     }
     const rollbackOverrides = { ...getMinimumPriceManualOverridesV160() };
@@ -18739,7 +18758,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "37.7",
+      version: "37.9",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -19418,7 +19437,7 @@ function setupInventoryMasterV299(){
 
 
 
-// V37.7 bindings: the summary action must not toggle the Promotion panel.
+// V37.9 bindings: the summary action must not toggle the Promotion panel.
 document.addEventListener("click",event=>{
   const restore=event.target.closest("#restoreInitialMinimumPricesV376");
   if(restore){event.preventDefault();event.stopPropagation();restoreInitialMinimumPricesV376();return;}

@@ -6535,7 +6535,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 }
 
 
-/* V37.7 Product query modify card + promotion restore action */
+/* V37.9 Product query modify card + promotion restore action */
 .product-stock-modify-card-v376{margin-top:10px;border:1px solid rgba(31,93,58,.16);border-radius:14px;padding:10px;background:rgba(255,255,255,.58)}
 .product-stock-modify-grid-v376{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 10px}
 .product-stock-modify-grid-v376 .product-stock-metric-v256{min-width:0;width:100%;margin:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center}
@@ -6543,6 +6543,6 @@ body.system-media-preview-open-v305{overflow:hidden}
 .promotion-restore-initial-v376{margin-left:auto;flex:0 0 auto;padding:10px 16px;font-size:15px;font-weight:700;min-height:40px;border-radius:10px}
 @media(max-width:640px){.promotion-settings-v183>summary{flex-wrap:wrap}.promotion-restore-initial-v376{order:2;margin-left:0}.promotion-toggle-hint-v192{margin-left:auto}.product-stock-modify-grid-v376{gap:7px}}
 
-/* V37.7 Mobile Promotion is read-only; desktop remains full control. */
+/* V37.9 Mobile Promotion is read-only; desktop remains full control. */
 .promotion-mobile-readonly-v377 input:disabled,.promotion-mobile-readonly-v377 select:disabled{opacity:.72;cursor:not-allowed}
 .promotion-mobile-readonly-v377 .promotion-price-edit-v193{pointer-events:none}
