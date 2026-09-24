@@ -102,23 +102,28 @@ function cleanupLegacySettingsResidueV323() {
 document.addEventListener("DOMContentLoaded", () => {
   clearTransientSearchInputsOnReloadV304();
   setupAccessLock();
-  // V37.2: clean any stale PZ+BS duplicate cache before Dashboard/Inventory first paint.
+  // V36.7: clean any stale PZ+BS duplicate cache before Dashboard/Inventory first paint.
   if (typeof repairLocalBsCanonicalCacheV365 === "function") repairLocalBsCanonicalCacheV365();
   cleanupLegacySettingsResidueV323();
   repairLegacyImportDates();
   setupNavigation();
   setupSettings();
   setupInventoryMasterV299();
+  setupOnlineStoreV10();
   const requestedPageV210 = String(new URLSearchParams(window.location.search).get("page") || "").trim().toLowerCase();
   const deepLinkPageMapV210 = {
     home: "dashboardPage",
     dashboard: "dashboardPage",
     import: "importPage",
     products: "importPage",
-    history: "historyPage",
+    history: "onlineStoreHistoryPageV14",
     settings: "settingsPage",
     supplier: "supplierPage",
-    suppliers: "supplierPage"
+    suppliers: "supplierPage",
+    "online-store": "onlineStorePage",
+    online: "onlineStorePage",
+    preview: "storePreviewPage",
+    "store-preview": "storePreviewPage"
   };
   const requestedTargetV210 = deepLinkPageMapV210[requestedPageV210];
   if (requestedTargetV210) {
@@ -210,7 +215,7 @@ function persistInventorySalesAnalyticsV343(value){try{const revision=getInvento
 function hasUsableInventorySalesAnalyticsV343(){return Boolean(inventorySalesAnalyticsCacheV146?.value)||hydrateInventorySalesAnalyticsV343()}
 function hasCurrentFullInventorySalesAnalyticsV360(){if(!hasUsableInventorySalesAnalyticsV343())return false;const revision=getInventoryAnalyticsCloudRevisionV360();return Boolean(inventorySalesAnalyticsFullCachedV360&&revision>0&&inventorySalesAnalyticsFullRevisionV360===revision)}
 function invalidateInventorySalesAnalyticsAfterFullLoadV360(){inventorySalesAnalyticsCacheV146={signature:"",value:null};inventoryPreparedRowsCacheV321={rawProducts:null,settings:null,imports:null,batches:null,sales:null,rows:[]};}
-function refreshProfitAnalyticsInBackgroundV360(rerender,label="profit analytics"){if(!navigator.onLine||historyAllSalesLinksLoadedV136||historyAllSalesLinksLoadingV136)return;Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(()=>{invalidateInventorySalesAnalyticsAfterFullLoadV360();try{getInventorySalesAnalyticsV146()}catch(_){};try{rerender?.()}catch(error){console.warn(`V37.2 ${label} rerender failed`,error)}}).catch(error=>console.warn(`V37.2 ${label} background refresh failed`,error))}
+function refreshProfitAnalyticsInBackgroundV360(rerender,label="profit analytics"){if(!navigator.onLine||historyAllSalesLinksLoadedV136||historyAllSalesLinksLoadingV136)return;Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(()=>{invalidateInventorySalesAnalyticsAfterFullLoadV360();try{getInventorySalesAnalyticsV146()}catch(_){};try{rerender?.()}catch(error){console.warn(`V36.7 ${label} rerender failed`,error)}}).catch(error=>console.warn(`V36.7 ${label} background refresh failed`,error))}
 const HISTORY_SALES_CACHE_KEY_V179 = "lover_import_history_sales_financial_v179";
 let historySalesCacheHydratedV179 = false;
 let historySalesCacheHasDataV179 = false;
@@ -2330,6 +2335,29 @@ function setupAccessLock() {
   updatePasswordHintDisplays();
   updateDeviceBiometricStatus();
 
+  // LLA Online Store V1.0: a new GitHub Pages origin has empty localStorage.
+  // Before accepting a password, hydrate ONLY the cloud password hash/hint.
+  // Existing trusted devices stay Local-First and incur no extra request.
+  let accessSettingsReadyPromiseV10 = Promise.resolve({ ok:true, source:"local" });
+  const localAccessSettingsV10 = loadJSON("importSystemSettings", {});
+  if (!String(localAccessSettingsV10?.accessPasswordHash || "").trim() &&
+      typeof window.ensureAccessPasswordSettingsFromCloudV10 === "function") {
+    status.textContent = navigator.onLine ? "正在读取系统密码设置..." : "首次进入需要网络读取系统密码设置";
+    accessSettingsReadyPromiseV10 = window.ensureAccessPasswordSettingsFromCloudV10()
+      .then(result => {
+        updatePasswordHintDisplays();
+        if (status.textContent.includes("读取系统密码")) status.textContent = "";
+        return result;
+      })
+      .catch(error => {
+        console.error("Access password bootstrap failed:", error);
+        status.textContent = navigator.onLine
+          ? "无法读取系统密码设置，请检查网络后再试"
+          : "首次进入需要网络读取系统密码设置";
+        return { ok:false, error };
+      });
+  }
+
   // V34.3 desktop: if a saved password is still valid, verify locally and enter
   // immediately. No network request and no password/logo flash. Invalid saved
   // passwords are cleared and the normal password card is shown.
@@ -2437,6 +2465,12 @@ function setupAccessLock() {
 
     if (!password) {
       status.textContent = "请输入密码";
+      return;
+    }
+
+    const accessReadyV10 = await accessSettingsReadyPromiseV10;
+    if (!accessReadyV10?.ok && !String(loadJSON("importSystemSettings", {})?.accessPasswordHash || "").trim()) {
+      status.textContent = "尚未取得云端密码设置，请检查网络后再试";
       return;
     }
 
@@ -2788,6 +2822,14 @@ function setupNavigation() {
       if (target === "dashboardPage") {
         renderInventoryManagementList();
         renderDashboard();
+      }
+
+      if (target === "onlineStorePage") {
+        renderOnlineStoreProductListV10();
+        if (onlineStoreSelectedProductIdV10 && !getOnlineStoreProductV10(onlineStoreSelectedProductIdV10)) {
+          onlineStoreSelectedProductIdV10 = "";
+          const editor=document.getElementById("onlineStoreEditorV10"); if(editor)editor.hidden=true;
+        }
       }
 
       if (target === "settingsPage") {
@@ -3219,31 +3261,20 @@ function startCostRepairSessionTimerV206() {
   }, 1000);
 }
 
-function isCostOrInventoryRevisionV368(entry) {
-  const label = String(entry?.fieldLabel || "").trim();
-  if (!label) return false;
-  return /^(原成本|平均成本|当前库存|海外到大马运费)/.test(label);
-}
-
 function getCostRevisionHistory() {
   const settings = loadJSON("importSystemSettings", {});
-  const rows = Array.isArray(settings.costRevisionHistory)
+  return Array.isArray(settings.costRevisionHistory)
     ? settings.costRevisionHistory
     : [];
-  // V37.2: this panel is strictly for changes that affect cost, stock quantity,
-  // or inventory value. Legacy price/name/ID audit rows remain untouched in the
-  // stored backup but are no longer shown here.
-  return rows.filter(isCostOrInventoryRevisionV368);
 }
 
 function appendCostRevisionHistory(entries = []) {
-  const accepted = Array.isArray(entries) ? entries.filter(isCostOrInventoryRevisionV368) : [];
-  if (!accepted.length) return;
+  if (!Array.isArray(entries) || !entries.length) return;
   const settings = loadJSON("importSystemSettings", {});
   const current = Array.isArray(settings.costRevisionHistory)
     ? settings.costRevisionHistory
     : [];
-  const next = [...accepted, ...current].slice(0, 2000);
+  const next = [...entries, ...current].slice(0, 2000);
   saveJSON("importSystemSettings", {
     ...settings,
     costRevisionHistory: next
@@ -3251,28 +3282,6 @@ function appendCostRevisionHistory(entries = []) {
   if (typeof markCloudSettingsSaved === "function") {
     markCloudSettingsSaved();
   }
-}
-
-function formatCostRevisionTimestampV368(value) {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-  let match = raw.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})(?:[ T,]+)(\d{1,2}):(\d{2})(?::(\d{2}))?/);
-  if (match) {
-    const [, y, m, d, hh, mm, ss="00"] = match;
-    return `${String(d).padStart(2,"0")}-${String(m).padStart(2,"0")}-${y} ${String(hh).padStart(2,"0")}:${mm}:${ss}`;
-  }
-  match = raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})(?:[ T,]+)(\d{1,2}):(\d{2})(?::(\d{2}))?/);
-  if (match) {
-    const [, d, m, y, hh, mm, ss="00"] = match;
-    return `${String(d).padStart(2,"0")}-${String(m).padStart(2,"0")}-${y} ${String(hh).padStart(2,"0")}:${mm}:${ss}`;
-  }
-  const date = new Date(raw);
-  if (!Number.isNaN(date.getTime())) {
-    const d=String(date.getDate()).padStart(2,"0"), m=String(date.getMonth()+1).padStart(2,"0"), y=date.getFullYear();
-    const hh=String(date.getHours()).padStart(2,"0"), mm=String(date.getMinutes()).padStart(2,"0"), ss=String(date.getSeconds()).padStart(2,"0");
-    return `${d}-${m}-${y} ${hh}:${mm}:${ss}`;
-  }
-  return raw;
 }
 
 function clearCostRevisionHistoryV222() {
@@ -3439,7 +3448,7 @@ async function ensureAverageCostAuditHistoryV359(force = false) {
       saveAverageCostAuditCacheV359(entries, Date.now());
       return entries;
     })
-    .catch(error => { console.warn("V37.2 average-cost audit history load failed", error); return cache.entries; })
+    .catch(error => { console.warn("V36.7 average-cost audit history load failed", error); return cache.entries; })
     .finally(() => { averageCostAuditLoadPromiseV359 = null; });
   return averageCostAuditLoadPromiseV359;
 }
@@ -3532,7 +3541,7 @@ function renderCostRevisionHistory() {
         <span>修改后：${escapeHTML(String(entry.after ?? ""))}</span>
       </div>
       ${entry.reason ? `<div class="cost-revision-reason-v358"><strong>原因 / 备注：</strong>${escapeHTML(String(entry.reason))}</div>` : ""}
-      <small>${escapeHTML(formatCostRevisionTimestampV368(entry.timestamp || ""))}</small>
+      <small>${escapeHTML(entry.timestamp || "")}</small>
     </div>
   `).join("");
 }
@@ -3659,7 +3668,7 @@ function renderSystemInformationV203() {
   const stock = active.reduce((sum, item) => sum + (Number(item?.stock) || 0), 0);
   const config = typeof getCloudConfig === "function" ? getCloudConfig() : {};
   const set = (id, text) => { const el=document.getElementById(id); if(el) el.textContent=text; };
-  set("systemInfoVersionV203", `正式版 ${APP_VERSION} Stable`);
+  set("systemInfoVersionV203", "V1.4");
   set("systemInfoApiVersionV203", systemHealthV203.apiOk === true ? `V${systemHealthV203.apiVersion || APP_VERSION}` : (systemHealthV203.apiOk === false ? "连接异常" : "尚未检查"));
   set("systemInfoGoogleSheetV203", systemHealthV203.apiOk === true ? "已连接 Google Web App" : (systemHealthV203.apiOk === false ? "连接异常" : "尚未检查"));
   set("systemInfoLastSyncV203", formatSystemDateTimeV203(config.lastSyncAt) || "尚未同步");
@@ -3763,7 +3772,7 @@ function getImportAnomaliesV201() {
   if (cloudLastErrorMessage) {
     issues.push({severity:"critical", type:"sync-error", title:"最近同步失败", detail:String(cloudLastErrorMessage), action:"请先检查网络和 Google Web App，再按重新检查。"});
   }
-  // V37.2: Sales feed is a read-only reminder channel. A mobile browser can transiently
+  // V36.7: Sales feed is a read-only reminder channel. A mobile browser can transiently
   // fail a JSONP request even while Import cloud sync is healthy. Do not keep the whole
   // Import System in a red "needs check" state merely because an old/processed Sales feed
   // snapshot exists. Only a currently known pending Sales inventory task can escalate the
@@ -4778,58 +4787,6 @@ async function refreshPromotionCloudStateV209(force = false) {
 }
 window.refreshPromotionCloudStateV209 = refreshPromotionCloudStateV209;
 
-// V37.2: when another device changes promotion settings, background revision
-// sync must refresh the entire Promotion Settings form, including the manual-price
-// participation flag. Preserve a truly edited local draft, but do not let a stale
-// pre-sync snapshot masquerade as an unsaved draft and block the cloud state.
-let promotionDraftBaselineV370 = null;
-function promotionDraftComparableV370(value) {
-  const v = value || {};
-  return JSON.stringify({
-    name: String(v.name || ""),
-    commissionRate: Number(v.commissionRate),
-    targetMarginRate: Number(v.targetMarginRate),
-    excludedProductIds: [...(v.excludedProductIds || [])].map(String).sort(),
-    priceOverrides: Object.fromEntries(Object.entries(v.priceOverrides || {}).sort(([a],[b]) => a.localeCompare(b))),
-    includeManualPriceProducts: v.includeManualPriceProducts === true,
-    originalPromotionName: String(v.originalPromotionName || "")
-  });
-}
-function capturePromotionDraftBaselineV370() {
-  try { promotionDraftBaselineV370 = promotionDraftComparableV370(getPromotionDraftV183()); }
-  catch (_) { promotionDraftBaselineV370 = null; }
-}
-function hasRealLocalPromotionDraftV370() {
-  if (!promotionDraftTouchedV209) return false;
-  if (!promotionDraftBaselineV370) return true;
-  try { return promotionDraftComparableV370(getPromotionDraftV183()) !== promotionDraftBaselineV370; }
-  catch (_) { return true; }
-}
-function refreshPromotionSettingsAfterCloudSyncV370() {
-  try {
-    if (hasRealLocalPromotionDraftV370()) {
-      // A user is genuinely editing this device. Keep the draft, but still repaint
-      // authoritative summary/status outside the form through the normal render path.
-      refreshPromotionUiV183();
-      return;
-    }
-    // No genuine local edit: discard stale draft state and bind every control to the
-    // latest cloud promotionV183, especially includeManualPriceProducts.
-    promotionDraftTouchedV209 = false;
-    resetPromotionDraftV183();
-    refreshPromotionUiV183();
-    renderPromotionExcludedListV183();
-    renderPromotionPriceListV183();
-    updatePromotionDraftStatusV186();
-    capturePromotionDraftBaselineV370();
-  } catch (error) {
-    console.warn("V37.2 promotion settings cloud repaint skipped", error);
-  }
-}
-window.refreshPromotionSettingsAfterCloudSyncV370 = refreshPromotionSettingsAfterCloudSyncV370;
-// Backward name kept so any already-bound V36.9 callback still resolves during hot upgrade.
-window.refreshPromotionSettingsAfterCloudSyncV369 = refreshPromotionSettingsAfterCloudSyncV370;
-
 function getPromotionMarginBadgeV209(product, profitInfo = null) {
   const promotion = getPromotionSettingsV183();
   const id = String(product?.id || "").trim().toUpperCase();
@@ -4861,11 +4818,7 @@ function refreshPromotionUiV183() {
     manualToggleV361.textContent = promotionIncludeManualDraftV361 ? "精品退出促销" : "精品加入促销";
     manualToggleV361.classList.toggle("is-open-v361", promotionIncludeManualDraftV361);
   }
-  if (manualStatusV361) {
-    manualStatusV361.textContent = promotionIncludeManualDraftV361 ? "参与促销中" : "售价控制中";
-    manualStatusV361.classList.toggle("is-participating-v368", promotionIncludeManualDraftV361);
-    manualStatusV361.classList.remove("is-pending-v368");
-  }
+  if (manualStatusV361) manualStatusV361.textContent = promotionIncludeManualDraftV361 ? "精品参与促销" : "精品保护中";
   const currentNameInputV361 = document.getElementById("promotionNameV183");
   if (currentNameInputV361) {
     currentNameInputV361.disabled = promotionIncludeManualDraftV361;
@@ -4931,12 +4884,7 @@ function setupPromotionSettingsV183() {
   const promotionDetails = nameInput.closest("details");
   const toggleHint = document.getElementById("promotionToggleHintV192");
   const refreshToggleHintV192 = () => { if (toggleHint && promotionDetails) toggleHint.textContent = promotionDetails.open ? "收起" : "点击打开"; };
-  promotionDetails?.addEventListener("toggle", () => {
-    refreshToggleHintV192();
-    if (promotionDetails.open && typeof window.pollPromotionStateLightV372 === "function") {
-      window.pollPromotionStateLightV372(true).catch(error => console.warn("V37.2 promotion open refresh skipped", error));
-    }
-  });
+  promotionDetails?.addEventListener("toggle", refreshToggleHintV192);
   refreshToggleHintV192();
   if (!nameInput || !saveButton) return;
 
@@ -4950,9 +4898,7 @@ function setupPromotionSettingsV183() {
       const pendingManualStateV362 = savedManualStateV362 !== promotionIncludeManualDraftV361;
       manualPricingStatusV361.textContent = pendingManualStateV362
         ? (promotionIncludeManualDraftV361 ? "精品将加入促销（待确认）" : "精品将退出促销（待确认）")
-        : (promotionIncludeManualDraftV361 ? "参与促销中" : "售价控制中");
-      manualPricingStatusV361.classList.toggle("is-participating-v368", !pendingManualStateV362 && promotionIncludeManualDraftV361);
-      manualPricingStatusV361.classList.toggle("is-pending-v368", pendingManualStateV362);
+        : (promotionIncludeManualDraftV361 ? "精品参与促销" : "精品保护中");
     }
     nameInput.disabled = promotionIncludeManualDraftV361;
     nameInput.title = promotionIncludeManualDraftV361 ? "精品已参与促销，促销名称固定为 Crazy Sales" : "";
@@ -5008,7 +4954,6 @@ function setupPromotionSettingsV183() {
   }
   renderPromotionExcludedListV183();
   refreshPromotionUiV183();
-  capturePromotionDraftBaselineV370();
   [nameInput, commissionInput, marginInput].forEach(input => input?.addEventListener("input", () => {
     promotionDraftTouchedV209 = true;
     renderPromotionExcludeSearchV183();
@@ -5022,7 +4967,7 @@ function setupPromotionSettingsV183() {
     if (mode === "profit-desc" && !historyAllSalesLinksLoadedV136 && !hasCachedSalesV360 && navigator.onLine) {
       if (searchResults) searchResults.innerHTML = '<div class="promotion-empty-v183">正在读取完整销售利润…</div>';
       Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(() => { invalidateInventorySalesAnalyticsAfterFullLoadV360(); renderPromotionExcludeSearchV183(); })
-        .catch(error => { console.warn("V37.2 promotion profit analytics load failed", error); renderPromotionExcludeSearchV183(); });
+        .catch(error => { console.warn("V36.7 promotion profit analytics load failed", error); renderPromotionExcludeSearchV183(); });
       return;
     }
     renderPromotionExcludeSearchV183();
@@ -5162,10 +5107,9 @@ function setupPromotionSettingsV183() {
     if (!Number.isFinite(promotion.commissionRate) || promotion.commissionRate < 0 || promotion.commissionRate >= 100) {
       if (status) status.textContent = "主播佣金必须是0至99.99之间"; return;
     }
-    const maxPromotionMarginV372 = Math.floor((100 - promotion.commissionRate - 0.1) * 10 + 1e-9) / 10;
-    if (!Number.isFinite(promotion.targetMarginRate) || promotion.targetMarginRate < -99.9 || promotion.targetMarginRate > maxPromotionMarginV372) {
-      if (status) status.textContent = `当前主播佣金 ${promotion.commissionRate}%，目标净利率允许范围为 -99.9% ～ +${maxPromotionMarginV372.toFixed(1)}%`;
-      return;
+    if (!Number.isFinite(promotion.targetMarginRate) || promotion.targetMarginRate <= -100 || promotion.targetMarginRate >= 100 ||
+        1 - promotion.commissionRate / 100 - promotion.targetMarginRate / 100 <= 0) {
+      if (status) status.textContent = "目标净利率或佣金组合无效"; return;
     }
     const products = getProducts();
     const rules = getMinimumPriceRulesV160();
@@ -5199,7 +5143,6 @@ function setupPromotionSettingsV183() {
       saveJSON("importSystemSettings", { ...settings, promotionV183:payload });
       promotionDraftTouchedV209 = false;
       resetPromotionDraftV183();
-      capturePromotionDraftBaselineV370();
       saved = true;
       if (status) { status.textContent = ""; status.classList.remove("promotion-status-active-v193"); }
     } catch (error) {
@@ -5211,16 +5154,9 @@ function setupPromotionSettingsV183() {
       try { if (typeof setCloudState === "function" && navigator.onLine) setCloudState("synced"); } catch (_) {}
     }
     if (saved) {
-      // V37.2 mobile speed: finish the promotion controls first. Heavy list/card
-      // repaints are deferred so a successful Settings-only save does not feel
-      // blocked by rebuilding every hidden page before the button becomes usable.
-      try { refreshPromotionUiV183(); } catch (error) { console.warn("V37.2 promotion post-save UI skipped", error); }
-      try { if (pricePanel && !pricePanel.hidden) renderPromotionPriceListV183(); } catch (error) { console.warn("V37.2 promotion price repaint skipped", error); }
+      [refreshPromotionUiV183, renderPromotionPriceListV183, renderDashboard, renderInventoryManagementList, renderProductList]
+        .forEach(render => { try { render(); } catch (error) { console.warn("V19.8 post-save refresh skipped:", error); } });
       updatePromotionDraftStatusV186();
-      window.requestAnimationFrame(() => {
-        [renderDashboard, renderInventoryManagementList].forEach(render => { try { render(); } catch (error) { console.warn("V37.2 deferred promotion refresh skipped", error); } });
-        window.setTimeout(() => { try { renderProductList(); } catch (error) { console.warn("V37.2 deferred product refresh skipped", error); } }, 0);
-      });
     }
   });
   deleteButton?.addEventListener("click", async () => {
@@ -5252,7 +5188,6 @@ function setupPromotionSettingsV183() {
       promotionExcludedSelectionV184 = new Set();
       promotionDraftTouchedV209 = false;
       resetPromotionDraftV183();
-      capturePromotionDraftBaselineV370();
       clearPromotionSearchStateV212();
       if (priceSearch) priceSearch.value = "";
       const priceSort = document.getElementById("promotionPriceListSortV185");
@@ -5262,13 +5197,9 @@ function setupPromotionSettingsV183() {
       const priceList = document.getElementById("promotionPriceListV183");
       if (priceList) priceList.innerHTML = "";
       if (toggleButton) toggleButton.textContent = "查看全部促销价格";
-      try { renderPromotionExcludedListV183(); } catch (error) { console.warn("V37.2 promotion exclusion clear repaint skipped", error); }
-      try { refreshPromotionUiV183(); } catch (error) { console.warn("V37.2 promotion post-delete UI skipped", error); }
+      [renderPromotionExcludedListV183, refreshPromotionUiV183, renderDashboard, renderInventoryManagementList, renderProductList]
+        .forEach(render => { try { render(); } catch (error) { console.warn("V19.8 post-delete refresh skipped:", error); } });
       if (status) status.textContent = "促销管理已关闭并恢复默认最低售价";
-      window.requestAnimationFrame(() => {
-        [renderDashboard, renderInventoryManagementList].forEach(render => { try { render(); } catch (error) { console.warn("V37.2 deferred promotion delete refresh skipped", error); } });
-        window.setTimeout(() => { try { renderProductList(); } catch (error) { console.warn("V37.2 deferred product delete refresh skipped", error); } }, 0);
-      });
     }
 
     promotionDeleteInProgressV184 = false;
@@ -5290,7 +5221,7 @@ function setupPromotionSettingsV183() {
       const priceList = document.getElementById("promotionPriceListV183");
       if (priceList) priceList.innerHTML = '<div class="promotion-empty-v183">正在读取完整销售利润…</div>';
       Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(() => { invalidateInventorySalesAnalyticsAfterFullLoadV360(); if (String(priceSortV195?.value || "") === mode) renderPromotionPriceListV183(); })
-        .catch(error => { console.warn("V37.2 promotion price profit analytics load failed", error); renderPromotionPriceListV183(); });
+        .catch(error => { console.warn("V36.7 promotion price profit analytics load failed", error); renderPromotionPriceListV183(); });
       return;
     }
     renderPromotionPriceListV183();
@@ -16181,7 +16112,7 @@ async function editProductMinimumPrice(productId) {
   minimumPriceOverrides[id] = nextMinimumPriceManual;
   saveMinimumPriceManualOverridesV160(minimumPriceOverrides);
 
-  // V37.2 Local-First: first paint the exact new state immediately. This is especially
+  // V36.7 Local-First: first paint the exact new state immediately. This is especially
   // important when entering 0 to leave sale-control; the user must see the automatic
   // price/color at once instead of waiting for a full result-list rebuild.
   saveJSON("importSystemProducts", products);
@@ -16198,6 +16129,14 @@ async function editProductMinimumPrice(productId) {
 
   try {
     await updateProductMinimumPriceFast(id, nextMinimumPrice, updatedAt, nextMinimumPriceManual);
+    appendCostRevisionHistory([{
+      id: `DATAREV${Date.now()}${Math.random().toString(36).slice(2, 7)}`,
+      timestamp: new Date().toLocaleString("zh-MY", { hour12: false }),
+      importNumber: product.id || "-",
+      fieldLabel: `最低售价 · ${product.name || "未命名产品"}`,
+      before: formatMoney(currentMinimumPrice, "RM "),
+      after: formatMoney(nextMinimumPrice, "RM ")
+    }]);
     renderCostRevisionHistory();
     if (status) status.textContent = `已更新：${product.name} 最低售价 ${formatMoney(nextMinimumPrice, "RM ")}`;
   } catch (error) {
@@ -18609,7 +18548,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "37.2",
+      version: "36.7",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -19285,3 +19224,428 @@ function setupInventoryMasterV299(){
   exp?.addEventListener("click",exportInventoryMasterExcelV261);
 }
 
+
+// ================= Lover Legend Online Store V1.4 =================
+const ONLINE_STORE_SETTINGS_KEY_V10 = "onlineStoreV10";
+const ONLINE_STORE_VERSION_V12 = "1.4";
+const ONLINE_STORE_UI_SETTINGS_KEY_V12 = "onlineStoreUiSettingsV12";
+function parseOnlineNumberV12(value){const n=Number(String(value??"").replace(/,/g,"").trim());return Number.isFinite(n)?n:0;}
+function formatOnlineMoneyInputV12(value){const n=Number(value)||0;return n.toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});}
+async function copyOnlineTextV12(value,button){const text=String(value||"").trim();if(!text)return;let ok=false;try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(text);ok=true;}}catch(_){}if(!ok){const ta=document.createElement("textarea");ta.value=text;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();try{ok=document.execCommand("copy");}catch(_){}ta.remove();}if(ok&&button){const old=button.textContent;button.textContent="已复制";setTimeout(()=>{if(button.isConnected)button.textContent=old;},900);}}
+function getOnlineStoreUiSettingsV12(){const st=loadJSON("importSystemSettings",{});const v=st?.[ONLINE_STORE_UI_SETTINGS_KEY_V12]||{};return {brandName:String(v.brandName||"Lover Legend Gardening"),systemNameZh:String(v.systemNameZh||"线上商店管理系统"),systemNameEn:String(v.systemNameEn||"Online Store Management Admin"),browserTitle:String(v.browserTitle||"线上商店管理系统 | Online Store Management Admin"),logoLeft:String(v.logoLeft||""),logoRight:String(v.logoRight||""),pricing:{targetMargin:Number(v.pricing?.targetMargin??30),discountRate:Number(v.pricing?.discountRate??10),affiliateRate:Number(v.pricing?.affiliateRate??10),gatewayFee:Number(v.pricing?.gatewayFee??2),packagingCost:Number(v.pricing?.packagingCost??20)}};}
+function saveOnlineStoreUiSettingsV12(v){const st=loadJSON("importSystemSettings",{});saveJSON("importSystemSettings",{...st,[ONLINE_STORE_UI_SETTINGS_KEY_V12]:v});if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved();}
+function applyOnlineStoreBrandingV12(v=getOnlineStoreUiSettingsV12()){const main=document.querySelector(".app-header-main-title"),sub=document.querySelector(".app-header-subtitle"),brand=document.querySelector(".app-header-brand"),left=document.querySelector(".app-header-logo-green"),right=document.querySelector(".app-header-logo-red");if(main)main.textContent=v.systemNameZh;if(sub)sub.textContent=v.systemNameEn;if(brand)brand.textContent=v.brandName;if(v.browserTitle)document.title=v.browserTitle;if(left)left.src=v.logoLeft||"./assets/images/logo-green.jpg";if(right)right.src=v.logoRight||"./assets/images/logo-red.jpg";}
+
+let onlineStoreSelectedProductIdV10 = "";
+
+function getOnlineStoreStateV10(){
+  const settings=loadJSON("importSystemSettings",{});
+  const raw=settings?.[ONLINE_STORE_SETTINGS_KEY_V10];
+  const state=raw&&typeof raw==="object"&&!Array.isArray(raw)?raw:{};
+  return {version:"1.4",products:state.products&&typeof state.products==="object"&&!Array.isArray(state.products)?state.products:{}};
+}
+function saveOnlineStoreStateV10(state){
+  const settings=loadJSON("importSystemSettings",{});
+  saveJSON("importSystemSettings",{...settings,[ONLINE_STORE_SETTINGS_KEY_V10]:{version:"1.4",products:state.products||{}}});
+  if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved();
+}
+function getOnlineStoreConfigV10(productId){
+  const state=getOnlineStoreStateV10();
+  const id=String(productId||"").trim().toUpperCase();
+  const raw=state.products[id];
+  return normalizeOnlineStoreConfigV10(id,raw);
+}
+function normalizeOnlineStoreConfigV10(productId,raw){
+  const v=raw&&typeof raw==="object"?raw:{};
+  const items=Array.isArray(v.uniqueItems)?v.uniqueItems:[];
+  return {
+    productId:String(productId||v.productId||"").trim().toUpperCase(),
+    randomQty:Math.max(0,Math.floor(Number(v.randomQty)||0)),
+    regularPrice:Math.max(0,Number(v.regularPrice)||0),
+    promotionPrice:Math.max(0,Number(v.promotionPrice)||0),
+    randomPublished:v.randomPublished===true,
+    randomPhotos:Array.isArray(v.randomPhotos)?v.randomPhotos.map(x=>String(x||"").trim()).filter(Boolean).slice(0,5):[],
+    randomVideo:String(v.randomVideo||"").trim(),
+    shippingCost:Math.max(0,Number(v.shippingCost)||0),
+    potCostOverride:v.potCostOverride==null||v.potCostOverride===""?null:Math.max(0,Number(v.potCostOverride)||0),
+    uniqueItems:items.map((item,index)=>({
+      id:String(item?.id||`${productId}-${index+1}`).trim().toUpperCase(),
+      tier:({selected:"entry",premium:"premium",vip:"collector",entry:"entry",collector:"collector"}[String(item?.tier||"")]||"entry"),
+      regularPrice:Math.max(0,Number(item?.regularPrice)||0),
+      promotionPrice:Math.max(0,Number(item?.promotionPrice)||0),
+      photo:String(item?.photo||"").trim(),
+      video:String(item?.video||"").trim(),
+      accessZone:String(item?.accessZone||"standard")==="vip"?"vip":"standard",
+      published:item?.published===true,
+      status:String(item?.status||"available")==="sold"?"sold":"available"
+    }))
+  };
+}
+function getOnlineStoreProductV10(productId){
+  const id=String(productId||"").trim().toUpperCase();
+  return getProducts().find(p=>String(p?.id||"").trim().toUpperCase()===id)||null;
+}
+function getOnlineStoreCountsV10(product,config){
+  const stock=Math.max(0,Math.floor(Number(product?.stock)||0));
+  const random=Math.max(0,Math.floor(Number(config?.randomQty)||0));
+  const unique=(Array.isArray(config?.uniqueItems)?config.uniqueItems:[]).filter(x=>String(x?.status||"available")!=="sold").length;
+  return {stock,random,unique,unallocated:stock-random-unique};
+}
+function onlineStoreIsConfiguredV10(config){
+  return Boolean(config&&(config.randomQty>0||config.regularPrice>0||config.promotionPrice>0||config.randomPublished||config.randomPhotos?.length||config.randomVideo||config.uniqueItems?.length));
+}
+function renderOnlineStoreProductListV10(){
+  const host=document.getElementById("onlineStoreProductListV10");
+  if(!host)return;
+  const q=normalizeSearchTextV262(document.getElementById("onlineStoreSearchV10")?.value||"");
+  const filter=String(document.getElementById("onlineStoreFilterV10")?.value||"all");
+  const state=getOnlineStoreStateV10();
+  const products=getProducts().filter(p=>!p?.inventoryArchived);
+  const rows=products.filter(p=>{
+    const id=String(p?.id||"").trim().toUpperCase();
+    const config=normalizeOnlineStoreConfigV10(id,state.products[id]);
+    const configured=onlineStoreIsConfiguredV10(config);
+    const published=Boolean(config.randomPublished||config.uniqueItems.some(x=>x.published&&x.status!=="sold"));
+    if(filter==="configured"&&!configured)return false;
+    if(filter==="published"&&!published)return false;
+    if(filter==="unpublished"&&published)return false;
+    if(q&&!normalizeSearchTextV262(productSearchTextV262(p)).includes(q))return false;
+    return true;
+  }).sort((a,b)=>String(a.id||"").localeCompare(String(b.id||""),undefined,{numeric:true}));
+  host.innerHTML=rows.map(p=>{
+    const id=String(p.id||"").trim().toUpperCase();
+    const config=normalizeOnlineStoreConfigV10(id,state.products[id]);
+    const counts=getOnlineStoreCountsV10(p,config);
+    const configured=onlineStoreIsConfiguredV10(config);
+    const englishName=productEnglishNameV262(p);
+    return `<article class="online-store-product-card-v10 ${configured?"online-store-configured-v10":""}" data-online-product-v10="${escapeHTML(id)}">
+      <div class="online-store-product-main-v10">
+        <div class="online-store-product-title-v12">
+          <button type="button" class="copy-text-btn-v12 online-store-product-id-v10" data-online-copy-v12="${escapeHTML(id)}" title="点击复制产品编号">${escapeHTML(id)}</button>
+          <button type="button" class="copy-text-btn-v12 online-store-product-name-v10" data-online-copy-v12="${escapeHTML(p.name||"")}" title="点击复制产品名称">${escapeHTML(p.name||"")}</button>
+        </div>
+        ${englishName?`<button type="button" class="copy-text-btn-v12 online-store-product-english-v12" data-online-copy-v12="${escapeHTML(englishName)}" title="点击复制英文名">${escapeHTML(englishName)}</button>`:""}
+        <div class="online-store-product-meta-v10 online-store-inventory-meta-v12">
+          <span><i>当前库存</i><strong>${formatNumber(counts.stock)}</strong></span>
+          <span><i>平均成本</i><strong>${formatMoney(Number(p.averageCost)||0,"RM ")}</strong></span>
+          <span><i>Online 最低售价</i><strong class="online-min-price-v13">${formatMoney(Number(p.onlineMinimumPrice)||0,"RM ")}</strong></span>
+          <span><i>随机发货</i><strong>${formatNumber(counts.random)}</strong></span>
+          <span><i>一物一拍</i><strong>${formatNumber(counts.unique)}</strong></span>
+          <span><i>未分配</i><strong>${formatNumber(Math.max(0,counts.unallocated))}</strong></span>
+        </div>
+      </div>
+      <button type="button" class="secondary-btn online-store-manage-btn-v12" data-online-manage-v10="${escapeHTML(id)}">${configured?"管理 · 已设置":"管理"}</button>
+    </article>`;
+  }).join("")||'<div class="empty-state">暂无符合产品</div>';
+}
+function setOnlineStoreEditorValuesV10(productId){
+  const product=getOnlineStoreProductV10(productId); if(!product)return;
+  onlineStoreSelectedProductIdV10=String(product.id||"").trim().toUpperCase();
+  const config=getOnlineStoreConfigV10(onlineStoreSelectedProductIdV10);
+  const editor=document.getElementById("onlineStoreEditorV10"); if(editor)editor.hidden=false;
+  const setText=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value};
+  setText("onlineStoreMasterIdV10",onlineStoreSelectedProductIdV10);
+  setText("onlineStoreMasterNameV10",String(product.name||""));
+  const englishNameV12=productEnglishNameV262(product);
+  const englishElV12=document.getElementById("onlineStoreMasterEnglishV12");
+  if(englishElV12){englishElV12.textContent=englishNameV12||"";englishElV12.hidden=!englishNameV12;}
+  const setVal=(id,value)=>{const el=document.getElementById(id);if(el)el.value=value};
+  setVal("onlineStoreAverageCostV11",formatMoney(Number(product.averageCost)||0,"RM "));
+  setVal("onlineStoreMinimumPriceV11",formatOnlineMoneyInputV12(Number(product.onlineMinimumPrice)||0));
+  setVal("onlineStoreRandomQtyV10",config.randomQty?String(config.randomQty):"");
+  setVal("onlineStoreRegularPriceV10",config.regularPrice?formatOnlineMoneyInputV12(config.regularPrice):"");
+  setVal("onlineStorePromotionPriceV10",config.promotionPrice?formatOnlineMoneyInputV12(config.promotionPrice):"");
+  setVal("onlineStoreRandomVideoV10",config.randomVideo||"");
+  setVal("onlineStoreRandomPhotosV10",config.randomPhotos.join("\n"));
+  setVal("onlineStoreShippingCostV14",formatOnlineMoneyInputV12(config.shippingCost||0));
+  const autoPotV14=getOnlineStoreAutomaticPotCostV14(product);
+  setVal("onlineStorePotCostV14",formatOnlineMoneyInputV12(config.potCostOverride==null?autoPotV14:config.potCostOverride));
+  const pub=document.getElementById("onlineStoreRandomPublishedV10");if(pub)pub.checked=config.randomPublished;
+  renderOnlineStorePhotoListV14();
+  renderOnlineStoreUniqueItemsV10(config.uniqueItems);
+  updateOnlineStoreAllocationSummaryV10();
+  updateOnlineStoreProfitDisplaysV13();
+  const status=document.getElementById("onlineStoreSaveStatusV10");if(status)status.textContent="";
+  editor?.scrollIntoView({behavior:"smooth",block:"start"});
+}
+function collectOnlineStoreUniqueItemsV10(){
+  const cards=[...document.querySelectorAll("#onlineStoreUniqueListV10 .online-store-unique-card-v10,#onlineStorePremiumListV14 .online-store-unique-card-v10,#onlineStoreCollectorListV14 .online-store-unique-card-v10")];
+  return cards.map(card=>({
+    id:String(card.dataset.itemIdV10||"").trim().toUpperCase(),
+    tier:String(card.querySelector('[data-online-field-v10="tier"]')?.value||"selected"),
+    regularPrice:Math.max(0,parseOnlineNumberV12(card.querySelector('[data-online-field-v10="regularPrice"]')?.value)),
+    promotionPrice:Math.max(0,parseOnlineNumberV12(card.querySelector('[data-online-field-v10="promotionPrice"]')?.value)),
+    photo:String(card.querySelector('[data-online-field-v10="photo"]')?.value||"").trim(),
+    video:String(card.querySelector('[data-online-field-v10="video"]')?.value||"").trim(),
+    accessZone:String(card.querySelector('[data-online-field-v10="accessZone"]')?.value||"standard"),
+    published:Boolean(card.querySelector('[data-online-field-v10="published"]')?.checked),
+    status:String(card.querySelector('[data-online-field-v10="status"]')?.value||"available")
+  }));
+}
+function renderOnlineStoreUniqueItemsV10(items){
+  const entryHost=document.getElementById("onlineStoreUniqueListV10");
+  const premiumHost=document.getElementById("onlineStorePremiumListV14");
+  const collectorHost=document.getElementById("onlineStoreCollectorListV14");
+  if(!entryHost)return;
+  const list=Array.isArray(items)?items:[];
+  const product=getOnlineStoreProductV10(onlineStoreSelectedProductIdV10);
+  const productName=String(product?.name||"");
+  const englishName=productEnglishNameV262(product);
+  const renderCard=item=>{
+    const tierLabel={entry:"入门精选",premium:"高端精品",collector:"藏家级别"}[item.tier]||"入门精选";
+    return `<article class="online-store-unique-card-v10" data-item-id-v10="${escapeHTML(item.id)}" data-tier-v14="${escapeHTML(item.tier)}">
+    <div class="online-store-unique-head-v10">
+      <div class="online-store-unique-title-v12">
+        <div><button type="button" class="copy-text-btn-v12 online-store-unique-id-v10" data-online-copy-v12="${escapeHTML(onlineStoreSelectedProductIdV10)}" title="点击复制母产品编号 ${escapeHTML(onlineStoreSelectedProductIdV10)}">${escapeHTML(item.id)}</button><button type="button" class="copy-text-btn-v12 online-store-unique-product-name-v12" data-online-copy-v12="${escapeHTML(productName)}" title="点击复制产品名称">${escapeHTML(productName)}</button></div>
+        ${englishName?`<button type="button" class="copy-text-btn-v12 online-store-product-english-v12" data-online-copy-v12="${escapeHTML(englishName)}" title="点击复制英文名">${escapeHTML(englishName)}</button>`:""}
+      </div>
+      <button type="button" class="online-store-delete-v10" data-online-delete-v10="${escapeHTML(item.id)}">删除</button>
+    </div>
+    <div class="online-store-tier-badge-v14">${escapeHTML(tierLabel)}</div>
+    <input data-online-field-v10="tier" type="hidden" value="${escapeHTML(item.tier||"entry")}"/>
+    <div class="online-store-unique-grid-v10">
+      <label>顾客浏览区域<select data-online-field-v10="accessZone"><option value="standard" ${item.accessZone!=="vip"?"selected":""}>普通区域</option><option value="vip" ${item.accessZone==="vip"?"selected":""}>贵宾厅 / VIP Room</option></select><small class="field-hint-v12">VIP 是顾客浏览权限，不是树的等级。</small></label>
+      <label>状态<select data-online-field-v10="status"><option value="available" ${item.status!=="sold"?"selected":""}>Available</option><option value="sold" ${item.status==="sold"?"selected":""}>Sold</option></select><small class="field-hint-v12">售出后会从可分配数量中扣除。</small></label>
+      <label>Online Regular Price (RM)<input data-online-field-v10="regularPrice" type="text" inputmode="decimal" value="${item.regularPrice?formatOnlineMoneyInputV12(item.regularPrice):""}" placeholder="例如 3,800.00" /><small class="field-hint-v12">${item.tier==="entry"?"可按建议价后手动调整。":"最终售价由人工设置。"}</small></label>
+      <label>Promotion Price (RM)<input data-online-field-v10="promotionPrice" type="text" inputmode="decimal" value="${item.promotionPrice?formatOnlineMoneyInputV12(item.promotionPrice):""}" placeholder="例如 3,500.00" /><small class="field-hint-v12">没有促销可留空。</small></label>
+      <label>实物照片<div class="media-input-row-v14"><input data-online-field-v10="photo" type="url" value="${escapeHTML(item.photo||"")}" placeholder="粘贴 Photo URL" /><button class="secondary-btn media-mini-btn-v14" data-item-media-copy-v14="photo" type="button">复制</button><button class="danger-outline-btn media-mini-btn-v14" data-item-media-clear-v14="photo" type="button">删除</button></div><small class="field-hint-v12">一物一拍应使用这棵实物照片；可复制或删除。</small></label>
+      <label>实物视频<div class="media-input-row-v14"><input data-online-field-v10="video" type="url" value="${escapeHTML(item.video||"")}" placeholder="粘贴 Video URL" /><button class="secondary-btn media-mini-btn-v14" data-item-media-copy-v14="video" type="button">复制</button><button class="danger-outline-btn media-mini-btn-v14" data-item-media-clear-v14="video" type="button">删除</button></div><small class="field-hint-v12">可使用 YouTube Unlisted；可复制或删除。</small></label>
+    </div>
+    <div class="online-store-profit-grid-v13 unique-profit-grid-v13">
+      <div class="online-store-profit-card-v13"><span>正常售价利润</span><strong data-profit-v13="regular">RM 0.00</strong><small data-margin-v13="regular">利润率 0.00%</small></div>
+      <div class="online-store-profit-card-v13"><span>促销售价利润</span><strong data-profit-v13="promotion">—</strong><small data-margin-v13="promotion">没有促销价</small></div>
+    </div>
+    <div class="online-store-unique-checks-v10"><label><input data-online-field-v10="published" type="checkbox" ${item.published?"checked":""}/> 上架</label></div>
+  </article>`;
+  };
+  const groups={entry:list.filter(x=>x.tier==="entry"),premium:list.filter(x=>x.tier==="premium"),collector:list.filter(x=>x.tier==="collector")};
+  entryHost.innerHTML=groups.entry.map(renderCard).join("")||'<div class="empty-state">尚未建立入门精选的一物一拍 / 单株精选</div>';
+  if(premiumHost)premiumHost.innerHTML=groups.premium.map(renderCard).join("")||'<div class="empty-state">尚未建立高端精品</div>';
+  if(collectorHost)collectorHost.innerHTML=groups.collector.map(renderCard).join("")||'<div class="empty-state">尚未建立藏家级别</div>';
+  updateOnlineStoreProfitDisplaysV13();
+}
+function nextOnlineStoreItemIdV10(){
+  const base=onlineStoreSelectedProductIdV10; if(!base)return"";
+  const used=new Set(collectOnlineStoreUniqueItemsV10().map(x=>x.id));
+  let n=1;while(used.has(`${base}-${n}`))n+=1;return `${base}-${n}`;
+}
+function updateOnlineStoreAllocationSummaryV10(){
+  const product=getOnlineStoreProductV10(onlineStoreSelectedProductIdV10);if(!product)return;
+  const random=Math.max(0,Math.floor(parseOnlineNumberV12(document.getElementById("onlineStoreRandomQtyV10")?.value)));
+  const items=collectOnlineStoreUniqueItemsV10();
+  const config={randomQty:random,uniqueItems:items};
+  const c=getOnlineStoreCountsV10(product,config);
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=formatNumber(v)};
+  set("onlineStoreRealStockV10",c.stock);set("onlineStoreRandomAllocatedV10",c.random);set("onlineStoreUniqueAllocatedV10",c.unique);set("onlineStoreUnallocatedV10",Math.max(0,c.unallocated));
+  const warning=document.getElementById("onlineStoreAllocationWarningV10");
+  if(warning){warning.hidden=c.unallocated>=0;warning.textContent=c.unallocated<0?`分配超过真实库存 ${Math.abs(c.unallocated)} 棵。请减少随机发货或一物一拍 / 单株精选数量后再保存。`:"";}
+  return c;
+}
+function getOnlineStoreAutomaticPotCostV14(product){
+  try{return Math.max(0,Number(getVndPotCostV160(product,getMinimumPriceRulesV160(),getMinimumPriceOriginIndexV160()))||0);}catch(_){return 0;}
+}
+function getOnlineStoreLiveCostConfigV14(product){
+  const saved=getOnlineStoreConfigV10(String(product?.id||""));
+  const shippingEl=document.getElementById("onlineStoreShippingCostV14");
+  const potEl=document.getElementById("onlineStorePotCostV14");
+  const editorOpen=onlineStoreSelectedProductIdV10===String(product?.id||"").trim().toUpperCase();
+  const shipping=editorOpen&&shippingEl?Math.max(0,parseOnlineNumberV12(shippingEl.value)):Math.max(0,Number(saved.shippingCost)||0);
+  const autoPot=getOnlineStoreAutomaticPotCostV14(product);
+  const pot=editorOpen&&potEl?Math.max(0,parseOnlineNumberV12(potEl.value)):(saved.potCostOverride==null?autoPot:Math.max(0,Number(saved.potCostOverride)||0));
+  return {shipping,pot};
+}
+function calculateOnlineStoreProfitV13(price,product){
+  const selling=Math.max(0,Number(price)||0);
+  const averageCost=Math.max(0,Number(product?.averageCost)||0);
+  const pricing=getOnlineStoreUiSettingsV12().pricing||{};
+  const affiliateRate=Math.max(0,Number(pricing.affiliateRate)||0);
+  const gatewayRate=Math.max(0,Number(pricing.gatewayFee)||0);
+  const packaging=Math.max(0,Number(pricing.packagingCost)||0);
+  const extra=getOnlineStoreLiveCostConfigV14(product);
+  const commission=selling*(affiliateRate/100);
+  const gateway=selling*(gatewayRate/100);
+  const totalCost=averageCost+extra.shipping+extra.pot+commission+gateway+packaging;
+  const profit=selling-totalCost;
+  const margin=selling>0?(profit/selling)*100:0;
+  return {profit,margin,averageCost,shipping:extra.shipping,pot:extra.pot,commission,gateway,packaging,totalCost,affiliateRate,gatewayRate};
+}
+function applyProfitValueV13(profitEl,marginEl,price,product){
+  if(!profitEl||!marginEl)return;
+  const selling=Math.max(0,Number(price)||0);
+  if(!selling){profitEl.textContent="—";profitEl.className="";marginEl.textContent="未输入售价";marginEl.className="";return;}
+  const r=calculateOnlineStoreProfitV13(selling,product);
+  const negative=r.profit<0;
+  profitEl.textContent=`${negative?"-":""}RM ${formatOnlineMoneyInputV12(Math.abs(r.profit))}`;
+  marginEl.textContent=`利润率 ${r.margin.toFixed(2)}%`;
+  profitEl.className=negative?"profit-negative-v13":"profit-positive-v13";
+  marginEl.className=negative?"profit-negative-v13":"profit-positive-v13";
+}
+function updateOnlineStoreProfitDisplaysV13(){
+  const product=getOnlineStoreProductV10(onlineStoreSelectedProductIdV10);if(!product)return;
+  const colorPrice=(input,price)=>{if(!input)return;input.classList.remove("price-positive-v13","price-negative-v13");if(!(Number(price)>0))return;input.classList.add(calculateOnlineStoreProfitV13(price,product).profit<0?"price-negative-v13":"price-positive-v13");};
+  const regularInput=document.getElementById("onlineStoreRegularPriceV10");
+  const promotionInput=document.getElementById("onlineStorePromotionPriceV10");
+  const regularPrice=parseOnlineNumberV12(regularInput?.value);
+  const promotionPrice=parseOnlineNumberV12(promotionInput?.value);
+  applyProfitValueV13(document.getElementById("onlineStoreRegularProfitV13"),document.getElementById("onlineStoreRegularMarginV13"),regularPrice,product);
+  applyProfitValueV13(document.getElementById("onlineStorePromotionProfitV13"),document.getElementById("onlineStorePromotionMarginV13"),promotionPrice,product);
+  colorPrice(regularInput,regularPrice);colorPrice(promotionInput,promotionPrice);
+  const baseForCost=regularPrice||promotionPrice||0;
+  const cost=calculateOnlineStoreProfitV13(baseForCost,product);
+  const setMoneyV14=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=`RM ${formatOnlineMoneyInputV12(v)}`;};
+  setMoneyV14("onlineStoreCostAverageV14",cost.averageCost);setMoneyV14("onlineStoreCostShippingV14",cost.shipping);setMoneyV14("onlineStoreCostPotV14",cost.pot);setMoneyV14("onlineStoreCostCommissionV14",cost.commission);setMoneyV14("onlineStoreCostGatewayV14",cost.gateway);setMoneyV14("onlineStoreCostPackagingV14",cost.packaging);setMoneyV14("onlineStoreCostTotalV14",cost.totalCost);
+  document.querySelectorAll("#onlineStoreUniqueListV10 .online-store-unique-card-v10,#onlineStorePremiumListV14 .online-store-unique-card-v10,#onlineStoreCollectorListV14 .online-store-unique-card-v10").forEach(card=>{
+    const regular=card.querySelector('[data-online-field-v10="regularPrice"]');const promotion=card.querySelector('[data-online-field-v10="promotionPrice"]');
+    const rp=parseOnlineNumberV12(regular?.value),pp=parseOnlineNumberV12(promotion?.value);
+    applyProfitValueV13(card.querySelector('[data-profit-v13="regular"]'),card.querySelector('[data-margin-v13="regular"]'),rp,product);
+    applyProfitValueV13(card.querySelector('[data-profit-v13="promotion"]'),card.querySelector('[data-margin-v13="promotion"]'),pp,product);
+    colorPrice(regular,rp);colorPrice(promotion,pp);
+  });
+}
+function renderStorePreviewV13(){
+  const grid=document.getElementById("storePreviewGridV13");if(!grid)return;
+  const audience=String(document.getElementById("storePreviewAudienceV13")?.value||"normal");
+  const state=getOnlineStoreStateV10();
+  const cards=[];
+  getProducts().filter(p=>!p?.inventoryArchived).forEach(product=>{
+    const id=String(product?.id||"").trim().toUpperCase();
+    const cfg=normalizeOnlineStoreConfigV10(id,state.products[id]);
+    if(cfg.randomPublished&&cfg.randomQty>0){
+      const price=cfg.promotionPrice>0?cfg.promotionPrice:cfg.regularPrice;
+      if(price>0)cards.push({id,name:String(product.name||""),english:productEnglishNameV262(product),price,regular:cfg.regularPrice,promo:cfg.promotionPrice,photo:cfg.randomPhotos?.[0]||"",tier:"入门精选",vip:false});
+    }
+    cfg.uniqueItems.filter(x=>x.published&&x.status!=="sold").forEach(item=>{
+      const vip=item.accessZone==="vip";
+      if(vip&&audience!=="vip")return;
+      const price=item.promotionPrice>0?item.promotionPrice:item.regularPrice;
+      if(price<=0)return;
+      const tier={entry:"入门精选",premium:"高端精品",collector:"藏家级别"}[item.tier]||"入门精选";
+      cards.push({id:item.id,name:String(product.name||""),english:productEnglishNameV262(product),price,regular:item.regularPrice,promo:item.promotionPrice,photo:item.photo||"",tier,vip});
+    });
+  });
+  const label=document.getElementById("storePreviewAudienceLabelV13");if(label)label.textContent=audience==="vip"?"贵宾厅 / VIP Room · 可浏览商品":"顾客商城 · 可浏览商品";
+  grid.innerHTML=cards.map(x=>`<article class="store-preview-product-v13">${x.photo?`<img src="${escapeHTML(x.photo)}" alt="${escapeHTML(x.name)}" loading="lazy"/>`:`<div class="store-preview-placeholder-v13">🌳</div>`}<div class="store-preview-card-body-v13"><small>${escapeHTML(x.tier)}${x.vip?" · VIP Room":""}</small><strong>${escapeHTML(x.name)}</strong>${x.english?`<span>${escapeHTML(x.english)}</span>`:""}<div class="store-preview-price-v13">${x.promo>0&&x.regular>x.promo?`<del>RM ${formatOnlineMoneyInputV12(x.regular)}</del>`:""}<b>RM ${formatOnlineMoneyInputV12(x.price)}</b></div></div></article>`).join("")||'<div class="empty-state">目前没有符合这个顾客身份的已上架商品。</div>';
+}
+function setupStorePreviewV13(){
+  const frame=document.getElementById("storePreviewFrameV13");
+  document.getElementById("storePreviewDeviceV13")?.addEventListener("change",e=>{if(frame)frame.className=`store-preview-frame-v13 ${e.target.value==="desktop"?"desktop":"mobile"}`;});
+  document.getElementById("storePreviewAudienceV13")?.addEventListener("change",renderStorePreviewV13);
+  document.getElementById("refreshStorePreviewV13")?.addEventListener("click",e=>{renderStorePreviewV13();e.currentTarget.textContent="已更新";setTimeout(()=>{if(e.currentTarget.isConnected)e.currentTarget.textContent="重新预览";},1200);});
+  document.querySelector('.nav-btn[data-page="storePreviewPage"]')?.addEventListener("click",()=>setTimeout(renderStorePreviewV13,0));
+  renderStorePreviewV13();
+}
+function collectOnlineStoreConfigFromEditorV10(){
+  const photos=String(document.getElementById("onlineStoreRandomPhotosV10")?.value||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,5);
+  return normalizeOnlineStoreConfigV10(onlineStoreSelectedProductIdV10,{
+    randomQty:Math.max(0,Math.floor(parseOnlineNumberV12(document.getElementById("onlineStoreRandomQtyV10")?.value))),
+    regularPrice:Math.max(0,parseOnlineNumberV12(document.getElementById("onlineStoreRegularPriceV10")?.value)),
+    promotionPrice:Math.max(0,parseOnlineNumberV12(document.getElementById("onlineStorePromotionPriceV10")?.value)),
+    randomPublished:Boolean(document.getElementById("onlineStoreRandomPublishedV10")?.checked),
+    randomPhotos:photos,
+    randomVideo:String(document.getElementById("onlineStoreRandomVideoV10")?.value||"").trim(),
+    shippingCost:Math.max(0,parseOnlineNumberV12(document.getElementById("onlineStoreShippingCostV14")?.value)),
+    potCostOverride:Math.max(0,parseOnlineNumberV12(document.getElementById("onlineStorePotCostV14")?.value)),
+    uniqueItems:collectOnlineStoreUniqueItemsV10()
+  });
+}
+function saveOnlineStoreEditorV10(){
+  const product=getOnlineStoreProductV10(onlineStoreSelectedProductIdV10);if(!product)return;
+  const saveBtn=document.getElementById("onlineStoreSaveV10");
+  const onlineMinimumPrice=Math.max(0,parseOnlineNumberV12(document.getElementById("onlineStoreMinimumPriceV11")?.value));
+  const config=collectOnlineStoreConfigFromEditorV10();
+  const c=getOnlineStoreCountsV10(product,config);
+  if(c.unallocated<0){window.alert(`不能保存：Online Store 已分配 ${c.random+c.unique} 棵，但真实库存只有 ${c.stock} 棵。`);return;}
+  if(config.promotionPrice>0&&config.regularPrice>0&&config.promotionPrice>config.regularPrice){if(!window.confirm("Promotion Price 高于 Regular Price。仍然保存吗？"))return;}
+  if(!window.confirm(`确认保存 Online Store 设置？\n\n产品：${onlineStoreSelectedProductIdV10} ${product.name||""}\nOnline 最低售价：RM ${formatOnlineMoneyInputV12(onlineMinimumPrice)}\n随机发货：${c.random}\n一物一拍 / 单株精选：${c.unique}\n未分配：${Math.max(0,c.unallocated)}\n\n确认后才会保存。`))return;
+  if(saveBtn){saveBtn.textContent="保存中...";saveBtn.disabled=true;}
+  try{
+    const products=getProducts();
+    const productIndex=products.findIndex(item=>String(item?.id||"").trim().toUpperCase()===onlineStoreSelectedProductIdV10);
+    if(productIndex>=0){
+      products[productIndex]={...products[productIndex],onlineMinimumPrice,onlineMinimumPriceUpdatedAt:new Date().toISOString()};
+      saveProducts(products);
+    }
+    const state=getOnlineStoreStateV10();state.products[onlineStoreSelectedProductIdV10]={...config,updatedAt:new Date().toISOString()};saveOnlineStoreStateV10(state);
+    addOnlineStoreHistoryV14("product",onlineStoreSelectedProductIdV10,product.name||"",`保存商品设置；随机发货 ${c.random}，一物一拍/单株精选 ${c.unique}，未分配 ${Math.max(0,c.unallocated)}；Online最低售价 RM ${formatOnlineMoneyInputV12(onlineMinimumPrice)}`);
+    const status=document.getElementById("onlineStoreSaveStatusV10");if(status)status.textContent="";
+    if(saveBtn){saveBtn.textContent="已保存";setTimeout(()=>{if(saveBtn.isConnected)saveBtn.textContent="保存设置";},1600);}
+    renderOnlineStoreProductListV10();updateOnlineStoreAllocationSummaryV10();updateOnlineStoreProfitDisplaysV13();renderStorePreviewV13();
+  }finally{
+    if(saveBtn)saveBtn.disabled=false;
+  }
+}
+function setupOnlineStoreV10(){
+  const search=document.getElementById("onlineStoreSearchV10"),filter=document.getElementById("onlineStoreFilterV10"),list=document.getElementById("onlineStoreProductListV10"),unique=document.getElementById("onlineStoreUniqueListV10"),premium=document.getElementById("onlineStorePremiumListV14"),collector=document.getElementById("onlineStoreCollectorListV14");
+  search?.addEventListener("input",()=>renderOnlineStoreProductListV10());
+  filter?.addEventListener("change",()=>renderOnlineStoreProductListV10());
+  list?.addEventListener("click",e=>{const copy=e.target.closest("[data-online-copy-v12]");if(copy){e.preventDefault();e.stopPropagation();copyOnlineTextV12(copy.dataset.onlineCopyV12,copy);return;}const btn=e.target.closest("[data-online-manage-v10]");if(btn)setOnlineStoreEditorValuesV10(btn.dataset.onlineManageV10)});
+  document.getElementById("onlineStoreEditorV10")?.addEventListener("click",e=>{const copy=e.target.closest("[data-online-copy-v12]");if(copy){e.preventDefault();copyOnlineTextV12(copy.dataset.onlineCopyV12,copy);}});
+  document.getElementById("onlineStoreMasterIdV10")?.addEventListener("click",e=>copyOnlineTextV12(onlineStoreSelectedProductIdV10,e.currentTarget));
+  document.getElementById("onlineStoreMasterNameV10")?.addEventListener("click",e=>{const p=getOnlineStoreProductV10(onlineStoreSelectedProductIdV10);copyOnlineTextV12(p?.name||"",e.currentTarget);});
+  document.getElementById("onlineStoreMasterEnglishV12")?.addEventListener("click",e=>{const p=getOnlineStoreProductV10(onlineStoreSelectedProductIdV10);copyOnlineTextV12(productEnglishNameV262(p),e.currentTarget);});
+  document.getElementById("onlineStoreCloseEditorV10")?.addEventListener("click",()=>{const e=document.getElementById("onlineStoreEditorV10");if(e)e.hidden=true;onlineStoreSelectedProductIdV10=""});
+  const addTierItemV14=tier=>{if(!onlineStoreSelectedProductIdV10)return;const items=collectOnlineStoreUniqueItemsV10();const id=nextOnlineStoreItemIdV10();items.push({id,tier,regularPrice:0,promotionPrice:0,photo:"",video:"",accessZone:"standard",published:false,status:"available"});renderOnlineStoreUniqueItemsV10(items);updateOnlineStoreAllocationSummaryV10();};
+  document.getElementById("onlineStoreAddUniqueV10")?.addEventListener("click",()=>addTierItemV14("entry"));
+  document.getElementById("onlineStoreAddPremiumV14")?.addEventListener("click",()=>addTierItemV14("premium"));
+  document.getElementById("onlineStoreAddCollectorV14")?.addEventListener("click",()=>addTierItemV14("collector"));
+  const bindTierHostV14=host=>{
+    host?.addEventListener("click",e=>{
+      const copyMedia=e.target.closest("[data-item-media-copy-v14]");if(copyMedia){const card=e.target.closest(".online-store-unique-card-v10");const fld=copyMedia.dataset.itemMediaCopyV14;const input=card?.querySelector(`[data-online-field-v10="${fld}"]`);copyOnlineTextV12(input?.value||"",copyMedia);return;}
+      const clearMedia=e.target.closest("[data-item-media-clear-v14]");if(clearMedia){const card=e.target.closest(".online-store-unique-card-v10");const fld=clearMedia.dataset.itemMediaClearV14;const input=card?.querySelector(`[data-online-field-v10="${fld}"]`);if(input&&input.value&&window.confirm("确认删除这个媒体链接？")){input.value="";clearMedia.textContent="已删除";setTimeout(()=>{if(clearMedia.isConnected)clearMedia.textContent="删除";},1000);}return;}
+      const btn=e.target.closest("[data-online-delete-v10]");if(!btn)return;const id=String(btn.dataset.onlineDeleteV10||"");if(!window.confirm(`确认删除 Online Store 子项 ${id}？\n\n这不会删除库存主产品。`))return;const items=collectOnlineStoreUniqueItemsV10().filter(x=>x.id!==id);renderOnlineStoreUniqueItemsV10(items);updateOnlineStoreAllocationSummaryV10();addOnlineStoreHistoryV14("product",onlineStoreSelectedProductIdV10,getOnlineStoreProductV10(onlineStoreSelectedProductIdV10)?.name||"",`删除子项目 ${id}`);
+    });
+    host?.addEventListener("input",()=>{updateOnlineStoreAllocationSummaryV10();updateOnlineStoreProfitDisplaysV13();});
+    host?.addEventListener("change",()=>{updateOnlineStoreAllocationSummaryV10();updateOnlineStoreProfitDisplaysV13();});
+    host?.addEventListener("focusout",e=>{if(e.target?.matches('[data-online-field-v10="regularPrice"],[data-online-field-v10="promotionPrice"]')&&String(e.target.value||"").trim())e.target.value=formatOnlineMoneyInputV12(parseOnlineNumberV12(e.target.value));});
+  };
+  [unique,premium,collector].forEach(bindTierHostV14);
+  document.getElementById("onlineStoreRandomQtyV10")?.addEventListener("input",updateOnlineStoreAllocationSummaryV10);
+  ["onlineStoreRegularPriceV10","onlineStorePromotionPriceV10","onlineStoreShippingCostV14","onlineStorePotCostV14"].forEach(id=>document.getElementById(id)?.addEventListener("input",updateOnlineStoreProfitDisplaysV13));
+  document.getElementById("onlineStoreSaveV10")?.addEventListener("click",saveOnlineStoreEditorV10);
+  ["onlineStoreMinimumPriceV11","onlineStoreRegularPriceV10","onlineStorePromotionPriceV10","onlineStoreShippingCostV14","onlineStorePotCostV14"].forEach(id=>document.getElementById(id)?.addEventListener("blur",e=>{if(String(e.target.value||"").trim())e.target.value=formatOnlineMoneyInputV12(parseOnlineNumberV12(e.target.value));updateOnlineStoreProfitDisplaysV13();}));
+  document.getElementById("onlineStoreAddPhotoUrlV14")?.addEventListener("click",()=>{const input=document.getElementById("onlineStoreRandomPhotoUrlV14");const url=String(input?.value||"").trim();if(!url)return;const ta=document.getElementById("onlineStoreRandomPhotosV10");const arr=String(ta?.value||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean);if(arr.length>=5){alert("代表照片最多 5 张。");return;}arr.push(url);ta.value=arr.join("\n");input.value="";renderOnlineStorePhotoListV14();});
+  document.getElementById("onlineStoreRandomPhotoListV14")?.addEventListener("click",e=>{const idx=Number(e.target.closest("[data-photo-index-v14]")?.dataset.photoIndexV14);if(!Number.isInteger(idx))return;const ta=document.getElementById("onlineStoreRandomPhotosV10");const arr=String(ta?.value||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean);if(e.target.closest("[data-photo-copy-v14]")){copyOnlineTextV12(arr[idx]||"",e.target.closest("[data-photo-copy-v14]"));return;}if(e.target.closest("[data-photo-delete-v14]")&&confirm("确认删除这张代表照片链接？")){arr.splice(idx,1);ta.value=arr.join("\n");renderOnlineStorePhotoListV14();}});
+  document.querySelectorAll("[data-media-copy-target-v14]").forEach(btn=>btn.addEventListener("click",()=>copyOnlineTextV12(document.getElementById(btn.dataset.mediaCopyTargetV14)?.value||"",btn)));
+  document.querySelectorAll("[data-media-clear-target-v14]").forEach(btn=>btn.addEventListener("click",()=>{const el=document.getElementById(btn.dataset.mediaClearTargetV14);if(el?.value&&confirm("确认删除这个媒体链接？")){el.value="";btn.textContent="已删除";setTimeout(()=>{if(btn.isConnected)btn.textContent="删除";},1000);}}));
+  const mediaNotReadyV14=()=>alert("相册 / 拍照入口已加入。V1.4 尚未连接 Cloudinary 等图片储存服务，为避免图片写入 Google Sheet 超过 50,000 字限制，目前不会把本机照片直接存进库存同步资料。请暂时使用 Photo URL；连接媒体储存后即可永久上传。");
+  document.getElementById("onlineStoreChoosePhotosV14")?.addEventListener("click",()=>document.getElementById("onlineStorePhotoPickerV14")?.click());
+  document.getElementById("onlineStoreTakePhotoV14")?.addEventListener("click",()=>document.getElementById("onlineStoreCameraV14")?.click());
+  document.getElementById("onlineStorePhotoPickerV14")?.addEventListener("change",mediaNotReadyV14);document.getElementById("onlineStoreCameraV14")?.addEventListener("change",mediaNotReadyV14);
+  setupOnlineStoreSettingsV12();
+  setupOnlineStoreHistoryV14();
+  setupPageJumpControlsV14();
+  setupStorePreviewV13();
+  applyOnlineStoreBrandingV12();
+  renderOnlineStoreProductListV10();
+}
+
+
+
+function renderOnlineStorePhotoListV14(){
+  const host=document.getElementById("onlineStoreRandomPhotoListV14"),ta=document.getElementById("onlineStoreRandomPhotosV10");if(!host||!ta)return;
+  const arr=String(ta.value||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean).slice(0,5);
+  host.innerHTML=arr.map((url,i)=>`<div class="media-card-v14" data-photo-index-v14="${i}"><img src="${escapeHTML(url)}" alt="代表照片 ${i+1}" loading="lazy" onerror="this.style.display='none'"/><div class="media-card-body-v14"><span>代表照片 ${i+1}</span><small>${escapeHTML(url)}</small><div><button class="secondary-btn media-mini-btn-v14" data-photo-copy-v14 type="button">复制</button><button class="danger-outline-btn media-mini-btn-v14" data-photo-delete-v14 type="button">删除</button></div></div></div>`).join("")||'<div class="empty-state">尚未加入代表照片</div>';
+}
+const ONLINE_STORE_HISTORY_KEY_V14="onlineStoreHistoryV14";
+function getOnlineStoreHistoryV14(){const st=loadJSON("importSystemSettings",{});return Array.isArray(st?.[ONLINE_STORE_HISTORY_KEY_V14])?st[ONLINE_STORE_HISTORY_KEY_V14]:[];}
+function addOnlineStoreHistoryV14(type,productId,productName,detail){const st=loadJSON("importSystemSettings",{});const list=Array.isArray(st?.[ONLINE_STORE_HISTORY_KEY_V14])?st[ONLINE_STORE_HISTORY_KEY_V14]:[];list.unshift({ts:new Date().toISOString(),type:String(type||"product"),productId:String(productId||""),productName:String(productName||""),detail:String(detail||"")});st[ONLINE_STORE_HISTORY_KEY_V14]=list.slice(0,100);saveJSON("importSystemSettings",st);if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved();renderOnlineStoreHistoryV14();}
+function parseHistoryDateV14(v){const m=String(v||"").trim().match(/^(\d{2})-(\d{2})-(\d{4})$/);if(!m)return null;const d=new Date(Number(m[3]),Number(m[2])-1,Number(m[1]));return Number.isNaN(d.getTime())?null:d;}
+function formatHistoryDateTimeV14(iso){const d=new Date(iso);if(Number.isNaN(d.getTime()))return "—";const pad=n=>String(n).padStart(2,"0");return `${pad(d.getDate())}-${pad(d.getMonth()+1)}-${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;}
+function renderOnlineStoreHistoryV14(){const host=document.getElementById("onlineStoreHistoryListV14");if(!host)return;const q=normalizeSearchTextV262(document.getElementById("onlineStoreHistorySearchV14")?.value||"");const type=String(document.getElementById("onlineStoreHistoryTypeV14")?.value||"all");const sd=parseHistoryDateV14(document.getElementById("onlineStoreHistoryStartV14")?.value),ed=parseHistoryDateV14(document.getElementById("onlineStoreHistoryEndV14")?.value);if(ed)ed.setHours(23,59,59,999);const rows=getOnlineStoreHistoryV14().filter(r=>{const d=new Date(r.ts);if(type!=="all"&&r.type!==type)return false;if(sd&&d<sd)return false;if(ed&&d>ed)return false;const text=normalizeSearchTextV262(`${r.productId} ${r.productName} ${r.detail}`);return !q||text.includes(q);});host.innerHTML=rows.map(r=>`<article class="history-card-v14"><div class="history-card-head-v14"><strong>${escapeHTML(formatHistoryDateTimeV14(r.ts))}</strong><span>${escapeHTML({product:"产品 / 售价",media:"照片 / 视频",settings:"设置",allocation:"库存分配"}[r.type]||r.type)}</span></div>${r.productId||r.productName?`<div class="history-product-line-v14"><button class="copy-text-btn-v12 online-store-product-id-v10" data-history-copy-v14="${escapeHTML(r.productId)}">${escapeHTML(r.productId)}</button><button class="copy-text-btn-v12" data-history-copy-v14="${escapeHTML(r.productName)}">${escapeHTML(r.productName)}</button></div>`:""}<p>${escapeHTML(r.detail)}</p></article>`).join("")||'<div class="empty-state">暂无符合的 Online Store 历史记录</div>';}
+function setupOnlineStoreHistoryV14(){document.getElementById("onlineStoreHistorySearchBtnV14")?.addEventListener("click",renderOnlineStoreHistoryV14);document.getElementById("onlineStoreHistoryClearBtnV14")?.addEventListener("click",()=>{["onlineStoreHistorySearchV14","onlineStoreHistoryStartV14","onlineStoreHistoryEndV14"].forEach(id=>{const e=document.getElementById(id);if(e)e.value="";});const t=document.getElementById("onlineStoreHistoryTypeV14");if(t)t.value="all";renderOnlineStoreHistoryV14();});document.getElementById("onlineStoreHistoryPageV14")?.addEventListener("click",e=>{const b=e.target.closest("[data-history-copy-v14]");if(b)copyOnlineTextV12(b.dataset.historyCopyV14,b);});document.querySelector('.nav-btn[data-page="onlineStoreHistoryPageV14"]')?.addEventListener("click",()=>setTimeout(renderOnlineStoreHistoryV14,0));}
+function setupPageJumpControlsV14(){const top=document.getElementById("jumpTopV14"),bottom=document.getElementById("jumpBottomV14");top?.addEventListener("click",()=>window.scrollTo({top:0,behavior:"smooth"}));bottom?.addEventListener("click",()=>window.scrollTo({top:document.documentElement.scrollHeight,behavior:"smooth"}));const refresh=()=>{const max=Math.max(1,document.documentElement.scrollHeight-window.innerHeight);const ratio=window.scrollY/max;if(top)top.hidden=ratio<.12;if(bottom)bottom.hidden=ratio>.88;};window.addEventListener("scroll",refresh,{passive:true});setTimeout(refresh,0);}
+
+// ================= Online Store V1.4 Settings =================
+function setupOnlineStoreSettingsV12(){
+  const current=getOnlineStoreUiSettingsV12();
+  const setVal=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v??"";};
+  setVal("onlineStoreBrandNameV12",current.brandName);setVal("onlineStoreSystemNameZhV12",current.systemNameZh);setVal("onlineStoreSystemNameEnV12",current.systemNameEn);setVal("onlineStoreBrowserTitleV12",current.browserTitle);setVal("onlineStoreLogoLeftV12",current.logoLeft);setVal("onlineStoreLogoRightV12",current.logoRight);
+  setVal("onlineStoreTargetMarginV12",formatOnlineMoneyInputV12(current.pricing.targetMargin));setVal("onlineStoreDiscountRateV12",formatOnlineMoneyInputV12(current.pricing.discountRate));setVal("onlineStoreAffiliateRateV12",formatOnlineMoneyInputV12(current.pricing.affiliateRate));setVal("onlineStoreGatewayFeeV12",formatOnlineMoneyInputV12(current.pricing.gatewayFee));setVal("onlineStorePackagingCostV12",formatOnlineMoneyInputV12(current.pricing.packagingCost));
+  const brandBtn=document.getElementById("saveOnlineStoreBrandingV12");brandBtn?.addEventListener("click",()=>{const next=getOnlineStoreUiSettingsV12();next.brandName=String(document.getElementById("onlineStoreBrandNameV12")?.value||"").trim()||"Lover Legend Gardening";next.systemNameZh=String(document.getElementById("onlineStoreSystemNameZhV12")?.value||"").trim()||"线上商店管理系统";next.systemNameEn=String(document.getElementById("onlineStoreSystemNameEnV12")?.value||"").trim()||"Online Store Management Admin";next.browserTitle=String(document.getElementById("onlineStoreBrowserTitleV12")?.value||"").trim()||`${next.systemNameZh} | ${next.systemNameEn}`;next.logoLeft=String(document.getElementById("onlineStoreLogoLeftV12")?.value||"").trim();next.logoRight=String(document.getElementById("onlineStoreLogoRightV12")?.value||"").trim();if(!confirm("确认保存品牌设置？\n\n公司名、系统标题与 Logo 显示会立即更新。"))return;saveOnlineStoreUiSettingsV12(next);applyOnlineStoreBrandingV12(next);addOnlineStoreHistoryV14("settings","","",`保存品牌设置：${next.brandName}`);brandBtn.textContent="已保存";setTimeout(()=>{if(brandBtn.isConnected)brandBtn.textContent="保存品牌设置";},1500);});
+  document.getElementById("resetOnlineStoreBrandingV14")?.addEventListener("click",e=>{if(!confirm("回到原厂品牌设置？\n\n只会恢复公司名、系统名称、浏览器标题和左右 Logo，不影响库存、订单或售价规则。"))return;if(!confirm("再次确认：恢复 Branding 原厂设置？"))return;const next=getOnlineStoreUiSettingsV12();Object.assign(next,{brandName:"Lover Legend Gardening",systemNameZh:"线上商店管理系统",systemNameEn:"Online Store Management Admin",browserTitle:"线上商店管理系统 | Online Store Management Admin",logoLeft:"",logoRight:""});saveOnlineStoreUiSettingsV12(next);[ ["onlineStoreBrandNameV12",next.brandName],["onlineStoreSystemNameZhV12",next.systemNameZh],["onlineStoreSystemNameEnV12",next.systemNameEn],["onlineStoreBrowserTitleV12",next.browserTitle],["onlineStoreLogoLeftV12",""],["onlineStoreLogoRightV12",""]].forEach(([id,v])=>setVal(id,v));applyOnlineStoreBrandingV12(next);addOnlineStoreHistoryV14("settings","","","品牌设置恢复原厂");e.currentTarget.textContent="已恢复原厂";setTimeout(()=>{if(e.currentTarget.isConnected)e.currentTarget.textContent="回到原厂 / Reset to Factory";},1800);});
+  const savePrice=document.getElementById("saveOnlineStorePricingRulesV12");savePrice?.addEventListener("click",()=>{const next=getOnlineStoreUiSettingsV12();next.pricing={targetMargin:Math.max(0,parseOnlineNumberV12(document.getElementById("onlineStoreTargetMarginV12")?.value)),discountRate:Math.max(0,parseOnlineNumberV12(document.getElementById("onlineStoreDiscountRateV12")?.value)),affiliateRate:Math.max(0,parseOnlineNumberV12(document.getElementById("onlineStoreAffiliateRateV12")?.value)),gatewayFee:Math.max(0,parseOnlineNumberV12(document.getElementById("onlineStoreGatewayFeeV12")?.value)),packagingCost:Math.max(0,parseOnlineNumberV12(document.getElementById("onlineStorePackagingCostV12")?.value))};if(!confirm(`确认保存 Online Store 售价规则？\n\n目标净利率：${next.pricing.targetMargin.toFixed(2)}%\n促销折扣：${next.pricing.discountRate.toFixed(2)}%\nAffiliate：${next.pricing.affiliateRate.toFixed(2)}%\nPayment Fee：${next.pricing.gatewayFee.toFixed(2)}%\n包装成本：RM ${formatOnlineMoneyInputV12(next.pricing.packagingCost)}`))return;saveOnlineStoreUiSettingsV12(next);addOnlineStoreHistoryV14("settings","","","保存售价、利润与折扣设置");savePrice.textContent="已保存";setTimeout(()=>{if(savePrice.isConnected)savePrice.textContent="保存售价设置";},1500);});
+  document.getElementById("resetOnlineStorePricingRulesV12")?.addEventListener("click",e=>{if(!confirm("回到原厂设置？\n\n这只会恢复 Online Store 的售价/利润/折扣参数，不会删除库存、产品或订单资料。"))return;if(!confirm("再次确认：恢复默认售价设置？"))return;const next=getOnlineStoreUiSettingsV12();next.pricing={targetMargin:30,discountRate:10,affiliateRate:10,gatewayFee:2,packagingCost:20};saveOnlineStoreUiSettingsV12(next);addOnlineStoreHistoryV14("settings","","","售价、利润与折扣恢复原厂");[["onlineStoreTargetMarginV12",30],["onlineStoreDiscountRateV12",10],["onlineStoreAffiliateRateV12",10],["onlineStoreGatewayFeeV12",2],["onlineStorePackagingCostV12",20]].forEach(([id,v])=>setVal(id,formatOnlineMoneyInputV12(v)));e.currentTarget.textContent="已恢复原厂";setTimeout(()=>{if(e.currentTarget.isConnected)e.currentTarget.textContent="回到原厂设置 / Reset to Factory";},1800);});
+  document.getElementById("onlineStoreBackupV12")?.addEventListener("click",e=>{if(!confirm("开始 Backup？\n\n建议在重要设置变更前保存一份备份。"))return;e.currentTarget.textContent="Backup 中...";document.getElementById("backupDataBtn")?.click();setTimeout(()=>{if(e.currentTarget.isConnected)e.currentTarget.textContent="Backup";},1800);});
+  document.getElementById("onlineStoreRestoreV12")?.addEventListener("click",e=>{if(!confirm("Restore 会覆盖当前资料。\n\n确认继续选择备份文件吗？"))return;e.currentTarget.textContent="选择 Restore 文件...";document.getElementById("restoreDataBtn")?.click();setTimeout(()=>{if(e.currentTarget.isConnected)e.currentTarget.textContent="Restore";},1800);});
+  ["onlineStoreTargetMarginV12","onlineStoreDiscountRateV12","onlineStoreAffiliateRateV12","onlineStoreGatewayFeeV12","onlineStorePackagingCostV12"].forEach(id=>document.getElementById(id)?.addEventListener("blur",e=>{if(String(e.target.value||"").trim())e.target.value=formatOnlineMoneyInputV12(parseOnlineNumberV12(e.target.value));}));
+}
