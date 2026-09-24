@@ -4996,7 +4996,7 @@ function setupPromotionSettingsV183() {
   promotionDetails?.addEventListener("toggle", () => {
     refreshToggleHintV192();
     if (promotionDetails.open && typeof window.pollPromotionStateLightV372 === "function") {
-      window.pollPromotionStateLightV372(true).catch(error => console.warn("V37.9 promotion open refresh skipped", error));
+      window.pollPromotionStateLightV372(true).catch(error => console.warn("V38.0 promotion open refresh skipped", error));
     }
   });
   refreshToggleHintV192();
@@ -16175,25 +16175,53 @@ function minimumPriceHistoryMetaV374(product, price, manual, stateLabel = "") {
 
 
 const INITIAL_MINIMUM_PRICE_KEY_V376 = "initialMinimumPricesV376";
+const INITIAL_MINIMUM_PRICE_LOCK_KEY_V380 = "initialMinimumPriceLockedV380";
+// The 77 real 24-09-2026 baseline IDs are always formal/locked.
+const INITIAL_MINIMUM_PRICE_REAL_BASELINE_IDS_V380 = new Set([
+  "BX0005","BX0006","BX0009","JL0022","JL0023","AS0024","AS0025","SC0028","SC0029","BX0034","BX0035","BX0001","BX0037","BX0038","BX0039","PD0040","BX0041","BX0042","BX0043","BX0044","BX0045","BB0046","BB0047","SC0048","AS0002","BB0052","BB0053","BB0054","BX0055","BX0056","BX0057","BX0058","BX0059","BX0060","BX0061","BX0062","BX0066","BX0068","BX0071","BX0072","BX0079","BX0085","BX0090","BX0094","BX0095","BX0096","BX0097","PD0099","BX0100","BX0101","BX0102","BX0103","BX0104","BX0105","BX0106","BX0107","BX0120","BX0124","BX0125","BX0130","BX0131","BX0132","BX0148","BX0151","BX0153","BX0163","SC0170","SC0171","SC0172","SC0173","BV0177","BX0187","BX0189","BX0190","BX0191","BS0192","BX0193"
+]);
 function getInitialMinimumPriceMapV376(){
   const settings=loadJSON("importSystemSettings",{});
   return settings && settings[INITIAL_MINIMUM_PRICE_KEY_V376] && typeof settings[INITIAL_MINIMUM_PRICE_KEY_V376] === "object" ? settings[INITIAL_MINIMUM_PRICE_KEY_V376] : {};
 }
+function getInitialMinimumPriceLockMapV380(){
+  const settings=loadJSON("importSystemSettings",{});
+  return settings && settings[INITIAL_MINIMUM_PRICE_LOCK_KEY_V380] && typeof settings[INITIAL_MINIMUM_PRICE_LOCK_KEY_V380] === "object" ? settings[INITIAL_MINIMUM_PRICE_LOCK_KEY_V380] : {};
+}
+function isInitialMinimumPriceLockedV380(productOrId){
+  const product=typeof productOrId==="object"&&productOrId?productOrId:getProducts().find(p=>String(p?.id||"").trim().toUpperCase()===String(productOrId||"").trim().toUpperCase());
+  const id=String(product?.id||productOrId||"").trim().toUpperCase();
+  if(!id)return false;
+  if(INITIAL_MINIMUM_PRICE_REAL_BASELINE_IDS_V380.has(id))return true;
+  const locks=getInitialMinimumPriceLockMapV380();
+  const lockKey=Object.keys(locks||{}).find(key=>String(key||"").trim().toUpperCase()===id);
+  if(lockKey)return locks[lockKey]===true;
+  // Migration fallback: before the first V38.0 lock-map write, preserve a non-77
+  // baseline only when the product is already under formal manual price control.
+  return product ? isMinimumPriceManualV160(product) : false;
+}
+window.isInitialMinimumPriceLockedV380=isInitialMinimumPriceLockedV380;
 function getInitialMinimumPriceV376(product){
-  const id=String(product?.id||"").trim().toUpperCase(); const map=getInitialMinimumPriceMapV376();
+  const id=String(product?.id||"").trim().toUpperCase();
+  const map=getInitialMinimumPriceMapV376();
   const direct=Object.prototype.hasOwnProperty.call(map,id)?map[id]:Object.entries(map).find(([key])=>String(key||"").trim().toUpperCase()===id)?.[1];
-  const value=Number(String(direct??"").replace(/,/g,"")); return Number.isFinite(value)&&value>=0?value:Math.max(0,Number(product?.minimumPrice)||0);
+  const value=Number(String(direct??"").replace(/,/g,""));
+  return isInitialMinimumPriceLockedV380(product) && Number.isFinite(value)&&value>=0 ? value : Math.max(0,Number(product?.minimumPrice)||0);
 }
 window.getInitialMinimumPriceV376=getInitialMinimumPriceV376;
 function applyInitialMinimumPriceMapLocalV376(map){
   const settings=loadJSON("importSystemSettings",{});
   localStorage.setItem("importSystemSettings",JSON.stringify({...settings,[INITIAL_MINIMUM_PRICE_KEY_V376]:{...(map||{})}}));
 }
+function applyInitialMinimumPriceLockLocalV380(productId,locked=true){
+  const id=String(productId||"").trim().toUpperCase(); if(!id)return;
+  const settings=loadJSON("importSystemSettings",{});
+  const locks=settings[INITIAL_MINIMUM_PRICE_LOCK_KEY_V380]&&typeof settings[INITIAL_MINIMUM_PRICE_LOCK_KEY_V380]==="object"?{...settings[INITIAL_MINIMUM_PRICE_LOCK_KEY_V380]}:{};
+  locks[id]=locked===true;
+  localStorage.setItem("importSystemSettings",JSON.stringify({...settings,[INITIAL_MINIMUM_PRICE_LOCK_KEY_V380]:locks}));
+}
 function hasExplicitInitialMinimumPriceV379(productId){
-  const id=String(productId||"").trim().toUpperCase();
-  if(!id)return false;
-  const map=getInitialMinimumPriceMapV376();
-  return Object.keys(map||{}).some(key=>String(key||"").trim().toUpperCase()===id);
+  return isInitialMinimumPriceLockedV380(productId);
 }
 window.hasExplicitInitialMinimumPriceV379=hasExplicitInitialMinimumPriceV379;
 async function editInitialMinimumPriceV376(productId){
@@ -16208,8 +16236,11 @@ async function editInitialMinimumPriceV376(productId){
   const status=document.getElementById("batchProductStockStatus"); if(status)status.textContent="同步中：初始最低售价";
   try{
     const data=await updateInitialMinimumPriceFastV376(id,next);
-    const map={...getInitialMinimumPriceMapV376(),[id]:next}; applyInitialMinimumPriceMapLocalV376(map);
-    renderBatchProductStockResults(); if(status)status.textContent=`已更新：${product.name} 初始最低售价 ${formatMoney(next,"RM ")}`;
+    const confirmedInitial=Number(data?.initialMinimumPrice);
+    if(data?.verified!==true || !Number.isFinite(confirmedInitial) || Math.abs(confirmedInitial-next)>=0.005) throw new Error("云端初始最低售价验证失败，请重试。");
+    const map={...getInitialMinimumPriceMapV376(),[id]:confirmedInitial}; applyInitialMinimumPriceMapLocalV376(map);
+    applyInitialMinimumPriceLockLocalV380(id,true);
+    renderBatchProductStockResults(); if(status)status.textContent=`已更新：${product.name} 初始最低售价 ${formatMoney(confirmedInitial,"RM ")}`;
   }catch(error){ if(status)status.textContent="初始最低售价同步失败"; alert(error?.message||"初始最低售价同步失败"); }
 }
 window.editInitialMinimumPriceV376=editInitialMinimumPriceV376;
@@ -16224,6 +16255,10 @@ async function restoreInitialMinimumPricesV376(){
     const data=await restoreInitialMinimumPricesFastV376();
     if(data?.verified!==true) throw new Error(data?.message||"恢复后的实际资料验证失败");
     if(data?.initialMinimumPricesV376) applyInitialMinimumPriceMapLocalV376(data.initialMinimumPricesV376);
+    if(data?.initialMinimumPriceLockedV380&&typeof data.initialMinimumPriceLockedV380==="object") {
+      const settingsV380=loadJSON("importSystemSettings",{});
+      localStorage.setItem("importSystemSettings",JSON.stringify({...settingsV380,initialMinimumPriceLockedV380:{...data.initialMinimumPriceLockedV380}}));
+    }
     const restoredPrices=data?.restoredPrices&&typeof data.restoredPrices==="object"?data.restoredPrices:{};
     if(Object.keys(restoredPrices).length){
       const products=getProducts().map(product=>{
@@ -16258,7 +16293,7 @@ async function editProductMinimumPrice(productId) {
   const product = products[productIndex];
   const storedMinimumPriceV351 = Math.max(0, Number(product.minimumPrice) || 0);
   const initialMapBeforeV376 = getInitialMinimumPriceMapV376();
-  // V37.9: an automatic price is only an implicit candidate. The first real manual
+  // V38.0: an automatic price is only an implicit candidate. The first real manual
   // minimum-price save becomes the authoritative initial minimum price. After that,
   // ordinary minimum-price edits must never move the initial baseline again.
   const initialPriceWasImplicitV376 = !hasExplicitInitialMinimumPriceV379(id);
@@ -16306,6 +16341,7 @@ async function editProductMinimumPrice(productId) {
     // First formal manual price: lock the NEW manual value, not the previous auto value.
     // Example: auto 9,360 -> first manual 10,000 => initial minimum price = 10,000.
     applyInitialMinimumPriceMapLocalV376({ ...getInitialMinimumPriceMapV376(), [id]: nextMinimumPrice });
+    applyInitialMinimumPriceLockLocalV380(id,true);
   }
   products[productIndex] = {
     ...product,
@@ -16340,7 +16376,13 @@ async function editProductMinimumPrice(productId) {
       previousState: previousHistoryMetaV374.state,
       previousProfit: previousHistoryMetaV374.profit
     };
-    await updateProductMinimumPriceFast(id, nextMinimumPrice, updatedAt, nextMinimumPriceManual, 0, historyMetaV374);
+    const minimumPriceResultV380 = await updateProductMinimumPriceFast(id, nextMinimumPrice, updatedAt, nextMinimumPriceManual, 0, historyMetaV374);
+    const confirmedInitialV380 = Number(minimumPriceResultV380?.initialMinimumPrice);
+    if (Number.isFinite(confirmedInitialV380) && confirmedInitialV380 >= 0) {
+      applyInitialMinimumPriceMapLocalV376({ ...getInitialMinimumPriceMapV376(), [id]:confirmedInitialV380 });
+      applyInitialMinimumPriceLockLocalV380(id,true);
+      renderBatchProductStockResults();
+    }
     renderCostRevisionHistory();
     if (status) status.textContent = `已更新：${product.name} 最低售价 ${formatMoney(nextMinimumPrice, "RM ")}`;
   } catch (error) {
@@ -18758,7 +18800,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "37.9",
+      version: "38.0",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -19437,7 +19479,7 @@ function setupInventoryMasterV299(){
 
 
 
-// V37.9 bindings: the summary action must not toggle the Promotion panel.
+// V38.0 bindings: the summary action must not toggle the Promotion panel.
 document.addEventListener("click",event=>{
   const restore=event.target.closest("#restoreInitialMinimumPricesV376");
   if(restore){event.preventDefault();event.stopPropagation();restoreInitialMinimumPricesV376();return;}
