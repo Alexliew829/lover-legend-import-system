@@ -6547,7 +6547,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 .promotion-mobile-readonly-v377 input:disabled,.promotion-mobile-readonly-v377 select:disabled{opacity:.72;cursor:not-allowed}
 .promotion-mobile-readonly-v377 .promotion-price-edit-v193{pointer-events:none}
 
-/* V38.0: Initial Minimum Price is a neutral baseline field. It must never inherit
+/* V38.1: Initial Minimum Price is a neutral baseline field. It must never inherit
    the blue manual-price state on mobile/desktop. */
 .product-stock-initial-price-btn-v376.product-stock-metric-v256,
 .product-stock-initial-price-btn-v376.product-stock-metric-v256 > span,

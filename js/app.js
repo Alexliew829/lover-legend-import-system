@@ -4996,7 +4996,7 @@ function setupPromotionSettingsV183() {
   promotionDetails?.addEventListener("toggle", () => {
     refreshToggleHintV192();
     if (promotionDetails.open && typeof window.pollPromotionStateLightV372 === "function") {
-      window.pollPromotionStateLightV372(true).catch(error => console.warn("V38.0 promotion open refresh skipped", error));
+      window.pollPromotionStateLightV372(true).catch(error => console.warn("V38.1 promotion open refresh skipped", error));
     }
   });
   refreshToggleHintV192();
@@ -16196,9 +16196,9 @@ function isInitialMinimumPriceLockedV380(productOrId){
   const locks=getInitialMinimumPriceLockMapV380();
   const lockKey=Object.keys(locks||{}).find(key=>String(key||"").trim().toUpperCase()===id);
   if(lockKey)return locks[lockKey]===true;
-  // Migration fallback: before the first V38.0 lock-map write, preserve a non-77
-  // baseline only when the product is already under formal manual price control.
-  return product ? isMinimumPriceManualV160(product) : false;
+  // V38.1: never infer formal initial-price lock from the ordinary manual-price flag.
+  // Only the confirmed 77 baseline IDs or an explicit lock-map entry are formal.
+  return false;
 }
 window.isInitialMinimumPriceLockedV380=isInitialMinimumPriceLockedV380;
 function getInitialMinimumPriceV376(product){
@@ -16293,7 +16293,7 @@ async function editProductMinimumPrice(productId) {
   const product = products[productIndex];
   const storedMinimumPriceV351 = Math.max(0, Number(product.minimumPrice) || 0);
   const initialMapBeforeV376 = getInitialMinimumPriceMapV376();
-  // V38.0: an automatic price is only an implicit candidate. The first real manual
+  // V38.1: an automatic price is only an implicit candidate. The first real manual
   // minimum-price save becomes the authoritative initial minimum price. After that,
   // ordinary minimum-price edits must never move the initial baseline again.
   const initialPriceWasImplicitV376 = !hasExplicitInitialMinimumPriceV379(id);
@@ -16337,12 +16337,9 @@ async function editProductMinimumPrice(productId) {
 
   const updatedAt = new Date().toISOString();
   const shouldCaptureInitialMinimumPriceV379 = initialPriceWasImplicitV376 && nextMinimumPriceManual;
-  if (shouldCaptureInitialMinimumPriceV379) {
-    // First formal manual price: lock the NEW manual value, not the previous auto value.
-    // Example: auto 9,360 -> first manual 10,000 => initial minimum price = 10,000.
-    applyInitialMinimumPriceMapLocalV376({ ...getInitialMinimumPriceMapV376(), [id]: nextMinimumPrice });
-    applyInitialMinimumPriceLockLocalV380(id,true);
-  }
+  // V38.1: do NOT optimistically write the formal initial price locally. The cloud
+  // must persist + verify it first; otherwise the UI can show a false 7500/7500 and
+  // later collapse to 0 when an authoritative Pull arrives.
   products[productIndex] = {
     ...product,
     minimumPrice: nextMinimumPrice,
@@ -16402,7 +16399,6 @@ async function editProductMinimumPrice(productId) {
         };
         saveJSON("importSystemProducts", latestProducts);
       }
-      if (shouldCaptureInitialMinimumPriceV379) applyInitialMinimumPriceMapLocalV376({ ...getInitialMinimumPriceMapV376(), [id]: nextMinimumPrice });
       const keepOverridesV351 = { ...getMinimumPriceManualOverridesV160() };
       keepOverridesV351[id] = nextMinimumPriceManual;
       saveMinimumPriceManualOverridesV160(keepOverridesV351);
@@ -16425,11 +16421,8 @@ async function editProductMinimumPrice(productId) {
       };
       saveJSON("importSystemProducts", latestProducts);
     }
-    if (shouldCaptureInitialMinimumPriceV379) {
-      const rollbackInitialMapV376 = { ...getInitialMinimumPriceMapV376() };
-      Object.keys(rollbackInitialMapV376).forEach(key=>{if(String(key||"").trim().toUpperCase()===String(id||"").trim().toUpperCase())delete rollbackInitialMapV376[key];});
-      applyInitialMinimumPriceMapLocalV376(rollbackInitialMapV376);
-    }
+    // V38.1: no initial-price rollback is needed here because formal initial state
+    // is applied locally only after the cloud confirms persistence.
     const rollbackOverrides = { ...getMinimumPriceManualOverridesV160() };
     rollbackOverrides[id] = currentMinimumPriceManual;
     saveMinimumPriceManualOverridesV160(rollbackOverrides);
@@ -18800,7 +18793,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "38.0",
+      version: "38.1",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -19479,7 +19472,7 @@ function setupInventoryMasterV299(){
 
 
 
-// V38.0 bindings: the summary action must not toggle the Promotion panel.
+// V38.1 bindings: the summary action must not toggle the Promotion panel.
 document.addEventListener("click",event=>{
   const restore=event.target.closest("#restoreInitialMinimumPricesV376");
   if(restore){event.preventDefault();event.stopPropagation();restoreInitialMinimumPricesV376();return;}
