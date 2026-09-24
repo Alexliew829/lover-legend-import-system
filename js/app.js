@@ -4996,7 +4996,7 @@ function setupPromotionSettingsV183() {
   promotionDetails?.addEventListener("toggle", () => {
     refreshToggleHintV192();
     if (promotionDetails.open && typeof window.pollPromotionStateLightV372 === "function") {
-      window.pollPromotionStateLightV372(true).catch(error => console.warn("V38.1 promotion open refresh skipped", error));
+      window.pollPromotionStateLightV372(true).catch(error => console.warn("V38.2 promotion open refresh skipped", error));
     }
   });
   refreshToggleHintV192();
@@ -16196,7 +16196,7 @@ function isInitialMinimumPriceLockedV380(productOrId){
   const locks=getInitialMinimumPriceLockMapV380();
   const lockKey=Object.keys(locks||{}).find(key=>String(key||"").trim().toUpperCase()===id);
   if(lockKey)return locks[lockKey]===true;
-  // V38.1: never infer formal initial-price lock from the ordinary manual-price flag.
+  // V38.2: never infer formal initial-price lock from the ordinary manual-price flag.
   // Only the confirmed 77 baseline IDs or an explicit lock-map entry are formal.
   return false;
 }
@@ -16204,9 +16204,17 @@ window.isInitialMinimumPriceLockedV380=isInitialMinimumPriceLockedV380;
 function getInitialMinimumPriceV376(product){
   const id=String(product?.id||"").trim().toUpperCase();
   const map=getInitialMinimumPriceMapV376();
-  const direct=Object.prototype.hasOwnProperty.call(map,id)?map[id]:Object.entries(map).find(([key])=>String(key||"").trim().toUpperCase()===id)?.[1];
-  const value=Number(String(direct??"").replace(/,/g,""));
-  return isInitialMinimumPriceLockedV380(product) && Number.isFinite(value)&&value>=0 ? value : Math.max(0,Number(product?.minimumPrice)||0);
+  const entry=Object.prototype.hasOwnProperty.call(map,id)
+    ? {found:true,value:map[id]}
+    : (()=>{const hit=Object.entries(map).find(([key])=>String(key||"").trim().toUpperCase()===id);return hit?{found:true,value:hit[1]}:{found:false,value:null};})();
+  // V38.2: missing/null/blank is NOT zero. Number(null) / Number("") both become 0,
+  // which was the root cause of a locked initial price being displayed/rewritten as RM0.00.
+  const raw=entry.value;
+  const value=entry.found && raw!==null && raw!==undefined && String(raw).trim()!==""
+    ? Number(String(raw).replace(/,/g,"")) : NaN;
+  return isInitialMinimumPriceLockedV380(product) && Number.isFinite(value)&&value>=0
+    ? value
+    : Math.max(0,Number(product?.minimumPrice)||0);
 }
 window.getInitialMinimumPriceV376=getInitialMinimumPriceV376;
 function applyInitialMinimumPriceMapLocalV376(map){
@@ -16293,7 +16301,7 @@ async function editProductMinimumPrice(productId) {
   const product = products[productIndex];
   const storedMinimumPriceV351 = Math.max(0, Number(product.minimumPrice) || 0);
   const initialMapBeforeV376 = getInitialMinimumPriceMapV376();
-  // V38.1: an automatic price is only an implicit candidate. The first real manual
+  // V38.2: an automatic price is only an implicit candidate. The first real manual
   // minimum-price save becomes the authoritative initial minimum price. After that,
   // ordinary minimum-price edits must never move the initial baseline again.
   const initialPriceWasImplicitV376 = !hasExplicitInitialMinimumPriceV379(id);
@@ -16337,7 +16345,7 @@ async function editProductMinimumPrice(productId) {
 
   const updatedAt = new Date().toISOString();
   const shouldCaptureInitialMinimumPriceV379 = initialPriceWasImplicitV376 && nextMinimumPriceManual;
-  // V38.1: do NOT optimistically write the formal initial price locally. The cloud
+  // V38.2: do NOT optimistically write the formal initial price locally. The cloud
   // must persist + verify it first; otherwise the UI can show a false 7500/7500 and
   // later collapse to 0 when an authoritative Pull arrives.
   products[productIndex] = {
@@ -16374,7 +16382,11 @@ async function editProductMinimumPrice(productId) {
       previousProfit: previousHistoryMetaV374.profit
     };
     const minimumPriceResultV380 = await updateProductMinimumPriceFast(id, nextMinimumPrice, updatedAt, nextMinimumPriceManual, 0, historyMetaV374);
-    const confirmedInitialV380 = Number(minimumPriceResultV380?.initialMinimumPrice);
+    const rawConfirmedInitialV382 = minimumPriceResultV380?.initialMinimumPrice;
+    const confirmedInitialV380 = rawConfirmedInitialV382!==null && rawConfirmedInitialV382!==undefined && String(rawConfirmedInitialV382).trim()!==""
+      ? Number(rawConfirmedInitialV382) : NaN;
+    // V38.2: only an explicitly returned numeric initial value may refresh the local baseline.
+    // Never coerce null/undefined/blank to 0.
     if (Number.isFinite(confirmedInitialV380) && confirmedInitialV380 >= 0) {
       applyInitialMinimumPriceMapLocalV376({ ...getInitialMinimumPriceMapV376(), [id]:confirmedInitialV380 });
       applyInitialMinimumPriceLockLocalV380(id,true);
@@ -16421,7 +16433,7 @@ async function editProductMinimumPrice(productId) {
       };
       saveJSON("importSystemProducts", latestProducts);
     }
-    // V38.1: no initial-price rollback is needed here because formal initial state
+    // V38.2: no initial-price rollback is needed here because formal initial state
     // is applied locally only after the cloud confirms persistence.
     const rollbackOverrides = { ...getMinimumPriceManualOverridesV160() };
     rollbackOverrides[id] = currentMinimumPriceManual;
@@ -18793,7 +18805,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "38.1",
+      version: "38.2",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -19472,7 +19484,7 @@ function setupInventoryMasterV299(){
 
 
 
-// V38.1 bindings: the summary action must not toggle the Promotion panel.
+// V38.2 bindings: the summary action must not toggle the Promotion panel.
 document.addEventListener("click",event=>{
   const restore=event.target.closest("#restoreInitialMinimumPricesV376");
   if(restore){event.preventDefault();event.stopPropagation();restoreInitialMinimumPricesV376();return;}
