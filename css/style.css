@@ -6493,3 +6493,31 @@ body.system-media-preview-open-v305{overflow:hidden}
 #promotionManualPricingStatusV361.is-participating-v368::before{background:#dc2626;box-shadow:0 0 0 3px rgba(220,38,38,.12)}
 #promotionManualPricingStatusV361.is-pending-v368{border-color:#c88b13;background:#fff8df;color:#8b6500!important;max-width:100%;white-space:normal;text-align:center}
 #promotionManualPricingStatusV361.is-pending-v368::before{background:#d99a16;box-shadow:0 0 0 3px rgba(217,154,22,.12)}
+
+/* V37.2 hotfix — keep homepage Inventory Management photo/video status dots perfectly circular. */
+.inventory-media-dot-v236{
+  display:inline-block!important;
+  width:13px!important;
+  height:13px!important;
+  min-width:13px!important;
+  max-width:13px!important;
+  min-height:13px!important;
+  max-height:13px!important;
+  flex:0 0 13px!important;
+  aspect-ratio:1 / 1!important;
+  border-radius:50%!important;
+  padding:0!important;
+  margin:0!important;
+  box-sizing:border-box!important;
+}
+@media(max-width:719px){
+  .inventory-media-dot-v236{
+    width:14px!important;
+    height:14px!important;
+    min-width:14px!important;
+    max-width:14px!important;
+    min-height:14px!important;
+    max-height:14px!important;
+    flex:0 0 14px!important;
+  }
+}
