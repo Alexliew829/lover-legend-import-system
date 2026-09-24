@@ -4684,7 +4684,7 @@ function renderPromotionPriceListV183() {
   const originIndex = getMinimumPriceOriginIndexV160();
   const sortMode = String(document.getElementById("promotionPriceListSortV185")?.value || "latest");
   const products = getPromotionSearchProductsV185(query, sortMode);
-  const isMobile = window.matchMedia("(max-width: 719px)").matches;
+  const isMobile = isPromotionMobileReadOnlyV377();
 
   if (isMobile) {
     list.className = "promotion-mobile-cards-v195";
@@ -4708,7 +4708,7 @@ function renderPromotionPriceListV183() {
           <div><span>库存</span><strong>${formatNumber(product.stock)}</strong></div>
           <div><span>${getAverageCostLabelV205(product, originIndex)}</span><strong>${formatMoney(product.averageCost, "RM ")}</strong></div>
           <div><span>原最低售价</span><strong>${formatMoney(originalPrice, "RM ")}</strong></div>
-          <div><span>${manualProtected || excluded ? "最低售价" : "促销最低售价"}</span>${manualProtected || excluded ? `<strong class="${manualProtected ? "promotion-price-control-value-v348" : ""}">${formatMoney(originalPrice, "RM ")}</strong>` : `<button type="button" class="promotion-price-edit-v193 promotion-mobile-price-edit-v195" data-promo-price-edit-v193="${escapeHTML(id)}" data-current-price-v193="${effectivePrice}" title="长按修改本次促销最低售价" aria-label="长按修改 ${escapeHTML(product.name)} 本次促销最低售价">${formatMoney(effectivePrice, "RM ")}</button>`}${override && !manualProtected && !excluded ? `<small class="promotion-manual-note-v193">已手动调整</small>` : ""}</div>
+          <div><span>${manualProtected || excluded ? "最低售价" : "促销最低售价"}</span><strong class="${manualProtected ? "promotion-price-control-value-v348" : ""}">${formatMoney((manualProtected || excluded) ? originalPrice : effectivePrice, "RM ")}</strong>${override && !manualProtected && !excluded ? `<small class="promotion-manual-note-v193">电脑端已手动调整</small>` : ""}</div>
           <div class="promotion-mobile-profit-v195 ${profit < 0 ? "loss" : "gain"}"><span>预计${profit < 0 ? "亏" : "赚"}</span><strong>${formatMoney(Math.abs(profit), "RM ")}</strong></div>
         </div>
       </article>`;
@@ -4931,6 +4931,40 @@ function clearPromotionSearchStateV212() {
   try { updatePromotionBatchControlsV184(); } catch (_) {}
 }
 
+function isPromotionMobileReadOnlyV377() {
+  return typeof isMobileOrTabletDevice === "function" ? isMobileOrTabletDevice() : Boolean(window.matchMedia && window.matchMedia("(max-width: 719px)").matches);
+}
+
+function showPromotionDesktopOnlyV377() {
+  window.alert("手机只可查看促销状态。促销开启、更新、关闭及售价操作请使用电脑。");
+}
+
+function setupPromotionMobileReadOnlyV377(elements) {
+  const {nameInput,commissionInput,marginInput,searchInput,filterInput,selectAllSearch,excludeSelected,selectAllExcluded,removeSelected,saveButton,deleteButton,manualPricingToggleV361,pricePanel,priceSearch,toggleButton,promotionDetails,toggleHint} = elements;
+  [nameInput,commissionInput,marginInput,searchInput,filterInput,selectAllSearch,selectAllExcluded,priceSearch].forEach(el=>{ if(el){el.disabled=true;el.setAttribute("aria-disabled","true");} });
+  [excludeSelected,removeSelected,saveButton,deleteButton,manualPricingToggleV361].forEach(el=>{
+    if(!el)return;
+    el.disabled=false;
+    el.addEventListener("click", event=>{event.preventDefault();event.stopPropagation();showPromotionDesktopOnlyV377();});
+  });
+  const status=document.getElementById("promotionStatusV183");
+  if(status) status.textContent="手机只可查看促销状态；促销操作请使用电脑。";
+  promotionDetails?.classList.add("promotion-mobile-readonly-v377");
+  const refreshHint=()=>{if(toggleHint&&promotionDetails)toggleHint.textContent=promotionDetails.open?"收起":"点击打开";};
+  promotionDetails?.addEventListener("toggle",()=>{
+    refreshHint();
+    if(promotionDetails.open&&typeof window.pollPromotionStateLightV372==="function")window.pollPromotionStateLightV372(true).catch(()=>{});
+  });
+  refreshHint();
+  toggleButton?.addEventListener("click",()=>{
+    if(!pricePanel)return;
+    pricePanel.hidden=!pricePanel.hidden;
+    toggleButton.textContent=pricePanel.hidden?"查看全部促销价格":"收起全部促销价格";
+    if(!pricePanel.hidden)renderPromotionPriceListV183();
+  });
+  refreshPromotionUiV183();
+}
+
 function setupPromotionSettingsV183() {
   const nameInput = document.getElementById("promotionNameV183");
   const commissionInput = document.getElementById("promotionCommissionV183");
@@ -4953,15 +4987,19 @@ function setupPromotionSettingsV183() {
   const status = document.getElementById("promotionStatusV183");
   const promotionDetails = nameInput.closest("details");
   const toggleHint = document.getElementById("promotionToggleHintV192");
+  if (!nameInput || !saveButton) return;
+  if (isPromotionMobileReadOnlyV377()) {
+    setupPromotionMobileReadOnlyV377({nameInput,commissionInput,marginInput,searchInput,filterInput,selectAllSearch,excludeSelected,selectAllExcluded,removeSelected,saveButton,deleteButton,manualPricingToggleV361,pricePanel,priceSearch,toggleButton,promotionDetails,toggleHint});
+    return;
+  }
   const refreshToggleHintV192 = () => { if (toggleHint && promotionDetails) toggleHint.textContent = promotionDetails.open ? "收起" : "点击打开"; };
   promotionDetails?.addEventListener("toggle", () => {
     refreshToggleHintV192();
     if (promotionDetails.open && typeof window.pollPromotionStateLightV372 === "function") {
-      window.pollPromotionStateLightV372(true).catch(error => console.warn("V37.4 promotion open refresh skipped", error));
+      window.pollPromotionStateLightV372(true).catch(error => console.warn("V37.7 promotion open refresh skipped", error));
     }
   });
   refreshToggleHintV192();
-  if (!nameInput || !saveButton) return;
 
   const syncManualPricingToggleUiV361 = () => {
     if (manualPricingToggleV361) {
@@ -16142,8 +16180,9 @@ function getInitialMinimumPriceMapV376(){
   return settings && settings[INITIAL_MINIMUM_PRICE_KEY_V376] && typeof settings[INITIAL_MINIMUM_PRICE_KEY_V376] === "object" ? settings[INITIAL_MINIMUM_PRICE_KEY_V376] : {};
 }
 function getInitialMinimumPriceV376(product){
-  const id=String(product?.id||"").trim(); const map=getInitialMinimumPriceMapV376();
-  const value=Number(map[id]); return Number.isFinite(value)&&value>=0?value:Math.max(0,Number(product?.minimumPrice)||0);
+  const id=String(product?.id||"").trim().toUpperCase(); const map=getInitialMinimumPriceMapV376();
+  const direct=Object.prototype.hasOwnProperty.call(map,id)?map[id]:Object.entries(map).find(([key])=>String(key||"").trim().toUpperCase()===id)?.[1];
+  const value=Number(String(direct??"").replace(/,/g,"")); return Number.isFinite(value)&&value>=0?value:Math.max(0,Number(product?.minimumPrice)||0);
 }
 window.getInitialMinimumPriceV376=getInitialMinimumPriceV376;
 function applyInitialMinimumPriceMapLocalV376(map){
@@ -16169,16 +16208,29 @@ async function editInitialMinimumPriceV376(productId){
 window.editInitialMinimumPriceV376=editInitialMinimumPriceV376;
 async function restoreInitialMinimumPricesV376(){
   const button=document.getElementById("restoreInitialMinimumPricesV376"); if(!button)return;
+  if(isPromotionMobileReadOnlyV377()){showPromotionDesktopOnlyV377();return;}
   try{ if(typeof pollPromotionStateLightV372==="function") await pollPromotionStateLightV372(true); }catch(_){}
   if(getPromotionSettingsV183()){ alert("促销进行中，请先关闭促销后再恢复初始最低售价。"); return; }
   if(!window.confirm("确认恢复全部产品的初始最低售价？\n\n恢复会把每个产品的初始最低售价真正写回正式 minimumPrice。不会改变库存、平均成本、FIFO、Sales ACK、Imports 或 Batches。"))return;
   button.disabled=true; button.textContent="恢复中...";
   try{
     const data=await restoreInitialMinimumPricesFastV376();
-    if(Array.isArray(data?.products)) localStorage.setItem("importSystemProducts",JSON.stringify(data.products));
     if(data?.initialMinimumPricesV376) applyInitialMinimumPriceMapLocalV376(data.initialMinimumPricesV376);
+    const restoredPrices=data?.restoredPrices&&typeof data.restoredPrices==="object"?data.restoredPrices:{};
+    if(Object.keys(restoredPrices).length){
+      const products=getProducts().map(product=>{
+        const id=String(product?.id||"").trim().toUpperCase();
+        if(!Object.prototype.hasOwnProperty.call(restoredPrices,id))return product;
+        return {...product,minimumPrice:Number(restoredPrices[id]),updatedAt:data.updatedAt||product.updatedAt};
+      });
+      localStorage.setItem("importSystemProducts",JSON.stringify(products));
+    }
     try{refreshSystemViewsAfterSync();}catch(_){renderBatchProductStockResults();renderInventoryManagementList();renderDashboard();}
-    button.textContent="恢复成功"; window.setTimeout(()=>{if(button.isConnected){button.disabled=false;button.textContent="恢复初始最低售价";}},1600);
+    const failed=Array.isArray(data?.failedProductIds)?data.failedProductIds:[];
+    button.textContent=failed.length?"部分恢复完成":"恢复成功";
+    if(failed.length) alert(`恢复完成：${Number(data?.restoredCount)||0} 项成功，${failed.length} 项失败。\n\n失败产品：${failed.join(", ")}`);
+    window.setTimeout(()=>{if(button.isConnected){button.disabled=false;button.textContent="恢复初始最低售价";}},1800);
+    if(typeof scheduleForegroundCloudCheck==="function")scheduleForegroundCloudCheck(0);
   }catch(error){ button.disabled=false; button.textContent="恢复失败 · 重试"; alert(error?.message||"恢复初始最低售价失败"); }
 }
 window.restoreInitialMinimumPricesV376=restoreInitialMinimumPricesV376;
@@ -18687,7 +18739,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "37.6",
+      version: "37.7",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -19366,7 +19418,7 @@ function setupInventoryMasterV299(){
 
 
 
-// V37.6 bindings: the summary action must not toggle the Promotion panel.
+// V37.7 bindings: the summary action must not toggle the Promotion panel.
 document.addEventListener("click",event=>{
   const restore=event.target.closest("#restoreInitialMinimumPricesV376");
   if(restore){event.preventDefault();event.stopPropagation();restoreInitialMinimumPricesV376();return;}

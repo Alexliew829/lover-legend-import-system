@@ -455,7 +455,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V37.6 Stable",
+      updatedBy: "System V37.7 Stable",
       ...payload
     });
 
@@ -491,7 +491,7 @@ async function commitSalesInventoryBatchToCloudV125(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V37.6 Stable",
+      updatedBy: "System V37.7 Stable",
       ...payload
     });
     if (data.conflict || data.stockChanged) {
@@ -514,7 +514,7 @@ window.commitSalesInventoryBatchToCloudV125 = commitSalesInventoryBatchToCloudV1
 
 async function commitSalesCorrectionBatchToCloudV110(payload) {
   await flushCloudQueueStrictV83(); const config=getCloudConfig(); setCloudState("syncing");
-  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V37.6 Stable",...payload});
+  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V37.7 Stable",...payload});
     if(data.conflict||data.stockChanged) throw new Error(data.message||"Google Sheet 资料已改变，全部库存差异没有处理。请同步后重试。");
     config.revision=Number(data.revision)||Number(config.revision)||0; config.lastSyncAt=new Date().toISOString(); config.bootstrapToken=String(data.bootstrapToken||config.bootstrapToken||""); config.bootstrapRevision=Number(data.revision)||Number(config.bootstrapRevision)||0; saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced"); return data;
   } catch(error){setCloudState("failed");throw error;}
@@ -528,7 +528,7 @@ async function migrateProductPrefixesV164() {
     action: "migrateProductPrefixesV164", clientVersion: APP_VERSION,
     schemaVersion: CLOUD_SCHEMA_VERSION, baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""), bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V37.6 Stable"
+    updatedBy: "System V37.7 Stable"
   });
   if (data.conflict) throw new Error(data.message || "资料已改变，请同步后重试。");
   config.revision = Number(data.revision) || Number(config.revision) || 0;
@@ -728,7 +728,7 @@ function repairLocalBsCanonicalCacheV365() {
     localStorage.setItem("importSystemSettings", JSON.stringify(nextSettings));
     return true;
   } catch (error) {
-    console.warn("V37.6 local BS canonical cache repair skipped", error);
+    console.warn("V37.7 local BS canonical cache repair skipped", error);
     return false;
   }
 }
@@ -762,9 +762,10 @@ async function pullLatestSnapshot(forceBootstrap = false) {
       config.bootstrapRevision = Number(data.revision) || 0;
     }
     saveCloudConfig(config);
-    // V37.6: never let the normal revision path say "已同步" while promotion state is stale.
-    // A forced promotion-state check is lightweight and repaints immediately when needed.
-    try { if (typeof pollPromotionStateLightV372 === "function") await pollPromotionStateLightV372(true); } catch (_) {}
+    // V37.7: keep the proven main revision path independent from Promotion Light Sync.
+    // Do not await an extra Web App request here; minimum-price / inventory sync must
+    // complete at the original V32.5/V34.6 speed. Promotion state is reconciled by
+    // its own lightweight read-only channel.
     // V36.3: even an unchanged Pull can return a fresh bootstrap token. Persist
     // the current-version credential so mobile caches do not keep using V34.0/V34.1 tokens.
     if (!isCloudWriteCredentialCurrentV341() && data.bootstrapToken) saveCloudBootstrap(data);
@@ -784,7 +785,7 @@ async function pullLatestSnapshot(forceBootstrap = false) {
     const repair = await callGoogleApi({
       action:"repairBsCanonicalV364", clientVersion:APP_VERSION, schemaVersion:CLOUD_SCHEMA_VERSION,
       baseRevision:Number(data.revision)||0, bootstrapToken:String(data.bootstrapToken||""),
-      bootstrapRevision:Number(data.revision)||0, updatedBy:"System V37.6 Stable"
+      bootstrapRevision:Number(data.revision)||0, updatedBy:"System V37.7 Stable"
     });
     if (!repair?.ok || repair?.conflict || repair?.writeBlocked) throw new Error(repair?.message || "BS 编号修复失败，已停止载入重复库存。");
     data = await callGoogleApi({
@@ -799,9 +800,19 @@ async function pullLatestSnapshot(forceBootstrap = false) {
     throw new Error("云端产品编号仍处于迁移中间状态，已停止显示，等待下一次完整同步。");
   }
 
+  // V37.7: a lightweight promotion response may have advanced this device while
+  // an older full Pull was still in flight. Never let that older response overwrite
+  // the newer promotion state (or any newer revision metadata).
+  const liveConfigV377 = getCloudConfig();
+  if ((Number(data.revision) || 0) < (Number(liveConfigV377.revision) || 0)) {
+    scheduleForegroundCloudCheck(0);
+    return false;
+  }
+
   // 正常启动拉取以Google Sheet为准；只有明确dirty的本地修改才可推送。
   applyRemoteData(data);
   config.revision = Number(data.revision) || 0;
+  config.promotionRevision = Number(data.promotionRevision) || Number(config.promotionRevision) || 0;
   config.lastSyncAt = new Date().toISOString();
   config.bootstrapToken = String(data.bootstrapToken || "");
   config.bootstrapRevision = Number(data.revision) || 0;
@@ -859,7 +870,7 @@ function retryPendingMinimumPriceV345(){
   if(!pending?.productId||minimumPricePendingRetryBusyV345||!navigator.onLine||!isCloudBootstrapComplete())return;
   minimumPricePendingRetryBusyV345=true;
   Promise.resolve(updateProductMinimumPriceFast(pending.productId,pending.minimumPrice,pending.updatedAt,pending.minimumPriceManual,0,pending.historyMetaV374||null))
-    .catch(error=>console.warn("V37.6 pending minimum-price retry kept for next sync",error))
+    .catch(error=>console.warn("V37.7 pending minimum-price retry kept for next sync",error))
     .finally(()=>{minimumPricePendingRetryBusyV345=false;});
 }
 window.retryPendingMinimumPriceV345=retryPendingMinimumPriceV345;
@@ -886,7 +897,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V37.6 Stable",
+    updatedBy: "System V37.7 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     minimumPriceManual: Boolean(minimumPriceManual),
@@ -945,13 +956,13 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
       inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
     }
   } catch (localErrorV341) {
-    console.warn("V37.6 minimum-price local refresh skipped", localErrorV341);
+    console.warn("V37.7 minimum-price local refresh skipped", localErrorV341);
   }
 
   setMinimumPricePendingV345(null);
   renderCloudMeta(config);
   setCloudState("synced");
-  window.setTimeout(()=>{try{if(typeof refreshSystemViewsAfterSync==="function")refreshSystemViewsAfterSync()}catch(refreshErrorV343){console.warn("V37.6 deferred minimum-price refresh skipped",refreshErrorV343)}},0);
+  window.setTimeout(()=>{try{if(typeof refreshSystemViewsAfterSync==="function")refreshSystemViewsAfterSync()}catch(refreshErrorV343){console.warn("V37.7 deferred minimum-price refresh skipped",refreshErrorV343)}},0);
   return data;
 }
 
@@ -970,7 +981,7 @@ async function updateProductAverageCostFastV358(productId, averageCost, minimumP
     clientVersion:APP_VERSION, schemaVersion:CLOUD_SCHEMA_VERSION,
     baseRevision:Number(config.revision)||0,
     bootstrapToken:String(config.bootstrapToken||""), bootstrapRevision:Number(config.bootstrapRevision)||0,
-    updatedBy:"System V37.6 Stable",
+    updatedBy:"System V37.7 Stable",
     productId:String(productId||"").trim(),
     averageCost:Number(averageCost),
     minimumPrice:Number(minimumPrice),
@@ -1029,7 +1040,7 @@ async function reconcilePromotionWriteV374(requestedPromotion, attempts = 2) {
         return stateV373;
       }
     } catch (errorV373) {
-      console.warn("V37.6 promotion timeout reconcile skipped", errorV373);
+      console.warn("V37.7 promotion timeout reconcile skipped", errorV373);
     }
   }
   return null;
@@ -1070,7 +1081,7 @@ async function updatePromotionSettingsFastV185(promotion, retryCountV374 = 0) {
       baseRevision:freshV374.revision,
       bootstrapToken:freshV374.bootstrapToken,
       bootstrapRevision:freshV374.bootstrapRevision,
-      updatedBy:"System V37.6 Stable",
+      updatedBy:"System V37.7 Stable",
       promotion:promotion || null
     });
 
@@ -1139,9 +1150,19 @@ function normalizePromotionStateForCompareV372(value) {
   });
 }
 
+function isPromotionMobileReadOnlyV377() {
+  try {
+    if (typeof window.isMobileOrTabletDevice === "function") return window.isMobileOrTabletDevice();
+  } catch (_) {}
+  return Boolean(window.matchMedia && window.matchMedia("(max-width: 719px)").matches);
+}
+
 function getPromotionLightPollIntervalV375() {
   const panelOpen = Boolean(document.querySelector("details.promotion-settings-v183[open]"));
-  if (panelOpen) return PROMOTION_LIGHT_SYNC_MS_V372;
+  // V37.7 mobile is strictly read-only. Merely opening the Settings panel must not
+  // create a permanent 3-second Web App poll. While a promotion is active, the
+  // lightweight read channel remains at 4 seconds so desktop changes appear quickly.
+  if (panelOpen && !isPromotionMobileReadOnlyV377()) return PROMOTION_LIGHT_SYNC_MS_V372;
   const settings = loadJSON("importSystemSettings", {});
   const active = settings?.promotionV183?.active === true;
   return active ? PROMOTION_LIGHT_ACTIVE_MS_V375 : 0;
@@ -1180,7 +1201,7 @@ async function pollPromotionStateLightV372(force = false) {
         if (typeof window.refreshPromotionSettingsAfterCloudSyncV370 === "function") window.refreshPromotionSettingsAfterCloudSyncV370();
         else if (typeof window.refreshPromotionUiV183 === "function") window.refreshPromotionUiV183();
         if (typeof window.refreshPromotionDependentVisibleViewsV375 === "function") window.refreshPromotionDependentVisibleViewsV375();
-      } catch (error) { console.warn("V37.6 promotion light repaint skipped", error); }
+      } catch (error) { console.warn("V37.7 promotion light repaint skipped", error); }
     }
 
     // Safe revision shortcut: if this device is exactly one revision behind and
@@ -1191,7 +1212,10 @@ async function pollPromotionStateLightV372(force = false) {
     const promotionRevisionV372 = Number(data.promotionRevision) || 0;
     const localRevisionV372 = Number(configV372.revision) || 0;
     if (!cloudSyncBusy && !getCloudQueue().dirty && remoteRevisionV372 === localRevisionV372 + 1 && promotionRevisionV372 === remoteRevisionV372) {
+      // The authoritative promotion state has already been applied and repainted above.
+      // Only now advance revision metadata / show 已同步, so UI can never lag one cycle.
       configV372.revision = remoteRevisionV372;
+      configV372.promotionRevision = promotionRevisionV372;
       configV372.lastSyncAt = new Date().toISOString();
       if (data.bootstrapToken) {
         configV372.bootstrapToken = String(data.bootstrapToken);
@@ -1201,6 +1225,8 @@ async function pollPromotionStateLightV372(force = false) {
       renderCloudMeta(configV372);
       setCloudState("synced");
     } else if (!getCloudQueue().dirty && remoteRevisionV372 > localRevisionV372) {
+      configV372.promotionRevision = Math.max(Number(configV372.promotionRevision)||0, promotionRevisionV372);
+      saveCloudConfig(configV372);
       // V37.5: the lightweight promotion response proved this device is behind
       // by more than a promotion-only revision (or the write type is ambiguous).
       // Trigger one normal revision sync immediately instead of waiting up to 8s.
@@ -1208,7 +1234,7 @@ async function pollPromotionStateLightV372(force = false) {
     }
     return changedV372;
   } catch (error) {
-    console.warn("V37.6 promotion light sync skipped", error);
+    console.warn("V37.7 promotion light sync skipped", error);
     return false;
   } finally {
     promotionLightSyncBusyV372 = false;
@@ -1232,7 +1258,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     action: "pushDeltaV346",
     clientVersion: APP_VERSION, schemaVersion: CLOUD_SCHEMA_VERSION, force:false,
     baseRevision:Number(config.revision)||0, bootstrapToken:String(config.bootstrapToken||""), bootstrapRevision:Number(config.bootstrapRevision)||0,
-    updatedBy:"System V37.6 Stable", collections,
+    updatedBy:"System V37.7 Stable", collections,
     ...(collections.includes("settings")?{settings:snapshot.settings,productIds:(snapshot.products||[]).map(item=>String(item?.id||"").trim()).filter(Boolean)}:{}),
     ...(collections.includes("products")?{products:snapshot.products}:{}),
     ...(collections.includes("imports")?{imports:snapshot.imports}:{}),
@@ -1478,7 +1504,17 @@ function applyRemoteData(data) {
     // V36.3: keep the proven V32.5 Pull/apply path, but promotionV183 is now
     // authoritative live state. Never strip it during a Pull: doing so can
     // falsely turn an active promotion off after a revision conflict.
-    const safeRemoteSettingsV336 = sanitizeLegacySettingsV323(data.settings || {}, data.products || []);
+    let safeRemoteSettingsV336 = sanitizeLegacySettingsV323(data.settings || {}, data.products || []);
+    const localConfigV377 = getCloudConfig();
+    const localPromotionRevisionV377 = Number(localConfigV377.promotionRevision) || 0;
+    const remotePromotionRevisionV377 = Number(data.promotionRevision) || 0;
+    if (localPromotionRevisionV377 > remotePromotionRevisionV377) {
+      const currentSettingsV377 = loadJSON("importSystemSettings", {});
+      const currentPromotionV377 = currentSettingsV377?.promotionV183?.active === true ? currentSettingsV377.promotionV183 : null;
+      safeRemoteSettingsV336 = { ...safeRemoteSettingsV336 };
+      if (currentPromotionV377) safeRemoteSettingsV336.promotionV183 = currentPromotionV377;
+      else delete safeRemoteSettingsV336.promotionV183;
+    }
     localStorage.setItem("importSystemSettings", JSON.stringify(safeRemoteSettingsV336));
     const hydratedProductsV341 = hydrateRemoteProductManualFlagsV341(data.products, safeRemoteSettingsV336);
     localStorage.setItem("importSystemProducts", JSON.stringify(hydratedProductsV341));
@@ -1591,7 +1627,7 @@ function setCloudState(state, error = null) {
 async function updateInitialMinimumPriceFastV376(productId, initialMinimumPrice, retryCount=0){
   if(!isCloudWriteCredentialCurrentV341()) await pullLatestSnapshot(false);
   const config=getCloudConfig();
-  const data=await callGoogleApi({action:"updateInitialMinimumPriceV376",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V37.6 Stable",productId:String(productId||"").trim(),initialMinimumPrice:Number(initialMinimumPrice)});
+  const data=await callGoogleApi({action:"updateInitialMinimumPriceV376",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V37.7 Stable",productId:String(productId||"").trim(),initialMinimumPrice:Number(initialMinimumPrice)});
   if(data.conflict){config.revision=Number(data.revision)||config.revision;if(data.bootstrapToken){config.bootstrapToken=String(data.bootstrapToken);config.bootstrapRevision=Number(data.revision)||0;}saveCloudConfig(config);if(retryCount<1){await pullLatestSnapshot(false);return updateInitialMinimumPriceFastV376(productId,initialMinimumPrice,retryCount+1);}throw new Error("资料版本刚刚发生变化，请再试一次。");}
   config.revision=Number(data.revision)||0;config.lastSyncAt=new Date().toISOString();config.bootstrapToken=String(data.bootstrapToken||"");config.bootstrapRevision=Number(data.revision)||0;saveCloudConfig(config);renderCloudMeta(config);setCloudState("synced");return data;
 }
@@ -1600,9 +1636,10 @@ window.updateInitialMinimumPriceFastV376=updateInitialMinimumPriceFastV376;
 async function restoreInitialMinimumPricesFastV376(retryCount=0){
   if(!isCloudWriteCredentialCurrentV341()) await pullLatestSnapshot(false);
   const config=getCloudConfig();setCloudState("syncing");
-  const data=await callGoogleApi({action:"restoreInitialMinimumPricesV376",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V37.6 Stable"});
+  const data=await callGoogleApi({action:"restoreInitialMinimumPricesV376",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V37.7 Stable"});
   if(data.promotionActive)throw new Error("促销进行中，请先关闭促销后再恢复初始最低售价。");
   if(data.conflict){config.revision=Number(data.revision)||config.revision;if(data.bootstrapToken){config.bootstrapToken=String(data.bootstrapToken);config.bootstrapRevision=Number(data.revision)||0;}saveCloudConfig(config);if(retryCount<1){await pullLatestSnapshot(false);return restoreInitialMinimumPricesFastV376(retryCount+1);}throw new Error("资料版本刚刚发生变化，请再试一次。");}
+  if(!data?.ok) throw new Error(data?.message||"恢复初始最低售价失败");
   config.revision=Number(data.revision)||0;config.lastSyncAt=new Date().toISOString();config.bootstrapToken=String(data.bootstrapToken||"");config.bootstrapRevision=Number(data.revision)||0;saveCloudConfig(config);renderCloudMeta(config);setCloudState("synced");return data;
 }
 window.restoreInitialMinimumPricesFastV376=restoreInitialMinimumPricesFastV376;
