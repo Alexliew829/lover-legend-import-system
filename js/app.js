@@ -15,7 +15,6 @@ function clearTransientSearchInputsOnReloadV304() {
     "historyLookupInput",
     "batchProductStockSearch",
     "inventoryMasterSearchV261",
-    "boutiquePriceHistorySearchV374",
     "costRevisionHistorySearch"
   ].forEach(id => {
     const field = document.getElementById(id);
@@ -26,7 +25,7 @@ function clearTransientSearchInputsOnReloadV304() {
 window.addEventListener("pageshow", () => {
   if (!isPageReloadV304()) return;
   window.setTimeout(() => {
-    const ids = ["inventorySearch","batchSearch","batchLookupInput","historyLookupInput","batchProductStockSearch","inventoryMasterSearchV261","boutiquePriceHistorySearchV374","costRevisionHistorySearch"];
+    const ids = ["inventorySearch","batchSearch","batchLookupInput","historyLookupInput","batchProductStockSearch","inventoryMasterSearchV261","costRevisionHistorySearch"];
     const hadRestoredValue = ids.some(id => String(document.getElementById(id)?.value || "").length > 0);
     clearTransientSearchInputsOnReloadV304();
     if (!hadRestoredValue) return;
@@ -110,7 +109,6 @@ document.addEventListener("DOMContentLoaded", () => {
   setupNavigation();
   setupSettings();
   setupInventoryMasterV299();
-  setupBoutiquePriceHistoryV374();
   const requestedPageV210 = String(new URLSearchParams(window.location.search).get("page") || "").trim().toLowerCase();
   const deepLinkPageMapV210 = {
     home: "dashboardPage",
@@ -14912,6 +14910,9 @@ function bindProductStockLongPress() {
       promptProductOriginalCostEditorV257(productId, importRecordId);
     } else if (editType === "minimumPrice") {
       editDisplayedMinimumPriceV199(productId);
+    } else if (editType === "initialMinimumPrice") {
+      window.initialMinimumPriceLongPressAtV376 = Date.now();
+      editInitialMinimumPriceV376(productId);
     } else if (editType === "averageCost") {
       void editProductAverageCostFromImportPage(productId);
     }
@@ -15048,48 +15049,16 @@ function renderBatchProductStockResults() {
       </div>
       <button type="button" class="product-stock-english-edit-btn-v266" data-product-id="${escapeHTML(productIdV256)}" title="点击复制英文名">${escapeHTML(productEnglishNameV262(product)||"英文名：未设置")}</button>
 
-      <div class="product-stock-metrics-v256">
-        <button
-          class="product-stock-qty-btn product-stock-metric-v256"
-          type="button"
-          data-product-id="${escapeHTML(productIdV256)}"
-          data-edit-type="stock"
-          aria-label="长按修改当前库存" title="长按修改当前库存">
-          <span>当前库存</span><strong>${formatNumber(Number(product.stock) || 0)}</strong>
-        </button>
-
-        ${originalRecordV219 ? `<button class="product-stock-original-cost-btn-v219 product-stock-metric-v256" type="button"
-          data-product-id="${escapeHTML(productIdV256)}"
-          data-import-record-id="${escapeHTML(originalRecordV219.id || "")}"
-          data-edit-type="originalCost"
-          aria-label="长按修改原成本" title="长按修改原成本；只重算该产品，不改变原进口数量或同批其他产品">
-          <span>原成本</span><strong>${formatMoney(Number(originalRecordV219.unitPrice) || 0)}${currencyV219 ? ` ${escapeHTML(currencyV219)}` : ""}</strong>
-        </button>` : `<div class="product-stock-original-cost-empty-v219 product-stock-metric-v256"><span>原成本</span><strong>-</strong></div>`}
-
-        ${(()=>{const state=getMinimumPriceDisplayStateV315(product);const tone=state.state;return `<button
-          class="product-stock-minimum-price-btn product-stock-metric-v256 product-stock-minimum-price-${tone}-v268 ${state.className}"
-          type="button"
-          data-minimum-price-state-v324="${state.state}"
-          style="color:${getMinimumPriceColorV340(state.state) || 'inherit'} !important"
-          data-product-id="${escapeHTML(productIdV256)}"
-          data-edit-type="minimumPrice"
-          aria-label="长按修改最低售价" title="长按修改最低售价">
-          <span>${state.label}</span><strong>${formatMoney(state.price, "RM ")}</strong>
-        </button>`})()}
-
-        <button
-          class="product-stock-cost-btn product-stock-metric-v256"
-          type="button"
-          data-product-id="${escapeHTML(productIdV256)}"
-          data-edit-type="averageCost"
-          aria-label="长按修改平均成本" title="长按修改平均成本；VND 为不含盆成本">
-          <span>${getAverageCostLabelV205(product)}</span><strong>${formatMoney(Number(product.averageCost) || 0, "RM ")}</strong>
-        </button>
+      <div class="product-stock-modify-card-v376">
+        <div class="product-stock-modify-grid-v376">
+          <button class="product-stock-qty-btn product-stock-metric-v256" type="button" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="stock" aria-label="长按修改当前库存" title="长按修改当前库存"><span>当前库存</span><strong>${formatNumber(Number(product.stock) || 0)}</strong></button>
+          ${originalRecordV219 ? `<button class="product-stock-original-cost-btn-v219 product-stock-metric-v256" type="button" data-product-id="${escapeHTML(productIdV256)}" data-import-record-id="${escapeHTML(originalRecordV219.id || "")}" data-edit-type="originalCost" aria-label="长按修改原成本" title="长按修改原成本；只重算该产品，不改变原进口数量或同批其他产品"><span>原成本</span><strong>${currencyV219 ? `${escapeHTML(currencyV219)} ` : ""}${formatMoney(Number(originalRecordV219.unitPrice) || 0)}</strong></button>` : `<div class="product-stock-original-cost-empty-v219 product-stock-metric-v256"><span>原成本</span><strong>-</strong></div>`}
+          ${(()=>{const state=getMinimumPriceDisplayStateV315(product);const tone=state.state;return `<button class="product-stock-minimum-price-btn product-stock-metric-v256 product-stock-minimum-price-${tone}-v268 ${state.className}" type="button" data-minimum-price-state-v324="${state.state}" style="color:${getMinimumPriceColorV340(state.state) || 'inherit'} !important" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="minimumPrice" aria-label="长按修改最低售价" title="长按修改最低售价"><span>${state.label}</span><strong>${formatMoney(state.price, "RM ")}</strong></button>`})()}
+          <button class="product-stock-initial-price-btn-v376 product-stock-metric-v256" type="button" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="initialMinimumPrice" aria-label="点击或长按修改初始最低售价" title="点击或长按修改初始最低售价"><span>初始最低售价</span><strong>${formatMoney(getInitialMinimumPriceV376(product), "RM ")}</strong></button>
+          <div class="product-stock-import-metric-v376 product-stock-metric-v256"><span>进口编号</span>${importNumberV256 ? `<button type="button" class="product-stock-import-copy-v256" data-copy-value="${escapeHTML(importNumberV256)}" onclick="copyRecentBatchValue(this, '进口编号')" title="点击复制进口编号">${escapeHTML(importNumberV256)}</button>` : `<strong>-</strong>`}</div>
+          <button class="product-stock-cost-btn product-stock-metric-v256" type="button" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="averageCost" aria-label="长按修改平均成本" title="长按修改平均成本；VND 为不含盆成本"><span>${getAverageCostLabelV205(product)}</span><strong>${formatMoney(Number(product.averageCost) || 0, "RM ")}</strong></button>
+        </div>
       </div>
-
-      ${importNumberV256 ? `<div class="product-stock-import-row-v256"><span>进口编号</span><button type="button"
-        class="product-stock-import-copy-v256" data-copy-value="${escapeHTML(importNumberV256)}"
-        onclick="copyRecentBatchValue(this, '进口编号')" title="点击复制进口编号">${escapeHTML(importNumberV256)}</button></div>` : ""}
 
       ${buildProductPendingSalesHtmlV77(product)}
       ${buildProductAdjustmentNotesPanel(product)}
@@ -16166,6 +16135,54 @@ function minimumPriceHistoryMetaV374(product, price, manual, stateLabel = "") {
   };
 }
 
+
+const INITIAL_MINIMUM_PRICE_KEY_V376 = "initialMinimumPricesV376";
+function getInitialMinimumPriceMapV376(){
+  const settings=loadJSON("importSystemSettings",{});
+  return settings && settings[INITIAL_MINIMUM_PRICE_KEY_V376] && typeof settings[INITIAL_MINIMUM_PRICE_KEY_V376] === "object" ? settings[INITIAL_MINIMUM_PRICE_KEY_V376] : {};
+}
+function getInitialMinimumPriceV376(product){
+  const id=String(product?.id||"").trim(); const map=getInitialMinimumPriceMapV376();
+  const value=Number(map[id]); return Number.isFinite(value)&&value>=0?value:Math.max(0,Number(product?.minimumPrice)||0);
+}
+window.getInitialMinimumPriceV376=getInitialMinimumPriceV376;
+function applyInitialMinimumPriceMapLocalV376(map){
+  const settings=loadJSON("importSystemSettings",{});
+  localStorage.setItem("importSystemSettings",JSON.stringify({...settings,[INITIAL_MINIMUM_PRICE_KEY_V376]:{...(map||{})}}));
+}
+async function editInitialMinimumPriceV376(productId){
+  const id=String(productId||"").trim(), product=getProducts().find(p=>String(p?.id||"").trim()===id);
+  if(!product){alert("找不到这个产品。");return;}
+  const current=getInitialMinimumPriceV376(product);
+  const entered=window.prompt(`修改初始最低售价：${product.name}\n\n目前初始最低售价：${formatMoney(current,"RM ")}\n请输入新的初始最低售价（最多2位小数）`,current.toFixed(2));
+  if(entered===null)return;
+  const next=normalizeMinimumPriceInput(entered); if(next===null){alert("初始最低售价必须是0或正数，最多2位小数。");return;}
+  if(Math.abs(next-current)<0.005)return;
+  if(!window.confirm(`确认修改初始最低售价？\n\n产品：${product.name}\n目前：${formatMoney(current,"RM ")}\n修改为：${formatMoney(next,"RM ")}\n\n这次只修改以后「恢复初始最低售价」的基准，不会改变当前最低售价、库存、平均成本或 FIFO。`))return;
+  const status=document.getElementById("batchProductStockStatus"); if(status)status.textContent="同步中：初始最低售价";
+  try{
+    const data=await updateInitialMinimumPriceFastV376(id,next);
+    const map={...getInitialMinimumPriceMapV376(),[id]:next}; applyInitialMinimumPriceMapLocalV376(map);
+    renderBatchProductStockResults(); if(status)status.textContent=`已更新：${product.name} 初始最低售价 ${formatMoney(next,"RM ")}`;
+  }catch(error){ if(status)status.textContent="初始最低售价同步失败"; alert(error?.message||"初始最低售价同步失败"); }
+}
+window.editInitialMinimumPriceV376=editInitialMinimumPriceV376;
+async function restoreInitialMinimumPricesV376(){
+  const button=document.getElementById("restoreInitialMinimumPricesV376"); if(!button)return;
+  try{ if(typeof pollPromotionStateLightV372==="function") await pollPromotionStateLightV372(true); }catch(_){}
+  if(getPromotionSettingsV183()){ alert("促销进行中，请先关闭促销后再恢复初始最低售价。"); return; }
+  if(!window.confirm("确认恢复全部产品的初始最低售价？\n\n恢复会把每个产品的初始最低售价真正写回正式 minimumPrice。不会改变库存、平均成本、FIFO、Sales ACK、Imports 或 Batches。"))return;
+  button.disabled=true; button.textContent="恢复中...";
+  try{
+    const data=await restoreInitialMinimumPricesFastV376();
+    if(Array.isArray(data?.products)) localStorage.setItem("importSystemProducts",JSON.stringify(data.products));
+    if(data?.initialMinimumPricesV376) applyInitialMinimumPriceMapLocalV376(data.initialMinimumPricesV376);
+    try{refreshSystemViewsAfterSync();}catch(_){renderBatchProductStockResults();renderInventoryManagementList();renderDashboard();}
+    button.textContent="恢复成功"; window.setTimeout(()=>{if(button.isConnected){button.disabled=false;button.textContent="恢复初始最低售价";}},1600);
+  }catch(error){ button.disabled=false; button.textContent="恢复失败 · 重试"; alert(error?.message||"恢复初始最低售价失败"); }
+}
+window.restoreInitialMinimumPricesV376=restoreInitialMinimumPricesV376;
+
 async function editProductMinimumPrice(productId) {
   const id = String(productId || "").trim();
   const products = getProducts();
@@ -16177,6 +16194,9 @@ async function editProductMinimumPrice(productId) {
 
   const product = products[productIndex];
   const storedMinimumPriceV351 = Math.max(0, Number(product.minimumPrice) || 0);
+  const initialMapBeforeV376 = getInitialMinimumPriceMapV376();
+  const initialPriceWasImplicitV376 = !Object.prototype.hasOwnProperty.call(initialMapBeforeV376, id);
+  if (initialPriceWasImplicitV376) applyInitialMinimumPriceMapLocalV376({ ...initialMapBeforeV376, [id]: storedMinimumPriceV351 });
   const currentMinimumPriceManual = isMinimumPriceManualV160(product);
   // V35.2: the edit dialog must reflect the price the user is actually seeing now.
   // During an active promotion, a non-manual, non-excluded product therefore shows
@@ -16269,6 +16289,7 @@ async function editProductMinimumPrice(productId) {
         };
         saveJSON("importSystemProducts", latestProducts);
       }
+      if (initialPriceWasImplicitV376) applyInitialMinimumPriceMapLocalV376({ ...getInitialMinimumPriceMapV376(), [id]: storedMinimumPriceV351 });
       const keepOverridesV351 = { ...getMinimumPriceManualOverridesV160() };
       keepOverridesV351[id] = nextMinimumPriceManual;
       saveMinimumPriceManualOverridesV160(keepOverridesV351);
@@ -16290,6 +16311,11 @@ async function editProductMinimumPrice(productId) {
         updatedAt: product.updatedAt || ""
       };
       saveJSON("importSystemProducts", latestProducts);
+    }
+    if (initialPriceWasImplicitV376) {
+      const rollbackInitialMapV376 = { ...getInitialMinimumPriceMapV376() };
+      delete rollbackInitialMapV376[id];
+      applyInitialMinimumPriceMapLocalV376(rollbackInitialMapV376);
     }
     const rollbackOverrides = { ...getMinimumPriceManualOverridesV160() };
     rollbackOverrides[id] = currentMinimumPriceManual;
@@ -18661,7 +18687,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "37.5",
+      version: "37.6",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -19195,94 +19221,6 @@ function rememberProductLanguageV262(productId, chineseName, englishName){const 
 function inferSimpleBilingualV262(text){const raw=String(text||"").trim();const rule=speciesRuleV262(raw);return{chineseName:rule?.cn||(/[\u3400-\u9fff]/.test(raw)?raw:""),englishName:rule?.en||(!/[\u3400-\u9fff]/.test(raw)?raw.replace(/\b(?:P?\d{2,4}|\d+(?:\.\d+)?C|\d+[xX]\d+)\b.*$/i,"").trim():""),prefix:rule?.prefix||""}}
 
 
-// ================= V37.4 精品售价记录 / 售价历史 =================
-let boutiquePriceHistoryEntriesV374=[];
-let boutiquePriceHistoryLoadingV374=false;
-function boutiquePriceHistoryDateV374(value){
-  const d=new Date(value||"");
-  if(Number.isNaN(d.getTime()))return String(value||"");
-  return `${String(d.getDate()).padStart(2,"0")}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getFullYear()).slice(-2)}`;
-}
-function normalizeBoutiqueHistoryEntryV374(entry){
-  const state=["系统计算","控制精品售价","放弃控制"].includes(String(entry?.state||""))?String(entry.state):"系统计算";
-  const tone=String(entry?.tone||"").toLowerCase();
-  const normalizedTone=tone==="red"?"red":(state==="控制精品售价"?"blue":"green");
-  return {...entry,state,tone:normalizedTone,productId:String(entry?.productId||"").trim(),productName:String(entry?.productName||"").trim(),price:Math.max(0,Number(entry?.price)||0),minimumPriceManual:entry?.minimumPriceManual===true};
-}
-async function loadBoutiquePriceHistoryV374(force=false){
-  if(boutiquePriceHistoryLoadingV374)return boutiquePriceHistoryEntriesV374;
-  if(!force&&boutiquePriceHistoryEntriesV374.length)return boutiquePriceHistoryEntriesV374;
-  if(typeof fetchBoutiquePriceHistoryV374!=="function")return boutiquePriceHistoryEntriesV374;
-  boutiquePriceHistoryLoadingV374=true;
-  const status=document.getElementById("boutiquePriceHistoryStatusV374");
-  if(status)status.textContent="正在读取精品售价历史…";
-  try{
-    const data=await fetchBoutiquePriceHistoryV374(2000);
-    boutiquePriceHistoryEntriesV374=(Array.isArray(data?.entries)?data.entries:[]).map(normalizeBoutiqueHistoryEntryV374);
-    if(status)status.textContent=`共 ${boutiquePriceHistoryEntriesV374.length} 条售价记录`;
-  }catch(error){if(status)status.textContent=`读取失败：${error?.message||error}`;}
-  finally{boutiquePriceHistoryLoadingV374=false;}
-  return boutiquePriceHistoryEntriesV374;
-}
-function getFilteredBoutiquePriceHistoryV374(){
-  const q=String(document.getElementById("boutiquePriceHistorySearchV374")?.value||"").trim().toLowerCase();
-  if(!q)return boutiquePriceHistoryEntriesV374;
-  return boutiquePriceHistoryEntriesV374.filter(e=>{
-    const hay=[e.productId,e.productName,e.state,e.price,boutiquePriceHistoryDateV374(e.timestamp||e.updatedAt),e.displayTimestamp].map(x=>String(x??"").toLowerCase()).join(" ");
-    return smartSearchMatches(hay,q)||hay.includes(q);
-  });
-}
-function renderBoutiquePriceHistoryV374(){
-  const list=document.getElementById("boutiquePriceHistoryListV374");if(!list)return;
-  const rows=getFilteredBoutiquePriceHistoryV374();
-  list.innerHTML=rows.map((e,i)=>{
-    const key=escapeHTML(String(e.id||`${e.productId}|${e.timestamp||e.updatedAt||i}|${e.price}`));
-    const cls=e.tone==="red"?"is-red-v374":(e.tone==="blue"?"is-blue-v374":"is-green-v374");
-    const manual=e.state==="控制精品售价";
-    return `<div class="boutique-price-history-row-v374 ${cls}" data-history-id-v374="${key}">
-      <input class="boutique-price-history-check-v374" type="checkbox" data-history-select-v374="${key}" aria-label="选择这笔售价记录" />
-      <div class="boutique-price-name-v374">${escapeHTML(e.productName||"未命名产品")}<span class="boutique-price-id-v374">${escapeHTML(e.productId||"")}</span></div>
-      <div class="boutique-price-date-v374">${escapeHTML(boutiquePriceHistoryDateV374(e.timestamp||e.updatedAt))}</div>
-      <div class="boutique-price-value-v374">${formatMoney(e.price,"RM ")}</div>
-      <div class="boutique-price-state-v374 ${cls}">${escapeHTML(e.state)}</div>
-      <button type="button" class="secondary-btn boutique-price-restore-v374" data-history-restore-v374="${key}">恢复</button>
-    </div>`;
-  }).join("")||'<div class="empty-state">没有符合的精品售价历史</div>';
-  updateBoutiquePriceHistorySelectionV374();
-}
-function findBoutiqueHistoryEntryV374(id){return boutiquePriceHistoryEntriesV374.find(e=>String(e.id||`${e.productId}|${e.timestamp||e.updatedAt||""}|${e.price}`)===String(id||""));}
-function updateBoutiquePriceHistorySelectionV374(){
-  const btn=document.getElementById("restoreSelectedBoutiquePricesV374");if(!btn)return;
-  const n=document.querySelectorAll('#boutiquePriceHistoryListV374 [data-history-select-v374]:checked').length;
-  btn.disabled=n===0;btn.textContent=n?`批量恢复所选（${n}）`:"批量恢复所选";
-}
-async function performBoutiquePriceRestoreV374(entries,label){
-  const clean=(entries||[]).filter(Boolean);if(!clean.length)return;
-  const seen=new Set();for(const e of clean){if(seen.has(e.productId)){alert("同一个产品一次只能选择一笔历史售价，请取消重复选择。");return;}seen.add(e.productId);}
-  const lines=clean.slice(0,8).map(e=>`${e.productName||e.productId} → ${formatMoney(e.price,"RM ")}（${e.state}）`).join("\n");
-  const more=clean.length>8?`\n…另外 ${clean.length-8} 项`:"";
-  if(!confirm(`确认${label}？\n\n${lines}${more}\n\n只恢复最低售价与售价控制状态，不会改变库存、成本、Import、FIFO、Sales ACK 或促销设置。`))return;
-  if(clean.length>1&&!confirm(`最后确认：将恢复 ${clean.length} 个产品的最低售价。确定继续？`))return;
-  const status=document.getElementById("boutiquePriceHistoryStatusV374");if(status)status.textContent="正在恢复精品售价…";
-  try{
-    await restoreBoutiquePricesV374(clean.map(e=>({productId:e.productId,minimumPrice:e.price,minimumPriceManual:e.state==="控制精品售价",state:e.state,tone:e.tone,sourceHistoryId:e.id||""})));
-    await loadBoutiquePriceHistoryV374(true);renderBoutiquePriceHistoryV374();
-    try{renderBatchProductStockResults();renderInventoryManagementList();renderDashboard();if(document.getElementById("inventoryMasterPanelV264")?.open)renderInventoryMasterV261();}catch(_){}
-    if(status)status.textContent=`已恢复 ${clean.length} 个产品的售价记录。`;
-  }catch(error){if(status)status.textContent=`恢复失败：${error?.message||error}`;alert(error?.message||error);}
-}
-function setupBoutiquePriceHistoryV374(){
-  const panel=document.getElementById("boutiquePriceHistoryPanelV374"),list=document.getElementById("boutiquePriceHistoryListV374"),search=document.getElementById("boutiquePriceHistorySearchV374");
-  if(!panel||panel.dataset.boundV374==="1")return;panel.dataset.boundV374="1";
-  panel.addEventListener("toggle",async()=>{if(!panel.open)return;await loadBoutiquePriceHistoryV374();renderBoutiquePriceHistoryV374();});
-  search?.addEventListener("input",()=>scheduleSearchRenderV302("boutique-price-history",renderBoutiquePriceHistoryV374,80));
-  list?.addEventListener("change",e=>{if(e.target.matches("[data-history-select-v374]"))updateBoutiquePriceHistorySelectionV374();});
-  list?.addEventListener("click",e=>{const b=e.target.closest("[data-history-restore-v374]");if(!b)return;const item=findBoutiqueHistoryEntryV374(b.dataset.historyRestoreV374);if(item)void performBoutiquePriceRestoreV374([item],"恢复这笔历史售价");});
-  document.getElementById("restoreSelectedBoutiquePricesV374")?.addEventListener("click",()=>{const selected=[...document.querySelectorAll('#boutiquePriceHistoryListV374 [data-history-select-v374]:checked')].map(x=>findBoutiqueHistoryEntryV374(x.dataset.historySelectV374)).filter(Boolean);void performBoutiquePriceRestoreV374(selected,"批量恢复所选售价");});
-  document.getElementById("restoreAllBoutiquePricesV374")?.addEventListener("click",()=>{const latest=new Map();boutiquePriceHistoryEntriesV374.forEach(e=>{if(e.state!=="控制精品售价"||latest.has(e.productId))return;latest.set(e.productId,e);});const rows=[...latest.values()];if(!rows.length){alert("目前没有可恢复的精品售价记录。");return;}void performBoutiquePriceRestoreV374(rows,"全部恢复每个产品最近一次精品售价");});
-}
-window.renderBoutiquePriceHistoryV374=renderBoutiquePriceHistoryV374;
-
 // ================= V34.3 Product Inventory Master =================
 const SUPPLIER_ALIASES_V261 = Object.freeze([
   {names:["Ocean Landscaping","Ocean Landscaping Nursery"],prefix:"OLN",currency:"MYR"},{names:["JM Gardening","JM Landscape","JM Nursery"],prefix:"JMG",currency:"MYR"},{names:["Soong Huat Enterprise","Soong Huat Cameron"],prefix:"SHE",currency:"MYR"},{names:["Tan Ah Hwang Nursery"],prefix:"TAH",currency:"MYR"},{names:["Tan Kok Leyong","Tan Kok Leyong Nursery"],prefix:"TKL",currency:"MYR"},{names:["Wong Wan Choi"],prefix:"WWC",currency:"MYR"},{names:["忠盛"],prefix:"忠盛",currency:"CNY"},{names:["大厚"],prefix:"大厚",currency:"CNY"},{names:["游小北"],prefix:"游小北",currency:"CNY"},{names:["昊杨"],prefix:"昊杨",currency:"CNY"},{names:["松美轩"],prefix:"松美轩",currency:"CNY"}
@@ -19426,3 +19364,12 @@ function setupInventoryMasterV299(){
   exp?.addEventListener("click",exportInventoryMasterExcelV261);
 }
 
+
+
+// V37.6 bindings: the summary action must not toggle the Promotion panel.
+document.addEventListener("click",event=>{
+  const restore=event.target.closest("#restoreInitialMinimumPricesV376");
+  if(restore){event.preventDefault();event.stopPropagation();restoreInitialMinimumPricesV376();return;}
+  const initial=event.target.closest('.product-stock-metric-v256[data-edit-type="initialMinimumPrice"]');
+  if(initial){event.preventDefault();event.stopPropagation();if(Date.now()-Number(window.initialMinimumPriceLongPressAtV376||0)<900)return;editInitialMinimumPriceV376(String(initial.dataset.productId||""));}
+},true);

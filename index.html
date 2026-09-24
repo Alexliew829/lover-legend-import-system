@@ -5,18 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=37.5" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=37.5" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=37.5" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=37.5" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=37.5" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=37.5" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=37.5" />
+  <link rel="manifest" href="./manifest.json?v=37.6" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=37.6" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=37.6" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=37.6" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=37.6" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=37.6" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=37.6" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=37.5" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=37.6" />
   <style id="access-lock-critical-v299">
     html,body{margin:0;min-height:100%;font-family:Arial,Helvetica,sans-serif}
     .access-lock{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(242,248,244,.96)}
@@ -37,12 +37,12 @@
       }
     } catch (_) {}
   </script>
-  <link rel="preload" href="./css/style.css?v=37.5" as="style" />
-  <link rel="stylesheet" href="./css/style.css?v=37.5" media="print" onload="this.media='all'" />
-  <noscript><link rel="stylesheet" href="./css/style.css?v=37.5" /></noscript>
-  <script defer src="./js/common.js?v=37.5"></script>
-  <script defer src="./js/sync.js?v=37.5"></script>
-  <script defer src="./js/app.js?v=37.5"></script>
+  <link rel="preload" href="./css/style.css?v=37.6" as="style" />
+  <link rel="stylesheet" href="./css/style.css?v=37.6" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="./css/style.css?v=37.6" /></noscript>
+  <script defer src="./js/common.js?v=37.6"></script>
+  <script defer src="./js/sync.js?v=37.6"></script>
+  <script defer src="./js/app.js?v=37.6"></script>
 </head>
 <body>
   <div id="accessLock"
@@ -116,7 +116,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 37.5 Stable</div>
+          <div class="app-header-version">正式版 37.6 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -492,20 +492,6 @@
           <div id="batchProductStockStatus" class="status-text"></div>
         </section>
 
-        <details class="panel boutique-price-history-v374" id="boutiquePriceHistoryPanelV374">
-          <summary class="boutique-price-history-summary-v374"><span>精品售价记录 / 售价历史</span><small>点击打开／收起</small></summary>
-          <p class="settings-help">保留精品最低售价的历史记录。颜色：绿色＝系统计算，蓝色＝控制精品售价，红色＝当时为亏本售价。放弃控制也会保留记录，方便以后恢复。</p>
-          <div class="boutique-price-history-toolbar-v374">
-            <input id="boutiquePriceHistorySearchV374" class="search-input text-left-input" type="search" placeholder="搜索产品名称、编号、售价、日期或状态" autocomplete="off" />
-            <button id="restoreSelectedBoutiquePricesV374" class="secondary-btn" type="button" disabled>批量恢复所选</button>
-            <button id="restoreAllBoutiquePricesV374" class="secondary-btn boutique-price-restore-all-v374" type="button">全部恢复最近一次精品售价</button>
-          </div>
-          <div id="boutiquePriceHistoryStatusV374" class="status-text"></div>
-          <div id="boutiquePriceHistoryListV374" class="boutique-price-history-list-v374">
-            <div class="empty-state">展开后读取精品售价历史</div>
-          </div>
-        </details>
-
         <section class="panel product-rules-manager-v235">
           <h3>产品编号与类别管理</h3>
           <div class="product-rules-manager-inner-v235">
@@ -653,7 +639,7 @@
         </details>
 
         <details class="panel collapsible-settings-v181 promotion-settings-v183">
-          <summary><span class="promotion-summary-title-v192"><span>促销管理</span><small id="promotionSummaryStatusV183"></small></span><small id="promotionToggleHintV192" class="promotion-toggle-hint-v192">点击打开</small></summary>
+          <summary><span class="promotion-summary-title-v192"><span>促销管理</span><small id="promotionSummaryStatusV183"></small></span><button id="restoreInitialMinimumPricesV376" class="secondary-btn promotion-restore-initial-v376" type="button">恢复初始最低售价</button><small id="promotionToggleHintV192" class="promotion-toggle-hint-v192">点击打开</small></summary>
           <p class="settings-help">默认情况下，售价控制（手动最低售价）产品保持精品保护价并自动不参与促销。点击「精品加入促销」后会进入待确认状态；只有再点击「更新促销设置」并保存成功后，精品才正式参与促销。原保护价格不会被删除；选择「精品退出促销」并更新后恢复保护。</p>
           <div class="promotion-name-row-v361">
             <label class="promotion-name-box-v361">促销名称<input id="promotionNameV183" maxlength="30" value="年尾清货" /></label>
@@ -934,7 +920,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 37.5 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 37.6 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>

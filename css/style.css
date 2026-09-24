@@ -6535,33 +6535,10 @@ body.system-media-preview-open-v305{overflow:hidden}
 }
 
 
-/* V37.4 — Product Management: 精品售价记录 / 售价历史 */
-.boutique-price-history-v374 summary{cursor:pointer}
-.boutique-price-history-summary-v374{display:flex;align-items:center;justify-content:space-between;gap:10px;font-weight:800}
-.boutique-price-history-toolbar-v374{display:grid;grid-template-columns:minmax(220px,1fr) auto auto;gap:10px;align-items:center;margin:12px 0 8px}
-.boutique-price-history-list-v374{display:grid;gap:8px;margin-top:10px}
-.boutique-price-history-row-v374{display:grid;grid-template-columns:28px minmax(220px,1.5fr) 120px 130px 125px 90px;gap:10px;align-items:center;padding:10px 12px;border:1px solid rgba(0,0,0,.1);border-radius:10px;background:#fff}
-.boutique-price-history-row-v374 .boutique-price-name-v374{font-weight:800;line-height:1.25}
-.boutique-price-history-row-v374 .boutique-price-id-v374{display:block;font-size:11px;opacity:.68;margin-top:2px}
-.boutique-price-history-row-v374 .boutique-price-date-v374{font-variant-numeric:tabular-nums;font-size:12px;white-space:nowrap}
-.boutique-price-history-row-v374 .boutique-price-value-v374{font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
-.boutique-price-history-row-v374.is-green-v374 .boutique-price-value-v374{color:#087a43}
-.boutique-price-history-row-v374.is-blue-v374 .boutique-price-value-v374{color:#0b68c9}
-.boutique-price-history-row-v374.is-red-v374 .boutique-price-value-v374{color:#c62828}
-.boutique-price-state-v374{font-size:12px;font-weight:800;white-space:nowrap}
-.boutique-price-state-v374.is-green-v374{color:#087a43}
-.boutique-price-state-v374.is-blue-v374{color:#0b68c9}
-.boutique-price-state-v374.is-red-v374{color:#c62828}
-.boutique-price-history-row-v374 .boutique-price-restore-v374{min-height:34px;padding:6px 10px}
-.boutique-price-history-check-v374{width:18px;height:18px}
-@media(max-width:719px){
-  .boutique-price-history-toolbar-v374{grid-template-columns:1fr 1fr}
-  .boutique-price-history-toolbar-v374 .search-input{grid-column:1/-1}
-  .boutique-price-restore-all-v374{grid-column:1/-1}
-  .boutique-price-history-row-v374{grid-template-columns:26px minmax(0,1fr) auto;gap:7px 8px;padding:10px}
-  .boutique-price-history-row-v374 .boutique-price-name-v374{grid-column:2/4}
-  .boutique-price-history-row-v374 .boutique-price-date-v374{grid-column:2/3}
-  .boutique-price-history-row-v374 .boutique-price-value-v374{grid-column:3/4;text-align:right}
-  .boutique-price-history-row-v374 .boutique-price-state-v374{grid-column:2/3}
-  .boutique-price-history-row-v374 .boutique-price-restore-v374{grid-column:3/4}
-}
+/* V37.6 Product query modify card + promotion restore action */
+.product-stock-modify-card-v376{margin-top:10px;border:1px solid rgba(31,93,58,.16);border-radius:14px;padding:10px;background:rgba(255,255,255,.58)}
+.product-stock-modify-grid-v376{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 10px}
+.product-stock-modify-grid-v376 .product-stock-metric-v256{min-width:0;width:100%;margin:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center}
+.product-stock-import-metric-v376 .product-stock-import-copy-v256{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.promotion-restore-initial-v376{margin-left:auto;flex:0 0 auto;padding:7px 10px;font-size:13px}
+@media(max-width:640px){.promotion-settings-v183>summary{flex-wrap:wrap}.promotion-restore-initial-v376{order:2;margin-left:0}.promotion-toggle-hint-v192{margin-left:auto}.product-stock-modify-grid-v376{gap:7px}}
