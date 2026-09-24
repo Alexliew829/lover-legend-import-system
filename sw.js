@@ -1,4 +1,4 @@
-const CACHE = "lover-legend-import-cost-v37.2-stable";
+const CACHE = "lover-legend-import-cost-v37.2-stable-green-shortcut-fix";
 const CORE = [
   "./",
   "./index.html?v=37.2",
@@ -9,9 +9,9 @@ const CORE = [
   "./manifest.json?v=37.2",
   "./assets/images/logo-green.jpg",
   "./assets/images/logo-red.jpg",
-  "./assets/icons/favicon.ico",
-  "./assets/icons/apple-touch-icon.png",
-  "./assets/icons/icon-192.png",
+  "./assets/icons/import-green-favicon-v372.ico",
+  "./assets/icons/import-green-apple-touch-v372.png",
+  "./assets/icons/import-green-icon-192-v372.png",
   "./assets/icons/icon-512.png",
   "./assets/icons/maskable-192.png",
   "./assets/icons/maskable-512.png"
