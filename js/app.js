@@ -4631,7 +4631,7 @@ function updatePromotionBatchControlsV184() {
   const selectableIds = matches
     .filter(product => !currentSetV388.has(String(product.id || "").toUpperCase()))
     .map(product => String(product.id || "").toUpperCase());
-  // V39.6: keep pending selections across different search keywords, but only inside THIS package.
+  // V39.7: keep pending selections across different search keywords, but only inside THIS package.
   // Remove IDs already confirmed in the current package and, in selected-products mode, any IDs
   // reserved by another package whose Date Range overlaps the current draft.
   const occupiedIdsV393 = selectedModeV388 ? getPromotionOccupiedProductIdsV390() : new Set();
@@ -5048,7 +5048,7 @@ function setupPromotionSettingsV183() {
   promotionDetails?.addEventListener("toggle", () => {
     refreshToggleHintV192();
     if (promotionDetails.open && typeof window.pollPromotionStateLightV372 === "function") {
-      window.pollPromotionStateLightV372(true).catch(error => console.warn("V39.6 promotion open refresh skipped", error));
+      window.pollPromotionStateLightV372(true).catch(error => console.warn("V39.7 promotion open refresh skipped", error));
     }
   });
   refreshToggleHintV192();
@@ -5173,7 +5173,7 @@ function setupPromotionSettingsV183() {
       refreshProfitAnalyticsInBackgroundV360(renderPromotionExcludeSearchV183,"promotion exclusion profit analytics");
   });
   selectAllSearch?.addEventListener("change", () => {
-    // V39.6: Select All must use the exact same package-availability filter as the visible search list.
+    // V39.7: Select All must use the exact same package-availability filter as the visible search list.
     // Otherwise products already occupied by another active/overlapping package can be hidden on screen
     // but still be silently added to the pending selection set.
     const ids = filterPromotionSearchAvailabilityV390(getPromotionExcludeMatchesV183(searchInput?.value || ""))
@@ -15165,7 +15165,7 @@ function renderBatchProductStockResults() {
       : "";
     const importNumberV256 = String(originalRecordV219?.importNumber || "").trim();
     const productIdV256 = String(product?.id || "").trim();
-    // V39.6: use the same proven minimum-price profit calculation as the inventory/home cards.
+    // V39.7: use the same proven minimum-price profit calculation as the inventory/home cards.
     // This remains display-only: no pricing, promotion, inventory, FIFO or sync logic is changed.
     const profitInfoV387 = getProductMinimumProfitV205(product);
     const profitToneV387 = profitInfoV387.profit < 0 ? "loss" : profitInfoV387.profit > 0 ? "gain" : "neutral";
@@ -16297,7 +16297,7 @@ function isInitialMinimumPriceLockedV380(productOrId){
   const locks=getInitialMinimumPriceLockMapV380();
   const lockKey=Object.keys(locks||{}).find(key=>String(key||"").trim().toUpperCase()===id);
   if(lockKey)return locks[lockKey]===true;
-  // V39.6: never infer formal initial-price lock from the ordinary manual-price flag.
+  // V39.7: never infer formal initial-price lock from the ordinary manual-price flag.
   // Only the confirmed 77 baseline IDs or an explicit lock-map entry are formal.
   return false;
 }
@@ -16308,7 +16308,7 @@ function getInitialMinimumPriceV376(product){
   const entry=Object.prototype.hasOwnProperty.call(map,id)
     ? {found:true,value:map[id]}
     : (()=>{const hit=Object.entries(map).find(([key])=>String(key||"").trim().toUpperCase()===id);return hit?{found:true,value:hit[1]}:{found:false,value:null};})();
-  // V39.6: missing/null/blank is NOT zero. Number(null) / Number("") both become 0,
+  // V39.7: missing/null/blank is NOT zero. Number(null) / Number("") both become 0,
   // which was the root cause of a locked initial price being displayed/rewritten as RM0.00.
   const raw=entry.value;
   const value=entry.found && raw!==null && raw!==undefined && String(raw).trim()!==""
@@ -16355,7 +16355,7 @@ async function editInitialMinimumPriceV376(productId){
 window.editInitialMinimumPriceV376=editInitialMinimumPriceV376;
 async function restoreInitialMinimumPricesV376(){
   const button=document.getElementById("restoreInitialMinimumPricesV376"); if(!button)return;
-  // V39.6: mobile and desktop intentionally use the exact same proven Restore path.
+  // V39.7: mobile and desktop intentionally use the exact same proven Restore path.
   try{ if(typeof pollPromotionStateLightV372==="function") await pollPromotionStateLightV372(true); }catch(_){}
   if(hasAnyEffectivePromotionPackageV389()){ alert("促销进行中，请先关闭所有正在进行的促销配套后再恢复初始最低售价。"); return; }
   if(!window.confirm("确认恢复全部产品的初始最低售价？\n\n恢复会把每个产品的初始最低售价真正写回正式 minimumPrice。不会改变库存、平均成本、FIFO、Sales ACK、Imports 或 Batches。"))return;
@@ -16402,7 +16402,7 @@ async function editProductMinimumPrice(productId) {
   const product = products[productIndex];
   const storedMinimumPriceV351 = Math.max(0, Number(product.minimumPrice) || 0);
   const initialMapBeforeV376 = getInitialMinimumPriceMapV376();
-  // V39.6: an automatic price is only an implicit candidate. The first real manual
+  // V39.7: an automatic price is only an implicit candidate. The first real manual
   // minimum-price save becomes the authoritative initial minimum price. After that,
   // ordinary minimum-price edits must never move the initial baseline again.
   const initialPriceWasImplicitV376 = !hasExplicitInitialMinimumPriceV379(id);
@@ -16446,7 +16446,7 @@ async function editProductMinimumPrice(productId) {
 
   const updatedAt = new Date().toISOString();
   const shouldCaptureInitialMinimumPriceV379 = initialPriceWasImplicitV376 && nextMinimumPriceManual;
-  // V39.6: do NOT optimistically write the formal initial price locally. The cloud
+  // V39.7: do NOT optimistically write the formal initial price locally. The cloud
   // must persist + verify it first; otherwise the UI can show a false 7500/7500 and
   // later collapse to 0 when an authoritative Pull arrives.
   products[productIndex] = {
@@ -16486,7 +16486,7 @@ async function editProductMinimumPrice(productId) {
     const rawConfirmedInitialV382 = minimumPriceResultV380?.initialMinimumPrice;
     const confirmedInitialV380 = rawConfirmedInitialV382!==null && rawConfirmedInitialV382!==undefined && String(rawConfirmedInitialV382).trim()!==""
       ? Number(rawConfirmedInitialV382) : NaN;
-    // V39.6: only an explicitly returned numeric initial value may refresh the local baseline.
+    // V39.7: only an explicitly returned numeric initial value may refresh the local baseline.
     // Never coerce null/undefined/blank to 0.
     if (Number.isFinite(confirmedInitialV380) && confirmedInitialV380 >= 0) {
       applyInitialMinimumPriceMapLocalV376({ ...getInitialMinimumPriceMapV376(), [id]:confirmedInitialV380 });
@@ -16534,7 +16534,7 @@ async function editProductMinimumPrice(productId) {
       };
       saveJSON("importSystemProducts", latestProducts);
     }
-    // V39.6: no initial-price rollback is needed here because formal initial state
+    // V39.7: no initial-price rollback is needed here because formal initial state
     // is applied locally only after the cloud confirms persistence.
     const rollbackOverrides = { ...getMinimumPriceManualOverridesV160() };
     rollbackOverrides[id] = currentMinimumPriceManual;
@@ -17413,7 +17413,7 @@ function getMinimumPriceStateSignatureV339(products){
 
 // V34.3: one canonical product search/filter/sort path for every inventory-style view.
 // Import product entry intentionally does NOT use this helper.
-// V39.6: canonical signed profit formatter for current minimum-price profit displays.
+// V39.7: canonical signed profit formatter for current minimum-price profit displays.
 // Positive: +RM 100.00; negative: -RM 100.00; zero: RM 0.00.
 function formatSignedProfitMoneyV387(value) {
   const n = Number(value);
@@ -18920,7 +18920,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "39.6",
+      version: "39.7",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -18930,8 +18930,16 @@ async function backupSystemData() {
       inventoryProcessingLogIncluded: true
     };
 
+    const backupCurrentStockV397 = getProducts().reduce(
+      (sum, product) => sum + Math.max(0, Number(product?.stock) || 0),
+      0
+    );
+    const backupStockLabelV397 = Number.isInteger(backupCurrentStockV397)
+      ? String(backupCurrentStockV397)
+      : String(Number(backupCurrentStockV397.toFixed(2)));
+
     downloadTextFile(
-      `Import_Inventory_Backup_${formatDateDDMMYYYY(new Date())}.json`,
+      `Import_Inventory_Backup_V${APP_VERSION}_${formatDateDDMMYYYY(new Date())}_${backupStockLabelV397}.json`,
       JSON.stringify(backup, null, 2),
       "application/json;charset=utf-8"
     );
@@ -19247,8 +19255,23 @@ async function restoreSystemData(event) {
     return;
   }
 
+  const currentRestoreProductsV397 = getProducts();
+  const currentRestoreStockV397 = currentRestoreProductsV397.reduce(
+    (sum, product) => sum + Math.max(0, Number(product?.stock) || 0),
+    0
+  );
+  const currentRestoreInventoryValueV397 = currentRestoreProductsV397.reduce((sum, product) => {
+    const stock = Math.max(0, Number(product?.stock) || 0);
+    const averageCost = Math.max(0, Number(product?.averageCost) || 0);
+    return sum + (stock * averageCost);
+  }, 0);
+
   const confirmed = confirm(
     `Restore 会完整覆盖 Google Sheet 当前产品、库存和进口记录。\n\n` +
+    `【Restore 前当前系统】\n` +
+    `当前库存：${formatNumber(currentRestoreStockV397)}\n` +
+    `库存总值：${formatMoney(currentRestoreInventoryValueV397, "RM ")}\n\n` +
+    `【Backup 文件】\n` +
     `Products：${restored.products.length}\nImports：${restored.imports.length}\nBatches：${restored.batches.length}\n\n` +
     `Restore 进行中请勿关闭、刷新或离开页面；即使意外关闭，重新打开后仍可读取 Restore Job 状态。\n\n确定继续？`
   );
@@ -19599,7 +19622,7 @@ function setupInventoryMasterV299(){
 
 
 
-// V39.6 bindings: the summary action must not toggle the Promotion panel.
+// V39.7 bindings: the summary action must not toggle the Promotion panel.
 document.addEventListener("click",event=>{
   const restore=event.target.closest("#restoreInitialMinimumPricesV376");
   if(restore){event.preventDefault();event.stopPropagation();restoreInitialMinimumPricesV376();return;}
@@ -19608,8 +19631,8 @@ document.addEventListener("click",event=>{
 },true);
 
 
-// ================= V39.6 Multi Promotion Packages =================
-// V39.6 keeps Promotion Light Sync as ONE Settings key (promotionV183). The value is now
+// ================= V39.7 Multi Promotion Packages =================
+// V39.7 keeps Promotion Light Sync as ONE Settings key (promotionV183). The value is now
 // a small container with up to five packages, so cross-device speed and one-revision writes
 // remain on the proven single-key Promotion Light Sync fast path. All pricing formulae below are unchanged.
 var promotionEditingPackageIdV389 = "";
@@ -19640,7 +19663,7 @@ function savePromotionLocalDraftV391(){
   }catch(_){ }
 }
 function restorePromotionLocalDraftV391(){
-  // V39.6: a fresh Promotion Manager load must reflect formal saved packages only.
+  // V39.7: a fresh Promotion Manager load must reflect formal saved packages only.
   // Unsaved transient drafts are intentionally NOT resurrected across reload/device hydration,
   // because an old test draft can otherwise make a fully-closed manager look active/stale.
   // The current-page draft still remains intact until the user leaves/reloads the page.
@@ -19725,7 +19748,7 @@ function getEffectiveProductMinimumPriceV183(product, promotion = null, rules = 
   const productId=String(product?.id||"").trim().toUpperCase();
   const storedPackageV391=active&&getPromotionPackagesV389().some(pkg=>pkg.id===active.id);
   if (isMinimumPriceManualV160(product) && active?.includeManualPriceProducts!==true) return originalPrice;
-  // V39.6: a local new-package draft is editor preview state only; it can never change effective prices before explicit Start.
+  // V39.7: a local new-package draft is editor preview state only; it can never change effective prices before explicit Start.
   if (!active || !storedPackageV391 || !promotionPackageIsEffectiveV389(active) || !promotionProductIncludedV388(productId,active)) return originalPrice;
   const override=Math.max(0,Number(active.priceOverrides?.[productId])||0);
   return override>0?override:getPromotionPriceBreakdownV183(product,active,rules,originIndex).price;
@@ -19771,7 +19794,7 @@ function packageRangesOverlapV389(a,b){
 function participantIdsForPackageV389(pkg){
   return new Set(getProducts().filter(product=>(!isMinimumPriceManualV160(product)||pkg.includeManualPriceProducts===true)&&promotionProductIncludedV388(String(product.id||""),pkg)).map(p=>String(p.id||"").trim().toUpperCase()));
 }
-// V39.6: while building a selected-products package, hide products already occupied by
+// V39.7: while building a selected-products package, hide products already occupied by
 // another package whose Date Range overlaps this draft. An empty Date Range means
 // unlimited duration, therefore it overlaps every dated package until manually closed.
 // This is UI filtering only; the existing save-time overlap validation remains the final guard.
@@ -19781,7 +19804,7 @@ function getPromotionOccupiedProductIdsV390(){
   const occupied=new Set();
   getPromotionPackagesV389().forEach(other=>{
     if(!other||other.id===candidate.id||!packageRangesOverlapV389(candidate,other)) return;
-    // V39.6: a selected-products package reserves exactly the products in its formal list.
+    // V39.7: a selected-products package reserves exactly the products in its formal list.
     // Do not let the manual-price participation flag make those products reappear in another package.
     if(other.promotionScope==="selected"){
       (other.selectedProductIds||[]).forEach(id=>occupied.add(String(id||"").trim().toUpperCase()));
@@ -19819,7 +19842,7 @@ function setPromotionEditorFromPackageV389(pkg){
   const n=document.getElementById("promotionNameV183"),c=document.getElementById("promotionCommissionV183"),m=document.getElementById("promotionMarginV183");
   if(n)n.value=pkg?.name||"年尾清货"; if(c)c.value=String(pkg?.commissionRate??10); if(m)m.value=String(pkg?.targetMarginRate??30);
   promotionExcludedDraftV183=new Set(pkg?.excludedProductIds||[]);promotionSelectedDraftV388=new Set(pkg?.selectedProductIds||[]);
-  // V39.6: fully closed / brand-new state always starts from the clean Select Products workflow.
+  // V39.7: fully closed / brand-new state always starts from the clean Select Products workflow.
   promotionScopeModeDraftV388=pkg ? (pkg.promotionScope==="selected"?"selected":"exclude") : "selected";promotionPriceOverridesDraftV193={...(pkg?.priceOverrides||{})};
   promotionIncludeManualDraftV361=pkg?.includeManualPriceProducts===true;promotionOriginalNameDraftV361=String(pkg?.originalPromotionName||"");
   const sd=document.getElementById("promotionStartDateV389"),ed=document.getElementById("promotionEndDateV389"); if(sd)sd.value=pkg?.startDate||"";if(ed)ed.value=pkg?.endDate||"";
@@ -19911,7 +19934,7 @@ async function savePromotionPackageV389(){
 }
 async function deletePromotionPackageV389(){
   const packages=getPromotionPackagesV389(),pkg=packages.find(p=>p.id===promotionEditingPackageIdV389);
-  // V39.6 safety: a not-yet-started local draft can never fall back to deleting Package 1.
+  // V39.7 safety: a not-yet-started local draft can never fall back to deleting Package 1.
   if(!pkg){if(promotionEditingTransientV389){clearPromotionLocalDraftV391();promotionEditingTransientV389=null;const fallback=packages.find(promotionPackageIsEffectiveV389)||packages[0]||null;setPromotionEditorFromPackageV389(fallback);const status=document.getElementById("promotionStatusV183");if(status)status.textContent="未启动的促销草稿已关闭；现有促销配套没有修改。";}return;}
   const packageNo=getPromotionPackageNumberV394(pkg.id,packages),affected=participantIdsForPackageV389(pkg).size;
   if(!window.confirm(`确认关闭「配套${packageNo} · ${pkg.name}」？\n\n只会关闭配套${packageNo}，其他促销配套会继续运行。\n配套${packageNo}的 ${affected} 项产品将恢复原本最低售价。`))return;
@@ -19930,8 +19953,8 @@ async function deletePromotionPackageV389(){
 }
 function setupPromotionPackagesV389(){
   const packages=getPromotionPackagesV389();
-  // V39.6: on first open/reload, saved package state is authoritative.
-  // This removes the V39.6 failure where old dates/margins/name could reappear after all packages were closed.
+  // V39.7: on first open/reload, saved package state is authoritative.
+  // This removes the V39.7 failure where old dates/margins/name could reappear after all packages were closed.
   restorePromotionLocalDraftV391();
   promotionEditingPackageIdV389=packages.find(promotionPackageIsEffectiveV389)?.id||packages[0]?.id||"";
   if(packages.length)setPromotionEditorFromPackageV389(packages.find(p=>p.id===promotionEditingPackageIdV389));else setPromotionEditorFromPackageV389(null);
@@ -19943,7 +19966,7 @@ function setupPromotionPackagesV389(){
   document.getElementById("promotionAddPackageV389")?.addEventListener("click",()=>{
     const list=getPromotionPackagesV389();
     if(list.length>=5){window.alert("最多只能同时管理5个已启动促销配套。");return;}
-    // V39.6: clicking "+ 打开新促销配套" always means a genuinely NEW clean draft on every device.
+    // V39.7: clicking "+ 打开新促销配套" always means a genuinely NEW clean draft on every device.
     // Navigation-away recovery still uses the local draft, but an explicit New action never reopens stale mobile state.
     clearPromotionLocalDraftV391();
     const slotNo=nextPromotionPackageSlotV395(list);
@@ -19990,7 +20013,7 @@ function getPromotionMarginBadgeV209(product, profitInfo = null) {
 window.refreshPromotionPackageManagerV389=function(){
   const list=getPromotionPackagesV389();
   const currentStored=list.find(p=>p.id===promotionEditingPackageIdV389)||null;
-  // V39.6: once Promotion Light Sync delivers a formal package state, it is authoritative.
+  // V39.7: once Promotion Light Sync delivers a formal package state, it is authoritative.
   // A transient editor draft may never hide a package started/closed on another device.
   if(!currentStored){
     clearPromotionLocalDraftV391();
