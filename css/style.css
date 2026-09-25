@@ -6638,7 +6638,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 @media(max-width:719px){.promotion-date-range-v389 .date-input{font-size:16px;}.promotion-date-range-v389 .calendar-btn{width:46px;height:46px;}}
 
 
-/* V40.1 — while a Promotion transaction is waiting for cloud success/failure,
+/* V40.2 — while a Promotion transaction is waiting for cloud success/failure,
    keep the current editor visibly locked so package identity cannot be changed mid-write. */
 details.promotion-settings-v183.promotion-operation-locked-v400 { position: relative; }
 details.promotion-settings-v183.promotion-operation-locked-v400 .promotion-packages-v389,
