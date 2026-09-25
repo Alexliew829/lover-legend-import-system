@@ -6540,7 +6540,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 .product-stock-modify-grid-v376{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 10px}
 .product-stock-modify-grid-v376 .product-stock-metric-v256{min-width:0;width:100%;margin:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center}
 .product-stock-import-metric-v376 .product-stock-import-copy-v256{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* V39.2 — Restore stays away from the Promotion summary toggle, aligns with the target-margin column, and is available on mobile. */
+/* V39.3 — Restore stays away from the Promotion summary toggle, aligns with the target-margin column, and is available on mobile. */
 .promotion-exclude-heading-v385{
   display:grid;
   grid-template-columns:minmax(0,1fr) minmax(0,1fr);
@@ -6587,7 +6587,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 }
 
 
-/* V39.2 — Product Query & Modify adds read-only current profit/profit-rate cards.
+/* V39.3 — Product Query & Modify adds read-only current profit/profit-rate cards.
    Profit formatting/colors reuse the same canonical inventory calculation and gain/loss tones. */
 .product-stock-profit-metric-v387{background:#f8fbf9;color:#111827}
 .product-stock-profit-metric-v387.inventory-profit-value-v207.gain > strong{color:#177245!important}
@@ -6595,7 +6595,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 .product-stock-profit-metric-v387.inventory-profit-value-v207.neutral > strong{color:#111!important}
 
 
-/* V39.2 — Promotion scope switch reuses the proven exclusion search/list UI. */
+/* V39.3 — Promotion scope switch reuses the proven exclusion search/list UI. */
 .promotion-scope-switch-v388{display:flex;align-items:center;gap:8px;min-width:0;}
 .promotion-scope-switch-v388 button{border:1px solid #8ebaa1;background:#fff;color:#17643d;border-radius:12px;padding:9px 16px;font-weight:800;white-space:nowrap;box-shadow:none;}
 .promotion-scope-switch-v388 button.is-active-v388{background:#1f6a43;color:#fff;border-color:#1f6a43;box-shadow:inset 0 2px 4px rgba(0,0,0,.18);transform:translateY(1px);}
@@ -6603,7 +6603,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 @media(max-width:719px){.promotion-scope-switch-v388{gap:5px}.promotion-scope-switch-v388 button{padding:8px 11px;font-size:.92rem}.promotion-current-list-title-v388{font-size:.95rem}}
 
 
-/* V39.2 — up to five independent Promotion packages. Reuses the proven promotion editor/search UI. */
+/* V39.3 — up to five independent Promotion packages. Reuses the proven promotion editor/search UI. */
 .promotion-packages-v389{margin:10px 0 12px;padding:10px;border:1px solid rgba(50,90,60,.18);border-radius:12px;background:rgba(255,255,255,.45)}
 .promotion-package-toolbar-v389{display:flex;gap:10px;align-items:center;justify-content:space-between}
 .promotion-package-toolbar-v389>div{display:flex;flex-direction:column;gap:2px;min-width:0}
@@ -6631,7 +6631,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 }
 
 
-/* V39.2 — Promotion package test fixes: visible Date Range and readable multi-package status. */
+/* V39.3 — Promotion package test fixes: visible Date Range and readable multi-package status. */
 .promotion-date-range-v389 .date-input{min-width:0;width:100%;text-align:left!important;}
 .promotion-date-range-v389 .history-date-field-wrap{grid-template-columns:minmax(0,1fr) auto;}
 #promotionSummaryStatusV183{white-space:normal!important;}
