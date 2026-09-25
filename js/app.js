@@ -2725,6 +2725,10 @@ function setupNavigation() {
       // V13.7: a Restore remains protected until the persisted server job is
       // success/failed, including final verification and polling intervals.
       const current=document.querySelector('.nav-btn.active')?.dataset?.page||'';
+      if(target!==current&&typeof isPromotionOperationLockedV400==="function"&&isPromotionOperationLockedV400()){
+        window.alert(promotionOperationBlockedMessageV400());
+        return;
+      }
       if(target!==current&&typeof isInventoryMediaSaveInProgressV252==="function"&&isInventoryMediaSaveInProgressV252()){
         window.alert("照片／视频正在上传并确认云端状态，请等待显示上传成功或失败后再切换页面。");
         return;
@@ -3567,14 +3571,10 @@ function getPromotionRunningDayV208(createdAt) {
 }
 
 function renderDashboardPromotionStatusV208() {
-  const target = document.getElementById("dashboardPromotionStatusV208");
-  if (!target) return;
-  const promotion = getPromotionSettingsV183();
-  if (!promotion) { target.hidden = true; target.textContent = ""; return; }
-  const day = getPromotionRunningDayV208(promotion.createdAt);
-  const excluded = Array.isArray(promotion.excludedProductIds) ? promotion.excludedProductIds.length : 0;
-  target.textContent = `${promotion.name} 促销进行中 · 第${day}天 · ${promotion.targetMarginRate}% · 排除 ${excluded} 项`;
-  target.hidden = false;
+  const target=document.getElementById("dashboardPromotionStatusV208"); if(!target)return;
+  const promotion=getPromotionSettingsV183(); if(!promotion){target.hidden=true;target.textContent="";return;}
+  const day=getPromotionRunningDayV208(promotion.createdAt),excluded=(promotion.excludedProductIds||[]).length,overrides=Object.keys(promotion.targetMarginOverrides||{}).length;
+  target.textContent=`${promotion.name} 促销进行中 · 第${day}天 · 默认 ${promotion.targetMarginRate}% · 排除 ${excluded} 项 · 个别 ${overrides} 项`; target.hidden=false;
 }
 
 function setupDashboard() {
@@ -4260,25 +4260,43 @@ function getAverageCostLabelV205(product, originIndex = null) {
 }
 
 function getEffectiveProductMinimumPriceV333(product, configuredRules = null, originIndex = null) {
-  const rules = configuredRules || getMinimumPriceRulesV160();
-  const index = originIndex || getMinimumPriceOriginIndexV160();
-  return getEffectiveProductMinimumPriceV183(product, getPromotionSettingsV183(), rules, index);
+  const storedPrice = Math.max(0, Number(product?.minimumPrice) || 0);
+  const manual = isMinimumPriceManualV160(product);
+  const promotion = getPromotionSettingsV183();
+  const productId = String(product?.id || "").trim().toUpperCase();
+  const basePrice = manual ? storedPrice : getAutomaticMinimumPriceV160(product?.averageCost, configuredRules, product, originIndex);
+  if (!promotion || !promotionProductIncludedV388(productId, promotion)) return basePrice;
+  if (manual && !(promotion.manualIncludedProductIds || []).includes(productId)) return basePrice;
+  // V40.4: promotion is an overlay only. Stored/manual price remains the freight-tier base.
+  return getPromotionPriceBreakdownV183({ ...product, minimumPrice:basePrice }, promotion, configuredRules, originIndex).price;
 }
 
 function getProductMinimumProfitV205(product, rules = null, originIndex = null) {
   const configuredRules = rules || getMinimumPriceRulesV160();
   const index = originIndex || getMinimumPriceOriginIndexV160();
   const promotion = getPromotionSettingsV183();
-  const promotionApplies = isProductInPromotionV404(product, promotion);
-  const price = getEffectiveProductMinimumPriceV183(product, promotion, configuredRules, index);
+  const manual = isMinimumPriceManualV160(product);
+  const productId = String(product?.id || "").trim().toUpperCase();
+  const promotionApplies = Boolean(promotion && (!manual || (promotion.manualIncludedProductIds || []).includes(productId)) && promotionProductIncludedV388(productId, promotion));
+  const price = getEffectiveProductMinimumPriceV333(product, configuredRules, index);
   const averageCost = Math.max(0, Number(product?.averageCost) || 0);
   const potCost = getVndPotCostV160(product, configuredRules, index);
-  const commissionRate = promotionApplies ? Number(promotion.commissionRate) || 0 : Math.max(0, Number(configuredRules.commissionRate) || 0);
-  const basePriceForFreight = isMinimumPriceManualV160(product) ? Math.max(0, Number(product?.minimumPrice) || 0) : getAutomaticMinimumPriceV160(product?.averageCost, configuredRules, product, index);
-  const freightTier = getMinimumFreightTierV188(promotionApplies ? basePriceForFreight : price, configuredRules);
+  const commissionRate = promotionApplies
+    ? Number(promotion.commissionRate) || 0
+    : Math.max(0, Number(configuredRules.commissionRate) || 0);
+  const basePriceForFreight = manual ? Math.max(0, Number(product?.minimumPrice) || 0)
+    : getAutomaticMinimumPriceV160(product?.averageCost, configuredRules, product, index);
+  const freightTier = promotionApplies
+    ? getMinimumFreightTierV188(basePriceForFreight, configuredRules)
+    : getMinimumFreightTierV188(price, configuredRules);
   const commission = price * commissionRate / 100;
   const profit = price - averageCost - potCost - freightTier.amount - commission;
-  return { price, averageCost, potCost, commissionRate, commission, freight:freightTier.amount, freightTier:freightTier.code, profit, profitRate:price > 0 ? profit / price * 100 : 0, promotionApplies };
+  return {
+    price, averageCost, potCost, commissionRate, commission,
+    freight: freightTier.amount, freightTier: freightTier.code,
+    profit, profitRate: price > 0 ? profit / price * 100 : 0,
+    promotionApplies
+  };
 }
 
 function getMinimumFreightTierV188(price, rules) {
@@ -4319,126 +4337,83 @@ function getAutomaticMinimumPriceV160(averageCost, configuredRules = null, produ
   return calculateTieredMinimumPriceV188(cost, denominator, rules).price;
 }
 
-function normalizePromotionIdListV404(value) {
-  return Array.from(new Set((Array.isArray(value) ? value : []).map(id => String(id || "").trim().toUpperCase()).filter(Boolean)));
-}
-
-function normalizePromotionMarginMapV404(value) {
-  const out = {};
-  Object.entries(value && typeof value === "object" ? value : {}).forEach(([key, raw]) => {
-    const id = String(key || "").trim().toUpperCase();
-    const margin = Number(raw);
-    if (id && Number.isFinite(margin)) out[id] = Math.round(margin * 100) / 100;
-  });
-  return out;
-}
-
-function migrateLegacyPromotionV404(raw) {
-  const source = raw && typeof raw === "object" ? raw : {};
-  const commissionRate = Number.isFinite(Number(source.commissionRate)) ? Number(source.commissionRate) : 10;
-  const migrated = {
-    active: source.active === true,
-    name: String(source.name || "年尾清货").trim() || "年尾清货",
-    nameManuallyEdited: source.nameManuallyEdited === true || (!!String(source.name || "").trim() && !["年尾清货","Crazy Sales"].includes(String(source.name || "").trim())),
-    commissionRate,
-    targetMarginRate: Number.isFinite(Number(source.targetMarginRate)) ? Number(source.targetMarginRate) : 30,
-    excludedProductIds: normalizePromotionIdListV404(source.excludedProductIds),
-    manualIncludedProductIds: normalizePromotionIdListV404(source.manualIncludedProductIds),
-    productTargetMarginOverrides: normalizePromotionMarginMapV404(source.productTargetMarginOverrides),
-    createdAt: String(source.createdAt || ""),
-    updatedAt: String(source.updatedAt || "")
-  };
-  if (!migrated.manualIncludedProductIds.length && source.includeManualPriceProducts === true) {
-    migrated.manualIncludedProductIds = getProducts().filter(product => isMinimumPriceManualV160(product)).map(product => String(product.id || "").trim().toUpperCase()).filter(Boolean);
-  }
-  const legacyPriceOverrides = source.priceOverrides && typeof source.priceOverrides === "object" ? source.priceOverrides : {};
-  if (Object.keys(legacyPriceOverrides).length) {
-    const rules = getMinimumPriceRulesV160();
-    const index = getMinimumPriceOriginIndexV160();
-    const products = getProducts();
-    Object.entries(legacyPriceOverrides).forEach(([key, rawPrice]) => {
-      const id = String(key || "").trim().toUpperCase();
-      if (!id || Object.prototype.hasOwnProperty.call(migrated.productTargetMarginOverrides, id)) return;
-      const price = Number(rawPrice); if (!Number.isFinite(price) || price <= 0) return;
-      const product = products.find(p => String(p?.id || "").trim().toUpperCase() === id); if (!product) return;
-      const cost = getPromotionCostV183(product, rules, index);
-      const freight = getPromotionDeliveryV183(product, rules).amount;
-      const margin = (1 - commissionRate / 100 - (cost + freight) / price) * 100;
-      const maxMargin = Math.floor((100 - commissionRate - 0.1) * 10 + 1e-9) / 10;
-      if (Number.isFinite(margin)) migrated.productTargetMarginOverrides[id] = Math.max(-99.9, Math.min(maxMargin, Math.round(margin * 100) / 100));
-    });
-  }
-  return migrated;
-}
-
 function getPromotionSettingsV183() {
   const saved = loadJSON("importSystemSettings", {});
   const raw = saved.promotionV183;
-  if (!raw || raw.active !== true) return null;
-  return migrateLegacyPromotionV404(raw);
+  // V40.4: old multi-package containers are deliberately retired and never participate.
+  if (!raw || raw.active !== true || Array.isArray(raw.packages)) return null;
+  const commissionRate = Number(raw.commissionRate);
+  const targetMarginRate = Number(raw.targetMarginRate);
+  const cleanIds = values => Array.from(new Set((Array.isArray(values) ? values : [])
+    .map(id => String(id || "").trim().toUpperCase()).filter(Boolean)));
+  const marginOverrides = {};
+  Object.entries(raw.targetMarginOverrides && typeof raw.targetMarginOverrides === "object" ? raw.targetMarginOverrides : {}).forEach(([id, value]) => {
+    const key = String(id || "").trim().toUpperCase(), rate = Number(value);
+    if (key && Number.isFinite(rate)) marginOverrides[key] = rate;
+  });
+  return {
+    active:true,
+    name:String(raw.name || "年尾清货").trim() || "年尾清货",
+    commissionRate:Number.isFinite(commissionRate) ? commissionRate : 10,
+    targetMarginRate:Number.isFinite(targetMarginRate) ? targetMarginRate : 30,
+    excludedProductIds:cleanIds(raw.excludedProductIds),
+    manualIncludedProductIds:cleanIds(raw.manualIncludedProductIds),
+    targetMarginOverrides:marginOverrides,
+    originalPromotionName:String(raw.originalPromotionName || "").trim(),
+    createdAt:String(raw.createdAt || ""),
+    updatedAt:String(raw.updatedAt || "")
+  };
 }
 
 function getPromotionCostV183(product, rules = null, originIndex = null) {
   const configuredRules = rules || getMinimumPriceRulesV160();
   return Math.max(0, Number(product?.averageCost) || 0) + getVndPotCostV160(product, configuredRules, originIndex || getMinimumPriceOriginIndexV160());
 }
-
 function getPromotionDeliveryV183(product, rules) {
   const originalPrice = Math.max(0, Number(product?.minimumPrice) || 0);
   return getMinimumFreightTierV188(originalPrice, rules);
 }
-
-function isProductInPromotionV404(product, promotion = null) {
+function getPromotionTargetMarginV404(productId, promotion = null) {
   const active = promotion || getPromotionSettingsV183();
-  if (!active || active.active !== true || !product) return false;
-  const id = String(product.id || "").trim().toUpperCase();
-  if (!id) return false;
-  if (isMinimumPriceManualV160(product)) return normalizePromotionIdListV404(active.manualIncludedProductIds).includes(id);
-  return !normalizePromotionIdListV404(active.excludedProductIds).includes(id);
+  const id = String(productId || "").trim().toUpperCase();
+  const override = Number(active?.targetMarginOverrides?.[id]);
+  return Number.isFinite(override) ? override : Number(active?.targetMarginRate ?? 30);
 }
-
-function getPromotionTargetMarginV404(product, promotion = null) {
-  const active = promotion || getPromotionSettingsV183();
-  if (!active) return NaN;
-  const id = String(product?.id || "").trim().toUpperCase();
-  const overrides = active.productTargetMarginOverrides && typeof active.productTargetMarginOverrides === "object" ? active.productTargetMarginOverrides : {};
-  const own = Number(overrides[id]);
-  return Number.isFinite(own) ? own : Number(active.targetMarginRate);
-}
-
 function getPromotionPriceBreakdownV183(product, promotion = null, rules = null, originIndex = null) {
   const active = promotion || getPromotionSettingsV183();
   const configuredRules = rules || getMinimumPriceRulesV160();
   const cost = getPromotionCostV183(product, configuredRules, originIndex);
-  const margin = getPromotionTargetMarginV404(product, active);
-  if (!active || cost <= 0 || !Number.isFinite(margin)) return { price:0, cost, delivery:0, tier:"A", profit:0, profitRate:0, targetMarginRate:margin };
-  const denominator = 1 - Number(active.commissionRate) / 100 - margin / 100;
-  if (denominator <= 0) return { price:0, cost, delivery:0, tier:"A", profit:0, profitRate:0, targetMarginRate:margin };
+  if (!active || cost <= 0) return {price:0,cost,delivery:0,tier:"A",profit:0,profitRate:0};
+  const targetMarginRate = getPromotionTargetMarginV404(product?.id, active);
+  const denominator = 1 - active.commissionRate / 100 - targetMarginRate / 100;
+  if (denominator <= 0) return {price:0,cost,delivery:0,tier:"A",profit:0,profitRate:0};
   const freightTier = getPromotionDeliveryV183(product, configuredRules);
   const price = Math.ceil((((cost + freightTier.amount) / denominator) - 1e-9) / 10) * 10;
-  const profit = price * (1 - Number(active.commissionRate) / 100) - cost - freightTier.amount;
-  return { price, cost, delivery:freightTier.amount, tier:freightTier.code, profit, profitRate:price > 0 ? profit / price * 100 : 0, targetMarginRate:margin };
+  const profit = price * (1 - active.commissionRate / 100) - cost - freightTier.amount;
+  return {price,cost,delivery:freightTier.amount,tier:freightTier.code,profit,profitRate:price>0?profit/price*100:0,targetMarginRate};
 }
-
+function promotionProductIncludedV388(productId, promotion) {
+  const id = String(productId || "").trim().toUpperCase();
+  if (!promotion || promotion.active !== true || !id) return false;
+  return !(promotion.excludedProductIds || []).includes(id);
+}
 function getEffectiveProductMinimumPriceV183(product, promotion = null, rules = null, originIndex = null) {
-  const configuredRules = rules || getMinimumPriceRulesV160();
-  const index = originIndex || getMinimumPriceOriginIndexV160();
-  const manual = isMinimumPriceManualV160(product);
-  const basePrice = manual ? Math.max(0, Number(product?.minimumPrice) || 0) : getAutomaticMinimumPriceV160(product?.averageCost, configuredRules, product, index);
+  const originalPrice = Math.max(0, Number(product?.minimumPrice) || 0);
   const active = promotion || getPromotionSettingsV183();
-  if (!isProductInPromotionV404(product, active)) return basePrice;
-  const promoted = getPromotionPriceBreakdownV183(product, active, configuredRules, index).price;
-  return promoted > 0 ? promoted : basePrice;
+  if (!active) return originalPrice;
+  const id = String(product?.id || "").trim().toUpperCase();
+  if (!promotionProductIncludedV388(id, active)) return originalPrice;
+  if (isMinimumPriceManualV160(product) && !(active.manualIncludedProductIds || []).includes(id)) return originalPrice;
+  return getPromotionPriceBreakdownV183(product, active, rules, originIndex).price;
 }
 
 let promotionExcludedDraftV183 = new Set();
-let promotionManualIncludedDraftV404 = new Set();
 let promotionTargetMarginOverridesDraftV404 = {};
+let promotionManualIncludedDraftV404 = new Set();
 let promotionSearchSelectionV184 = new Set();
 let promotionDraftTouchedV209 = false;
-let promotionNameManuallyEditedDraftV404 = false;
-let promotionOperationBusyV404 = false;
-let promotionDraftBaselineV370 = null;
+let promotionDeleteInProgressV184 = false;
+let promotionOriginalNameDraftV361 = "";
 
 function parsePromotionPercentV211(value) {
   const normalized = String(value ?? "").trim().replace(/[％%]/g, "").replace(/，/g, ".").replace(/,/g, ".").replace(/\s+/g, "");
@@ -4446,121 +4421,123 @@ function parsePromotionPercentV211(value) {
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : NaN;
 }
-
+function cleanPromotionMarginOverrideV404(value, commissionRate) {
+  const rate = parsePromotionPercentV211(value);
+  const max = Math.floor((100 - Number(commissionRate || 0) - 0.1) * 10 + 1e-9) / 10;
+  if (!Number.isFinite(rate) || rate < -99.9 || rate > max) return null;
+  return Math.round(rate * 1000) / 1000;
+}
 function getPromotionDraftV183() {
   return {
     active:true,
     name:String(document.getElementById("promotionNameV183")?.value || "年尾清货").trim() || "年尾清货",
-    nameManuallyEdited:promotionNameManuallyEditedDraftV404 === true,
     commissionRate:parsePromotionPercentV211(document.getElementById("promotionCommissionV183")?.value),
     targetMarginRate:parsePromotionPercentV211(document.getElementById("promotionMarginV183")?.value),
     excludedProductIds:Array.from(promotionExcludedDraftV183),
     manualIncludedProductIds:Array.from(promotionManualIncludedDraftV404),
-    productTargetMarginOverrides:{...promotionTargetMarginOverridesDraftV404}
+    targetMarginOverrides:{...promotionTargetMarginOverridesDraftV404},
+    originalPromotionName:String(promotionOriginalNameDraftV361 || "").trim()
   };
 }
-
-function promotionDraftComparableV370(value) {
-  const v = value || {};
+function normalizePromotionForCompareV404(p) {
+  if (!p) return null;
   return JSON.stringify({
-    name:String(v.name || ""), nameManuallyEdited:v.nameManuallyEdited === true,
-    commissionRate:Number(v.commissionRate), targetMarginRate:Number(v.targetMarginRate),
-    excludedProductIds:normalizePromotionIdListV404(v.excludedProductIds).sort(),
-    manualIncludedProductIds:normalizePromotionIdListV404(v.manualIncludedProductIds).sort(),
-    productTargetMarginOverrides:Object.fromEntries(Object.entries(normalizePromotionMarginMapV404(v.productTargetMarginOverrides)).sort(([a],[b])=>a.localeCompare(b)))
+    name:String(p.name||""),commissionRate:Number(p.commissionRate),targetMarginRate:Number(p.targetMarginRate),
+    excludedProductIds:[...(p.excludedProductIds||[])].map(String).sort(),manualIncludedProductIds:[...(p.manualIncludedProductIds||[])].map(String).sort(),
+    targetMarginOverrides:Object.fromEntries(Object.entries(p.targetMarginOverrides||{}).sort(([a],[b])=>a.localeCompare(b))),originalPromotionName:String(p.originalPromotionName||"")
   });
 }
-
-function capturePromotionDraftBaselineV370() { try { promotionDraftBaselineV370 = promotionDraftComparableV370(getPromotionDraftV183()); } catch (_) { promotionDraftBaselineV370 = null; } }
-function hasRealLocalPromotionDraftV370() { if (!promotionDraftTouchedV209) return false; try { return promotionDraftComparableV370(getPromotionDraftV183()) !== promotionDraftBaselineV370; } catch (_) { return true; } }
-function hasPromotionDraftChangesV183() { const active=getPromotionSettingsV183(); const expected=active || {name:"年尾清货",nameManuallyEdited:false,commissionRate:10,targetMarginRate:30,excludedProductIds:[],manualIncludedProductIds:[],productTargetMarginOverrides:{}}; return promotionDraftComparableV370(getPromotionDraftV183()) !== promotionDraftComparableV370(expected); }
-
+function hasPromotionDraftChangesV183() {
+  if (!promotionDraftTouchedV209) return false;
+  const active = getPromotionSettingsV183();
+  const expected = active || {name:"年尾清货",commissionRate:10,targetMarginRate:30,excludedProductIds:[],manualIncludedProductIds:[],targetMarginOverrides:{},originalPromotionName:""};
+  return normalizePromotionForCompareV404(getPromotionDraftV183()) !== normalizePromotionForCompareV404(expected);
+}
 function resetPromotionDraftV183() {
-  promotionDraftTouchedV209 = false;
   const active = getPromotionSettingsV183();
   const nameInput=document.getElementById("promotionNameV183"), commissionInput=document.getElementById("promotionCommissionV183"), marginInput=document.getElementById("promotionMarginV183");
-  if(nameInput) nameInput.value=active?.name || "年尾清货";
-  if(commissionInput) commissionInput.value=String(active?.commissionRate ?? 10);
-  if(marginInput) marginInput.value=String(active?.targetMarginRate ?? 30);
-  promotionNameManuallyEditedDraftV404 = active?.nameManuallyEdited === true;
-  promotionExcludedDraftV183 = new Set(active?.excludedProductIds || []);
-  promotionManualIncludedDraftV404 = new Set(active?.manualIncludedProductIds || []);
-  promotionTargetMarginOverridesDraftV404 = {...(active?.productTargetMarginOverrides || {})};
-  promotionSearchSelectionV184 = new Set();
-  renderPromotionStateListsV404(); renderPromotionExcludeSearchV183(); updatePromotionDraftStatusV186();
+  if(nameInput) nameInput.value=active?.name||"年尾清货";
+  if(commissionInput) commissionInput.value=String(active?.commissionRate??10);
+  if(marginInput) marginInput.value=String(active?.targetMarginRate??30);
+  promotionExcludedDraftV183=new Set(active?.excludedProductIds||[]);
+  promotionTargetMarginOverridesDraftV404={...(active?.targetMarginOverrides||{})};
+  promotionManualIncludedDraftV404=new Set(active?.manualIncludedProductIds||[]);
+  promotionOriginalNameDraftV361=String(active?.originalPromotionName||"").trim();
+  promotionSearchSelectionV184=new Set(); promotionDraftTouchedV209=false;
+  renderPromotionExcludedListV183(); renderPromotionOverrideListV404(); renderPromotionManualIncludedListV404(); renderPromotionExcludeSearchV183(); refreshPromotionUiV183();
 }
 
-function getPromotionSearchProductsV185(query, sortMode = "latest") {
-  const keyword = String(query || "").trim().toLowerCase();
-  const imports = getImports();
-  const sales = getInventorySalesAnalyticsV146();
-  const products = getProducts().filter(product => Number(product?.stock) > 0).map(product => {
-    const rows = imports.filter(row => String(row?.productId || "") === String(product?.id || "") || String(row?.productName || "").trim().toLowerCase() === String(product?.name || "").trim().toLowerCase());
-    const id=String(product?.id||"").trim(), name=String(product?.name||"").trim();
-    return {...product, importNumbers:rows.map(r=>String(r?.importNumber||"")).join(" "), trackingNumbers:rows.map(r=>`${r?.trackingNumber||""} ${r?.overseasTrackingNumber||""}`).join(" "), originalCostValuesV216:rows.map(r=>Number(r?.unitPrice)).filter(Number.isFinite), displayLastImport:getLatestImportDateByProduct(id)||String(product?.lastImport||""), latestSoldAt:Number(sales.latestById.get(id)||sales.latestByName.get(name.toLowerCase())||0), netSoldQuantity:Number(sales.quantityById.get(id)||sales.quantityByName.get(name.toLowerCase())||0), cumulativeSoldProfit:Number(sales.profitById.get(id)||sales.profitByName.get(name.toLowerCase())||0)};
+function promotionProductMatchesV183(product, query) {
+  const normalized=String(query||"").trim(); if(!normalized)return true;
+  const direct=smartSearchMatches(`${product.id||""} ${product.name||""} ${product.category||""}`,normalized);
+  if(direct)return true;
+  return getImports().some(row=>String(row?.productId||"").trim()===String(product?.id||"").trim() && normalizeSmartSearchText(row?.importNumber).includes(normalizeSmartSearchText(normalized)));
+}
+function getPromotionSearchProductsV185(query, sortMode="latest") {
+  const keyword=String(query||"").trim().toLowerCase(), imports=getImports(), sales=getInventorySalesAnalyticsV146();
+  const products=getProducts().filter(product=>Number(product?.stock)>0).map(product=>{
+    const rows=imports.filter(row=>String(row?.productId||"")===String(product?.id||"")||String(row?.productName||"").trim().toLowerCase()===String(product?.name||"").trim().toLowerCase());
+    const id=String(product?.id||"").trim(),name=String(product?.name||"").trim();
+    return {...product,importNumbers:rows.map(r=>String(r?.importNumber||"")).join(" "),trackingNumbers:rows.map(r=>`${r?.trackingNumber||""} ${r?.overseasTrackingNumber||""}`).join(" "),originalCostValuesV216:rows.map(r=>Number(r?.unitPrice)).filter(Number.isFinite),displayLastImport:getLatestImportDateByProduct(id)||String(product?.lastImport||""),latestSoldAt:Number(sales.latestById.get(id)||sales.latestByName.get(name.toLowerCase())||0),netSoldQuantity:Number(sales.quantityById.get(id)||sales.quantityByName.get(name.toLowerCase())||0),cumulativeSoldProfit:Number(sales.profitById.get(id)||sales.profitByName.get(name.toLowerCase())||0)};
   }).filter(product=>{
     if(sortMode==="price-control"&&!isMinimumPriceManualV160(product))return false;
     if(!keyword)return true;
-    if(isOriginalCostOnlySearchV218(keyword))return product.originalCostValuesV216.some(value=>originalCostNumberMatchesV216(value,keyword));
+    if(isOriginalCostOnlySearchV218(keyword))return product.originalCostValuesV216.some(v=>originalCostNumberMatchesV216(v,keyword));
     return smartSearchMatches(`${product.id} ${product.name} ${product.category}`,keyword)||sequentialSearchMatches(product.importNumbers,keyword)||sequentialSearchMatches(product.trackingNumbers,keyword);
   });
   products.sort((a,b)=>{const stockA=Number(a.stock)||0,stockB=Number(b.stock)||0,costA=Number(a.averageCost)||0,costB=Number(b.averageCost)||0;if(sortMode==="name")return String(a.name).localeCompare(String(b.name),"zh");if(sortMode==="latest-sold")return (Number(b.latestSoldAt)||0)-(Number(a.latestSoldAt)||0)||String(a.name).localeCompare(String(b.name),"zh");if(sortMode==="bestseller-desc")return (Number(b.netSoldQuantity)||0)-(Number(a.netSoldQuantity)||0)||String(a.name).localeCompare(String(b.name),"zh");if(sortMode==="profit-desc")return (Number(b.cumulativeSoldProfit)||0)-(Number(a.cumulativeSoldProfit)||0)||String(a.name).localeCompare(String(b.name),"zh");if(sortMode==="stock-desc")return stockB-stockA;if(sortMode==="stock-asc")return stockA-stockB;if(sortMode==="value-desc")return stockB*costB-stockA*costA;if(sortMode==="cost-desc")return costB-costA;return parseDDMMYYYY(b.displayLastImport)-parseDDMMYYYY(a.displayLastImport);});
   return products;
 }
+function getPromotionExcludeMatchesV183(query){return getPromotionSearchProductsV185(query,String(document.getElementById("promotionExcludeFilterV184")?.value||"latest"));}
+function promotionCurrentProfitV183(product,effectivePrice,promotion,rules,originIndex){const cost=getPromotionCostV183(product,rules,originIndex),delivery=getPromotionDeliveryV183(product,rules).amount;return effectivePrice*(1-promotion.commissionRate/100)-cost-delivery;}
 
-function promotionStateTextV404(product, draft) {
-  const id=String(product?.id||"").trim().toUpperCase();
-  const manual=isMinimumPriceManualV160(product); const override=Number(draft.productTargetMarginOverrides?.[id]);
-  if(manual) return promotionManualIncludedDraftV404.has(id) ? `蓝色精品 · 已加入${Number.isFinite(override)?` · ${override}%`:""}` : `蓝色精品 · 自动保护${Number.isFinite(override)?` · 已设 ${override}%`:""}`;
-  return promotionExcludedDraftV183.has(id) ? `绿色自动 · 已排除${Number.isFinite(override)?` · 已设 ${override}%`:""}` : `绿色自动 · 默认参加${Number.isFinite(override)?` · ${override}%`:""}`;
+function renderPromotionPendingSelectionV193(){const box=document.getElementById("promotionPendingSelectionV193");if(!box)return;const products=getProducts(),rows=[...promotionSearchSelectionV184].map(id=>products.find(p=>String(p.id||"").toUpperCase()===id)).filter(Boolean);box.hidden=!rows.length;box.innerHTML=rows.length?`<strong>已选择（${rows.length}）</strong><div>${rows.map(p=>`<button type="button" data-remove-pending-v193="${escapeHTML(String(p.id).toUpperCase())}">${escapeHTML(p.name)} ×</button>`).join("")}</div>`:"";}
+function updatePromotionBatchControlsV184(){
+  const q=String(document.getElementById("promotionExcludeSearchV183")?.value||"").trim(),mode=String(document.getElementById("promotionExcludeFilterV184")?.value||"latest"),matches=(q||mode!=="latest")?getPromotionSearchProductsV185(q,mode):[],ids=matches.map(p=>String(p.id||"").toUpperCase());
+  const tools=document.getElementById("promotionSearchBatchToolsV184"),sel=document.getElementById("promotionSelectAllSearchV184"),label=document.getElementById("promotionSelectAllSearchLabelV401");if(tools)tools.hidden=!matches.length;if(label)label.textContent=`全选当前搜索结果（${matches.length}项）`;
+  if(sel){const c=ids.filter(id=>promotionSearchSelectionV184.has(id)).length;sel.checked=ids.length>0&&c===ids.length;sel.indeterminate=c>0&&c<ids.length;sel.disabled=!ids.length;}
+  const count=promotionSearchSelectionV184.size;["promotionExcludeSelectedV184","promotionUnexcludeSelectedV404","promotionApplyMarginV404","promotionClearMarginV404","promotionManualJoinSelectedV404","promotionManualExitSelectedV404"].forEach(id=>{const b=document.getElementById(id);if(b)b.disabled=count===0;});
+  const ex=document.getElementById("promotionExcludeSelectedV184"),un=document.getElementById("promotionUnexcludeSelectedV404"),ap=document.getElementById("promotionApplyMarginV404"),cl=document.getElementById("promotionClearMarginV404"),mj=document.getElementById("promotionManualJoinSelectedV404"),me=document.getElementById("promotionManualExitSelectedV404");if(ex)ex.textContent=`批量排除（${count}）`;if(un)un.textContent=`取消排除（${count}）`;if(ap)ap.textContent=`批量设置利润率（${count}）`;if(cl)cl.textContent=`取消个别利润率（${count}）`;if(mj)mj.textContent=`精品加入促销（${count}）`;if(me)me.textContent=`精品退出促销（${count}）`;
+  renderPromotionPendingSelectionV193();
 }
+function renderPromotionExcludeSearchV183(){
+  const input=document.getElementById("promotionExcludeSearchV183"),results=document.getElementById("promotionExcludeSearchResultsV183");if(!input||!results)return;const q=input.value.trim(),mode=String(document.getElementById("promotionExcludeFilterV184")?.value||"latest");if(!q&&mode==="latest"){results.innerHTML='<div class="promotion-empty-v183">请输入产品名称、编号或进口编号，或选择上方筛选条件</div>';updatePromotionBatchControlsV184();return;}
+  const draft=getPromotionDraftV183(),rules=getMinimumPriceRulesV160(),origin=getMinimumPriceOriginIndexV160(),matches=getPromotionSearchProductsV185(q,mode);
+  results.innerHTML=matches.length?matches.map(product=>{const id=String(product.id||"").toUpperCase(),manual=isMinimumPriceManualV160(product),excluded=promotionExcludedDraftV183.has(id),includedManual=promotionManualIncludedDraftV404.has(id),override=Number(promotionTargetMarginOverridesDraftV404[id]),checked=promotionSearchSelectionV184.has(id),effective=getEffectiveProductMinimumPriceV183(product,{...draft,active:true},rules,origin);return `<label class="promotion-search-row-v183"><input type="checkbox" data-promotion-search-select-v404="${escapeHTML(id)}" ${checked?"checked":""}/><div><strong>${escapeHTML(product.name)}</strong>${buildProductIdCopyButtonV166(product.id,"promotion-product-id-v183")}<small>${manual?"蓝色售价控制":"绿色自动售价"}${manual?(includedManual?" · 精品已加入促销":" · 精品默认保护"):""}${excluded?" · 已排除":""}${Number.isFinite(override)?` · 个别利润率 ${override}%`:""}</small><small>当前最低售价：${formatMoney(product.minimumPrice,"RM ")} · 促销预览：${formatMoney(effective,"RM ")}</small></div></label>`;}).join(""):'<div class="promotion-empty-v183">没有符合条件的产品</div>';
+  updatePromotionBatchControlsV184();
+}
+function renderPromotionExcludedListV183(){const list=document.getElementById("promotionExcludedListV183");if(!list)return;const products=getProducts(),rows=[...promotionExcludedDraftV183].map(id=>products.find(p=>String(p.id||"").toUpperCase()===id)).filter(Boolean);list.innerHTML=rows.length?rows.map(p=>`<div class="promotion-excluded-row-v183"><div><strong>${escapeHTML(p.name)}</strong>${buildProductIdCopyButtonV166(p.id,"promotion-product-id-v183")}<span>保持原最低售价：${formatMoney(p.minimumPrice,"RM ")}</span></div><button type="button" data-remove-promotion-exclusion="${escapeHTML(String(p.id).toUpperCase())}">移除排除</button></div>`).join(""):'<div class="promotion-empty-v183">没有排除产品</div>';updatePromotionDraftStatusV186();}
+function renderPromotionOverrideListV404(){const list=document.getElementById("promotionOverrideListV404");if(!list)return;const products=getProducts(),rows=Object.entries(promotionTargetMarginOverridesDraftV404).map(([id,rate])=>({p:products.find(x=>String(x.id||"").toUpperCase()===id),id,rate})).filter(x=>x.p);list.innerHTML=rows.length?rows.map(x=>`<div class="promotion-excluded-row-v183"><div><strong>${escapeHTML(x.p.name)}</strong>${buildProductIdCopyButtonV166(x.p.id,"promotion-product-id-v183")}<span>个别目标利润率：${x.rate}%</span></div><button type="button" data-clear-promotion-margin-v404="${escapeHTML(x.id)}">恢复默认30%</button></div>`).join(""):'<div class="promotion-empty-v183">没有个别利润率产品</div>';}
+function renderPromotionManualIncludedListV404(){const list=document.getElementById("promotionManualIncludedListV404");if(!list)return;const products=getProducts(),rows=[...promotionManualIncludedDraftV404].map(id=>products.find(p=>String(p.id||"").toUpperCase()===id)).filter(Boolean);list.innerHTML=rows.length?rows.map(p=>`<div class="promotion-excluded-row-v183"><div><strong>${escapeHTML(p.name)}</strong>${buildProductIdCopyButtonV166(p.id,"promotion-product-id-v183")}<span>精品参与促销</span></div><button type="button" data-remove-manual-promo-v404="${escapeHTML(String(p.id).toUpperCase())}">精品退出促销</button></div>`).join(""):'<div class="promotion-empty-v183">没有精品加入促销</div>';}
+function updatePromotionDraftStatusV186(){const active=getPromotionSettingsV183(),notice=document.getElementById("promotionUnsavedV186"),save=document.getElementById("savePromotionV183"),changed=hasPromotionDraftChangesV183();if(save){save.textContent=active?"更新促销":"启动促销";save.disabled=false;}if(!notice)return;notice.hidden=!changed;if(!changed){notice.textContent="";return;}const oldEx=new Set(active?.excludedProductIds||[]),newEx=promotionExcludedDraftV183,addEx=[...newEx].filter(x=>!oldEx.has(x)).length,removeEx=[...oldEx].filter(x=>!newEx.has(x)).length;notice.textContent=`尚未保存修改：新增排除 ${addEx} 项 · 移除排除 ${removeEx} 项 · 个别利润率 ${Object.keys(promotionTargetMarginOverridesDraftV404).length} 项 · 精品参与 ${promotionManualIncludedDraftV404.size} 项`;}
+function renderPromotionPriceListV183(){const list=document.getElementById("promotionPriceListV183");if(!list)return;const promotion=getPromotionSettingsV183();if(!promotion){list.innerHTML='<div class="promotion-empty-v183">促销尚未启动</div>';return;}const q=String(document.getElementById("promotionPriceListSearchV183")?.value||"").trim(),sort=String(document.getElementById("promotionPriceListSortV185")?.value||"latest"),products=getPromotionSearchProductsV185(q,sort),rules=getMinimumPriceRulesV160(),origin=getMinimumPriceOriginIndexV160();list.innerHTML=products.map(product=>{const id=String(product.id||"").toUpperCase(),manual=isMinimumPriceManualV160(product),excluded=(promotion.excludedProductIds||[]).includes(id),manualProtected=manual&&!(promotion.manualIncludedProductIds||[]).includes(id),effective=getEffectiveProductMinimumPriceV183(product,promotion,rules,origin),rate=getPromotionTargetMarginV404(id,promotion),state=excluded?"已排除":manualProtected?"精品保护":`参与促销 · ${rate}%`;return `<div class="promotion-price-row-v183"><div><strong>${escapeHTML(product.name)}</strong>${buildProductIdCopyButtonV166(product.id,"promotion-product-id-v183")}<span>${escapeHTML(state)}</span></div><strong>${formatMoney(effective,"RM ")}</strong></div>`;}).join("")||'<div class="promotion-empty-v183">没有符合条件的产品</div>';}
+function refreshPromotionDependentVisibleViewsV375(){try{renderDashboardPromotionStatusV208();}catch(_){}try{renderInventoryList();}catch(_){}try{renderDashboard();}catch(_){} }
+function refreshPromotionUiV183(){const active=getPromotionSettingsV183(),summary=document.getElementById("promotionSummaryStatusV183"),del=document.getElementById("deletePromotionV183"),toggle=document.getElementById("togglePromotionPriceListV183"),statusBtn=document.getElementById("promotionActiveButtonStatusV349"),name=document.getElementById("promotionNameV183"),manualStatus=document.getElementById("promotionManualPricingStatusV361"),manualBtn=document.getElementById("togglePromotionManualPricingV361");const text=active?`${active.name}进行中 · 默认 ${active.targetMarginRate}% · 排除 ${active.excludedProductIds.length} 项 · 个别 ${Object.keys(active.targetMarginOverrides||{}).length} 项`:"";if(summary)summary.textContent=text;if(statusBtn){statusBtn.hidden=!active;statusBtn.textContent=text;}if(del)del.hidden=!active;if(toggle)toggle.hidden=!active;if(name){const hasManual=promotionManualIncludedDraftV404.size>0;name.disabled=hasManual;name.title=hasManual?"精品参与促销时，促销名称固定为 Crazy Sales":"";}if(manualStatus)manualStatus.textContent=promotionManualIncludedDraftV404.size?`参与促销 ${promotionManualIncludedDraftV404.size} 项`:"售价控制中";if(manualBtn)manualBtn.textContent="精品加入促销（已选）";updatePromotionDraftStatusV186();}
+function refreshPromotionSettingsAfterCloudSyncV370(){if(hasPromotionDraftChangesV183())return;resetPromotionDraftV183();renderDashboardPromotionStatusV208();}
+window.refreshPromotionSettingsAfterCloudSyncV370=refreshPromotionSettingsAfterCloudSyncV370;window.refreshPromotionSettingsAfterCloudSyncV369=refreshPromotionSettingsAfterCloudSyncV370;window.refreshPromotionUiV183=refreshPromotionUiV183;window.refreshPromotionDependentVisibleViewsV375=refreshPromotionDependentVisibleViewsV375;
 
-function renderPromotionPendingSelectionV193(){const box=document.getElementById("promotionPendingSelectionV193");if(!box)return;const products=getProducts();const rows=[...promotionSearchSelectionV184].map(id=>products.find(p=>String(p.id||"").toUpperCase()===id)).filter(Boolean);box.hidden=!rows.length;box.innerHTML=rows.length?`<strong>已选择（${rows.length}）</strong><div>${rows.map(p=>`<button type="button" data-remove-pending-v193="${escapeHTML(String(p.id).toUpperCase())}">${escapeHTML(p.name)} ×</button>`).join("")}</div>`:"";}
-function updatePromotionBatchControlsV184(){const tools=document.getElementById("promotionSearchBatchToolsV184"),all=document.getElementById("promotionSelectAllSearchV184");const query=String(document.getElementById("promotionExcludeSearchV183")?.value||"").trim(),mode=String(document.getElementById("promotionExcludeFilterV184")?.value||"latest");const matches=(query||mode!=="latest")?getPromotionSearchProductsV185(query,mode):[];const ids=matches.map(p=>String(p.id||"").toUpperCase());promotionSearchSelectionV184=new Set([...promotionSearchSelectionV184].filter(id=>getProducts().some(p=>String(p.id||"").toUpperCase()===id)));if(tools)tools.hidden=!matches.length;if(all){const count=ids.filter(id=>promotionSearchSelectionV184.has(id)).length;all.checked=ids.length>0&&count===ids.length;all.indeterminate=count>0&&count<ids.length;}renderPromotionPendingSelectionV193();}
-
-function renderPromotionExcludeSearchV183(){const input=document.getElementById("promotionExcludeSearchV183"),results=document.getElementById("promotionExcludeSearchResultsV183");if(!input||!results)return;const query=input.value.trim(),mode=String(document.getElementById("promotionExcludeFilterV184")?.value||"latest");if(!query&&mode==="latest"){results.innerHTML='<div class="promotion-empty-v183">请输入产品名称、编号或进口编号，或选择上方筛选条件</div>';updatePromotionBatchControlsV184();return;}const draft=getPromotionDraftV183();const matches=getPromotionSearchProductsV185(query,mode);results.innerHTML=matches.length?matches.map(product=>{const id=String(product.id||"").toUpperCase();return `<label class="promotion-search-result-v183"><input class="promotion-row-check-v184" type="checkbox" data-select-search-v184="${escapeHTML(id)}" ${promotionSearchSelectionV184.has(id)?"checked":""}/><div><small>${buildProductIdCopyButtonV166(product.id,"promotion-product-id-v183")}</small><strong>${escapeHTML(product.name||"")}</strong><span>${escapeHTML(promotionStateTextV404(product,draft))} · 库存 ${formatNumber(product.stock||0)}</span></div></label>`;}).join(""):'<div class="promotion-empty-v183">没有符合条件的产品</div>';updatePromotionBatchControlsV184();}
-
-function renderPromotionStateListsV404(){const products=getProducts();const byId=id=>products.find(p=>String(p.id||"").trim().toUpperCase()===String(id||"").trim().toUpperCase());const makeRow=(product,note,action,label)=>`<div class="promotion-excluded-row-v183"><div><button type="button" class="inventory-product-name-copy promotion-excluded-name-v186" data-product-name="${escapeHTML(product.name)}" onclick="copyInventoryProductName(this)">${escapeHTML(product.name)}</button>${buildProductIdCopyButtonV166(product.id,"promotion-product-id-v183")}<span>${escapeHTML(note)}</span></div><button type="button" ${action}="${escapeHTML(String(product.id).toUpperCase())}">${label}</button></div>`;
-  const excluded=[...promotionExcludedDraftV183].map(byId).filter(Boolean), manual=[...promotionManualIncludedDraftV404].map(byId).filter(Boolean), overrides=Object.entries(promotionTargetMarginOverridesDraftV404).map(([id,margin])=>({product:byId(id),margin})).filter(x=>x.product);
-  const ex=document.getElementById("promotionExcludedListV183"),ov=document.getElementById("promotionOverrideListV404"),mi=document.getElementById("promotionManualIncludedListV404");if(ex)ex.innerHTML=excluded.length?excluded.map(p=>makeRow(p,"绿色产品 · 不参加促销","data-remove-promotion-exclusion","取消排除")).join(""):'<div class="promotion-empty-v183">没有排除产品</div>';if(ov)ov.innerHTML=overrides.length?overrides.map(x=>makeRow(x.product,`个别目标净利率 ${x.margin}%`,`data-clear-promotion-margin-v404`,`恢复默认30%`)).join(""):'<div class="promotion-empty-v183">没有个别利润率</div>';if(mi)mi.innerHTML=manual.length?manual.map(p=>makeRow(p,"蓝色售价控制 / 精品 · 人工加入促销","data-remove-promotion-manual-v404","精品退出促销")).join(""):'<div class="promotion-empty-v183">没有加入促销的精品</div>';
-  const ec=document.getElementById("promotionExcludedCountV404"),oc=document.getElementById("promotionOverrideCountV404"),mc=document.getElementById("promotionManualIncludedCountV404");if(ec)ec.textContent=`${excluded.length} 项`;if(oc)oc.textContent=`${overrides.length} 项`;if(mc)mc.textContent=`${manual.length} 项`;updatePromotionDraftStatusV186();}
-function renderPromotionExcludedListV183(){renderPromotionStateListsV404();}
-
-function updatePromotionDraftStatusV186(){const active=getPromotionSettingsV183(),notice=document.getElementById("promotionUnsavedV186"),save=document.getElementById("savePromotionV183"),changed=hasPromotionDraftChangesV183();if(save){save.textContent=active?"更新促销":"启动促销";save.disabled=promotionOperationBusyV404;}if(notice){notice.hidden=!changed;notice.textContent=changed?`尚未保存修改 · 排除 ${promotionExcludedDraftV183.size} 项 · 个别利润率 ${Object.keys(promotionTargetMarginOverridesDraftV404).length} 项 · 精品加入 ${promotionManualIncludedDraftV404.size} 项`:"";}}
-
-function renderPromotionPriceListV183(){const panel=document.getElementById("promotionPriceListV183");if(!panel)return;const promotion=getPromotionDraftV183();const query=String(document.getElementById("promotionPriceListSearchV183")?.value||"").trim(),mode=String(document.getElementById("promotionPriceListSortV185")?.value||"latest");const products=getPromotionSearchProductsV185(query,mode);const rules=getMinimumPriceRulesV160(),index=getMinimumPriceOriginIndexV160();panel.innerHTML=products.length?products.map(product=>{const id=String(product.id||"").toUpperCase(),participates=isProductInPromotionV404(product,promotion),manual=isMinimumPriceManualV160(product),base=manual?Math.max(0,Number(product.minimumPrice)||0):getAutomaticMinimumPriceV160(product.averageCost,rules,product,index),info=participates?getPromotionPriceBreakdownV183(product,promotion,rules,index):null,effective=participates?info.price:base,margin=participates?getPromotionTargetMarginV404(product,promotion):NaN,state=manual?(participates?"精品参加":"精品保护"):(participates?"参加促销":"已排除"),profit=getProductMinimumProfitV205(product,rules,index);return `<div class="promotion-compact-row-v193 ${profit.profit<-.005?"loss":"gain"}"><span><b>${escapeHTML(product.name||"")}</b><small>${escapeHTML(id)}</small></span><span>状态<b>${escapeHTML(state)}</b></span><span>目标利润率<b>${Number.isFinite(margin)?`${margin}%`:"—"}</b></span><span>最低售价<b>${formatMoney(effective,"RM ")}</b></span><span>利润<b>${formatMoney(profit.profit,"RM ")}</b></span></div>`;}).join(""):'<div class="promotion-empty-v183">没有产品</div>';}
-
-function getPromotionMarginBadgeV209(product, profitInfo = null){const promotion=getPromotionSettingsV183();if(!isProductInPromotionV404(product,promotion))return "";const info=profitInfo||getProductMinimumProfitV205(product);const cls=info.profit<-.005?"loss":info.profit>.005?"gain":"neutral";const rate=getPromotionTargetMarginV404(product,promotion);const text=Number.isFinite(rate)?`${Number.isInteger(rate)?rate.toFixed(0):rate.toFixed(2).replace(/0+$/,'').replace(/\.$/,'')}%`:"";return text?`<em class="inventory-promotion-margin-v209 ${cls}">${escapeHTML(text)}</em>`:"";}
-
-function refreshPromotionUiV183(){const promotion=getPromotionSettingsV183();if(!promotionDraftTouchedV209){const n=document.getElementById("promotionNameV183"),c=document.getElementById("promotionCommissionV183"),m=document.getElementById("promotionMarginV183");if(n)n.value=promotion?.name||"年尾清货";if(c)c.value=String(promotion?.commissionRate??10);if(m)m.value=String(promotion?.targetMarginRate??30);promotionNameManuallyEditedDraftV404=promotion?.nameManuallyEdited===true;promotionExcludedDraftV183=new Set(promotion?.excludedProductIds||[]);promotionManualIncludedDraftV404=new Set(promotion?.manualIncludedProductIds||[]);promotionTargetMarginOverridesDraftV404={...(promotion?.productTargetMarginOverrides||{})};}
-  const summary=document.getElementById("promotionSummaryStatusV183"),del=document.getElementById("deletePromotionV183"),toggle=document.getElementById("togglePromotionPriceListV183"),activeStatus=document.getElementById("promotionActiveButtonStatusV349");if(summary){summary.textContent=promotion?`${promotion.name} 进行中 · 默认 ${promotion.targetMarginRate}% · 排除 ${promotion.excludedProductIds.length} · 精品 ${promotion.manualIncludedProductIds.length}`:"";summary.hidden=!promotion;summary.classList.toggle("promotion-active-summary-v191",!!promotion);}if(del)del.hidden=!promotion;if(toggle)toggle.hidden=!promotion;if(activeStatus){activeStatus.hidden=!promotion;activeStatus.textContent=promotion?`促销已开启：${promotion.name} · 默认 ${promotion.targetMarginRate}%`:"";}renderPromotionStateListsV404();updatePromotionDraftStatusV186();}
-window.refreshPromotionUiV183=refreshPromotionUiV183;
-
-function refreshPromotionSettingsAfterCloudSyncV370(){try{if(hasRealLocalPromotionDraftV370()){refreshPromotionUiV183();return;}promotionDraftTouchedV209=false;resetPromotionDraftV183();refreshPromotionUiV183();renderPromotionPriceListV183();capturePromotionDraftBaselineV370();}catch(error){console.warn("V40.4 promotion cloud repaint skipped",error);}}
-window.refreshPromotionSettingsAfterCloudSyncV370=refreshPromotionSettingsAfterCloudSyncV370;window.refreshPromotionSettingsAfterCloudSyncV369=refreshPromotionSettingsAfterCloudSyncV370;
-function refreshPromotionDependentVisibleViewsV375(){const pageId=document.querySelector(".page.active")?.id||"";if(pageId==="dashboardPage"){try{renderDashboard();}catch(_){}try{renderInventoryManagementList();}catch(_){}return;}if(pageId==="supplierPage"){try{renderProductList();}catch(_){}}}
-window.refreshPromotionDependentVisibleViewsV375=refreshPromotionDependentVisibleViewsV375;
-
-function setPromotionOperationLockV404(busy,label=""){promotionOperationBusyV404=!!busy;["savePromotionV183","deletePromotionV183","promotionSetMarginSelectedV404","promotionExcludeSelectedV184","promotionUnexcludeSelectedV404","promotionIncludeManualSelectedV404","promotionRemoveManualSelectedV404"].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=!!busy;});const status=document.getElementById("promotionStatusV183");if(status&&busy)status.textContent=label||"正在处理促销，请勿重复操作…";updatePromotionDraftStatusV186();}
-
-function setupPromotionSettingsV183(){const details=document.querySelector("details.promotion-settings-v183"),hint=document.getElementById("promotionToggleHintV192"),name=document.getElementById("promotionNameV183"),commission=document.getElementById("promotionCommissionV183"),margin=document.getElementById("promotionMarginV183"),search=document.getElementById("promotionExcludeSearchV183"),filter=document.getElementById("promotionExcludeFilterV184"),results=document.getElementById("promotionExcludeSearchResultsV183"),selectAll=document.getElementById("promotionSelectAllSearchV184"),batchMargin=document.getElementById("promotionBatchMarginV404"),setMargin=document.getElementById("promotionSetMarginSelectedV404"),exclude=document.getElementById("promotionExcludeSelectedV184"),unexclude=document.getElementById("promotionUnexcludeSelectedV404"),includeManual=document.getElementById("promotionIncludeManualSelectedV404"),removeManual=document.getElementById("promotionRemoveManualSelectedV404"),save=document.getElementById("savePromotionV183"),del=document.getElementById("deletePromotionV183"),toggle=document.getElementById("togglePromotionPriceListV183"),pricePanel=document.getElementById("promotionPriceListPanelV183"),priceSearch=document.getElementById("promotionPriceListSearchV183"),priceSort=document.getElementById("promotionPriceListSortV185"),status=document.getElementById("promotionStatusV183");if(!save)return;
-  const touch=()=>{promotionDraftTouchedV209=true;updatePromotionDraftStatusV186();if(pricePanel&&!pricePanel.hidden)renderPromotionPriceListV183();};
-  name?.addEventListener("input",()=>{promotionNameManuallyEditedDraftV404=true;touch();});commission?.addEventListener("input",touch);margin?.addEventListener("input",touch);search?.addEventListener("input",renderPromotionExcludeSearchV183);filter?.addEventListener("change",renderPromotionExcludeSearchV183);priceSearch?.addEventListener("input",renderPromotionPriceListV183);priceSort?.addEventListener("change",renderPromotionPriceListV183);
+function setupPromotionSettingsV183(){
+  const name=document.getElementById("promotionNameV183"),commission=document.getElementById("promotionCommissionV183"),margin=document.getElementById("promotionMarginV183"),search=document.getElementById("promotionExcludeSearchV183"),filter=document.getElementById("promotionExcludeFilterV184"),results=document.getElementById("promotionExcludeSearchResultsV183"),selectAll=document.getElementById("promotionSelectAllSearchV184"),exclude=document.getElementById("promotionExcludeSelectedV184"),unexclude=document.getElementById("promotionUnexcludeSelectedV404"),applyMargin=document.getElementById("promotionApplyMarginV404"),clearMargin=document.getElementById("promotionClearMarginV404"),batchMargin=document.getElementById("promotionBatchMarginV404"),manualJoin=document.getElementById("togglePromotionManualPricingV361"),manualJoinSelected=document.getElementById("promotionManualJoinSelectedV404"),manualExitSelected=document.getElementById("promotionManualExitSelectedV404"),save=document.getElementById("savePromotionV183"),del=document.getElementById("deletePromotionV183"),toggle=document.getElementById("togglePromotionPriceListV183"),panel=document.getElementById("promotionPriceListPanelV183"),priceSearch=document.getElementById("promotionPriceListSearchV183"),priceSort=document.getElementById("promotionPriceListSortV185"),status=document.getElementById("promotionStatusV183"),details=name?.closest("details"),hint=document.getElementById("promotionToggleHintV192");
+  const mark=()=>{promotionDraftTouchedV209=true;updatePromotionDraftStatusV186();refreshPromotionUiV183();};
   details?.addEventListener("toggle",()=>{if(hint)hint.textContent=details.open?"收起":"点击打开";if(details.open&&typeof window.pollPromotionStateLightV372==="function")window.pollPromotionStateLightV372(true).catch(()=>{});});
-  results?.addEventListener("change",e=>{const box=e.target.closest("[data-select-search-v184]");if(!box)return;const id=String(box.dataset.selectSearchV184||"").toUpperCase();if(box.checked)promotionSearchSelectionV184.add(id);else promotionSearchSelectionV184.delete(id);updatePromotionBatchControlsV184();});
-  document.getElementById("promotionPendingSelectionV193")?.addEventListener("click",e=>{const b=e.target.closest("[data-remove-pending-v193]");if(!b)return;promotionSearchSelectionV184.delete(String(b.dataset.removePendingV193||"").toUpperCase());renderPromotionExcludeSearchV183();});
-  selectAll?.addEventListener("change",()=>{const q=String(search?.value||"").trim(),mode=String(filter?.value||"latest");const ids=getPromotionSearchProductsV185(q,mode).map(p=>String(p.id||"").toUpperCase());ids.forEach(id=>selectAll.checked?promotionSearchSelectionV184.add(id):promotionSearchSelectionV184.delete(id));renderPromotionExcludeSearchV183();});
-  const selectedProducts=()=>{const all=getProducts();return [...promotionSearchSelectionV184].map(id=>all.find(p=>String(p.id||"").toUpperCase()===id)).filter(Boolean);};
-  setMargin?.addEventListener("click",()=>{const value=parsePromotionPercentV211(batchMargin?.value),commissionRate=parsePromotionPercentV211(commission?.value),max=Math.floor((100-commissionRate-0.1)*10+1e-9)/10;if(!promotionSearchSelectionV184.size)return window.alert("请先选择产品。");if(!Number.isFinite(value)||value< -99.9||value>max)return window.alert(`目标净利率允许范围为 -99.9% ～ +${max.toFixed(1)}%。`);[...promotionSearchSelectionV184].forEach(id=>promotionTargetMarginOverridesDraftV404[id]=Math.round(value*100)/100);touch();renderPromotionStateListsV404();renderPromotionExcludeSearchV183();});
-  exclude?.addEventListener("click",()=>{const chosen=selectedProducts(),greens=chosen.filter(p=>!isMinimumPriceManualV160(p));if(!greens.length)return window.alert("已选择产品中没有绿色自动最低售价产品。");greens.forEach(p=>promotionExcludedDraftV183.add(String(p.id||"").toUpperCase()));touch();renderPromotionStateListsV404();renderPromotionExcludeSearchV183();});
-  unexclude?.addEventListener("click",()=>{let count=0;[...promotionSearchSelectionV184].forEach(id=>{if(promotionExcludedDraftV183.delete(id))count++;});if(!count)return window.alert("已选择产品没有在排除名单中。");touch();renderPromotionStateListsV404();renderPromotionExcludeSearchV183();});
-  includeManual?.addEventListener("click",()=>{const blues=selectedProducts().filter(p=>isMinimumPriceManualV160(p));if(!blues.length)return window.alert("已选择产品中没有蓝色售价控制 / 精品产品。");blues.forEach(p=>promotionManualIncludedDraftV404.add(String(p.id||"").toUpperCase()));if(!promotionNameManuallyEditedDraftV404&&name){name.value="Crazy Sales";}touch();renderPromotionStateListsV404();renderPromotionExcludeSearchV183();});
-  removeManual?.addEventListener("click",()=>{let count=0;selectedProducts().filter(p=>isMinimumPriceManualV160(p)).forEach(p=>{if(promotionManualIncludedDraftV404.delete(String(p.id||"").toUpperCase()))count++;});if(!count)return window.alert("已选择精品没有加入促销。");touch();renderPromotionStateListsV404();renderPromotionExcludeSearchV183();});
-  document.querySelector(".promotion-settings-v183")?.addEventListener("click",e=>{let b=e.target.closest("[data-remove-promotion-exclusion]");if(b){promotionExcludedDraftV183.delete(String(b.dataset.removePromotionExclusion||"").toUpperCase());touch();renderPromotionStateListsV404();renderPromotionExcludeSearchV183();return;}b=e.target.closest("[data-clear-promotion-margin-v404]");if(b){delete promotionTargetMarginOverridesDraftV404[String(b.dataset.clearPromotionMarginV404||"").toUpperCase()];touch();renderPromotionStateListsV404();renderPromotionExcludeSearchV183();return;}b=e.target.closest("[data-remove-promotion-manual-v404]");if(b){promotionManualIncludedDraftV404.delete(String(b.dataset.removePromotionManualV404||"").toUpperCase());touch();renderPromotionStateListsV404();renderPromotionExcludeSearchV183();}});
-  save.addEventListener("click",async()=>{if(promotionOperationBusyV404)return;const promotion=getPromotionDraftV183();if(!promotion.name)return window.alert("请输入活动名称。");if(!Number.isFinite(promotion.commissionRate)||promotion.commissionRate<0||promotion.commissionRate>=100)return window.alert("主播佣金必须是0至99.99之间。");const max=Math.floor((100-promotion.commissionRate-0.1)*10+1e-9)/10;if(!Number.isFinite(promotion.targetMarginRate)||promotion.targetMarginRate< -99.9||promotion.targetMarginRate>max)return window.alert(`默认目标净利率允许范围为 -99.9% ～ +${max.toFixed(1)}%。`);for(const [id,v] of Object.entries(promotion.productTargetMarginOverrides)){if(!Number.isFinite(Number(v))||Number(v)< -99.9||Number(v)>max)return window.alert(`${id} 个别目标净利率超出允许范围。`);}const products=getProducts(),rules=getMinimumPriceRulesV160(),index=getMinimumPriceOriginIndexV160(),participants=products.filter(p=>isProductInPromotionV404(p,promotion)),losses=participants.filter(p=>getPromotionPriceBreakdownV183(p,promotion,rules,index).profit<-.005);const current=getPromotionSettingsV183();if(!window.confirm(`确认${current?"更新":"启动"}促销？\n\n活动：${promotion.name}\n主播佣金：${promotion.commissionRate}%\n默认目标净利率：${promotion.targetMarginRate}%\n参加产品：${participants.length} 项\n排除绿色：${promotion.excludedProductIds.length} 项\n精品加入：${promotion.manualIncludedProductIds.length} 项\n个别利润率：${Object.keys(promotion.productTargetMarginOverrides).length} 项${losses.length?`\n预计亏损：${losses.length} 项`:""}\n\n不会改写 minimumPrice、minimumPriceManual 或 Initial Minimum Price。`))return;const now=new Date().toISOString(),payload={...promotion,active:true,createdAt:current?.createdAt||now,updatedAt:now};setPromotionOperationLockV404(true,current?"正在更新促销，请勿离开…":"正在启动促销，请勿离开…");try{localStorage.setItem("llPromotionPendingWriteV404",JSON.stringify({operation:current?"update":"start",promotion:payload,startedAt:now}));await updatePromotionSettingsFastV185(payload);const settings=loadJSON("importSystemSettings",{});saveJSON("importSystemSettings",{...settings,promotionV183:payload});localStorage.removeItem("llPromotionPendingWriteV404");promotionDraftTouchedV209=false;resetPromotionDraftV183();capturePromotionDraftBaselineV370();refreshPromotionUiV183();if(status)status.textContent=current?"促销已更新":"促销已启动";window.requestAnimationFrame(()=>refreshPromotionDependentVisibleViewsV375());}catch(error){if(status)status.textContent=`促销没有保存：${String(error?.message||error)}`;}finally{setPromotionOperationLockV404(false);}});
-  del?.addEventListener("click",async()=>{if(promotionOperationBusyV404)return;const active=getPromotionSettingsV183();if(!active||!window.confirm(`确认关闭促销“${active.name}”？\n\n关闭后绿色恢复系统自动最低售价，蓝色恢复原手动最低售价；Initial Minimum Price 不会改变。`))return;setPromotionOperationLockV404(true,"正在关闭促销并同步云端…");try{localStorage.setItem("llPromotionPendingWriteV404",JSON.stringify({operation:"close",promotion:null,startedAt:new Date().toISOString()}));await updatePromotionSettingsFastV185(null);const settings=loadJSON("importSystemSettings",{}),next={...settings};delete next.promotionV183;saveJSON("importSystemSettings",next);localStorage.removeItem("llPromotionPendingWriteV404");promotionDraftTouchedV209=false;resetPromotionDraftV183();capturePromotionDraftBaselineV370();refreshPromotionUiV183();if(pricePanel)pricePanel.hidden=true;if(toggle)toggle.textContent="查看全部促销价格";if(status)status.textContent="促销已关闭；原最低售价状态已恢复";window.requestAnimationFrame(()=>refreshPromotionDependentVisibleViewsV375());}catch(error){if(status)status.textContent=`促销没有关闭：${String(error?.message||error)}`;}finally{setPromotionOperationLockV404(false);}});
-  toggle?.addEventListener("click",()=>{if(!pricePanel)return;pricePanel.hidden=!pricePanel.hidden;toggle.textContent=pricePanel.hidden?"查看全部促销价格":"收起全部促销价格";if(!pricePanel.hidden)renderPromotionPriceListV183();});
-  resetPromotionDraftV183();refreshPromotionUiV183();renderPromotionExcludeSearchV183();capturePromotionDraftBaselineV370();
+  [name,commission,margin].forEach(el=>el?.addEventListener("input",mark)); search?.addEventListener("input",renderPromotionExcludeSearchV183);filter?.addEventListener("change",renderPromotionExcludeSearchV183);
+  results?.addEventListener("change",e=>{const cb=e.target.closest("[data-promotion-search-select-v404]");if(!cb)return;const id=String(cb.dataset.promotionSearchSelectV404||"").toUpperCase();if(cb.checked)promotionSearchSelectionV184.add(id);else promotionSearchSelectionV184.delete(id);updatePromotionBatchControlsV184();});
+  results?.addEventListener("click",e=>{const b=e.target.closest("[data-remove-pending-v193]");if(b){promotionSearchSelectionV184.delete(String(b.dataset.removePendingV193||"").toUpperCase());renderPromotionExcludeSearchV183();}});
+  selectAll?.addEventListener("change",()=>{const q=String(search?.value||"").trim(),mode=String(filter?.value||"latest"),ids=getPromotionSearchProductsV185(q,mode).map(p=>String(p.id||"").toUpperCase());ids.forEach(id=>selectAll.checked?promotionSearchSelectionV184.add(id):promotionSearchSelectionV184.delete(id));renderPromotionExcludeSearchV183();});
+  exclude?.addEventListener("click",()=>{promotionSearchSelectionV184.forEach(id=>promotionExcludedDraftV183.add(id));promotionSearchSelectionV184.clear();mark();renderPromotionExcludeSearchV183();renderPromotionExcludedListV183();});
+  unexclude?.addEventListener("click",()=>{promotionSearchSelectionV184.forEach(id=>promotionExcludedDraftV183.delete(id));promotionSearchSelectionV184.clear();mark();renderPromotionExcludeSearchV183();renderPromotionExcludedListV183();});
+  applyMargin?.addEventListener("click",()=>{const rate=cleanPromotionMarginOverrideV404(batchMargin?.value,getPromotionDraftV183().commissionRate);if(rate===null){window.alert("请输入有效的目标利润率。");return;}promotionSearchSelectionV184.forEach(id=>promotionTargetMarginOverridesDraftV404[id]=rate);promotionSearchSelectionV184.clear();mark();renderPromotionExcludeSearchV183();renderPromotionOverrideListV404();});
+  clearMargin?.addEventListener("click",()=>{promotionSearchSelectionV184.forEach(id=>delete promotionTargetMarginOverridesDraftV404[id]);promotionSearchSelectionV184.clear();mark();renderPromotionExcludeSearchV183();renderPromotionOverrideListV404();});
+  manualJoin?.addEventListener("click",()=>{const products=getProducts(),manualIds=[...promotionSearchSelectionV184].filter(id=>{const p=products.find(x=>String(x.id||"").toUpperCase()===id);return p&&isMinimumPriceManualV160(p);});if(!manualIds.length){window.alert("请先在搜索结果勾选要加入促销的蓝色售价控制产品。");return;}if(!promotionManualIncludedDraftV404.size)promotionOriginalNameDraftV361=String(name?.value||"年尾清货").trim()||"年尾清货";manualIds.forEach(id=>promotionManualIncludedDraftV404.add(id));if(name)name.value="Crazy Sales";promotionSearchSelectionV184.clear();mark();renderPromotionExcludeSearchV183();renderPromotionManualIncludedListV404();});
+  manualJoinSelected?.addEventListener("click",()=>{manualJoin?.click();});
+  manualExitSelected?.addEventListener("click",()=>{const selected=[...promotionSearchSelectionV184];selected.forEach(id=>promotionManualIncludedDraftV404.delete(id));if(!promotionManualIncludedDraftV404.size&&name)name.value=String(promotionOriginalNameDraftV361||"年尾清货").trim()||"年尾清货";promotionSearchSelectionV184.clear();mark();renderPromotionExcludeSearchV183();renderPromotionManualIncludedListV404();});
+  document.getElementById("promotionExcludedListV183")?.addEventListener("click",e=>{const b=e.target.closest("[data-remove-promotion-exclusion]");if(!b)return;promotionExcludedDraftV183.delete(String(b.dataset.removePromotionExclusion||"").toUpperCase());mark();renderPromotionExcludedListV183();renderPromotionExcludeSearchV183();});
+  document.getElementById("promotionOverrideListV404")?.addEventListener("click",e=>{const b=e.target.closest("[data-clear-promotion-margin-v404]");if(!b)return;delete promotionTargetMarginOverridesDraftV404[String(b.dataset.clearPromotionMarginV404||"").toUpperCase()];mark();renderPromotionOverrideListV404();renderPromotionExcludeSearchV183();});
+  document.getElementById("promotionManualIncludedListV404")?.addEventListener("click",e=>{const b=e.target.closest("[data-remove-manual-promo-v404]");if(!b)return;promotionManualIncludedDraftV404.delete(String(b.dataset.removeManualPromoV404||"").toUpperCase());if(!promotionManualIncludedDraftV404.size&&name)name.value=String(promotionOriginalNameDraftV361||"年尾清货").trim()||"年尾清货";mark();renderPromotionManualIncludedListV404();renderPromotionExcludeSearchV183();});
+  save?.addEventListener("click",async()=>{const draft=getPromotionDraftV183();if(!Number.isFinite(draft.commissionRate)||draft.commissionRate<0||draft.commissionRate>=100){window.alert("主播佣金设置无效。");return;}const marginRate=cleanPromotionMarginOverrideV404(draft.targetMarginRate,draft.commissionRate);if(marginRate===null){window.alert("默认目标净利率设置无效。");return;}draft.targetMarginRate=marginRate;for(const [id,v] of Object.entries(draft.targetMarginOverrides)){if(cleanPromotionMarginOverrideV404(v,draft.commissionRate)===null){window.alert(`${id} 的个别利润率无效。`);return;}}const active=getPromotionSettingsV183(),verb=active?"更新":"启动";if(!window.confirm(`确认${verb}促销「${draft.name}」？\n\n默认目标利润率：${draft.targetMarginRate}%\n排除：${draft.excludedProductIds.length} 项\n个别利润率：${Object.keys(draft.targetMarginOverrides).length} 项\n精品参与：${draft.manualIncludedProductIds.length} 项`))return;try{if(typeof setPromotionOperationLockV400==="function")setPromotionOperationLockV400(true,`${verb}促销中`);if(status)status.textContent=`正在${verb}促销并同步云端…`;await updatePromotionSettingsFastV185({...draft,createdAt:active?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()});const settings=loadJSON("importSystemSettings",{});saveJSON("importSystemSettings",{...settings,promotionV183:{...draft,createdAt:active?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()}});promotionDraftTouchedV209=false;resetPromotionDraftV183();if(status)status.textContent=`促销已${verb}`;refreshPromotionDependentVisibleViewsV375();}catch(error){if(status)status.textContent=`促销没有保存：${String(error?.message||error)}`;}finally{if(typeof setPromotionOperationLockV400==="function")setPromotionOperationLockV400(false);}});
+  del?.addEventListener("click",async()=>{const active=getPromotionSettingsV183();if(!active||!window.confirm(`确认关闭促销「${active.name}」？\n\n关闭后所有产品恢复原本最低售价。`))return;try{if(typeof setPromotionOperationLockV400==="function")setPromotionOperationLockV400(true,"关闭促销中");if(status)status.textContent="正在关闭促销并同步云端…";await updatePromotionSettingsFastV185(null);const settings=loadJSON("importSystemSettings",{}),next={...settings};delete next.promotionV183;saveJSON("importSystemSettings",next);promotionExcludedDraftV183=new Set();promotionTargetMarginOverridesDraftV404={};promotionManualIncludedDraftV404=new Set();promotionOriginalNameDraftV361="";promotionDraftTouchedV209=false;resetPromotionDraftV183();if(panel)panel.hidden=true;if(status)status.textContent="促销已关闭并恢复原最低售价";refreshPromotionDependentVisibleViewsV375();}catch(error){if(status)status.textContent=`促销没有关闭：${String(error?.message||error)}`;}finally{if(typeof setPromotionOperationLockV400==="function")setPromotionOperationLockV400(false);}});
+  toggle?.addEventListener("click",()=>{if(!panel)return;panel.hidden=!panel.hidden;toggle.textContent=panel.hidden?"查看全部促销价格":"收起全部促销价格";if(!panel.hidden)renderPromotionPriceListV183();});priceSearch?.addEventListener("input",renderPromotionPriceListV183);priceSort?.addEventListener("change",renderPromotionPriceListV183);
+  resetPromotionDraftV183();
 }
 
 function getMinimumPriceManualOverridesV160() {
@@ -15453,10 +15430,12 @@ async function editInitialMinimumPriceV376(productId){
 window.editInitialMinimumPriceV376=editInitialMinimumPriceV376;
 async function restoreInitialMinimumPricesV376(){
   const button=document.getElementById("restoreInitialMinimumPricesV376"); if(!button)return;
+  if(typeof isPromotionOperationLockedV400==="function"&&isPromotionOperationLockedV400()){window.alert(promotionOperationBlockedMessageV400());return;}
+  if(typeof setPromotionOperationLockV400==="function")setPromotionOperationLockV400(true,"正在检查并恢复初始最低售价");
   // V40.4: mobile and desktop intentionally use the exact same proven Restore path.
   try{ if(typeof pollPromotionStateLightV372==="function") await pollPromotionStateLightV372(true); }catch(_){}
-  if(getPromotionSettingsV183()){ alert("促销进行中，请先关闭促销后再恢复初始最低售价。"); return; }
-  if(!window.confirm("确认恢复全部产品的初始最低售价？\n\n恢复会把每个产品的初始最低售价真正写回正式 minimumPrice。不会改变库存、平均成本、FIFO、Sales ACK、Imports 或 Batches。"))return;
+  if(getPromotionSettingsV183()){ if(typeof setPromotionOperationLockV400==="function")setPromotionOperationLockV400(false); alert("促销进行中，请先关闭促销后再恢复初始最低售价。"); return; }
+  if(!window.confirm("确认恢复全部产品的初始最低售价？\n\n恢复会把每个产品的初始最低售价真正写回正式 minimumPrice。不会改变库存、平均成本、FIFO、Sales ACK、Imports 或 Batches。")){if(typeof setPromotionOperationLockV400==="function")setPromotionOperationLockV400(false);return;}
   button.disabled=true; button.textContent="恢复中...";
   try{
     const data=await restoreInitialMinimumPricesFastV376();
@@ -15484,7 +15463,8 @@ async function restoreInitialMinimumPricesV376(){
     if(failed.length) alert(`恢复完成：${Number(data?.restoredCount)||0} 项成功，${failed.length} 项失败。\n\n失败产品：${failed.join(", ")}`);
     window.setTimeout(()=>{if(button.isConnected){button.disabled=false;button.textContent="恢复初始最低售价";}},1800);
     if(typeof scheduleForegroundCloudCheck==="function")scheduleForegroundCloudCheck(0);
-  }catch(error){ button.disabled=false; button.textContent="恢复失败 · 重试"; alert(error?.message||"恢复初始最低售价失败"); }
+    if(typeof setPromotionOperationLockV400==="function")setPromotionOperationLockV400(false);
+  }catch(error){ if(typeof setPromotionOperationLockV400==="function")setPromotionOperationLockV400(false); button.disabled=false; button.textContent="恢复失败 · 重试"; alert(error?.message||"恢复初始最低售价失败"); }
 }
 window.restoreInitialMinimumPricesV376=restoreInitialMinimumPricesV376;
 
@@ -18028,8 +18008,16 @@ async function backupSystemData() {
       inventoryProcessingLogIncluded: true
     };
 
+    const backupCurrentStockV397 = getProducts().reduce(
+      (sum, product) => sum + Math.max(0, Number(product?.stock) || 0),
+      0
+    );
+    const backupStockLabelV397 = Number.isInteger(backupCurrentStockV397)
+      ? String(backupCurrentStockV397)
+      : String(Number(backupCurrentStockV397.toFixed(2)));
+
     downloadTextFile(
-      `Import_Inventory_Backup_${formatDateDDMMYYYY(new Date())}.json`,
+      `Import_Inventory_Backup_V${APP_VERSION}_${formatDateDDMMYYYY(new Date())}_${backupStockLabelV397}.json`,
       JSON.stringify(backup, null, 2),
       "application/json;charset=utf-8"
     );
@@ -18345,8 +18333,23 @@ async function restoreSystemData(event) {
     return;
   }
 
+  const currentRestoreProductsV397 = getProducts();
+  const currentRestoreStockV397 = currentRestoreProductsV397.reduce(
+    (sum, product) => sum + Math.max(0, Number(product?.stock) || 0),
+    0
+  );
+  const currentRestoreInventoryValueV397 = currentRestoreProductsV397.reduce((sum, product) => {
+    const stock = Math.max(0, Number(product?.stock) || 0);
+    const averageCost = Math.max(0, Number(product?.averageCost) || 0);
+    return sum + (stock * averageCost);
+  }, 0);
+
   const confirmed = confirm(
     `Restore 会完整覆盖 Google Sheet 当前产品、库存和进口记录。\n\n` +
+    `【Restore 前当前系统】\n` +
+    `当前库存：${formatNumber(currentRestoreStockV397)}\n` +
+    `库存总值：${formatMoney(currentRestoreInventoryValueV397, "RM ")}\n\n` +
+    `【Backup 文件】\n` +
     `Products：${restored.products.length}\nImports：${restored.imports.length}\nBatches：${restored.batches.length}\n\n` +
     `Restore 进行中请勿关闭、刷新或离开页面；即使意外关闭，重新打开后仍可读取 Restore Job 状态。\n\n确定继续？`
   );
@@ -18704,3 +18707,25 @@ document.addEventListener("click",event=>{
   const initial=event.target.closest('.product-stock-metric-v256[data-edit-type="initialMinimumPrice"]');
   if(initial){event.preventDefault();event.stopPropagation();if(Date.now()-Number(window.initialMinimumPriceLongPressAtV376||0)<900)return;editInitialMinimumPriceV376(String(initial.dataset.productId||""));}
 },true);
+
+
+// ================= V40.4 Simplified Promotion =================
+// Single promotion only. Multi-package/date-range state has been retired.
+var promotionOperationBusyV400 = false;
+var promotionOperationLabelV400 = "";
+function isPromotionOperationLockedV400(){ return promotionOperationBusyV400 === true; }
+function setPromotionOperationLockV400(busy,label=""){
+  promotionOperationBusyV400 = busy === true;
+  promotionOperationLabelV400 = promotionOperationBusyV400 ? String(label||"促销资料正在同步") : "";
+  const details=document.querySelector("details.promotion-settings-v183");
+  if(details){details.classList.toggle("promotion-operation-locked-v400",promotionOperationBusyV400);details.querySelectorAll("button,input,select").forEach(el=>{if(promotionOperationBusyV400){if(!Object.prototype.hasOwnProperty.call(el.dataset,"promoLockPrevDisabledV400"))el.dataset.promoLockPrevDisabledV400=el.disabled?"1":"0";el.disabled=true;}else if(Object.prototype.hasOwnProperty.call(el.dataset,"promoLockPrevDisabledV400")){el.disabled=el.dataset.promoLockPrevDisabledV400==="1";delete el.dataset.promoLockPrevDisabledV400;}});}
+}
+function promotionOperationBlockedMessageV400(){ return `${promotionOperationLabelV400||"促销资料正在同步"}，请等待成功或失败后再离开。`; }
+function getPromotionMarginBadgeV209(product, profitInfo = null) {
+  const promotion=getPromotionSettingsV183(); if(!promotion)return "";
+  const id=String(product?.id||"").toUpperCase(); if(!promotionProductIncludedV388(id,promotion))return ""; if(isMinimumPriceManualV160(product)&&!(promotion.manualIncludedProductIds||[]).includes(id))return "";
+  const info=profitInfo||getProductMinimumProfitV205(product),cls=info.profit< -0.005?"loss":info.profit>0.005?"gain":"neutral",rate=getPromotionTargetMarginV404(id,promotion);
+  const text=Number.isFinite(rate)?`${Number.isInteger(rate)?rate.toFixed(0):rate.toFixed(2).replace(/0+$/," ").trim().replace(/\.$/,"")}%`:"";
+  return text?`<em class="inventory-promotion-margin-v209 ${cls}">${escapeHTML(text)}</em>`:"";
+}
+window.refreshPromotionPackageManagerV389=function(){ if(typeof window.refreshPromotionSettingsAfterCloudSyncV370==="function") window.refreshPromotionSettingsAfterCloudSyncV370(); };

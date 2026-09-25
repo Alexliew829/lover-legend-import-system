@@ -1046,8 +1046,7 @@ async function reconcilePromotionWriteV374(requestedPromotion, attempts = 2) {
         clientVersion:APP_VERSION,
         schemaVersion:CLOUD_SCHEMA_VERSION
       });
-      const remotePromotionV373 = stateV373?.promotionV183 && stateV373.promotionV183.active === true
-        ? stateV373.promotionV183 : null;
+      const remotePromotionV373 = stateV373?.promotionV183 || null;
       if (normalizePromotionStateForCompareV372(requestedPromotion) === normalizePromotionStateForCompareV372(remotePromotionV373)) {
         return stateV373;
       }
@@ -1069,11 +1068,11 @@ async function getFreshPromotionCredentialV374() {
     bootstrapToken:String(state?.bootstrapToken||""),
     bootstrapRevision:Number(state?.revision)||0,
     promotionRevision:Number(state?.promotionRevision)||0,
-    promotionV183:state?.promotionV183 && state.promotionV183.active === true ? state.promotionV183 : null
+    promotionV183:state?.promotionV183 || null
   };
 }
 
-async function updatePromotionSettingsFastV185(promotion, retryCountV374 = 0) {
+async function updatePromotionSettingsFastV185(promotion, retryCountV374 = 0, forceFreshCredentialV398 = false) {
   if (!navigator.onLine) throw new Error("目前离线，促销设置尚未同步。");
   if (!isCloudBootstrapComplete()) throw new Error("首次同步尚未完成，请稍后再试。");
   if (getCloudQueue().dirty) throw new Error("本机还有其他资料正在同步，请等显示「已同步」后再修改促销。");
@@ -1082,44 +1081,58 @@ async function updatePromotionSettingsFastV185(promotion, retryCountV374 = 0) {
   promotionWriteBusyV374 = true;
   setCloudState("syncing");
   try {
-    // V37.5: Promotion uses a fresh lightweight credential instead of waiting for
-    // the large inventory sync queue. This prevents the 30s wait / false timeout
-    // seen on mobile while preserving revision protection for the Settings-only write.
-    const freshV374 = await getFreshPromotionCredentialV374();
+    // V40.4: normal Promotion writes use the already-valid bootstrap credential first.
+    // This removes the extra getPromotionState round trip that made mobile Start/Close
+    // feel 20-60s slower. Only fetch a fresh credential after a real conflict or when
+    // the cached credential is unavailable. Core inventory sync cadence is untouched.
+    const configBeforeV398 = getCloudConfig();
+    let credentialV398 = {
+      revision:Number(configBeforeV398.revision)||0,
+      bootstrapToken:String(configBeforeV398.bootstrapToken||""),
+      bootstrapRevision:Number(configBeforeV398.bootstrapRevision)||0
+    };
+    if (forceFreshCredentialV398 || !credentialV398.revision || !credentialV398.bootstrapToken) {
+      const freshV398 = await getFreshPromotionCredentialV374();
+      credentialV398 = {
+        revision:Number(freshV398.revision)||0,
+        bootstrapToken:String(freshV398.bootstrapToken||""),
+        bootstrapRevision:Number(freshV398.bootstrapRevision)||Number(freshV398.revision)||0
+      };
+    }
+
     const data = await callGoogleApi({
       action:"updatePromotionSettingsV185",
       clientVersion:APP_VERSION,
       schemaVersion:CLOUD_SCHEMA_VERSION,
-      baseRevision:freshV374.revision,
-      bootstrapToken:freshV374.bootstrapToken,
-      bootstrapRevision:freshV374.bootstrapRevision,
+      baseRevision:credentialV398.revision,
+      bootstrapToken:credentialV398.bootstrapToken,
+      bootstrapRevision:credentialV398.bootstrapRevision,
       updatedBy:"System V40.4 Stable",
       promotion:promotion || null
     });
 
     if (data.busy) {
-      if (retryCountV374 < 3) {
-        await new Promise(resolve => window.setTimeout(resolve, 700 + retryCountV374 * 500));
+      if (retryCountV374 < 2) {
+        await new Promise(resolve => window.setTimeout(resolve, 450 + retryCountV374 * 350));
         promotionWriteBusyV374 = false;
-        return updatePromotionSettingsFastV185(promotion, retryCountV374 + 1);
+        return updatePromotionSettingsFastV185(promotion, retryCountV374 + 1, retryCountV374 > 0);
       }
       throw new Error("云端正在处理其他资料，请稍后再按一次更新促销。");
     }
 
     if (data.conflict) {
       if (retryCountV374 < 2) {
-        await new Promise(resolve => window.setTimeout(resolve, 350));
         promotionWriteBusyV374 = false;
-        return updatePromotionSettingsFastV185(promotion, retryCountV374 + 1);
+        return updatePromotionSettingsFastV185(promotion, retryCountV374 + 1, true);
       }
       throw new Error("资料版本刚刚发生变化；促销修改尚未保存，请再按一次更新。");
     }
 
     const config = getCloudConfig();
-    config.revision = Number(data.revision) || freshV374.revision || Number(config.revision) || 0;
+    config.revision = Number(data.revision) || credentialV398.revision || Number(config.revision) || 0;
     config.lastSyncAt = new Date().toISOString();
-    config.bootstrapToken = String(data.bootstrapToken || freshV374.bootstrapToken || config.bootstrapToken || "");
-    config.bootstrapRevision = Number(data.revision) || freshV374.bootstrapRevision || Number(config.bootstrapRevision) || 0;
+    config.bootstrapToken = String(data.bootstrapToken || credentialV398.bootstrapToken || config.bootstrapToken || "");
+    config.bootstrapRevision = Number(data.revision) || credentialV398.bootstrapRevision || Number(config.bootstrapRevision) || 0;
     saveCloudConfig(config);
     renderCloudMeta(config);
     setCloudState("synced");
@@ -1127,7 +1140,10 @@ async function updatePromotionSettingsFastV185(promotion, retryCountV374 = 0) {
   } catch (errorV374) {
     const messageV374 = String(errorV374?.message || errorV374 || "");
     if (/timeout|connection failed/i.test(messageV374)) {
-      const reconciledV374 = await reconcilePromotionWriteV374(promotion || null, 3);
+      // V40.4: a timeout may mean the server already committed the write.
+      // Reconcile quickly before reporting failure so a force-close/retry does not
+      // consume another package identity.
+      const reconciledV374 = await reconcilePromotionWriteV374(promotion || null, 2);
       if (reconciledV374) {
         const config = getCloudConfig();
         config.revision = Number(reconciledV374.revision) || Number(config.revision) || 0;
@@ -1147,19 +1163,8 @@ async function updatePromotionSettingsFastV185(promotion, retryCountV374 = 0) {
 window.updatePromotionSettingsFastV185 = updatePromotionSettingsFastV185;
 
 function normalizePromotionStateForCompareV372(value) {
-  const p = value && value.active === true ? value : null;
-  if (!p) return "";
-  return JSON.stringify({
-    active:true,
-    name:String(p.name || ""),
-    nameManuallyEdited:p.nameManuallyEdited === true,
-    commissionRate:Number(p.commissionRate),
-    targetMarginRate:Number(p.targetMarginRate),
-    excludedProductIds:[...(Array.isArray(p.excludedProductIds)?p.excludedProductIds:[])].map(String).sort(),
-    manualIncludedProductIds:[...(Array.isArray(p.manualIncludedProductIds)?p.manualIncludedProductIds:[])].map(String).sort(),
-    productTargetMarginOverrides:Object.fromEntries(Object.entries(p.productTargetMarginOverrides && typeof p.productTargetMarginOverrides === "object" ? p.productTargetMarginOverrides : {}).sort(([a],[b])=>a.localeCompare(b))),
-    updatedAt:String(p.updatedAt || "")
-  });
+  const p=value&&value.active===true&&!Array.isArray(value.packages)?value:null; if(!p)return "";
+  return JSON.stringify({active:true,name:String(p.name||""),commissionRate:Number(p.commissionRate),targetMarginRate:Number(p.targetMarginRate),excludedProductIds:[...(Array.isArray(p.excludedProductIds)?p.excludedProductIds:[])].map(String).sort(),manualIncludedProductIds:[...(Array.isArray(p.manualIncludedProductIds)?p.manualIncludedProductIds:[])].map(String).sort(),targetMarginOverrides:Object.fromEntries(Object.entries(p.targetMarginOverrides&&typeof p.targetMarginOverrides==="object"?p.targetMarginOverrides:{}).sort(([a],[b])=>a.localeCompare(b))),originalPromotionName:String(p.originalPromotionName||""),updatedAt:String(p.updatedAt||"")});
 }
 
 function isPromotionMobileReadOnlyV377() {
@@ -1176,9 +1181,14 @@ function getPromotionLightPollIntervalV375() {
   // lightweight poll on both desktop and mobile; the writer and calculation path are unchanged.
   if (panelOpen) return PROMOTION_LIGHT_SYNC_MS_V372;
   const settings = loadJSON("importSystemSettings", {});
-  const active = settings?.promotionV183?.active === true;
+  const rawPromotionV389 = settings?.promotionV183;
+  const active = rawPromotionV389?.active===true && !Array.isArray(rawPromotionV389?.packages);
   return active ? PROMOTION_LIGHT_ACTIVE_MS_V375 : PROMOTION_LIGHT_IDLE_MS_V380;
 }
+
+let promotionMutationEpochV399 = 0;
+window.bumpPromotionMutationEpochV399 = function(){ promotionMutationEpochV399 += 1; return promotionMutationEpochV399; };
+window.getPromotionMutationEpochV399 = function(){ return promotionMutationEpochV399; };
 
 async function pollPromotionStateLightV372(force = false) {
   if (promotionLightSyncBusyV372 || promotionWriteBusyV374 || document.hidden || !navigator.onLine || !cloudInitialSyncComplete || cloudApplyingRemote) return false;
@@ -1191,6 +1201,7 @@ async function pollPromotionStateLightV372(force = false) {
   }
   promotionLightSyncLastPollAtV375 = Date.now();
 
+  const pollEpochV399 = promotionMutationEpochV399;
   promotionLightSyncBusyV372 = true;
   try {
     const data = await callGoogleApi({
@@ -1198,19 +1209,24 @@ async function pollPromotionStateLightV372(force = false) {
       clientVersion:APP_VERSION,
       schemaVersion:CLOUD_SCHEMA_VERSION
     });
-    const remotePromotionV372 = data.promotionV183 && data.promotionV183.active === true ? data.promotionV183 : null;
+    // V40.4: if a Start/Update/Close began after this poll was sent, this response
+    // may describe the pre-write cloud state. Never let that stale response repaint
+    // an old package/name back into the manager.
+    if (pollEpochV399 !== promotionMutationEpochV399 || promotionWriteBusyV374) return false;
+    const remotePromotionV372 = data.promotionV183 || null;
     const settingsV372 = loadJSON("importSystemSettings", {});
-    const localPromotionV372 = settingsV372?.promotionV183?.active === true ? settingsV372.promotionV183 : null;
+    const localPromotionV372 = settingsV372?.promotionV183 || null;
     const changedV372 = normalizePromotionStateForCompareV372(remotePromotionV372) !== normalizePromotionStateForCompareV372(localPromotionV372);
 
     const promotionRevisionAdvancedV376 = (Number(data.promotionRevision)||0) > (Number(getCloudConfig().revision)||0);
     if (changedV372 || promotionRevisionAdvancedV376) {
       const nextSettingsV372 = { ...settingsV372 };
-      if (remotePromotionV372) nextSettingsV372.promotionV183 = remotePromotionV372;
+      if (remotePromotionV372 && remotePromotionV372.active===true && !Array.isArray(remotePromotionV372.packages)) nextSettingsV372.promotionV183 = remotePromotionV372;
       else delete nextSettingsV372.promotionV183;
       localStorage.setItem("importSystemSettings", JSON.stringify(nextSettingsV372));
       try {
-        if (typeof window.refreshPromotionSettingsAfterCloudSyncV370 === "function") window.refreshPromotionSettingsAfterCloudSyncV370();
+        if (typeof window.refreshPromotionPackageManagerV389 === "function") window.refreshPromotionPackageManagerV389();
+        else if (typeof window.refreshPromotionSettingsAfterCloudSyncV370 === "function") window.refreshPromotionSettingsAfterCloudSyncV370();
         else if (typeof window.refreshPromotionUiV183 === "function") window.refreshPromotionUiV183();
         if (typeof window.refreshPromotionDependentVisibleViewsV375 === "function") window.refreshPromotionDependentVisibleViewsV375();
       } catch (error) { console.warn("V40.4 promotion light repaint skipped", error); }
@@ -1343,26 +1359,13 @@ function sanitizeLegacySettingsV323(settings = {}, products = []) {
       return !(legacyRow || legacySource);
     });
   }
-  // V36.3: promotion is live business state, not legacy residue. Preserve a valid
-  // active promotion across normal Pull/merge operations so revision conflicts or
-  // another device's write can never silently switch an active promotion off.
+  // V40.4: single live promotion key. Old multi-package containers are retired.
   const promo = out.promotionV183;
-  if (promo && promo.active === true) {
-    const commissionRate = Number(promo.commissionRate), targetMarginRate = Number(promo.targetMarginRate);
-    if (Number.isFinite(commissionRate) && commissionRate >= 0 && commissionRate < 100 && Number.isFinite(targetMarginRate) && targetMarginRate >= -99.9 && 1 - commissionRate / 100 - targetMarginRate / 100 > 0) {
-      const cleanMargins = {};
-      Object.entries(promo.productTargetMarginOverrides && typeof promo.productTargetMarginOverrides === "object" ? promo.productTargetMarginOverrides : {}).forEach(([key,value])=>{const id=String(key||"").trim().toUpperCase(),margin=Number(value);if(id&&validIds.has(id)&&Number.isFinite(margin)&&margin>=-99.9&&1-commissionRate/100-margin/100>0)cleanMargins[id]=Math.round(margin*100)/100;});
-      out.promotionV183 = {
-        active:true,
-        name:String(promo.name || "年尾清货").trim().slice(0,30) || "年尾清货",
-        nameManuallyEdited:promo.nameManuallyEdited === true,
-        commissionRate,targetMarginRate,
-        excludedProductIds:[...new Set((Array.isArray(promo.excludedProductIds)?promo.excludedProductIds:[]).map(id=>String(id||"").trim().toUpperCase()).filter(id=>id&&validIds.has(id)))],
-        manualIncludedProductIds:[...new Set((Array.isArray(promo.manualIncludedProductIds)?promo.manualIncludedProductIds:[]).map(id=>String(id||"").trim().toUpperCase()).filter(id=>id&&validIds.has(id)))],
-        productTargetMarginOverrides:cleanMargins,
-        createdAt:String(promo.createdAt || ""), updatedAt:String(promo.updatedAt || "")
-      };
-    } else delete out.promotionV183;
+  if (promo && promo.active === true && !Array.isArray(promo.packages)) {
+    const commissionRate=Number(promo.commissionRate), targetMarginRate=Number(promo.targetMarginRate);
+    const cleanIds=values=>[...new Set((Array.isArray(values)?values:[]).map(id=>String(id||"").trim().toUpperCase()).filter(id=>id&&validIds.has(id)))];
+    const marginOverrides={}; Object.entries(promo.targetMarginOverrides&&typeof promo.targetMarginOverrides==="object"?promo.targetMarginOverrides:{}).forEach(([id,value])=>{id=String(id||"").trim().toUpperCase();const rate=Number(value);if(id&&validIds.has(id)&&Number.isFinite(rate))marginOverrides[id]=rate;});
+    if(Number.isFinite(commissionRate)&&commissionRate>=0&&commissionRate<100&&Number.isFinite(targetMarginRate)&&targetMarginRate>=-99.9&&1-commissionRate/100-targetMarginRate/100>0){out.promotionV183={active:true,name:String(promo.name||"年尾清货").trim().slice(0,30)||"年尾清货",commissionRate,targetMarginRate,excludedProductIds:cleanIds(promo.excludedProductIds),manualIncludedProductIds:cleanIds(promo.manualIncludedProductIds),targetMarginOverrides:marginOverrides,originalPromotionName:String(promo.originalPromotionName||"").trim().slice(0,30),createdAt:String(promo.createdAt||""),updatedAt:String(promo.updatedAt||"")};}else delete out.promotionV183;
   } else delete out.promotionV183;
   return out;
 }
@@ -1516,7 +1519,7 @@ function applyRemoteData(data) {
     const remotePromotionRevisionV377 = Number(data.promotionRevision) || 0;
     if (localPromotionRevisionV377 > remotePromotionRevisionV377) {
       const currentSettingsV377 = loadJSON("importSystemSettings", {});
-      const currentPromotionV377 = currentSettingsV377?.promotionV183?.active === true ? currentSettingsV377.promotionV183 : null;
+      const currentPromotionV377 = currentSettingsV377?.promotionV183 || null;
       safeRemoteSettingsV336 = { ...safeRemoteSettingsV336 };
       if (currentPromotionV377) safeRemoteSettingsV336.promotionV183 = currentPromotionV377;
       else delete safeRemoteSettingsV336.promotionV183;
