@@ -4055,7 +4055,7 @@ function renderInventoryList(products) {
             <span>${minimumDisplayV315.label}</span><strong>${formatMoney(minimumPrice, "RM ")}</strong>
           </button>
           <div><span>${averageCostLabel}</span><strong>${formatMoney(averageCost, "RM ")}</strong></div>
-          <div class="inventory-profit-value-v207 ${profitInfo.profit < 0 ? "loss" : profitInfo.profit > 0 ? "gain" : "neutral"}"><span>利润</span><strong>${formatMoney(profitInfo.profit, "RM ")}</strong></div>
+          <div class="inventory-profit-value-v207 ${profitInfo.profit < 0 ? "loss" : profitInfo.profit > 0 ? "gain" : "neutral"}"><span>利润</span><strong>${formatSignedProfitMoneyV387(profitInfo.profit)}</strong></div>
           <div class="inventory-profit-value-v207 ${profitInfo.profit < 0 ? "loss" : profitInfo.profit > 0 ? "gain" : "neutral"}"><span>利润率</span><strong>${escapeHTML(formatProfitTargetV303(profitInfo.profitRate))}</strong></div>
           <div><span>库存成本</span><strong>${formatMoney(value, "RM ")}</strong></div>
           <div><span>最后进口</span><strong>${escapeHTML(getLatestImportDateByProduct(item.id) || "")}</strong></div>
@@ -4992,7 +4992,7 @@ function setupPromotionSettingsV183() {
   promotionDetails?.addEventListener("toggle", () => {
     refreshToggleHintV192();
     if (promotionDetails.open && typeof window.pollPromotionStateLightV372 === "function") {
-      window.pollPromotionStateLightV372(true).catch(error => console.warn("V38.6 promotion open refresh skipped", error));
+      window.pollPromotionStateLightV372(true).catch(error => console.warn("V38.7 promotion open refresh skipped", error));
     }
   });
   refreshToggleHintV192();
@@ -15066,6 +15066,10 @@ function renderBatchProductStockResults() {
       : "";
     const importNumberV256 = String(originalRecordV219?.importNumber || "").trim();
     const productIdV256 = String(product?.id || "").trim();
+    // V38.7: use the same proven minimum-price profit calculation as the inventory/home cards.
+    // This remains display-only: no pricing, promotion, inventory, FIFO or sync logic is changed.
+    const profitInfoV387 = getProductMinimumProfitV205(product);
+    const profitToneV387 = profitInfoV387.profit < 0 ? "loss" : profitInfoV387.profit > 0 ? "gain" : "neutral";
 
     return `
     <div class="product-stock-result-row product-stock-card-v256">
@@ -15091,6 +15095,8 @@ function renderBatchProductStockResults() {
           <button class="product-stock-initial-price-btn-v376 product-stock-metric-v256" type="button" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="initialMinimumPrice" aria-label="点击或长按修改初始最低售价" title="点击或长按修改初始最低售价"><span>初始最低售价</span><strong>${formatMoney(getInitialMinimumPriceV376(product), "RM ")}</strong></button>
           <div class="product-stock-import-metric-v376 product-stock-metric-v256"><span>进口编号</span>${importNumberV256 ? `<button type="button" class="product-stock-import-copy-v256" data-copy-value="${escapeHTML(importNumberV256)}" onclick="copyRecentBatchValue(this, '进口编号')" title="点击复制进口编号">${escapeHTML(importNumberV256)}</button>` : `<strong>-</strong>`}</div>
           <button class="product-stock-cost-btn product-stock-metric-v256" type="button" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="averageCost" aria-label="长按修改平均成本" title="长按修改平均成本；VND 为不含盆成本"><span>${getAverageCostLabelV205(product)}</span><strong>${formatMoney(Number(product.averageCost) || 0, "RM ")}</strong></button>
+          <div class="product-stock-profit-metric-v387 product-stock-metric-v256 inventory-profit-value-v207 ${profitToneV387}"><span>利润</span><strong>${formatSignedProfitMoneyV387(profitInfoV387.profit)}</strong></div>
+          <div class="product-stock-profit-metric-v387 product-stock-metric-v256 inventory-profit-value-v207 ${profitToneV387}"><span>利润率</span><strong>${escapeHTML(formatProfitTargetV303(profitInfoV387.profitRate))}</strong></div>
         </div>
       </div>
 
@@ -16192,7 +16198,7 @@ function isInitialMinimumPriceLockedV380(productOrId){
   const locks=getInitialMinimumPriceLockMapV380();
   const lockKey=Object.keys(locks||{}).find(key=>String(key||"").trim().toUpperCase()===id);
   if(lockKey)return locks[lockKey]===true;
-  // V38.6: never infer formal initial-price lock from the ordinary manual-price flag.
+  // V38.7: never infer formal initial-price lock from the ordinary manual-price flag.
   // Only the confirmed 77 baseline IDs or an explicit lock-map entry are formal.
   return false;
 }
@@ -16203,7 +16209,7 @@ function getInitialMinimumPriceV376(product){
   const entry=Object.prototype.hasOwnProperty.call(map,id)
     ? {found:true,value:map[id]}
     : (()=>{const hit=Object.entries(map).find(([key])=>String(key||"").trim().toUpperCase()===id);return hit?{found:true,value:hit[1]}:{found:false,value:null};})();
-  // V38.6: missing/null/blank is NOT zero. Number(null) / Number("") both become 0,
+  // V38.7: missing/null/blank is NOT zero. Number(null) / Number("") both become 0,
   // which was the root cause of a locked initial price being displayed/rewritten as RM0.00.
   const raw=entry.value;
   const value=entry.found && raw!==null && raw!==undefined && String(raw).trim()!==""
@@ -16250,7 +16256,7 @@ async function editInitialMinimumPriceV376(productId){
 window.editInitialMinimumPriceV376=editInitialMinimumPriceV376;
 async function restoreInitialMinimumPricesV376(){
   const button=document.getElementById("restoreInitialMinimumPricesV376"); if(!button)return;
-  // V38.6: mobile and desktop intentionally use the exact same proven Restore path.
+  // V38.7: mobile and desktop intentionally use the exact same proven Restore path.
   try{ if(typeof pollPromotionStateLightV372==="function") await pollPromotionStateLightV372(true); }catch(_){}
   if(getPromotionSettingsV183()){ alert("促销进行中，请先关闭促销后再恢复初始最低售价。"); return; }
   if(!window.confirm("确认恢复全部产品的初始最低售价？\n\n恢复会把每个产品的初始最低售价真正写回正式 minimumPrice。不会改变库存、平均成本、FIFO、Sales ACK、Imports 或 Batches。"))return;
@@ -16297,7 +16303,7 @@ async function editProductMinimumPrice(productId) {
   const product = products[productIndex];
   const storedMinimumPriceV351 = Math.max(0, Number(product.minimumPrice) || 0);
   const initialMapBeforeV376 = getInitialMinimumPriceMapV376();
-  // V38.6: an automatic price is only an implicit candidate. The first real manual
+  // V38.7: an automatic price is only an implicit candidate. The first real manual
   // minimum-price save becomes the authoritative initial minimum price. After that,
   // ordinary minimum-price edits must never move the initial baseline again.
   const initialPriceWasImplicitV376 = !hasExplicitInitialMinimumPriceV379(id);
@@ -16341,7 +16347,7 @@ async function editProductMinimumPrice(productId) {
 
   const updatedAt = new Date().toISOString();
   const shouldCaptureInitialMinimumPriceV379 = initialPriceWasImplicitV376 && nextMinimumPriceManual;
-  // V38.6: do NOT optimistically write the formal initial price locally. The cloud
+  // V38.7: do NOT optimistically write the formal initial price locally. The cloud
   // must persist + verify it first; otherwise the UI can show a false 7500/7500 and
   // later collapse to 0 when an authoritative Pull arrives.
   products[productIndex] = {
@@ -16381,7 +16387,7 @@ async function editProductMinimumPrice(productId) {
     const rawConfirmedInitialV382 = minimumPriceResultV380?.initialMinimumPrice;
     const confirmedInitialV380 = rawConfirmedInitialV382!==null && rawConfirmedInitialV382!==undefined && String(rawConfirmedInitialV382).trim()!==""
       ? Number(rawConfirmedInitialV382) : NaN;
-    // V38.6: only an explicitly returned numeric initial value may refresh the local baseline.
+    // V38.7: only an explicitly returned numeric initial value may refresh the local baseline.
     // Never coerce null/undefined/blank to 0.
     if (Number.isFinite(confirmedInitialV380) && confirmedInitialV380 >= 0) {
       applyInitialMinimumPriceMapLocalV376({ ...getInitialMinimumPriceMapV376(), [id]:confirmedInitialV380 });
@@ -16429,7 +16435,7 @@ async function editProductMinimumPrice(productId) {
       };
       saveJSON("importSystemProducts", latestProducts);
     }
-    // V38.6: no initial-price rollback is needed here because formal initial state
+    // V38.7: no initial-price rollback is needed here because formal initial state
     // is applied locally only after the cloud confirms persistence.
     const rollbackOverrides = { ...getMinimumPriceManualOverridesV160() };
     rollbackOverrides[id] = currentMinimumPriceManual;
@@ -17308,6 +17314,20 @@ function getMinimumPriceStateSignatureV339(products){
 
 // V34.3: one canonical product search/filter/sort path for every inventory-style view.
 // Import product entry intentionally does NOT use this helper.
+// V38.7: canonical signed profit formatter for current minimum-price profit displays.
+// Positive: +RM 100.00; negative: -RM 100.00; zero: RM 0.00.
+function formatSignedProfitMoneyV387(value) {
+  const n = Number(value);
+  const safe = Number.isFinite(n) ? n : 0;
+  const amount = Math.abs(safe).toLocaleString("en-MY", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+  if (safe > 0) return `+RM ${amount}`;
+  if (safe < 0) return `-RM ${amount}`;
+  return `RM ${amount}`;
+}
+
 // V34.3: generic signed-percentage formatter retained from V32.5.
 // This is shared by inventory profit-rate rendering and is NOT promotion logic.
 function formatProfitTargetV303(value) {
@@ -17458,7 +17478,7 @@ function buildInventoryManageCardV337(product, productMediaLinksV229 = {}) {
             <span>${minimumDisplayV315.label || "最低售价"}</span><strong>${formatMoney(minimumPrice, "RM ")}</strong>
           </button>
           <div><span>${escapeHTML(averageCostLabelV205)}</span><strong>${formatMoney(averageCost, "RM ")}</strong></div>
-          <div class="inventory-profit-value-v207 ${profitInfoV205.profit < 0 ? "loss" : profitInfoV205.profit > 0 ? "gain" : "neutral"}"><span>利润</span><strong>${formatMoney(profitInfoV205.profit, "RM ")}</strong></div>
+          <div class="inventory-profit-value-v207 ${profitInfoV205.profit < 0 ? "loss" : profitInfoV205.profit > 0 ? "gain" : "neutral"}"><span>利润</span><strong>${formatSignedProfitMoneyV387(profitInfoV205.profit)}</strong></div>
           <div class="inventory-profit-value-v207 ${profitInfoV205.profit < 0 ? "loss" : profitInfoV205.profit > 0 ? "gain" : "neutral"}"><span>利润率</span><strong>${escapeHTML(formatProfitTargetV303(profitInfoV205.profitRate))}</strong></div>
           <div><span>库存成本总值</span><strong>${formatMoney(inventoryValue, "RM ")}</strong></div>
           <div><span>最后进口</span><strong>${escapeHTML(normalizeDateToDDMMYYYY(product?.displayLastImport) || "-")}</strong></div>
@@ -17620,7 +17640,7 @@ function renderInventoryManagementList() {
             <span>${minimumDisplayV315.label}</span><strong>${formatMoney(minimumPrice, "RM ")}</strong>
           </button>
           <div><span>${averageCostLabelV205}</span><strong>${formatMoney(averageCost, "RM ")}</strong></div>
-          <div class="inventory-profit-value-v207 ${profitInfoV205.profit < 0 ? "loss" : profitInfoV205.profit > 0 ? "gain" : "neutral"}"><span>利润</span><strong>${formatMoney(profitInfoV205.profit, "RM ")}</strong></div>
+          <div class="inventory-profit-value-v207 ${profitInfoV205.profit < 0 ? "loss" : profitInfoV205.profit > 0 ? "gain" : "neutral"}"><span>利润</span><strong>${formatSignedProfitMoneyV387(profitInfoV205.profit)}</strong></div>
           <div class="inventory-profit-value-v207 ${profitInfoV205.profit < 0 ? "loss" : profitInfoV205.profit > 0 ? "gain" : "neutral"}"><span>利润率</span><strong>${escapeHTML(formatProfitTargetV303(profitInfoV205.profitRate))}</strong></div>
           <div><span>库存成本总值</span><strong>${formatMoney(inventoryValue, "RM ")}</strong></div>
           <div><span>最后进口</span><strong>${escapeHTML(normalizeDateToDDMMYYYY(product.displayLastImport) || "-")}</strong></div>
@@ -18801,7 +18821,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "38.6",
+      version: "38.7",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -19480,7 +19500,7 @@ function setupInventoryMasterV299(){
 
 
 
-// V38.6 bindings: the summary action must not toggle the Promotion panel.
+// V38.7 bindings: the summary action must not toggle the Promotion panel.
 document.addEventListener("click",event=>{
   const restore=event.target.closest("#restoreInitialMinimumPricesV376");
   if(restore){event.preventDefault();event.stopPropagation();restoreInitialMinimumPricesV376();return;}

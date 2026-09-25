@@ -6540,7 +6540,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 .product-stock-modify-grid-v376{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 10px}
 .product-stock-modify-grid-v376 .product-stock-metric-v256{min-width:0;width:100%;margin:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center}
 .product-stock-import-metric-v376 .product-stock-import-copy-v256{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* V38.6 — Restore stays away from the Promotion summary toggle, aligns with the target-margin column, and is available on mobile. */
+/* V38.7 — Restore stays away from the Promotion summary toggle, aligns with the target-margin column, and is available on mobile. */
 .promotion-exclude-heading-v385{
   display:grid;
   grid-template-columns:minmax(0,1fr) minmax(0,1fr);
@@ -6585,3 +6585,11 @@ body.system-media-preview-open-v305{overflow:hidden}
   color: #111827 !important;
   -webkit-text-fill-color: #111827 !important;
 }
+
+
+/* V38.7 — Product Query & Modify adds read-only current profit/profit-rate cards.
+   Profit formatting/colors reuse the same canonical inventory calculation and gain/loss tones. */
+.product-stock-profit-metric-v387{background:#f8fbf9;color:#111827}
+.product-stock-profit-metric-v387.inventory-profit-value-v207.gain > strong{color:#177245!important}
+.product-stock-profit-metric-v387.inventory-profit-value-v207.loss > strong{color:#c62828!important}
+.product-stock-profit-metric-v387.inventory-profit-value-v207.neutral > strong{color:#111!important}
