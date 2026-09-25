@@ -456,7 +456,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V38.8 Stable",
+      updatedBy: "System V38.9 Stable",
       ...payload
     });
 
@@ -492,7 +492,7 @@ async function commitSalesInventoryBatchToCloudV125(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V38.8 Stable",
+      updatedBy: "System V38.9 Stable",
       ...payload
     });
     if (data.conflict || data.stockChanged) {
@@ -515,7 +515,7 @@ window.commitSalesInventoryBatchToCloudV125 = commitSalesInventoryBatchToCloudV1
 
 async function commitSalesCorrectionBatchToCloudV110(payload) {
   await flushCloudQueueStrictV83(); const config=getCloudConfig(); setCloudState("syncing");
-  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V38.8 Stable",...payload});
+  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V38.9 Stable",...payload});
     if(data.conflict||data.stockChanged) throw new Error(data.message||"Google Sheet 资料已改变，全部库存差异没有处理。请同步后重试。");
     config.revision=Number(data.revision)||Number(config.revision)||0; config.lastSyncAt=new Date().toISOString(); config.bootstrapToken=String(data.bootstrapToken||config.bootstrapToken||""); config.bootstrapRevision=Number(data.revision)||Number(config.bootstrapRevision)||0; saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced"); return data;
   } catch(error){setCloudState("failed");throw error;}
@@ -529,7 +529,7 @@ async function migrateProductPrefixesV164() {
     action: "migrateProductPrefixesV164", clientVersion: APP_VERSION,
     schemaVersion: CLOUD_SCHEMA_VERSION, baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""), bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V38.8 Stable"
+    updatedBy: "System V38.9 Stable"
   });
   if (data.conflict) throw new Error(data.message || "资料已改变，请同步后重试。");
   config.revision = Number(data.revision) || Number(config.revision) || 0;
@@ -729,7 +729,7 @@ function repairLocalBsCanonicalCacheV365() {
     localStorage.setItem("importSystemSettings", JSON.stringify(nextSettings));
     return true;
   } catch (error) {
-    console.warn("V38.8 local BS canonical cache repair skipped", error);
+    console.warn("V38.9 local BS canonical cache repair skipped", error);
     return false;
   }
 }
@@ -763,7 +763,7 @@ async function pullLatestSnapshot(forceBootstrap = false) {
       config.bootstrapRevision = Number(data.revision) || 0;
     }
     saveCloudConfig(config);
-    // V38.8: keep the proven main revision path independent from Promotion Light Sync.
+    // V38.9: keep the proven main revision path independent from Promotion Light Sync.
     // Do not await an extra Web App request here; minimum-price / inventory sync must
     // complete at the original V32.5/V34.6 speed. Promotion state is reconciled by
     // its own lightweight read-only channel.
@@ -786,7 +786,7 @@ async function pullLatestSnapshot(forceBootstrap = false) {
     const repair = await callGoogleApi({
       action:"repairBsCanonicalV364", clientVersion:APP_VERSION, schemaVersion:CLOUD_SCHEMA_VERSION,
       baseRevision:Number(data.revision)||0, bootstrapToken:String(data.bootstrapToken||""),
-      bootstrapRevision:Number(data.revision)||0, updatedBy:"System V38.8 Stable"
+      bootstrapRevision:Number(data.revision)||0, updatedBy:"System V38.9 Stable"
     });
     if (!repair?.ok || repair?.conflict || repair?.writeBlocked) throw new Error(repair?.message || "BS 编号修复失败，已停止载入重复库存。");
     data = await callGoogleApi({
@@ -801,7 +801,7 @@ async function pullLatestSnapshot(forceBootstrap = false) {
     throw new Error("云端产品编号仍处于迁移中间状态，已停止显示，等待下一次完整同步。");
   }
 
-  // V38.8: a lightweight promotion response may have advanced this device while
+  // V38.9: a lightweight promotion response may have advanced this device while
   // an older full Pull was still in flight. Never let that older response overwrite
   // the newer promotion state (or any newer revision metadata).
   const liveConfigV377 = getCloudConfig();
@@ -871,7 +871,7 @@ function retryPendingMinimumPriceV345(){
   if(!pending?.productId||minimumPricePendingRetryBusyV345||!navigator.onLine||!isCloudBootstrapComplete())return;
   minimumPricePendingRetryBusyV345=true;
   Promise.resolve(updateProductMinimumPriceFast(pending.productId,pending.minimumPrice,pending.updatedAt,pending.minimumPriceManual,0,pending.historyMetaV374||null))
-    .catch(error=>console.warn("V38.8 pending minimum-price retry kept for next sync",error))
+    .catch(error=>console.warn("V38.9 pending minimum-price retry kept for next sync",error))
     .finally(()=>{minimumPricePendingRetryBusyV345=false;});
 }
 window.retryPendingMinimumPriceV345=retryPendingMinimumPriceV345;
@@ -898,7 +898,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V38.8 Stable",
+    updatedBy: "System V38.9 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     minimumPriceManual: Boolean(minimumPriceManual),
@@ -957,7 +957,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
     const rawConfirmedInitialV382 = data?.initialMinimumPrice;
     const confirmedInitialV381 = rawConfirmedInitialV382!==null && rawConfirmedInitialV382!==undefined && String(rawConfirmedInitialV382).trim()!==""
       ? Number(rawConfirmedInitialV382) : NaN;
-    // V38.8 root-cause fix: Number(null)===0. V38.1 therefore overwrote a valid
+    // V38.9 root-cause fix: Number(null)===0. V38.1 therefore overwrote a valid
     // locked initial price with 0 on the second ordinary minimum-price edit / clear-to-auto.
     if (Number.isFinite(confirmedInitialV381) && confirmedInitialV381 >= 0 && canonicalProductIdV381) {
       nextSettingsV381.initialMinimumPricesV376 = { ...(nextSettingsV381.initialMinimumPricesV376 || {}), [canonicalProductIdV381]: confirmedInitialV381 };
@@ -968,13 +968,13 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
       inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
     }
   } catch (localErrorV341) {
-    console.warn("V38.8 minimum-price local refresh skipped", localErrorV341);
+    console.warn("V38.9 minimum-price local refresh skipped", localErrorV341);
   }
 
   setMinimumPricePendingV345(null);
   renderCloudMeta(config);
   setCloudState("synced");
-  window.setTimeout(()=>{try{if(typeof refreshSystemViewsAfterSync==="function")refreshSystemViewsAfterSync()}catch(refreshErrorV343){console.warn("V38.8 deferred minimum-price refresh skipped",refreshErrorV343)}},0);
+  window.setTimeout(()=>{try{if(typeof refreshSystemViewsAfterSync==="function")refreshSystemViewsAfterSync()}catch(refreshErrorV343){console.warn("V38.9 deferred minimum-price refresh skipped",refreshErrorV343)}},0);
   return data;
 }
 
@@ -993,7 +993,7 @@ async function updateProductAverageCostFastV358(productId, averageCost, minimumP
     clientVersion:APP_VERSION, schemaVersion:CLOUD_SCHEMA_VERSION,
     baseRevision:Number(config.revision)||0,
     bootstrapToken:String(config.bootstrapToken||""), bootstrapRevision:Number(config.bootstrapRevision)||0,
-    updatedBy:"System V38.8 Stable",
+    updatedBy:"System V38.9 Stable",
     productId:String(productId||"").trim(),
     averageCost:Number(averageCost),
     minimumPrice:Number(minimumPrice),
@@ -1046,13 +1046,12 @@ async function reconcilePromotionWriteV374(requestedPromotion, attempts = 2) {
         clientVersion:APP_VERSION,
         schemaVersion:CLOUD_SCHEMA_VERSION
       });
-      const remotePromotionV373 = stateV373?.promotionV183 && stateV373.promotionV183.active === true
-        ? stateV373.promotionV183 : null;
+      const remotePromotionV373 = stateV373?.promotionV183 || null;
       if (normalizePromotionStateForCompareV372(requestedPromotion) === normalizePromotionStateForCompareV372(remotePromotionV373)) {
         return stateV373;
       }
     } catch (errorV373) {
-      console.warn("V38.8 promotion timeout reconcile skipped", errorV373);
+      console.warn("V38.9 promotion timeout reconcile skipped", errorV373);
     }
   }
   return null;
@@ -1069,7 +1068,7 @@ async function getFreshPromotionCredentialV374() {
     bootstrapToken:String(state?.bootstrapToken||""),
     bootstrapRevision:Number(state?.revision)||0,
     promotionRevision:Number(state?.promotionRevision)||0,
-    promotionV183:state?.promotionV183 && state.promotionV183.active === true ? state.promotionV183 : null
+    promotionV183:state?.promotionV183 || null
   };
 }
 
@@ -1093,7 +1092,7 @@ async function updatePromotionSettingsFastV185(promotion, retryCountV374 = 0) {
       baseRevision:freshV374.revision,
       bootstrapToken:freshV374.bootstrapToken,
       bootstrapRevision:freshV374.bootstrapRevision,
-      updatedBy:"System V38.8 Stable",
+      updatedBy:"System V38.9 Stable",
       promotion:promotion || null
     });
 
@@ -1147,21 +1146,15 @@ async function updatePromotionSettingsFastV185(promotion, retryCountV374 = 0) {
 window.updatePromotionSettingsFastV185 = updatePromotionSettingsFastV185;
 
 function normalizePromotionStateForCompareV372(value) {
-  const p = value && value.active === true ? value : null;
-  if (!p) return "";
-  return JSON.stringify({
-    active:true,
-    name:String(p.name || ""),
-    commissionRate:Number(p.commissionRate),
-    targetMarginRate:Number(p.targetMarginRate),
-    excludedProductIds:[...(Array.isArray(p.excludedProductIds)?p.excludedProductIds:[])].map(String).sort(),
-    promotionScope:p.promotionScope === "selected" ? "selected" : "exclude",
-    selectedProductIds:[...(Array.isArray(p.selectedProductIds)?p.selectedProductIds:[])].map(String).sort(),
-    priceOverrides:Object.fromEntries(Object.entries(p.priceOverrides && typeof p.priceOverrides === "object" ? p.priceOverrides : {}).sort(([a],[b])=>a.localeCompare(b))),
-    includeManualPriceProducts:p.includeManualPriceProducts === true,
-    originalPromotionName:String(p.originalPromotionName || ""),
-    updatedAt:String(p.updatedAt || "")
-  });
+  if (!value) return "";
+  const source=Array.isArray(value?.packages)?value.packages:(value.active===true?[value]:[]);
+  return JSON.stringify(source.map(p=>({
+    active:p?.active===true,id:String(p?.id||p?.packageId||""),name:String(p?.name||""),commissionRate:Number(p?.commissionRate),targetMarginRate:Number(p?.targetMarginRate),
+    excludedProductIds:[...(Array.isArray(p?.excludedProductIds)?p.excludedProductIds:[])].map(String).sort(),promotionScope:p?.promotionScope==="selected"?"selected":"exclude",
+    selectedProductIds:[...(Array.isArray(p?.selectedProductIds)?p.selectedProductIds:[])].map(String).sort(),
+    priceOverrides:Object.fromEntries(Object.entries(p?.priceOverrides&&typeof p.priceOverrides==="object"?p.priceOverrides:{}).sort(([a],[b])=>a.localeCompare(b))),
+    includeManualPriceProducts:p?.includeManualPriceProducts===true,originalPromotionName:String(p?.originalPromotionName||""),startDate:String(p?.startDate||""),endDate:String(p?.endDate||""),createdAt:String(p?.createdAt||""),updatedAt:String(p?.updatedAt||"")
+  })).sort((a,b)=>a.id.localeCompare(b.id)));
 }
 
 function isPromotionMobileReadOnlyV377() {
@@ -1173,12 +1166,13 @@ function isPromotionMobileReadOnlyV377() {
 
 function getPromotionLightPollIntervalV375() {
   const panelOpen = Boolean(document.querySelector("details.promotion-settings-v183[open]"));
-  // V38.8 mobile promotion control uses the same proven Promotion Light Sync path
+  // V38.9 mobile promotion control uses the same proven Promotion Light Sync path
   // as desktop. Opening the Promotion panel therefore enables the existing 3-second
   // lightweight poll on both desktop and mobile; the writer and calculation path are unchanged.
   if (panelOpen) return PROMOTION_LIGHT_SYNC_MS_V372;
   const settings = loadJSON("importSystemSettings", {});
-  const active = settings?.promotionV183?.active === true;
+  const rawPromotionV389 = settings?.promotionV183;
+  const active = Array.isArray(rawPromotionV389?.packages) ? rawPromotionV389.packages.some(p=>p&&p.active===true) : rawPromotionV389?.active===true;
   return active ? PROMOTION_LIGHT_ACTIVE_MS_V375 : PROMOTION_LIGHT_IDLE_MS_V380;
 }
 
@@ -1200,22 +1194,23 @@ async function pollPromotionStateLightV372(force = false) {
       clientVersion:APP_VERSION,
       schemaVersion:CLOUD_SCHEMA_VERSION
     });
-    const remotePromotionV372 = data.promotionV183 && data.promotionV183.active === true ? data.promotionV183 : null;
+    const remotePromotionV372 = data.promotionV183 || null;
     const settingsV372 = loadJSON("importSystemSettings", {});
-    const localPromotionV372 = settingsV372?.promotionV183?.active === true ? settingsV372.promotionV183 : null;
+    const localPromotionV372 = settingsV372?.promotionV183 || null;
     const changedV372 = normalizePromotionStateForCompareV372(remotePromotionV372) !== normalizePromotionStateForCompareV372(localPromotionV372);
 
     const promotionRevisionAdvancedV376 = (Number(data.promotionRevision)||0) > (Number(getCloudConfig().revision)||0);
     if (changedV372 || promotionRevisionAdvancedV376) {
       const nextSettingsV372 = { ...settingsV372 };
-      if (remotePromotionV372) nextSettingsV372.promotionV183 = remotePromotionV372;
+      if (remotePromotionV372 && ((Array.isArray(remotePromotionV372.packages) && remotePromotionV372.packages.length) || remotePromotionV372.active===true)) nextSettingsV372.promotionV183 = remotePromotionV372;
       else delete nextSettingsV372.promotionV183;
       localStorage.setItem("importSystemSettings", JSON.stringify(nextSettingsV372));
       try {
-        if (typeof window.refreshPromotionSettingsAfterCloudSyncV370 === "function") window.refreshPromotionSettingsAfterCloudSyncV370();
+        if (typeof window.refreshPromotionPackageManagerV389 === "function") window.refreshPromotionPackageManagerV389();
+        else if (typeof window.refreshPromotionSettingsAfterCloudSyncV370 === "function") window.refreshPromotionSettingsAfterCloudSyncV370();
         else if (typeof window.refreshPromotionUiV183 === "function") window.refreshPromotionUiV183();
         if (typeof window.refreshPromotionDependentVisibleViewsV375 === "function") window.refreshPromotionDependentVisibleViewsV375();
-      } catch (error) { console.warn("V38.8 promotion light repaint skipped", error); }
+      } catch (error) { console.warn("V38.9 promotion light repaint skipped", error); }
     }
 
     // Safe revision shortcut: if this device is exactly one revision behind and
@@ -1248,7 +1243,7 @@ async function pollPromotionStateLightV372(force = false) {
     }
     return changedV372;
   } catch (error) {
-    console.warn("V38.8 promotion light sync skipped", error);
+    console.warn("V38.9 promotion light sync skipped", error);
     return false;
   } finally {
     promotionLightSyncBusyV372 = false;
@@ -1272,7 +1267,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     action: "pushDeltaV346",
     clientVersion: APP_VERSION, schemaVersion: CLOUD_SCHEMA_VERSION, force:false,
     baseRevision:Number(config.revision)||0, bootstrapToken:String(config.bootstrapToken||""), bootstrapRevision:Number(config.bootstrapRevision)||0,
-    updatedBy:"System V38.8 Stable", collections,
+    updatedBy:"System V38.9 Stable", collections,
     ...(collections.includes("settings")?{settings:snapshot.settings,productIds:(snapshot.products||[]).map(item=>String(item?.id||"").trim()).filter(Boolean)}:{}),
     ...(collections.includes("products")?{products:snapshot.products}:{}),
     ...(collections.includes("imports")?{imports:snapshot.imports}:{}),
@@ -1345,42 +1340,24 @@ function sanitizeLegacySettingsV323(settings = {}, products = []) {
       return !(legacyRow || legacySource);
     });
   }
-  // V36.3: promotion is live business state, not legacy residue. Preserve a valid
-  // active promotion across normal Pull/merge operations so revision conflicts or
-  // another device's write can never silently switch an active promotion off.
+  // V38.9: promotion remains one live Settings key, now containing up to five packages.
+  // Keep the single-key shape so normal Pull/merge and Promotion Light Sync stay fast.
   const promo = out.promotionV183;
-  if (promo && promo.active === true) {
-    const commissionRate = Number(promo.commissionRate);
-    const targetMarginRate = Number(promo.targetMarginRate);
-    if (Number.isFinite(commissionRate) && commissionRate >= 0 && commissionRate < 100 &&
-        Number.isFinite(targetMarginRate) && targetMarginRate > -100 && targetMarginRate < 100 &&
-        1 - commissionRate / 100 - targetMarginRate / 100 > 0) {
-      out.promotionV183 = {
-        active: true,
-        name: String(promo.name || "年尾清货").trim().slice(0, 30) || "年尾清货",
-        commissionRate, targetMarginRate,
-        excludedProductIds: [...new Set((Array.isArray(promo.excludedProductIds) ? promo.excludedProductIds : [])
-          .map(id => String(id || "").trim().toUpperCase())
-          .filter(id => id && validIds.has(id)))],
-        promotionScope: promo.promotionScope === "selected" ? "selected" : "exclude",
-        selectedProductIds: [...new Set((Array.isArray(promo.selectedProductIds) ? promo.selectedProductIds : [])
-          .map(id => String(id || "").trim().toUpperCase())
-          .filter(id => id && validIds.has(id)))],
-        priceOverrides: Object.fromEntries(Object.entries(promo.priceOverrides && typeof promo.priceOverrides === "object" ? promo.priceOverrides : {})
-          .map(([id, price]) => [String(id || "").trim().toUpperCase(), Number(price)])
-          .filter(([id, price]) => id && validIds.has(id) && Number.isFinite(price) && price > 0)
-          .map(([id, price]) => [id, Math.round(price * 100) / 100])),
-        includeManualPriceProducts: promo.includeManualPriceProducts === true,
-        originalPromotionName: String(promo.originalPromotionName || "").trim().slice(0, 30),
-        createdAt: String(promo.createdAt || ""),
-        updatedAt: String(promo.updatedAt || "")
-      };
-    } else {
-      delete out.promotionV183;
-    }
-  } else {
-    delete out.promotionV183;
-  }
+  const promoSource = Array.isArray(promo?.packages) ? promo.packages : (promo?.active === true ? [promo] : []);
+  const promoPackagesV389 = promoSource.slice(0,5).map((item,index) => {
+    if (!item || item.active !== true) return null;
+    const commissionRate=Number(item.commissionRate),targetMarginRate=Number(item.targetMarginRate);
+    if (!Number.isFinite(commissionRate)||commissionRate<0||commissionRate>=100||!Number.isFinite(targetMarginRate)||targetMarginRate< -99.9||targetMarginRate>=100||1-commissionRate/100-targetMarginRate/100<=0) return null;
+    const cleanIds = values => [...new Set((Array.isArray(values)?values:[]).map(id=>String(id||"").trim().toUpperCase()).filter(id=>id&&validIds.has(id)))];
+    const startDate=/^\d{4}-\d{2}-\d{2}$/.test(String(item.startDate||""))?String(item.startDate):"";
+    const endDate=/^\d{4}-\d{2}-\d{2}$/.test(String(item.endDate||""))?String(item.endDate):"";
+    if ((startDate&&!endDate)||(!startDate&&endDate)||(startDate&&endDate&&startDate>endDate)) return null;
+    return {active:true,id:String(item.id||item.packageId||`PKG${index+1}`).trim().slice(0,40)||`PKG${index+1}`,name:String(item.name||`促销配套 ${index+1}`).trim().slice(0,30)||`促销配套 ${index+1}`,
+      commissionRate,targetMarginRate,excludedProductIds:cleanIds(item.excludedProductIds),promotionScope:item.promotionScope==="selected"?"selected":"exclude",selectedProductIds:cleanIds(item.selectedProductIds),
+      priceOverrides:Object.fromEntries(Object.entries(item.priceOverrides&&typeof item.priceOverrides==="object"?item.priceOverrides:{}).map(([id,price])=>[String(id||"").trim().toUpperCase(),Number(price)]).filter(([id,price])=>id&&validIds.has(id)&&Number.isFinite(price)&&price>0).map(([id,price])=>[id,Math.round(price*100)/100])),
+      includeManualPriceProducts:item.includeManualPriceProducts===true,originalPromotionName:String(item.originalPromotionName||"").trim().slice(0,30),startDate,endDate,createdAt:String(item.createdAt||""),updatedAt:String(item.updatedAt||"")};
+  }).filter(Boolean);
+  if (promoPackagesV389.length) out.promotionV183={schema:"promotion-packages-v389",packages:promoPackagesV389}; else delete out.promotionV183;
   return out;
 }
 
@@ -1460,7 +1437,7 @@ function mergeSnapshots(remote, local, queue) {
   );
   const mergedProductsV323 = mergeCollection(remote.products, local.products, queue.deleted.products);
   const mergedSettingsInputV381 = { ...remoteSettings, ...localSettings, importDraftsV242: mergedDraftsV242, importDraftDeletedIdsV250: draftDeletedIdsV250 };
-  // V38.8: dedicated cloud writers own these live pricing/promotion keys. During a
+  // V38.9: dedicated cloud writers own these live pricing/promotion keys. During a
   // revision conflict, stale local Settings must never win over authoritative remote state.
   ["minimumPriceManualOverrides","initialMinimumPricesV376","initialMinimumPriceLockedV380","initialMinimumPriceBaselineVersionV378","promotionV183"].forEach(key=>{
     if(Object.prototype.hasOwnProperty.call(remoteSettings,key)) mergedSettingsInputV381[key]=remoteSettings[key];
@@ -1533,7 +1510,7 @@ function applyRemoteData(data) {
     const remotePromotionRevisionV377 = Number(data.promotionRevision) || 0;
     if (localPromotionRevisionV377 > remotePromotionRevisionV377) {
       const currentSettingsV377 = loadJSON("importSystemSettings", {});
-      const currentPromotionV377 = currentSettingsV377?.promotionV183?.active === true ? currentSettingsV377.promotionV183 : null;
+      const currentPromotionV377 = currentSettingsV377?.promotionV183 || null;
       safeRemoteSettingsV336 = { ...safeRemoteSettingsV336 };
       if (currentPromotionV377) safeRemoteSettingsV336.promotionV183 = currentPromotionV377;
       else delete safeRemoteSettingsV336.promotionV183;
@@ -1650,7 +1627,7 @@ function setCloudState(state, error = null) {
 async function updateInitialMinimumPriceFastV376(productId, initialMinimumPrice, retryCount=0){
   if(!isCloudWriteCredentialCurrentV341()) await pullLatestSnapshot(false);
   const config=getCloudConfig();
-  const data=await callGoogleApi({action:"updateInitialMinimumPriceV376",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V38.8 Stable",productId:String(productId||"").trim(),initialMinimumPrice:Number(initialMinimumPrice)});
+  const data=await callGoogleApi({action:"updateInitialMinimumPriceV376",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V38.9 Stable",productId:String(productId||"").trim(),initialMinimumPrice:Number(initialMinimumPrice)});
   if(data.busy){if(retryCount<2){await new Promise(resolve=>window.setTimeout(resolve,500+retryCount*400));return updateInitialMinimumPriceFastV376(productId,initialMinimumPrice,retryCount+1);}throw new Error(data?.message||"云端正在处理其他资料，请稍后再试。");}
   if(data.conflict){config.revision=Number(data.revision)||config.revision;if(data.bootstrapToken){config.bootstrapToken=String(data.bootstrapToken);config.bootstrapRevision=Number(data.revision)||0;}saveCloudConfig(config);if(retryCount<1){await pullLatestSnapshot(false);return updateInitialMinimumPriceFastV376(productId,initialMinimumPrice,retryCount+1);}throw new Error("资料版本刚刚发生变化，请再试一次。");}
   if(!data?.ok || data?.verified!==true) throw new Error(data?.message||"初始最低售价第一次写入验证失败，请重试。");
@@ -1661,7 +1638,7 @@ window.updateInitialMinimumPriceFastV376=updateInitialMinimumPriceFastV376;
 async function restoreInitialMinimumPricesFastV376(retryCount=0){
   if(!isCloudWriteCredentialCurrentV341()) await pullLatestSnapshot(false);
   const config=getCloudConfig();setCloudState("syncing");
-  const data=await callGoogleApi({action:"restoreInitialMinimumPricesV376",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V38.8 Stable"});
+  const data=await callGoogleApi({action:"restoreInitialMinimumPricesV376",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V38.9 Stable"});
   if(data.promotionActive)throw new Error("促销进行中，请先关闭促销后再恢复初始最低售价。");
   if(data.conflict){config.revision=Number(data.revision)||config.revision;if(data.bootstrapToken){config.bootstrapToken=String(data.bootstrapToken);config.bootstrapRevision=Number(data.revision)||0;}saveCloudConfig(config);if(retryCount<1){await pullLatestSnapshot(false);return restoreInitialMinimumPricesFastV376(retryCount+1);}throw new Error("资料版本刚刚发生变化，请再试一次。");}
   if(!data?.ok) throw new Error(data?.message||"恢复初始最低售价失败");
