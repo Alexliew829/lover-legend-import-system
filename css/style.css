@@ -6540,7 +6540,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 .product-stock-modify-grid-v376{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 10px}
 .product-stock-modify-grid-v376 .product-stock-metric-v256{min-width:0;width:100%;margin:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center}
 .product-stock-import-metric-v376 .product-stock-import-copy-v256{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* V38.8 — Restore stays away from the Promotion summary toggle, aligns with the target-margin column, and is available on mobile. */
+/* V38.9 — Restore stays away from the Promotion summary toggle, aligns with the target-margin column, and is available on mobile. */
 .promotion-exclude-heading-v385{
   display:grid;
   grid-template-columns:minmax(0,1fr) minmax(0,1fr);
@@ -6587,7 +6587,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 }
 
 
-/* V38.8 — Product Query & Modify adds read-only current profit/profit-rate cards.
+/* V38.9 — Product Query & Modify adds read-only current profit/profit-rate cards.
    Profit formatting/colors reuse the same canonical inventory calculation and gain/loss tones. */
 .product-stock-profit-metric-v387{background:#f8fbf9;color:#111827}
 .product-stock-profit-metric-v387.inventory-profit-value-v207.gain > strong{color:#177245!important}
@@ -6595,9 +6595,37 @@ body.system-media-preview-open-v305{overflow:hidden}
 .product-stock-profit-metric-v387.inventory-profit-value-v207.neutral > strong{color:#111!important}
 
 
-/* V38.8 — Promotion scope switch reuses the proven exclusion search/list UI. */
+/* V38.9 — Promotion scope switch reuses the proven exclusion search/list UI. */
 .promotion-scope-switch-v388{display:flex;align-items:center;gap:8px;min-width:0;}
 .promotion-scope-switch-v388 button{border:1px solid #8ebaa1;background:#fff;color:#17643d;border-radius:12px;padding:9px 16px;font-weight:800;white-space:nowrap;box-shadow:none;}
 .promotion-scope-switch-v388 button.is-active-v388{background:#1f6a43;color:#fff;border-color:#1f6a43;box-shadow:inset 0 2px 4px rgba(0,0,0,.18);transform:translateY(1px);}
 .promotion-current-list-title-v388{font-weight:800;color:#225e3d;padding:8px 10px 2px;}
 @media(max-width:719px){.promotion-scope-switch-v388{gap:5px}.promotion-scope-switch-v388 button{padding:8px 11px;font-size:.92rem}.promotion-current-list-title-v388{font-size:.95rem}}
+
+
+/* V38.9 — up to five independent Promotion packages. Reuses the proven promotion editor/search UI. */
+.promotion-packages-v389{margin:10px 0 12px;padding:10px;border:1px solid rgba(50,90,60,.18);border-radius:12px;background:rgba(255,255,255,.45)}
+.promotion-package-toolbar-v389{display:flex;gap:10px;align-items:center;justify-content:space-between}
+.promotion-package-toolbar-v389>div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.promotion-package-toolbar-v389 small{font-size:12px;opacity:.72}
+.promotion-package-list-v389{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
+.promotion-package-chip-v389{border:1px solid rgba(45,90,55,.26);background:#fff;border-radius:10px;padding:8px 10px;min-width:118px;text-align:left;cursor:pointer;box-shadow:none}
+.promotion-package-chip-v389.is-active-v389{background:#dcefdc;border-color:#5f8d63;box-shadow:inset 0 2px 5px rgba(25,70,30,.18)}
+.promotion-package-chip-v389 strong,.promotion-package-chip-v389 small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.promotion-package-chip-v389 small{margin-top:2px;font-size:11px;opacity:.72}
+.promotion-package-chip-v389[data-state="ended"] small{color:#8b2f2f}
+.promotion-package-chip-v389[data-state="future"] small{color:#7a5c00}
+.promotion-date-range-v389{margin:9px 0 12px;padding:10px;border-radius:12px;background:rgba(255,255,255,.35)}
+.promotion-date-range-title-v389{display:flex;flex-direction:column;gap:2px;margin-bottom:8px}
+.promotion-date-range-title-v389 small{font-size:12px;opacity:.72}
+.promotion-date-range-row-v389{align-items:end}
+.promotion-clear-date-v389{min-height:42px}
+.promotion-date-status-v389{margin-top:6px}
+@media(max-width:719px){
+  .promotion-package-toolbar-v389{align-items:stretch;flex-direction:column}
+  .promotion-package-toolbar-v389 button{width:100%}
+  .promotion-package-list-v389{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .promotion-package-chip-v389{min-width:0;width:100%}
+  .promotion-date-range-row-v389{grid-template-columns:1fr 1fr}
+  .promotion-date-range-row-v389>.promotion-clear-date-v389{grid-column:1/-1;width:100%}
+}
