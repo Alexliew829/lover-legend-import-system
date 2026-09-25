@@ -4631,7 +4631,7 @@ function updatePromotionBatchControlsV184() {
   const selectableIds = matches
     .filter(product => !currentSetV388.has(String(product.id || "").toUpperCase()))
     .map(product => String(product.id || "").toUpperCase());
-  // V39.4: keep pending selections across different search keywords, but only inside THIS package.
+  // V39.5: keep pending selections across different search keywords, but only inside THIS package.
   // Remove IDs already confirmed in the current package and, in selected-products mode, any IDs
   // reserved by another package whose Date Range overlaps the current draft.
   const occupiedIdsV393 = selectedModeV388 ? getPromotionOccupiedProductIdsV390() : new Set();
@@ -5048,7 +5048,7 @@ function setupPromotionSettingsV183() {
   promotionDetails?.addEventListener("toggle", () => {
     refreshToggleHintV192();
     if (promotionDetails.open && typeof window.pollPromotionStateLightV372 === "function") {
-      window.pollPromotionStateLightV372(true).catch(error => console.warn("V39.4 promotion open refresh skipped", error));
+      window.pollPromotionStateLightV372(true).catch(error => console.warn("V39.5 promotion open refresh skipped", error));
     }
   });
   refreshToggleHintV192();
@@ -5173,7 +5173,7 @@ function setupPromotionSettingsV183() {
       refreshProfitAnalyticsInBackgroundV360(renderPromotionExcludeSearchV183,"promotion exclusion profit analytics");
   });
   selectAllSearch?.addEventListener("change", () => {
-    // V39.4: Select All must use the exact same package-availability filter as the visible search list.
+    // V39.5: Select All must use the exact same package-availability filter as the visible search list.
     // Otherwise products already occupied by another active/overlapping package can be hidden on screen
     // but still be silently added to the pending selection set.
     const ids = filterPromotionSearchAvailabilityV390(getPromotionExcludeMatchesV183(searchInput?.value || ""))
@@ -15165,7 +15165,7 @@ function renderBatchProductStockResults() {
       : "";
     const importNumberV256 = String(originalRecordV219?.importNumber || "").trim();
     const productIdV256 = String(product?.id || "").trim();
-    // V39.4: use the same proven minimum-price profit calculation as the inventory/home cards.
+    // V39.5: use the same proven minimum-price profit calculation as the inventory/home cards.
     // This remains display-only: no pricing, promotion, inventory, FIFO or sync logic is changed.
     const profitInfoV387 = getProductMinimumProfitV205(product);
     const profitToneV387 = profitInfoV387.profit < 0 ? "loss" : profitInfoV387.profit > 0 ? "gain" : "neutral";
@@ -16297,7 +16297,7 @@ function isInitialMinimumPriceLockedV380(productOrId){
   const locks=getInitialMinimumPriceLockMapV380();
   const lockKey=Object.keys(locks||{}).find(key=>String(key||"").trim().toUpperCase()===id);
   if(lockKey)return locks[lockKey]===true;
-  // V39.4: never infer formal initial-price lock from the ordinary manual-price flag.
+  // V39.5: never infer formal initial-price lock from the ordinary manual-price flag.
   // Only the confirmed 77 baseline IDs or an explicit lock-map entry are formal.
   return false;
 }
@@ -16308,7 +16308,7 @@ function getInitialMinimumPriceV376(product){
   const entry=Object.prototype.hasOwnProperty.call(map,id)
     ? {found:true,value:map[id]}
     : (()=>{const hit=Object.entries(map).find(([key])=>String(key||"").trim().toUpperCase()===id);return hit?{found:true,value:hit[1]}:{found:false,value:null};})();
-  // V39.4: missing/null/blank is NOT zero. Number(null) / Number("") both become 0,
+  // V39.5: missing/null/blank is NOT zero. Number(null) / Number("") both become 0,
   // which was the root cause of a locked initial price being displayed/rewritten as RM0.00.
   const raw=entry.value;
   const value=entry.found && raw!==null && raw!==undefined && String(raw).trim()!==""
@@ -16355,7 +16355,7 @@ async function editInitialMinimumPriceV376(productId){
 window.editInitialMinimumPriceV376=editInitialMinimumPriceV376;
 async function restoreInitialMinimumPricesV376(){
   const button=document.getElementById("restoreInitialMinimumPricesV376"); if(!button)return;
-  // V39.4: mobile and desktop intentionally use the exact same proven Restore path.
+  // V39.5: mobile and desktop intentionally use the exact same proven Restore path.
   try{ if(typeof pollPromotionStateLightV372==="function") await pollPromotionStateLightV372(true); }catch(_){}
   if(hasAnyEffectivePromotionPackageV389()){ alert("促销进行中，请先关闭所有正在进行的促销配套后再恢复初始最低售价。"); return; }
   if(!window.confirm("确认恢复全部产品的初始最低售价？\n\n恢复会把每个产品的初始最低售价真正写回正式 minimumPrice。不会改变库存、平均成本、FIFO、Sales ACK、Imports 或 Batches。"))return;
@@ -16402,7 +16402,7 @@ async function editProductMinimumPrice(productId) {
   const product = products[productIndex];
   const storedMinimumPriceV351 = Math.max(0, Number(product.minimumPrice) || 0);
   const initialMapBeforeV376 = getInitialMinimumPriceMapV376();
-  // V39.4: an automatic price is only an implicit candidate. The first real manual
+  // V39.5: an automatic price is only an implicit candidate. The first real manual
   // minimum-price save becomes the authoritative initial minimum price. After that,
   // ordinary minimum-price edits must never move the initial baseline again.
   const initialPriceWasImplicitV376 = !hasExplicitInitialMinimumPriceV379(id);
@@ -16446,7 +16446,7 @@ async function editProductMinimumPrice(productId) {
 
   const updatedAt = new Date().toISOString();
   const shouldCaptureInitialMinimumPriceV379 = initialPriceWasImplicitV376 && nextMinimumPriceManual;
-  // V39.4: do NOT optimistically write the formal initial price locally. The cloud
+  // V39.5: do NOT optimistically write the formal initial price locally. The cloud
   // must persist + verify it first; otherwise the UI can show a false 7500/7500 and
   // later collapse to 0 when an authoritative Pull arrives.
   products[productIndex] = {
@@ -16486,7 +16486,7 @@ async function editProductMinimumPrice(productId) {
     const rawConfirmedInitialV382 = minimumPriceResultV380?.initialMinimumPrice;
     const confirmedInitialV380 = rawConfirmedInitialV382!==null && rawConfirmedInitialV382!==undefined && String(rawConfirmedInitialV382).trim()!==""
       ? Number(rawConfirmedInitialV382) : NaN;
-    // V39.4: only an explicitly returned numeric initial value may refresh the local baseline.
+    // V39.5: only an explicitly returned numeric initial value may refresh the local baseline.
     // Never coerce null/undefined/blank to 0.
     if (Number.isFinite(confirmedInitialV380) && confirmedInitialV380 >= 0) {
       applyInitialMinimumPriceMapLocalV376({ ...getInitialMinimumPriceMapV376(), [id]:confirmedInitialV380 });
@@ -16534,7 +16534,7 @@ async function editProductMinimumPrice(productId) {
       };
       saveJSON("importSystemProducts", latestProducts);
     }
-    // V39.4: no initial-price rollback is needed here because formal initial state
+    // V39.5: no initial-price rollback is needed here because formal initial state
     // is applied locally only after the cloud confirms persistence.
     const rollbackOverrides = { ...getMinimumPriceManualOverridesV160() };
     rollbackOverrides[id] = currentMinimumPriceManual;
@@ -17413,7 +17413,7 @@ function getMinimumPriceStateSignatureV339(products){
 
 // V34.3: one canonical product search/filter/sort path for every inventory-style view.
 // Import product entry intentionally does NOT use this helper.
-// V39.4: canonical signed profit formatter for current minimum-price profit displays.
+// V39.5: canonical signed profit formatter for current minimum-price profit displays.
 // Positive: +RM 100.00; negative: -RM 100.00; zero: RM 0.00.
 function formatSignedProfitMoneyV387(value) {
   const n = Number(value);
@@ -18920,7 +18920,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "39.4",
+      version: "39.5",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -19599,7 +19599,7 @@ function setupInventoryMasterV299(){
 
 
 
-// V39.4 bindings: the summary action must not toggle the Promotion panel.
+// V39.5 bindings: the summary action must not toggle the Promotion panel.
 document.addEventListener("click",event=>{
   const restore=event.target.closest("#restoreInitialMinimumPricesV376");
   if(restore){event.preventDefault();event.stopPropagation();restoreInitialMinimumPricesV376();return;}
@@ -19608,8 +19608,8 @@ document.addEventListener("click",event=>{
 },true);
 
 
-// ================= V39.4 Multi Promotion Packages =================
-// V39.4 keeps Promotion Light Sync as ONE Settings key (promotionV183). The value is now
+// ================= V39.5 Multi Promotion Packages =================
+// V39.5 keeps Promotion Light Sync as ONE Settings key (promotionV183). The value is now
 // a small container with up to five packages, so cross-device speed and one-revision writes
 // remain on the proven single-key Promotion Light Sync fast path. All pricing formulae below are unchanged.
 var promotionEditingPackageIdV389 = "";
@@ -19621,7 +19621,7 @@ function loadPromotionLocalDraftV391(){
 function clearPromotionLocalDraftV391(){try{localStorage.removeItem(PROMOTION_LOCAL_DRAFT_KEY_V391);}catch(_){}}
 function promotionTransientDraftIsMeaningfulV392(pkg, search="", filter="latest", searchSelection=[], currentSelection=[]){
   if(!pkg)return false;
-  const list=getPromotionPackagesV389(), expectedName=`促销配套 ${list.length+1}`;
+  const expectedName="年尾清货";
   return String(pkg.name||"").trim()!==expectedName || Number(pkg.commissionRate)!==10 || Number(pkg.targetMarginRate)!==30 ||
     String(pkg.startDate||"")!=="" || String(pkg.endDate||"")!=="" || pkg.promotionScope!=="selected" ||
     (Array.isArray(pkg.selectedProductIds)&&pkg.selectedProductIds.length>0) || (Array.isArray(pkg.excludedProductIds)&&pkg.excludedProductIds.length>0) ||
@@ -19665,13 +19665,23 @@ function malaysiaDateKeyV389(date = new Date()) {
     return `${y}-${m}-${d}`;
   }
 }
+function getPromotionPackageSlotV395(pkg, indexFallback = 0) {
+  const explicit=Number(pkg?.slotNo);
+  if(Number.isInteger(explicit)&&explicit>=1&&explicit<=5)return explicit;
+  const match=/^PKG([1-5])$/i.exec(String(pkg?.id||pkg?.packageId||"").trim());
+  if(match)return Number(match[1]);
+  return Math.min(5,Math.max(1,Number(indexFallback)||0)+1);
+}
+function sortPromotionPackagesBySlotV395(packages){
+  return [...(packages||[])].sort((a,b)=>getPromotionPackageSlotV395(a,0)-getPromotionPackageSlotV395(b,0));
+}
 function normalizePromotionPackageV389(raw, index = 0) {
   if (!raw || typeof raw !== "object" || raw.active !== true) return null;
   const commissionRate=Number(raw.commissionRate), targetMarginRate=Number(raw.targetMarginRate);
   const id=String(raw.id || raw.packageId || `PKG${index+1}`).trim().slice(0,40) || `PKG${index+1}`;
   return {
-    active:true,id,
-    name:String(raw.name || `促销配套 ${index+1}`).trim().slice(0,30) || `促销配套 ${index+1}`,
+    active:true,id,slotNo:getPromotionPackageSlotV395(raw,index),
+    name:String(raw.name || "年尾清货").trim().slice(0,30) || "年尾清货",
     commissionRate:Number.isFinite(commissionRate)?commissionRate:10,
     targetMarginRate:Number.isFinite(targetMarginRate)?targetMarginRate:30,
     excludedProductIds:Array.from(new Set((Array.isArray(raw.excludedProductIds)?raw.excludedProductIds:[]).map(v=>String(v||"").trim().toUpperCase()).filter(Boolean))),
@@ -19689,10 +19699,10 @@ function getPromotionPackagesV389() {
   const saved=loadJSON("importSystemSettings",{}), raw=saved?.promotionV183;
   if (!raw) return [];
   const source=Array.isArray(raw?.packages)?raw.packages:(raw.active===true?[raw]:[]);
-  return source.map((p,i)=>normalizePromotionPackageV389(p,i)).filter(Boolean).slice(0,5);
+  return sortPromotionPackagesBySlotV395(source.map((p,i)=>normalizePromotionPackageV389(p,i)).filter(Boolean)).slice(0,5);
 }
 function makePromotionContainerV389(packages) {
-  return {schema:"promotion-packages-v389",packages:(packages||[]).map((p,i)=>normalizePromotionPackageV389(p,i)).filter(Boolean).slice(0,5)};
+  return {schema:"promotion-packages-v389",packages:sortPromotionPackagesBySlotV395((packages||[]).map((p,i)=>normalizePromotionPackageV389(p,i)).filter(Boolean)).slice(0,5)};
 }
 function promotionPackageDateStateV389(pkg, today = malaysiaDateKeyV389()) {
   if (!pkg || pkg.active!==true) return "inactive";
@@ -19722,7 +19732,7 @@ function getEffectiveProductMinimumPriceV183(product, promotion = null, rules = 
   const productId=String(product?.id||"").trim().toUpperCase();
   const storedPackageV391=active&&getPromotionPackagesV389().some(pkg=>pkg.id===active.id);
   if (isMinimumPriceManualV160(product) && active?.includeManualPriceProducts!==true) return originalPrice;
-  // V39.4: a local new-package draft is editor preview state only; it can never change effective prices before explicit Start.
+  // V39.5: a local new-package draft is editor preview state only; it can never change effective prices before explicit Start.
   if (!active || !storedPackageV391 || !promotionPackageIsEffectiveV389(active) || !promotionProductIncludedV388(productId,active)) return originalPrice;
   const override=Math.max(0,Number(active.priceOverrides?.[productId])||0);
   return override>0?override:getPromotionPriceBreakdownV183(product,active,rules,originIndex).price;
@@ -19768,7 +19778,7 @@ function packageRangesOverlapV389(a,b){
 function participantIdsForPackageV389(pkg){
   return new Set(getProducts().filter(product=>(!isMinimumPriceManualV160(product)||pkg.includeManualPriceProducts===true)&&promotionProductIncludedV388(String(product.id||""),pkg)).map(p=>String(p.id||"").trim().toUpperCase()));
 }
-// V39.4: while building a selected-products package, hide products already occupied by
+// V39.5: while building a selected-products package, hide products already occupied by
 // another package whose Date Range overlaps this draft. An empty Date Range means
 // unlimited duration, therefore it overlaps every dated package until manually closed.
 // This is UI filtering only; the existing save-time overlap validation remains the final guard.
@@ -19778,7 +19788,7 @@ function getPromotionOccupiedProductIdsV390(){
   const occupied=new Set();
   getPromotionPackagesV389().forEach(other=>{
     if(!other||other.id===candidate.id||!packageRangesOverlapV389(candidate,other)) return;
-    // V39.4: a selected-products package reserves exactly the products in its formal list.
+    // V39.5: a selected-products package reserves exactly the products in its formal list.
     // Do not let the manual-price participation flag make those products reappear in another package.
     if(other.promotionScope==="selected"){
       (other.selectedProductIds||[]).forEach(id=>occupied.add(String(id||"").trim().toUpperCase()));
@@ -19833,7 +19843,8 @@ function setPromotionEditorFromPackageV389(pkg){
   }
   renderPromotionPackageBarV389();renderPromotionDateStatusV389();
 }
-function nextPromotionPackageIdV389(packages){let n=1;const ids=new Set(packages.map(p=>p.id));while(ids.has(`PKG${n}`))n++;return `PKG${n}`;}
+function nextPromotionPackageSlotV395(packages){const used=new Set((packages||[]).map((p,i)=>getPromotionPackageSlotV395(p,i)));for(let n=1;n<=5;n++)if(!used.has(n))return n;return 0;}
+function nextPromotionPackageIdV389(packages){const n=nextPromotionPackageSlotV395(packages);return n?`PKG${n}`:`PKG${Date.now()}`;}
 function renderPromotionDateStatusV389(){
   const out=document.getElementById("promotionDateRangeStatusV389"),sd=String(document.getElementById("promotionStartDateV389")?.value||""),ed=String(document.getElementById("promotionEndDateV389")?.value||"");if(!out)return;
   if(!sd&&!ed){out.textContent="没有日期限制 · 手动关闭";return;} if(!sd||!ed){out.textContent="请选择完整的开始日期和结束日期。";return;}
@@ -19843,27 +19854,27 @@ function promotionPackageScopeSummaryV392(pkg){
   return pkg?.promotionScope==="selected"?`选择 ${Array.isArray(pkg.selectedProductIds)?pkg.selectedProductIds.length:0} 项`:`排除 ${Array.isArray(pkg?.excludedProductIds)?pkg.excludedProductIds.length:0} 项`;
 }
 function promotionPackageStatusTextV392(pkg,index){
-  const state=promotionPackageDateStateV389(pkg),label=state==="running"?"进行中":state==="future"?"未开始":state==="ended"?"已结束":"已关闭";
-  return `配套${index+1} · ${pkg.name}${label} · ${Number(pkg.targetMarginRate)}% · ${promotionPackageScopeSummaryV392(pkg)}`;
+  const state=promotionPackageDateStateV389(pkg),label=state==="running"?"进行中":state==="future"?"未开始":state==="ended"?"已结束":"已关闭",slot=getPromotionPackageSlotV395(pkg,index);
+  return `配套${slot} · ${pkg.name}${label} · ${Number(pkg.targetMarginRate)}% · ${promotionPackageScopeSummaryV392(pkg)}`;
 }
 function getPromotionPackageNumberV394(pkgId, packages = null){
   const list=Array.isArray(packages)?packages:getPromotionPackagesV389(),i=list.findIndex(p=>p.id===pkgId);
-  return i>=0?i+1:0;
+  return i>=0?getPromotionPackageSlotV395(list[i],i):0;
 }
 function getCurrentPromotionPackageStatusV394(packages = null){
   const list=Array.isArray(packages)?packages:getPromotionPackagesV389();
   const index=list.findIndex(p=>p.id===promotionEditingPackageIdV389);
   if(index<0)return null;
   const pkg=list[index];
-  return {pkg,index,text:promotionPackageStatusTextV392(pkg,index)};
+  return {pkg,index,slotNo:getPromotionPackageSlotV395(pkg,index),text:promotionPackageStatusTextV392(pkg,index)};
 }
 function updatePromotionCurrentPackageControlsV394(){
   const packages=getPromotionPackagesV389(),current=getCurrentPromotionPackageStatusV394(packages);
   const del=document.getElementById("deletePromotionV183"),active=document.getElementById("promotionActiveButtonStatusV349");
   if(del){
     del.hidden=!current;
-    del.textContent=current?`关闭配套${current.index+1}`:"关闭当前促销配套";
-    del.title=current?`只关闭配套${current.index+1} · ${current.pkg.name}；其他促销配套继续运行。`:"";
+    del.textContent=current?`关闭配套${current.slotNo}`:"关闭当前促销配套";
+    del.title=current?`只关闭配套${current.slotNo} · ${current.pkg.name}；其他促销配套继续运行。`:"";
   }
   if(active){
     active.hidden=!current;
@@ -19875,7 +19886,7 @@ function renderPromotionPackageBarV389(){
   const packages=getPromotionPackagesV389(),localDraft=loadPromotionLocalDraftV391();
   if(manager)manager.hidden=packages.length===0;
   if(add){add.disabled=packages.length>=5&&!localDraft;add.textContent="＋ 打开新促销配套";}
-  box.innerHTML=packages.map((pkg,i)=>{const state=promotionPackageDateStateV389(pkg),label=state==="running"?"进行中":state==="future"?"未开始":state==="ended"?"已结束":"已关闭";return `<button type="button" class="promotion-package-chip-v389 ${pkg.id===promotionEditingPackageIdV389?"is-active-v389":""}" data-package-v389="${escapeHTML(pkg.id)}" data-state="${state}"><strong>促销配套 ${i+1} · ${escapeHTML(pkg.name)}</strong><small>${label} · ${Number(pkg.targetMarginRate)}% · ${escapeHTML(promotionPackageScopeSummaryV392(pkg))}</small></button>`;}).join("");
+  box.innerHTML=packages.map((pkg,i)=>{const state=promotionPackageDateStateV389(pkg),label=state==="running"?"进行中":state==="future"?"未开始":state==="ended"?"已结束":"已关闭",slot=getPromotionPackageSlotV395(pkg,i);return `<button type="button" class="promotion-package-chip-v389 ${pkg.id===promotionEditingPackageIdV389?"is-active-v389":""}" data-package-v389="${escapeHTML(pkg.id)}" data-state="${state}"><strong>促销配套 ${slot} · ${escapeHTML(pkg.name)}</strong><small>${label} · ${Number(pkg.targetMarginRate)}% · ${escapeHTML(promotionPackageScopeSummaryV392(pkg))}</small></button>`;}).join("");
   const summary=document.getElementById("promotionSummaryStatusV183"),current=getCurrentPromotionPackageStatusV394(packages);
   if(summary){summary.textContent=current?.text||"";summary.hidden=!current;summary.classList.toggle("promotion-active-summary-v191",Boolean(current));}
   updatePromotionCurrentPackageControlsV394();
@@ -19898,7 +19909,7 @@ async function savePromotionPackageV389(){
   const next=packages.some(p=>p.id===pkg.id)?packages.map(p=>p.id===pkg.id?pkg:p):[...packages,pkg];if(next.length>5){window.alert("最多只能同时管理5个促销配套。");return;}
   const overlap=validatePromotionPackageOverlapV389(pkg,next);if(overlap){window.alert(`促销配套产品重复：\n\n${overlap}`);return;}
   const affected=participantIdsForPackageV389(pkg).size;
-  if(!window.confirm(`确认${existing?"更新":"启动"}「${pkg.name}」？\n\n促销配套：${next.findIndex(p=>p.id===pkg.id)+1}\n主播佣金：${pkg.commissionRate}%\n目标净利率：${pkg.targetMarginRate}%\n应用产品：${affected} 项\n日期：${pkg.startDate?pkg.startDate+" → "+pkg.endDate:"没有日期限制"}\n\n其他促销配套不会被修改。`))return;
+  if(!window.confirm(`确认${existing?"更新":"启动"}「${pkg.name}」？\n\n促销配套：${getPromotionPackageNumberV394(pkg.id,next)}\n主播佣金：${pkg.commissionRate}%\n目标净利率：${pkg.targetMarginRate}%\n应用产品：${affected} 项\n日期：${pkg.startDate?pkg.startDate+" → "+pkg.endDate:"没有日期限制"}\n\n其他促销配套不会被修改。`))return;
   if(save){save.disabled=true;save.textContent="正在同步促销配套…";}if(del)del.disabled=true;
   try{const container=makePromotionContainerV389(next);await updatePromotionSettingsFastV185(container);const settings=loadJSON("importSystemSettings",{});saveJSON("importSystemSettings",{...settings,promotionV183:container});promotionEditingPackageIdV389=pkg.id;promotionEditingTransientV389=null;clearPromotionLocalDraftV391();setPromotionEditorFromPackageV389(pkg);if(status)status.textContent="促销配套已同步";refreshPromotionDependentVisibleViewsV375();}
   catch(e){if(status)status.textContent=`促销没有保存：${String(e?.message||e)}`;}
@@ -19906,9 +19917,9 @@ async function savePromotionPackageV389(){
 }
 async function deletePromotionPackageV389(){
   const packages=getPromotionPackagesV389(),pkg=packages.find(p=>p.id===promotionEditingPackageIdV389);
-  // V39.4 safety: a not-yet-started local draft can never fall back to deleting Package 1.
+  // V39.5 safety: a not-yet-started local draft can never fall back to deleting Package 1.
   if(!pkg){if(promotionEditingTransientV389){clearPromotionLocalDraftV391();promotionEditingTransientV389=null;const fallback=packages.find(promotionPackageIsEffectiveV389)||packages[0]||null;setPromotionEditorFromPackageV389(fallback);const status=document.getElementById("promotionStatusV183");if(status)status.textContent="未启动的促销草稿已关闭；现有促销配套没有修改。";}return;}
-  const packageNo=packages.findIndex(p=>p.id===pkg.id)+1,affected=participantIdsForPackageV389(pkg).size;
+  const packageNo=getPromotionPackageNumberV394(pkg.id,packages),affected=participantIdsForPackageV389(pkg).size;
   if(!window.confirm(`确认关闭「配套${packageNo} · ${pkg.name}」？\n\n只会关闭配套${packageNo}，其他促销配套会继续运行。\n配套${packageNo}的 ${affected} 项产品将恢复原本最低售价。`))return;
   const next=packages.filter(p=>p.id!==pkg.id),container=makePromotionContainerV389(next),status=document.getElementById("promotionStatusV183"),del=document.getElementById("deletePromotionV183"),save=document.getElementById("savePromotionV183");
   if(del){del.disabled=true;del.textContent=`正在关闭配套${packageNo}…`;}if(save)save.disabled=true;
@@ -19940,14 +19951,11 @@ function setupPromotionPackagesV389(){
   document.getElementById("promotionAddPackageV389")?.addEventListener("click",()=>{
     const list=getPromotionPackagesV389();
     if(list.length>=5){window.alert("最多只能同时管理5个已启动促销配套。");return;}
-    // V39.4: Open New Promotion Package must always leave the currently selected formal package
-    // and enter a clean LOCAL draft. A stale/non-meaningful draft is never allowed to reopen Package 1 on mobile.
-    const savedDraft=loadPromotionLocalDraftV391();
-    if(savedDraft?.pkg && !list.some(p=>p.id===savedDraft.pkg.id) && (savedDraft.dirty===true||promotionTransientDraftIsMeaningfulV392(savedDraft.pkg,savedDraft.search,savedDraft.filter,savedDraft.searchSelection,savedDraft.currentSelection))){
-      if(restorePromotionLocalDraftV391()){document.querySelector("details.promotion-settings-v183")?.setAttribute("open","");return;}
-    }
+    // V39.5: clicking "+ 打开新促销配套" always means a genuinely NEW clean draft on every device.
+    // Navigation-away recovery still uses the local draft, but an explicit New action never reopens stale mobile state.
     clearPromotionLocalDraftV391();
-    const pkg={active:true,id:nextPromotionPackageIdV389(list),name:`促销配套 ${list.length+1}`,commissionRate:10,targetMarginRate:30,promotionScope:"selected",selectedProductIds:[],excludedProductIds:[],priceOverrides:{},includeManualPriceProducts:false,startDate:"",endDate:"",createdAt:"",updatedAt:""};
+    const slotNo=nextPromotionPackageSlotV395(list);
+    const pkg={active:true,id:slotNo?`PKG${slotNo}`:nextPromotionPackageIdV389(list),slotNo:slotNo||undefined,name:"年尾清货",commissionRate:10,targetMarginRate:30,promotionScope:"selected",selectedProductIds:[],excludedProductIds:[],priceOverrides:{},includeManualPriceProducts:false,startDate:"",endDate:"",createdAt:"",updatedAt:""};
     setPromotionEditorFromPackageV389(pkg);
     const q=document.getElementById("promotionExcludeSearchV183"),f=document.getElementById("promotionExcludeFilterV184");
     if(q)q.value="";if(f)f.value="latest";
@@ -19987,5 +19995,17 @@ function getPromotionMarginBadgeV209(product, profitInfo = null) {
   const text=Number.isFinite(rate)?`${Number.isInteger(rate)?rate.toFixed(0):rate.toFixed(2).replace(/0+$/,"").replace(/\.$/,"")}%`:"";
   return text?`<em class="inventory-promotion-margin-v209 ${cls}">${escapeHTML(text)}</em>`:"";
 }
-window.refreshPromotionPackageManagerV389=function(){const list=getPromotionPackagesV389();if(promotionEditingTransientV389&&!list.some(p=>p.id===promotionEditingPackageIdV389)){renderPromotionPackageBarV389();renderDashboardPromotionStatusV208();return;}if(!list.some(p=>p.id===promotionEditingPackageIdV389))promotionEditingPackageIdV389=list.find(promotionPackageIsEffectiveV389)?.id||list[0]?.id||"";setPromotionEditorFromPackageV389(list.find(p=>p.id===promotionEditingPackageIdV389)||null);renderDashboardPromotionStatusV208();};
+window.refreshPromotionPackageManagerV389=function(){
+  const list=getPromotionPackagesV389(),details=document.querySelector("details.promotion-settings-v183"),rawDraft=loadPromotionLocalDraftV391();
+  const transientIsStored=list.some(p=>p.id===promotionEditingPackageIdV389);
+  if(promotionEditingTransientV389&&!transientIsStored){
+    const draftDirty=Boolean(rawDraft?.pkg&&rawDraft.pkg.id===promotionEditingPackageIdV389&&(rawDraft.dirty===true||promotionTransientDraftIsMeaningfulV392(rawDraft.pkg,rawDraft.search,rawDraft.filter,rawDraft.searchSelection,rawDraft.currentSelection)));
+    // V39.5: preserve a real in-progress draft only while its editor is actually open.
+    // Otherwise cloud active packages are authoritative, preventing stale mobile draft/cache from hiding live package state.
+    if(draftDirty&&details?.open){renderPromotionPackageBarV389();renderDashboardPromotionStatusV208();return;}
+    clearPromotionLocalDraftV391();promotionEditingTransientV389=null;promotionEditingPackageIdV389="";
+  }
+  if(!list.some(p=>p.id===promotionEditingPackageIdV389))promotionEditingPackageIdV389=list.find(promotionPackageIsEffectiveV389)?.id||list[0]?.id||"";
+  setPromotionEditorFromPackageV389(list.find(p=>p.id===promotionEditingPackageIdV389)||null);renderDashboardPromotionStatusV208();
+};
 setupPromotionPackagesV389();
