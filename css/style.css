@@ -6603,5 +6603,36 @@ body.system-media-preview-open-v305{overflow:hidden}
 @media(max-width:719px){.promotion-scope-switch-v388{gap:5px}.promotion-scope-switch-v388 button{padding:8px 11px;font-size:.92rem}.promotion-current-list-title-v388{font-size:.95rem}}
 
 
-/* V40.4 simplified promotion */
+/* V40.5 simplified promotion */
 .promotion-batch-margin-v404{display:flex;align-items:center;gap:6px;white-space:nowrap}.promotion-batch-margin-v404 input{width:105px}
+
+
+/* V40.5 — V40.3-style Promotion batch selection/confirmation layout. */
+.promotion-action-mode-v405{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0 6px}
+.promotion-action-mode-v405 button{min-height:44px;border:1.5px solid #6fae86;border-radius:10px;background:#fff;color:#126b3e;font-size:16px;font-weight:900;padding:8px 10px}
+.promotion-action-mode-v405 button.is-active-v405{background:#176b3c;color:#fff;border-color:#176b3c}
+.promotion-action-help-v405{margin:0 0 8px!important;font-size:14px!important}
+.promotion-confirm-bar-v405{overflow:hidden!important}
+.promotion-confirm-bar-v405 .promotion-batch-margin-v404{margin-left:0!important;margin-right:0!important;display:flex!important;align-items:center!important;gap:6px!important}
+.promotion-confirm-bar-v405 .promotion-batch-margin-v404[hidden]{display:none!important}
+.promotion-confirm-bar-v405 .promotion-batch-margin-v404 input{width:118px!important;min-width:118px!important;margin:0!important;min-height:42px!important;font-size:16px!important}
+.promotion-search-result-v183{font-size:16px!important;min-height:76px!important}
+.promotion-search-result-v183 strong,.promotion-search-name-v186{font-size:18px!important;line-height:1.25!important}
+.promotion-search-result-v183 span{font-size:14px!important;line-height:1.45!important}
+.promotion-search-result-v183>button{font-size:16px!important;white-space:nowrap!important}
+.promotion-pending-selection-v193{font-size:16px!important}
+.promotion-pending-selection-v193 button{font-size:15px!important}
+#promotionExcludeSelectedV184,#promotionRemoveSelectedV184{font-size:16px!important;font-weight:900!important}
+@media(max-width:900px){.promotion-action-mode-v405{grid-template-columns:1fr 1fr}}
+@media(max-width:719px){
+  .promotion-action-mode-v405{grid-template-columns:1fr 1fr;gap:6px}
+  .promotion-action-mode-v405 button{font-size:15px;min-height:42px;padding:7px 6px}
+  .promotion-confirm-bar-v405{display:grid!important;grid-template-columns:1fr!important;gap:8px!important}
+  .promotion-confirm-bar-v405 label{width:100%!important;margin:0!important;white-space:normal!important}
+  .promotion-confirm-bar-v405 .promotion-batch-margin-v404{justify-content:space-between!important}
+  #promotionExcludeSelectedV184,#promotionRemoveSelectedV184{width:100%!important;min-width:0!important;max-width:none!important;min-height:48px!important;font-size:16px!important}
+  .promotion-search-result-v183{grid-template-columns:28px minmax(0,1fr)!important;gap:8px!important;padding:10px!important}
+  .promotion-search-result-v183>button{grid-column:2!important;justify-self:start!important;padding:7px 10px!important;font-size:16px!important}
+  .promotion-search-result-v183 strong,.promotion-search-name-v186{font-size:17px!important}
+  .promotion-search-result-v183 span{font-size:14px!important}
+}

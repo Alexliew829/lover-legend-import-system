@@ -5,18 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=40.4" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=40.4" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=40.4" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=40.4" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=40.4" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=40.4" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=40.4" />
+  <link rel="manifest" href="./manifest.json?v=40.5" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=40.5" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=40.5" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=40.5" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=40.5" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=40.5" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=40.5" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=40.4" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=40.5" />
   <style id="access-lock-critical-v299">
     html,body{margin:0;min-height:100%;font-family:Arial,Helvetica,sans-serif}
     .access-lock{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(242,248,244,.96)}
@@ -37,12 +37,12 @@
       }
     } catch (_) {}
   </script>
-  <link rel="preload" href="./css/style.css?v=40.4" as="style" />
-  <link rel="stylesheet" href="./css/style.css?v=40.4" media="print" onload="this.media='all'" />
-  <noscript><link rel="stylesheet" href="./css/style.css?v=40.4" /></noscript>
-  <script defer src="./js/common.js?v=40.4"></script>
-  <script defer src="./js/sync.js?v=40.4"></script>
-  <script defer src="./js/app.js?v=40.4"></script>
+  <link rel="preload" href="./css/style.css?v=40.5" as="style" />
+  <link rel="stylesheet" href="./css/style.css?v=40.5" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="./css/style.css?v=40.5" /></noscript>
+  <script defer src="./js/common.js?v=40.5"></script>
+  <script defer src="./js/sync.js?v=40.5"></script>
+  <script defer src="./js/app.js?v=40.5"></script>
 </head>
 <body>
   <div id="accessLock"
@@ -116,7 +116,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 40.4 Stable</div>
+          <div class="app-header-version">正式版 40.5 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -653,7 +653,14 @@
             <strong>产品促销设置</strong>
             <button id="restoreInitialMinimumPricesV376" class="secondary-btn promotion-restore-initial-v376" type="button">恢复初始最低售价</button>
           </div>
-          <p class="settings-help">规则：没有个别设置的绿色产品使用默认目标利润率；蓝色售价控制产品默认不参加。排除产品保持原最低售价。</p>
+          <p class="settings-help">规则：绿色产品默认使用30%目标利润率；蓝色售价控制产品默认保护、不参加促销。需要例外时再批量处理。</p>
+          <div class="promotion-action-mode-v405" role="group" aria-label="批量操作">
+            <button id="promotionModeExcludeV405" type="button" class="is-active-v405">排除产品</button>
+            <button id="promotionModeMarginV405" type="button">设置利润率</button>
+            <button id="promotionModeManualJoinV405" type="button">精品加入促销</button>
+            <button id="promotionModeManualExitV405" type="button">精品退出促销</button>
+          </div>
+          <p id="promotionActionHelpV405" class="settings-help promotion-action-help-v405">批量勾选产品后，点击「确认加入排除」。</p>
           <div class="promotion-search-box-v186">
             <div class="promotion-search-tools-v184">
               <input id="promotionExcludeSearchV183" type="search" autocomplete="off" placeholder="搜索产品编号、名称、进口编号或原成本" />
@@ -670,20 +677,19 @@
                 <option value="cost-desc">平均成本由高到低</option>
               </select>
             </div>
-            <div id="promotionSearchBatchToolsV184" class="promotion-batch-tools-v184" hidden>
+            <div id="promotionSearchBatchToolsV184" class="promotion-batch-tools-v184 promotion-confirm-bar-v405" hidden>
               <label><input id="promotionSelectAllSearchV184" type="checkbox" /> <span id="promotionSelectAllSearchLabelV401">全选当前搜索结果（0项）</span></label>
-              <button id="promotionExcludeSelectedV184" class="secondary-btn" type="button" disabled>批量排除（0）</button>
-              <button id="promotionUnexcludeSelectedV404" class="secondary-btn" type="button" disabled>取消排除（0）</button>
-              <label class="promotion-batch-margin-v404">个别利润率（%）<input id="promotionBatchMarginV404" type="text" inputmode="text" placeholder="例如 10 / -3" /></label>
-              <button id="promotionApplyMarginV404" class="secondary-btn" type="button" disabled>批量设置利润率（0）</button>
-              <button id="promotionClearMarginV404" class="secondary-btn" type="button" disabled>取消个别利润率（0）</button>
-              <button id="promotionManualJoinSelectedV404" class="secondary-btn" type="button" disabled>精品加入促销（0）</button>
-              <button id="promotionManualExitSelectedV404" class="secondary-btn" type="button" disabled>精品退出促销（0）</button>
+              <label id="promotionBatchMarginBoxV405" class="promotion-batch-margin-v404" hidden>目标利润率（%）<input id="promotionBatchMarginV404" type="text" inputmode="text" placeholder="例如 10 / -3" /></label>
+              <button id="promotionExcludeSelectedV184" class="secondary-btn promotion-confirm-action-v197 promotion-confirm-add-v197" type="button" disabled>确认加入排除（0）</button>
             </div>
             <div id="promotionPendingSelectionV193" class="promotion-pending-selection-v193" hidden></div>
             <div id="promotionExcludeSearchResultsV183" class="promotion-search-results-v183"></div>
           </div>
           <div id="promotionExcludedBoxV186" class="promotion-excluded-box-v186">
+            <div id="promotionExcludedBatchToolsV184" class="promotion-batch-tools-v184 promotion-excluded-tools-v186" hidden>
+              <label><input id="promotionSelectAllExcludedV184" type="checkbox" /> <span>全选排除清单</span></label>
+              <button id="promotionRemoveSelectedV184" class="secondary-btn promotion-confirm-action-v197 promotion-confirm-remove-v197" type="button" disabled>确认移除排除（0）</button>
+            </div>
             <div id="promotionCurrentListTitleV388" class="promotion-current-list-title-v388">已排除产品</div>
             <div id="promotionExcludedListV183" class="promotion-excluded-list-v183"></div>
           </div>
@@ -925,7 +931,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 40.4 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 40.5 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
