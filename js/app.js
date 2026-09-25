@@ -4621,7 +4621,7 @@ function renderPromotionPendingSelectionV193() {
 function updatePromotionBatchControlsV184() {
   const query = String(document.getElementById("promotionExcludeSearchV183")?.value || "").trim();
   const filterMode = String(document.getElementById("promotionExcludeFilterV184")?.value || "latest");
-  const matches = (query || filterMode !== "latest") ? getPromotionSearchProductsV185(query, filterMode) : [];
+  const matches = (query || filterMode !== "latest") ? filterPromotionSearchAvailabilityV390(getPromotionSearchProductsV185(query, filterMode)) : [];
   const selectedModeV388 = promotionScopeModeDraftV388 === "selected";
   const currentSetV388 = selectedModeV388 ? promotionSelectedDraftV388 : promotionExcludedDraftV183;
   const selectableIds = matches
@@ -4679,7 +4679,7 @@ function renderPromotionExcludeSearchV183() {
     updatePromotionBatchControlsV184();
     return;
   }
-  const allMatches = getPromotionSearchProductsV185(query, filterMode)
+  const allMatches = filterPromotionSearchAvailabilityV390(getPromotionSearchProductsV185(query, filterMode))
     .filter(product => !(promotionScopeModeDraftV388 === "selected" ? promotionSelectedDraftV388 : promotionExcludedDraftV183).has(String(product.id || "").toUpperCase()));
   const matches = allMatches;
   results.innerHTML = matches.length ? matches.map(product => {
@@ -5032,7 +5032,7 @@ function setupPromotionSettingsV183() {
   promotionDetails?.addEventListener("toggle", () => {
     refreshToggleHintV192();
     if (promotionDetails.open && typeof window.pollPromotionStateLightV372 === "function") {
-      window.pollPromotionStateLightV372(true).catch(error => console.warn("V38.9 promotion open refresh skipped", error));
+      window.pollPromotionStateLightV372(true).catch(error => console.warn("V39.0 promotion open refresh skipped", error));
     }
   });
   refreshToggleHintV192();
@@ -15139,7 +15139,7 @@ function renderBatchProductStockResults() {
       : "";
     const importNumberV256 = String(originalRecordV219?.importNumber || "").trim();
     const productIdV256 = String(product?.id || "").trim();
-    // V38.9: use the same proven minimum-price profit calculation as the inventory/home cards.
+    // V39.0: use the same proven minimum-price profit calculation as the inventory/home cards.
     // This remains display-only: no pricing, promotion, inventory, FIFO or sync logic is changed.
     const profitInfoV387 = getProductMinimumProfitV205(product);
     const profitToneV387 = profitInfoV387.profit < 0 ? "loss" : profitInfoV387.profit > 0 ? "gain" : "neutral";
@@ -16271,7 +16271,7 @@ function isInitialMinimumPriceLockedV380(productOrId){
   const locks=getInitialMinimumPriceLockMapV380();
   const lockKey=Object.keys(locks||{}).find(key=>String(key||"").trim().toUpperCase()===id);
   if(lockKey)return locks[lockKey]===true;
-  // V38.9: never infer formal initial-price lock from the ordinary manual-price flag.
+  // V39.0: never infer formal initial-price lock from the ordinary manual-price flag.
   // Only the confirmed 77 baseline IDs or an explicit lock-map entry are formal.
   return false;
 }
@@ -16282,7 +16282,7 @@ function getInitialMinimumPriceV376(product){
   const entry=Object.prototype.hasOwnProperty.call(map,id)
     ? {found:true,value:map[id]}
     : (()=>{const hit=Object.entries(map).find(([key])=>String(key||"").trim().toUpperCase()===id);return hit?{found:true,value:hit[1]}:{found:false,value:null};})();
-  // V38.9: missing/null/blank is NOT zero. Number(null) / Number("") both become 0,
+  // V39.0: missing/null/blank is NOT zero. Number(null) / Number("") both become 0,
   // which was the root cause of a locked initial price being displayed/rewritten as RM0.00.
   const raw=entry.value;
   const value=entry.found && raw!==null && raw!==undefined && String(raw).trim()!==""
@@ -16329,7 +16329,7 @@ async function editInitialMinimumPriceV376(productId){
 window.editInitialMinimumPriceV376=editInitialMinimumPriceV376;
 async function restoreInitialMinimumPricesV376(){
   const button=document.getElementById("restoreInitialMinimumPricesV376"); if(!button)return;
-  // V38.9: mobile and desktop intentionally use the exact same proven Restore path.
+  // V39.0: mobile and desktop intentionally use the exact same proven Restore path.
   try{ if(typeof pollPromotionStateLightV372==="function") await pollPromotionStateLightV372(true); }catch(_){}
   if(hasAnyEffectivePromotionPackageV389()){ alert("促销进行中，请先关闭所有正在进行的促销配套后再恢复初始最低售价。"); return; }
   if(!window.confirm("确认恢复全部产品的初始最低售价？\n\n恢复会把每个产品的初始最低售价真正写回正式 minimumPrice。不会改变库存、平均成本、FIFO、Sales ACK、Imports 或 Batches。"))return;
@@ -16376,7 +16376,7 @@ async function editProductMinimumPrice(productId) {
   const product = products[productIndex];
   const storedMinimumPriceV351 = Math.max(0, Number(product.minimumPrice) || 0);
   const initialMapBeforeV376 = getInitialMinimumPriceMapV376();
-  // V38.9: an automatic price is only an implicit candidate. The first real manual
+  // V39.0: an automatic price is only an implicit candidate. The first real manual
   // minimum-price save becomes the authoritative initial minimum price. After that,
   // ordinary minimum-price edits must never move the initial baseline again.
   const initialPriceWasImplicitV376 = !hasExplicitInitialMinimumPriceV379(id);
@@ -16420,7 +16420,7 @@ async function editProductMinimumPrice(productId) {
 
   const updatedAt = new Date().toISOString();
   const shouldCaptureInitialMinimumPriceV379 = initialPriceWasImplicitV376 && nextMinimumPriceManual;
-  // V38.9: do NOT optimistically write the formal initial price locally. The cloud
+  // V39.0: do NOT optimistically write the formal initial price locally. The cloud
   // must persist + verify it first; otherwise the UI can show a false 7500/7500 and
   // later collapse to 0 when an authoritative Pull arrives.
   products[productIndex] = {
@@ -16460,7 +16460,7 @@ async function editProductMinimumPrice(productId) {
     const rawConfirmedInitialV382 = minimumPriceResultV380?.initialMinimumPrice;
     const confirmedInitialV380 = rawConfirmedInitialV382!==null && rawConfirmedInitialV382!==undefined && String(rawConfirmedInitialV382).trim()!==""
       ? Number(rawConfirmedInitialV382) : NaN;
-    // V38.9: only an explicitly returned numeric initial value may refresh the local baseline.
+    // V39.0: only an explicitly returned numeric initial value may refresh the local baseline.
     // Never coerce null/undefined/blank to 0.
     if (Number.isFinite(confirmedInitialV380) && confirmedInitialV380 >= 0) {
       applyInitialMinimumPriceMapLocalV376({ ...getInitialMinimumPriceMapV376(), [id]:confirmedInitialV380 });
@@ -16508,7 +16508,7 @@ async function editProductMinimumPrice(productId) {
       };
       saveJSON("importSystemProducts", latestProducts);
     }
-    // V38.9: no initial-price rollback is needed here because formal initial state
+    // V39.0: no initial-price rollback is needed here because formal initial state
     // is applied locally only after the cloud confirms persistence.
     const rollbackOverrides = { ...getMinimumPriceManualOverridesV160() };
     rollbackOverrides[id] = currentMinimumPriceManual;
@@ -17387,7 +17387,7 @@ function getMinimumPriceStateSignatureV339(products){
 
 // V34.3: one canonical product search/filter/sort path for every inventory-style view.
 // Import product entry intentionally does NOT use this helper.
-// V38.9: canonical signed profit formatter for current minimum-price profit displays.
+// V39.0: canonical signed profit formatter for current minimum-price profit displays.
 // Positive: +RM 100.00; negative: -RM 100.00; zero: RM 0.00.
 function formatSignedProfitMoneyV387(value) {
   const n = Number(value);
@@ -18894,7 +18894,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "38.9",
+      version: "39.0",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -19573,7 +19573,7 @@ function setupInventoryMasterV299(){
 
 
 
-// V38.9 bindings: the summary action must not toggle the Promotion panel.
+// V39.0 bindings: the summary action must not toggle the Promotion panel.
 document.addEventListener("click",event=>{
   const restore=event.target.closest("#restoreInitialMinimumPricesV376");
   if(restore){event.preventDefault();event.stopPropagation();restoreInitialMinimumPricesV376();return;}
@@ -19582,8 +19582,8 @@ document.addEventListener("click",event=>{
 },true);
 
 
-// ================= V38.9 Multi Promotion Packages =================
-// V38.9 keeps Promotion Light Sync as ONE Settings key (promotionV183). The value is now
+// ================= V39.0 Multi Promotion Packages =================
+// V39.0 keeps Promotion Light Sync as ONE Settings key (promotionV183). The value is now
 // a small container with up to five packages, so cross-device speed and one-revision writes
 // remain on the proven single-key Promotion Light Sync fast path. All pricing formulae below are unchanged.
 var promotionEditingPackageIdV389 = "";
@@ -19700,6 +19700,26 @@ function packageRangesOverlapV389(a,b){
 function participantIdsForPackageV389(pkg){
   return new Set(getProducts().filter(product=>(!isMinimumPriceManualV160(product)||pkg.includeManualPriceProducts===true)&&promotionProductIncludedV388(String(product.id||""),pkg)).map(p=>String(p.id||"").trim().toUpperCase()));
 }
+// V39.0: while building a selected-products package, hide products already occupied by
+// another package whose Date Range overlaps this draft. An empty Date Range means
+// unlimited duration, therefore it overlaps every dated package until manually closed.
+// This is UI filtering only; the existing save-time overlap validation remains the final guard.
+function getPromotionOccupiedProductIdsV390(){
+  if(promotionScopeModeDraftV388!=="selected") return new Set();
+  const candidate=getPromotionDraftV183();
+  const occupied=new Set();
+  getPromotionPackagesV389().forEach(other=>{
+    if(!other||other.id===candidate.id||!packageRangesOverlapV389(candidate,other)) return;
+    participantIdsForPackageV389(other).forEach(id=>occupied.add(String(id||"").trim().toUpperCase()));
+  });
+  return occupied;
+}
+function filterPromotionSearchAvailabilityV390(products){
+  const list=Array.isArray(products)?products:[];
+  if(promotionScopeModeDraftV388!=="selected") return list;
+  const occupied=getPromotionOccupiedProductIdsV390();
+  return occupied.size?list.filter(product=>!occupied.has(String(product?.id||"").trim().toUpperCase())):list;
+}
 function validatePromotionPackageOverlapV389(candidate, allPackages){
   const mine=participantIdsForPackageV389(candidate);
   for(const other of allPackages){
@@ -19774,8 +19794,8 @@ function setupPromotionPackagesV389(){
   const packages=getPromotionPackagesV389();promotionEditingPackageIdV389=packages.find(promotionPackageIsEffectiveV389)?.id||packages[0]?.id||"";if(packages.length)setPromotionEditorFromPackageV389(packages.find(p=>p.id===promotionEditingPackageIdV389));else setPromotionEditorFromPackageV389(null);
   document.getElementById("promotionPackageListV389")?.addEventListener("click",e=>{const b=e.target.closest("[data-package-v389]");if(!b)return;const pkg=getPromotionPackagesV389().find(p=>p.id===b.dataset.packageV389);if(pkg)setPromotionEditorFromPackageV389(pkg);});
   document.getElementById("promotionAddPackageV389")?.addEventListener("click",()=>{const list=getPromotionPackagesV389();if(list.length>=5){window.alert("最多只能同时管理5个促销配套。");return;}const pkg={active:true,id:nextPromotionPackageIdV389(list),name:`促销配套 ${list.length+1}`,commissionRate:10,targetMarginRate:30,promotionScope:"selected",selectedProductIds:[],excludedProductIds:[],priceOverrides:{},includeManualPriceProducts:false,startDate:"",endDate:"",createdAt:"",updatedAt:""};setPromotionEditorFromPackageV389(pkg);document.querySelector("details.promotion-settings-v183")?.setAttribute("open","");});
-  document.getElementById("promotionClearDateRangeV389")?.addEventListener("click",()=>{const a=document.getElementById("promotionStartDateV389"),b=document.getElementById("promotionEndDateV389");if(a)a.value="";if(b)b.value="";promotionDraftTouchedV209=true;renderPromotionDateStatusV389();});
-  ["promotionStartDateV389","promotionEndDateV389"].forEach(id=>document.getElementById(id)?.addEventListener("change",()=>{promotionDraftTouchedV209=true;renderPromotionDateStatusV389();}));
+  document.getElementById("promotionClearDateRangeV389")?.addEventListener("click",()=>{const a=document.getElementById("promotionStartDateV389"),b=document.getElementById("promotionEndDateV389");if(a)a.value="";if(b)b.value="";promotionDraftTouchedV209=true;renderPromotionDateStatusV389();renderPromotionExcludeSearchV183();});
+  ["promotionStartDateV389","promotionEndDateV389"].forEach(id=>document.getElementById(id)?.addEventListener("change",()=>{promotionDraftTouchedV209=true;renderPromotionDateStatusV389();renderPromotionExcludeSearchV183();}));
   document.addEventListener("click",event=>{if(event.target.closest("#savePromotionV183")){event.preventDefault();event.stopImmediatePropagation();void savePromotionPackageV389();return;}if(event.target.closest("#deletePromotionV183")){event.preventDefault();event.stopImmediatePropagation();void deletePromotionPackageV389();return;}},true);
   const save=document.getElementById("savePromotionV183"),del=document.getElementById("deletePromotionV183");if(save)save.textContent=packages.length?"更新促销配套":"开启促销配套";if(del)del.textContent="关闭当前促销配套";
   renderPromotionPackageBarV389();renderPromotionDateStatusV389();renderDashboardPromotionStatusV208();
