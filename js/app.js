@@ -4708,7 +4708,7 @@ function renderPromotionPriceListV183() {
           <div><span>库存</span><strong>${formatNumber(product.stock)}</strong></div>
           <div><span>${getAverageCostLabelV205(product, originIndex)}</span><strong>${formatMoney(product.averageCost, "RM ")}</strong></div>
           <div><span>原最低售价</span><strong>${formatMoney(originalPrice, "RM ")}</strong></div>
-          <div><span>${manualProtected || excluded ? "最低售价" : "促销最低售价"}</span><strong class="${manualProtected ? "promotion-price-control-value-v348" : ""}">${formatMoney((manualProtected || excluded) ? originalPrice : effectivePrice, "RM ")}</strong>${override && !manualProtected && !excluded ? `<small class="promotion-manual-note-v193">电脑端已手动调整</small>` : ""}</div>
+          <div><span>${manualProtected || excluded ? "最低售价" : "促销最低售价"}</span>${manualProtected || excluded ? `<strong class="${manualProtected ? "promotion-price-control-value-v348" : ""}">${formatMoney(originalPrice, "RM ")}</strong>` : `<button type="button" class="promotion-price-edit-v193 promotion-mobile-price-edit-v195" data-promo-price-edit-v193="${escapeHTML(id)}" data-current-price-v193="${effectivePrice}" title="长按修改本次促销最低售价" aria-label="长按修改 ${escapeHTML(product.name)} 本次促销最低售价">${formatMoney(effectivePrice, "RM ")}</button>`}${override && !manualProtected && !excluded ? `<small class="promotion-manual-note-v193">已手动调整</small>` : ""}</div>
           <div class="promotion-mobile-profit-v195 ${profit < 0 ? "loss" : "gain"}"><span>预计${profit < 0 ? "亏" : "赚"}</span><strong>${formatMoney(Math.abs(profit), "RM ")}</strong></div>
         </div>
       </article>`;
@@ -4936,7 +4936,7 @@ function isPromotionMobileReadOnlyV377() {
 }
 
 function showPromotionDesktopOnlyV377() {
-  window.alert("手机只可查看促销状态。促销开启、更新、关闭及售价操作请使用电脑。");
+  window.alert("恢复初始最低售价目前请使用电脑操作。");
 }
 
 function setupPromotionMobileReadOnlyV377(elements) {
@@ -4988,15 +4988,11 @@ function setupPromotionSettingsV183() {
   const promotionDetails = nameInput.closest("details");
   const toggleHint = document.getElementById("promotionToggleHintV192");
   if (!nameInput || !saveButton) return;
-  if (isPromotionMobileReadOnlyV377()) {
-    setupPromotionMobileReadOnlyV377({nameInput,commissionInput,marginInput,searchInput,filterInput,selectAllSearch,excludeSelected,selectAllExcluded,removeSelected,saveButton,deleteButton,manualPricingToggleV361,pricePanel,priceSearch,toggleButton,promotionDetails,toggleHint});
-    return;
-  }
   const refreshToggleHintV192 = () => { if (toggleHint && promotionDetails) toggleHint.textContent = promotionDetails.open ? "收起" : "点击打开"; };
   promotionDetails?.addEventListener("toggle", () => {
     refreshToggleHintV192();
     if (promotionDetails.open && typeof window.pollPromotionStateLightV372 === "function") {
-      window.pollPromotionStateLightV372(true).catch(error => console.warn("V38.3 promotion open refresh skipped", error));
+      window.pollPromotionStateLightV372(true).catch(error => console.warn("V38.4 promotion open refresh skipped", error));
     }
   });
   refreshToggleHintV192();
@@ -16196,7 +16192,7 @@ function isInitialMinimumPriceLockedV380(productOrId){
   const locks=getInitialMinimumPriceLockMapV380();
   const lockKey=Object.keys(locks||{}).find(key=>String(key||"").trim().toUpperCase()===id);
   if(lockKey)return locks[lockKey]===true;
-  // V38.3: never infer formal initial-price lock from the ordinary manual-price flag.
+  // V38.4: never infer formal initial-price lock from the ordinary manual-price flag.
   // Only the confirmed 77 baseline IDs or an explicit lock-map entry are formal.
   return false;
 }
@@ -16207,7 +16203,7 @@ function getInitialMinimumPriceV376(product){
   const entry=Object.prototype.hasOwnProperty.call(map,id)
     ? {found:true,value:map[id]}
     : (()=>{const hit=Object.entries(map).find(([key])=>String(key||"").trim().toUpperCase()===id);return hit?{found:true,value:hit[1]}:{found:false,value:null};})();
-  // V38.3: missing/null/blank is NOT zero. Number(null) / Number("") both become 0,
+  // V38.4: missing/null/blank is NOT zero. Number(null) / Number("") both become 0,
   // which was the root cause of a locked initial price being displayed/rewritten as RM0.00.
   const raw=entry.value;
   const value=entry.found && raw!==null && raw!==undefined && String(raw).trim()!==""
@@ -16301,7 +16297,7 @@ async function editProductMinimumPrice(productId) {
   const product = products[productIndex];
   const storedMinimumPriceV351 = Math.max(0, Number(product.minimumPrice) || 0);
   const initialMapBeforeV376 = getInitialMinimumPriceMapV376();
-  // V38.3: an automatic price is only an implicit candidate. The first real manual
+  // V38.4: an automatic price is only an implicit candidate. The first real manual
   // minimum-price save becomes the authoritative initial minimum price. After that,
   // ordinary minimum-price edits must never move the initial baseline again.
   const initialPriceWasImplicitV376 = !hasExplicitInitialMinimumPriceV379(id);
@@ -16345,7 +16341,7 @@ async function editProductMinimumPrice(productId) {
 
   const updatedAt = new Date().toISOString();
   const shouldCaptureInitialMinimumPriceV379 = initialPriceWasImplicitV376 && nextMinimumPriceManual;
-  // V38.3: do NOT optimistically write the formal initial price locally. The cloud
+  // V38.4: do NOT optimistically write the formal initial price locally. The cloud
   // must persist + verify it first; otherwise the UI can show a false 7500/7500 and
   // later collapse to 0 when an authoritative Pull arrives.
   products[productIndex] = {
@@ -16385,7 +16381,7 @@ async function editProductMinimumPrice(productId) {
     const rawConfirmedInitialV382 = minimumPriceResultV380?.initialMinimumPrice;
     const confirmedInitialV380 = rawConfirmedInitialV382!==null && rawConfirmedInitialV382!==undefined && String(rawConfirmedInitialV382).trim()!==""
       ? Number(rawConfirmedInitialV382) : NaN;
-    // V38.3: only an explicitly returned numeric initial value may refresh the local baseline.
+    // V38.4: only an explicitly returned numeric initial value may refresh the local baseline.
     // Never coerce null/undefined/blank to 0.
     if (Number.isFinite(confirmedInitialV380) && confirmedInitialV380 >= 0) {
       applyInitialMinimumPriceMapLocalV376({ ...getInitialMinimumPriceMapV376(), [id]:confirmedInitialV380 });
@@ -16433,7 +16429,7 @@ async function editProductMinimumPrice(productId) {
       };
       saveJSON("importSystemProducts", latestProducts);
     }
-    // V38.3: no initial-price rollback is needed here because formal initial state
+    // V38.4: no initial-price rollback is needed here because formal initial state
     // is applied locally only after the cloud confirms persistence.
     const rollbackOverrides = { ...getMinimumPriceManualOverridesV160() };
     rollbackOverrides[id] = currentMinimumPriceManual;
@@ -18805,7 +18801,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "38.3",
+      version: "38.4",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -19484,7 +19480,7 @@ function setupInventoryMasterV299(){
 
 
 
-// V38.3 bindings: the summary action must not toggle the Promotion panel.
+// V38.4 bindings: the summary action must not toggle the Promotion panel.
 document.addEventListener("click",event=>{
   const restore=event.target.closest("#restoreInitialMinimumPricesV376");
   if(restore){event.preventDefault();event.stopPropagation();restoreInitialMinimumPricesV376();return;}
