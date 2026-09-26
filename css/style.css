@@ -6602,7 +6602,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 .promotion-current-list-title-v388{font-weight:800;color:#225e3d;padding:8px 10px 2px;}
 @media(max-width:719px){.promotion-scope-switch-v388{gap:5px}.promotion-scope-switch-v388 button{padding:8px 11px;font-size:.92rem}.promotion-current-list-title-v388{font-size:.95rem}}
 
-/* V40.7 — single-promotion grading and mobile promotion controls. */
+/* V40.9 — single-promotion grading and mobile promotion controls. */
 .promotion-custom-margin-batch-v407{display:flex;align-items:end;gap:8px;flex:1 1 100%;min-width:0}
 .promotion-custom-margin-batch-v407 label{display:grid!important;gap:4px!important;min-width:150px!important;margin:0!important;font-size:13px!important;white-space:normal!important}
 .promotion-custom-margin-batch-v407 input{width:100%;min-width:0;box-sizing:border-box;margin:0!important;text-align:left!important}
@@ -6616,4 +6616,25 @@ body.system-media-preview-open-v305{overflow:hidden}
  .promotion-custom-margin-batch-v407{display:grid;grid-template-columns:1fr;width:100%;gap:6px}
  .promotion-custom-margin-batch-v407 label{width:100%!important;min-width:0!important}
  .promotion-margin-override-row-v407{grid-template-columns:minmax(0,1fr);gap:6px}.promotion-margin-override-row-v407>button{justify-self:start;white-space:normal;text-align:left}
+}
+
+
+/* V40.9 — one promotion, batch margin groups, keyword-first selection. */
+.promotion-pending-action-row-v408{display:grid;grid-template-columns:minmax(0,1fr) minmax(170px,240px);gap:10px;align-items:start;margin:8px 0}
+.promotion-pending-action-row-v408 .promotion-pending-selection-v193{margin:0}
+.promotion-custom-margin-inline-v408{display:grid;gap:5px;font-weight:800;color:#607069}
+.promotion-custom-margin-inline-v408 input{width:100%;min-width:0}
+.promotion-margin-group-v408{align-items:start}
+.promotion-margin-group-main-v408{display:grid!important;gap:7px!important}
+.promotion-margin-group-main-v408>strong{font-size:15px;color:#174d34}
+.promotion-margin-group-products-v408{display:flex!important;flex-wrap:wrap;gap:6px!important}
+.promotion-margin-group-products-v408>span{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border:1px solid #b8d1ea;border-radius:999px;background:#fff}
+@media(max-width:719px){
+  .promotion-batch-tools-v184{grid-template-columns:1fr!important;align-items:stretch!important}
+  .promotion-batch-tools-v184 .promotion-confirm-action-v197{width:100%!important;max-width:100%!important;min-width:0!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}
+  .promotion-pending-action-row-v408{grid-template-columns:1fr}
+  .promotion-custom-margin-inline-v408{grid-template-columns:minmax(0,1fr) 92px;align-items:center}
+  .promotion-custom-margin-inline-v408 input{width:92px}
+  .promotion-margin-override-row-v407{grid-template-columns:1fr!important}
+  .promotion-margin-override-row-v407>button{width:100%;white-space:normal!important}
 }
