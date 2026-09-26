@@ -6696,7 +6696,7 @@ body.system-media-preview-open-v305{overflow:hidden}
   .promotion-compact-head-v193,.promotion-compact-row-v193{display:grid!important}
 }
 
-/* V41.3 — mobile promotion price list uses the same scrolling model as 库存资料总表. */
+/* V41.4 — mobile promotion price list uses the same scrolling model as 库存资料总表. */
 .promotion-price-list-panel-v183{
   max-height:none!important;
   overflow:visible!important;
@@ -6754,4 +6754,24 @@ body.system-media-preview-open-v305{overflow:hidden}
     min-width:720px!important;
     position:static!important;
   }
+}
+
+/* V41.4 — promotion price list product names must display in full on mobile/desktop. */
+.promotion-compact-product-v193{
+  align-items:flex-start!important;
+  overflow:visible!important;
+  min-width:220px!important;
+}
+.promotion-compact-name-v193{
+  min-width:0!important;
+  max-width:none!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  white-space:normal!important;
+  overflow-wrap:anywhere!important;
+  word-break:break-word!important;
+  line-height:1.3!important;
+}
+.promotion-compact-row-v193>span:first-child{
+  white-space:normal!important;
 }
