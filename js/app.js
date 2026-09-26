@@ -4571,46 +4571,12 @@ function promotionProductMatchesV183(product, query) {
     normalizeSmartSearchText(row?.importNumber).includes(normalized));
 }
 
+// V41.0: Promotion keyword search reuses the exact Inventory Management search path.
+// This fixes Chinese/form keywords such as 水梅、寿娘子、高提根、水旱 and keeps
+// product number / import number / tracking / original-cost matching identical.
 function getPromotionSearchProductsV185(query, sortMode = "latest") {
-  const keyword = String(query || "").trim().toLowerCase();
-  const imports = getImports();
-  const sales = getInventorySalesAnalyticsV146();
-  const products = getProducts().filter(product => Number(product?.stock) > 0).map(product => {
-    const rows = imports.filter(row => String(row?.productId || "") === String(product?.id || "") ||
-      String(row?.productName || "").trim().toLowerCase() === String(product?.name || "").trim().toLowerCase());
-    const importNumbers = rows.map(row => String(row?.importNumber || "")).join(" ");
-    const trackingNumbers = rows.map(row => `${row?.trackingNumber || ""} ${row?.overseasTrackingNumber || ""}`).join(" ");
-    const id = String(product?.id || "").trim();
-    const name = String(product?.name || "").trim();
-    const originalCostValuesV216 = rows.map(row => Number(row?.unitPrice)).filter(Number.isFinite);
-    return {
-      ...product, importNumbers, trackingNumbers, originalCostValuesV216,
-      displayLastImport: getLatestImportDateByProduct(id) || String(product?.lastImport || ""),
-      latestSoldAt: Number(sales.latestById.get(id) || sales.latestByName.get(name.toLowerCase()) || 0),
-      netSoldQuantity: Number(sales.quantityById.get(id) || sales.quantityByName.get(name.toLowerCase()) || 0),
-      cumulativeSoldProfit: Number(sales.profitById.get(id) || sales.profitByName.get(name.toLowerCase()) || 0)
-    };
-  }).filter(product => {
-    if (sortMode === "price-control" && !isMinimumPriceManualV160(product)) return false;
-    if (!keyword) return true;
-    if (isOriginalCostOnlySearchV218(keyword)) {
-      return product.originalCostValuesV216.some(value => originalCostNumberMatchesV216(value, keyword));
-    }
-    return smartSearchMatches(`${product.id} ${product.name} ${product.category}`, keyword) ||
-      sequentialSearchMatches(product.importNumbers, keyword) ||
-      sequentialSearchMatches(product.trackingNumbers, keyword);
-  });
-  products.sort((a, b) => {
-    const stockA=Number(a.stock)||0,stockB=Number(b.stock)||0,costA=Number(a.averageCost)||0,costB=Number(b.averageCost)||0;
-    if(sortMode==="name")return String(a.name).localeCompare(String(b.name),"zh");
-    if(sortMode==="latest-sold")return (Number(b.latestSoldAt)||0)-(Number(a.latestSoldAt)||0)||String(a.name).localeCompare(String(b.name),"zh");
-    if(sortMode==="bestseller-desc")return (Number(b.netSoldQuantity)||0)-(Number(a.netSoldQuantity)||0)||String(a.name).localeCompare(String(b.name),"zh");
-    if(sortMode==="profit-desc")return (Number(b.cumulativeSoldProfit)||0)-(Number(a.cumulativeSoldProfit)||0)||String(a.name).localeCompare(String(b.name),"zh");
-    if(sortMode==="stock-desc")return stockB-stockA;if(sortMode==="stock-asc")return stockA-stockB;
-    if(sortMode==="value-desc")return stockB*costB-stockA*costA;if(sortMode==="cost-desc")return costB-costA;
-    return parseDDMMYYYY(b.displayLastImport)-parseDDMMYYYY(a.displayLastImport);
-  });
-  return products;
+  const prepared = getInventoryPreparedRowsV321();
+  return filterSortInventoryProductsV324(query, sortMode, prepared);
 }
 
 function getPromotionExcludeMatchesV183(query) {
@@ -4627,7 +4593,11 @@ function isPromotionProductAlreadyAssignedV407(productId) { return isPromotionPr
 function isPromotionProductSelectableV407(product) {
   const id = String(product?.id || "").trim().toUpperCase();
   if (!id || isPromotionProductAlreadyAssignedV407(id)) return false;
-  if (isMinimumPriceManualV160(product) && promotionIncludeManualDraftV361 !== true) return false;
+  // V41.0: once promotion is closed, selection search is a full reset and behaves
+  // exactly like Inventory Management. Old promotion assignment / 精品 filters must
+  // not make valid products disappear while preparing the next promotion.
+  const active = getPromotionSettingsV183();
+  if (active && isMinimumPriceManualV160(product) && promotionIncludeManualDraftV361 !== true) return false;
   return true;
 }
 
@@ -4795,7 +4765,7 @@ function renderPromotionExcludeSearchV183() {
       <span>库存 ${formatNumber(product.stock)} · ${getAverageCostLabelV205(product, originIndex)} ${formatMoney(product.averageCost, "RM ")} · 原最低售价 ${formatMoney(product.minimumPrice, "RM ")}${manualProtected ? ` · 售价控制（精品保护价，不参与促销）` : manual ? ` · 售价控制已加入 Crazy Sales · 目标净利率 ${targetMarginV407}% · 促销最低售价 ${formatMoney(promoPrice, "RM ")}` : ` · 目标净利率 ${targetMarginV407}% · 促销最低售价 ${formatMoney(promoPrice, "RM ")}`}</span></div>
       <button type="button" data-add-promotion-exclusion="${escapeHTML(id)}">选择</button>
     </div>`;
-  }).join("") : `<div class="promotion-empty-v183">没有更多可选择产品（已确认加入或排除的产品不会再次出现）</div>`;
+  }).join("") : `<div class="promotion-empty-v183">${getPromotionSettingsV183() ? "没有更多可选择产品（已确认加入或排除的产品不会再次出现）" : "没有符合的库存产品"}</div>`;
   updatePromotionBatchControlsV184();
 }
 
@@ -5227,7 +5197,7 @@ function setupPromotionSettingsV183() {
     promotionScopeModeDraftV388 = next;
     promotionSearchSelectionV184.clear();
     promotionExcludedSelectionV184.clear();
-    // V40.9: this switch is only the batch action mode; it is not a saved promotion-scope change.
+    // V41.0: this switch is only the batch action mode; it is not a saved promotion-scope change.
     document.getElementById("promotionScopeSelectedV388")?.classList.toggle("is-active-v388", next === "selected");
     document.getElementById("promotionScopeExcludeV388")?.classList.toggle("is-active-v388", next === "exclude");
     const selectedButtonV406=document.getElementById("promotionScopeSelectedV388"),excludeButtonV406=document.getElementById("promotionScopeExcludeV388");
@@ -16521,7 +16491,7 @@ async function restoreInitialMinimumPricesV376(){
 window.restoreInitialMinimumPricesV376=restoreInitialMinimumPricesV376;
 
 
-// V40.9: when the user manually changes the product's current minimum price while a
+// V41.0: when the user manually changes the product's current minimum price while a
 // promotion is active, that value becomes the authoritative current minimum price.
 // If the product is participating in the active promotion, mirror the same value into
 // this promotion's priceOverrides so the promotion calculation cannot immediately
@@ -16626,7 +16596,7 @@ async function editProductMinimumPrice(productId) {
     minimumPriceManual: nextMinimumPriceManual,
     updatedAt
   };
-  // V40.9: a minimum-price edit made during an active promotion is a real Current
+  // V41.0: a minimum-price edit made during an active promotion is a real Current
   // Minimum Price edit, not a temporary promotion-only price. Mirror it into the
   // active promotion override only when that product participates in this promotion.
   const promotionCurrentPriceSnapshotV409 = preparePromotionCurrentMinimumPriceOverrideV409(
@@ -16671,29 +16641,20 @@ async function editProductMinimumPrice(productId) {
       renderBatchProductStockResults();
     }
     renderCostRevisionHistory();
-    let promotionOverrideSyncedV409 = true;
-    if (promotionCurrentPriceSnapshotV409?.payload) {
-      try {
-        if (typeof updatePromotionSettingsFastV185 !== "function") throw new Error("促销快速同步功能尚未载入");
-        await updatePromotionSettingsFastV185(promotionCurrentPriceSnapshotV409.payload);
-        promotionDraftTouchedV209 = false;
-        promotionPriceOverridesDraftV193 = { ...(promotionCurrentPriceSnapshotV409.payload.priceOverrides || {}) };
-        try { capturePromotionDraftBaselineV370(); } catch (_) {}
-      } catch (promotionSyncErrorV409) {
-        promotionOverrideSyncedV409 = false;
-        // Keep the local current price + local active-promotion override so this device
-        // does not jump back to the calculated promotion price. The formal current price
-        // has already been saved; only the active-promotion mirror needs retrying.
-        promotionDraftTouchedV209 = true;
-        promotionPriceOverridesDraftV193 = { ...(promotionCurrentPriceSnapshotV409.payload.priceOverrides || {}) };
-        console.warn("V40.9 current minimum price saved but promotion override sync is pending", promotionSyncErrorV409);
+    // V41.0: updateMinimumPrice now mirrors the active-promotion price override in the
+    // same Apps Script lock/revision as the Current Minimum Price write. This removes the
+    // old second promotion write race that could let Light Sync repaint RM440 over RM500.
+    if (minimumPriceResultV380?.promotionV183 && minimumPriceResultV380.promotionV183.active === true) {
+      const settingsV410 = loadJSON("importSystemSettings", {});
+      saveJSON("importSystemSettings", { ...settingsV410, promotionV183:minimumPriceResultV380.promotionV183 });
+      if (!promotionDraftTouchedV209) {
+        promotionPriceOverridesDraftV193 = { ...(minimumPriceResultV380.promotionV183.priceOverrides || {}) };
       }
+      try { capturePromotionDraftBaselineV370(); } catch (_) {}
     }
     try { refreshPromotionUiV183(); } catch (_) {}
     try { refreshPromotionDependentVisibleViewsV375(); } catch (_) {}
-    if (status) status.textContent = promotionOverrideSyncedV409
-      ? `已更新：${product.name} 最低售价 ${formatMoney(nextMinimumPrice, "RM ")}`
-      : `最低售价已更新为 ${formatMoney(nextMinimumPrice, "RM ")}；促销状态尚待重新同步`;
+    if (status) status.textContent = `已更新：${product.name} 最低售价 ${formatMoney(nextMinimumPrice, "RM ")}`;
   } catch (error) {
     const pendingSameProductV351 = typeof hasPendingMinimumPriceV345 === "function" && hasPendingMinimumPriceV345();
     if (pendingSameProductV351) {
@@ -19120,7 +19081,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "40.9",
+      version: "41.0",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),

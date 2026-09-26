@@ -6602,7 +6602,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 .promotion-current-list-title-v388{font-weight:800;color:#225e3d;padding:8px 10px 2px;}
 @media(max-width:719px){.promotion-scope-switch-v388{gap:5px}.promotion-scope-switch-v388 button{padding:8px 11px;font-size:.92rem}.promotion-current-list-title-v388{font-size:.95rem}}
 
-/* V40.9 — single-promotion grading and mobile promotion controls. */
+/* V41.0 — single-promotion grading and mobile promotion controls. */
 .promotion-custom-margin-batch-v407{display:flex;align-items:end;gap:8px;flex:1 1 100%;min-width:0}
 .promotion-custom-margin-batch-v407 label{display:grid!important;gap:4px!important;min-width:150px!important;margin:0!important;font-size:13px!important;white-space:normal!important}
 .promotion-custom-margin-batch-v407 input{width:100%;min-width:0;box-sizing:border-box;margin:0!important;text-align:left!important}
@@ -6619,7 +6619,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 }
 
 
-/* V40.9 — one promotion, batch margin groups, keyword-first selection. */
+/* V41.0 — one promotion, batch margin groups, keyword-first selection. */
 .promotion-pending-action-row-v408{display:grid;grid-template-columns:minmax(0,1fr) minmax(170px,240px);gap:10px;align-items:start;margin:8px 0}
 .promotion-pending-action-row-v408 .promotion-pending-selection-v193{margin:0}
 .promotion-custom-margin-inline-v408{display:grid;gap:5px;font-weight:800;color:#607069}
