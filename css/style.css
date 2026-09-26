@@ -6695,3 +6695,63 @@ body.system-media-preview-open-v305{overflow:hidden}
   .promotion-compact-list-v193{width:max-content!important;min-width:100%!important;overflow:visible!important}
   .promotion-compact-head-v193,.promotion-compact-row-v193{display:grid!important}
 }
+
+/* V41.3 — mobile promotion price list uses the same scrolling model as 库存资料总表. */
+.promotion-price-list-panel-v183{
+  max-height:none!important;
+  overflow:visible!important;
+  -webkit-overflow-scrolling:auto!important;
+}
+.promotion-price-list-panel-v183>.promotion-search-tools-v184{
+  position:static!important;
+  top:auto!important;
+  z-index:auto!important;
+  margin:0 0 8px!important;
+  padding:0!important;
+  background:transparent!important;
+  border-bottom:0!important;
+  box-shadow:none!important;
+}
+.promotion-compact-list-v193{
+  width:100%!important;
+  min-width:0!important;
+  overflow-x:auto!important;
+  overflow-y:visible!important;
+  -webkit-overflow-scrolling:touch!important;
+  border:1px solid #d8e8df!important;
+  border-radius:12px!important;
+  background:#fff!important;
+}
+.promotion-compact-head-v193,.promotion-compact-row-v193{
+  position:static!important;
+  top:auto!important;
+  z-index:auto!important;
+  grid-template-columns:minmax(220px,2.2fr) 65px 105px 120px 90px 120px!important;
+  min-width:720px!important;
+  gap:0!important;
+  padding:0!important;
+}
+.promotion-compact-head-v193>span,.promotion-compact-row-v193>span{
+  padding:8px 7px!important;
+  white-space:nowrap!important;
+}
+.promotion-compact-product-v193{min-width:220px!important}
+@media(max-width:719px){
+  .promotion-price-list-panel-v183{
+    max-height:none!important;
+    overflow:visible!important;
+    width:100%!important;
+  }
+  .promotion-compact-list-v193{
+    width:100%!important;
+    min-width:0!important;
+    max-width:100%!important;
+    overflow-x:auto!important;
+    overflow-y:visible!important;
+  }
+  .promotion-compact-head-v193,.promotion-compact-row-v193{
+    display:grid!important;
+    min-width:720px!important;
+    position:static!important;
+  }
+}
