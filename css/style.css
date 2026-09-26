@@ -5451,7 +5451,7 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
   .inventory-media-add-v229,.inventory-media-open-v230{min-height:44px!important;display:flex!important;align-items:center!important;justify-content:flex-start!important;font-size:1.08rem!important;font-weight:800!important;}
   .inventory-media-item-v229.no-media-v302 .inventory-media-add-v229{background:#f7fbf8!important;color:#486257!important;border-color:#d6e2da!important;}
   .original-cost-table-wrap{width:100%;max-width:100%;overflow-x:auto!important;overscroll-behavior-x:contain;}
-  .original-cost-table{min-width:860px!important;width:860px!important;}
+  .original-cost-table{min-width:1000px!important;width:860px!important;}
 }
 
 /* V32.0 Profit Management — local draft only; one cloud write on final confirm. */
@@ -6248,7 +6248,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 
 /* V19.5 — compact promotion price list, pending selection visibility and active status. */
 .promotion-pending-selection-v193{margin:8px 0;padding:9px 10px;border:1px solid #d4a72c;border-radius:10px;background:#fff8df;color:#6b4b00}.promotion-pending-selection-v193 strong{display:block;margin-bottom:6px}.promotion-pending-selection-v193 div{display:flex;flex-wrap:wrap;gap:6px}.promotion-pending-selection-v193 button{border:1px solid #d7b65d;border-radius:999px;background:#fff;color:#5c4500;padding:4px 8px;font-weight:700}
-.promotion-compact-list-v193{width:100%;overflow-x:auto;border:1px solid #dce8df;border-radius:10px}.promotion-compact-head-v193,.promotion-compact-row-v193{display:grid;grid-template-columns:minmax(260px,2fr) 70px 120px 120px 135px 120px;gap:8px;align-items:center;min-width:860px;padding:8px 10px}.promotion-compact-head-v193{background:#eaf5ed;color:#175d35;font-weight:800}.promotion-compact-row-v193{border-top:1px solid #e5ece7;background:#fff;font-size:13px}.promotion-compact-row-v193.excluded{background:#fff9e9}.promotion-compact-row-v193>span{min-width:0;white-space:nowrap}.promotion-compact-product-v193{display:flex;align-items:center;gap:6px;overflow:hidden}.promotion-compact-name-v193{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:transparent;padding:0;font:inherit;font-weight:700;text-align:left;cursor:pointer}.promotion-price-edit-v193{border:0;background:transparent;padding:0;color:#d71920;font:inherit;font-weight:800;cursor:pointer;text-decoration:underline dotted}.promotion-manual-note-v193{display:block;color:#8a5a00;font-size:10px}.promotion-compact-row-v193 .loss{color:#c52525;font-weight:800}.promotion-compact-row-v193 .gain{color:#16733b;font-weight:800}.promotion-status-active-v193{color:#d71920!important;font-weight:800!important}
+.promotion-compact-list-v193{width:100%;overflow-x:auto;border:1px solid #dce8df;border-radius:10px}.promotion-compact-head-v193,.promotion-compact-row-v193{display:grid;grid-template-columns:minmax(260px,2fr) 70px 120px 120px 135px 100px 125px;gap:8px;align-items:center;min-width:1000px;padding:8px 10px}.promotion-compact-head-v193{background:#eaf5ed;color:#175d35;font-weight:800}.promotion-compact-row-v193{border-top:1px solid #e5ece7;background:#fff;font-size:13px}.promotion-compact-row-v193.excluded{background:#fff9e9}.promotion-compact-row-v193>span{min-width:0;white-space:nowrap}.promotion-compact-product-v193{display:flex;align-items:center;gap:6px;overflow:hidden}.promotion-compact-name-v193{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:transparent;padding:0;font:inherit;font-weight:700;text-align:left;cursor:pointer}.promotion-price-edit-v193{border:0;background:transparent;padding:0;color:#d71920;font:inherit;font-weight:800;cursor:pointer;text-decoration:underline dotted}.promotion-manual-note-v193{display:block;color:#8a5a00;font-size:10px}.promotion-compact-row-v193 .loss{color:#c52525;font-weight:800}.promotion-compact-row-v193 .gain{color:#16733b;font-weight:800}.promotion-status-active-v193{color:#d71920!important;font-weight:800!important}
 
 /* V19.5 — promotion table clarity, sticky headings and safe long-press price editing. */
 .promotion-status-active-v193{
@@ -6602,7 +6602,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 .promotion-current-list-title-v388{font-weight:800;color:#225e3d;padding:8px 10px 2px;}
 @media(max-width:719px){.promotion-scope-switch-v388{gap:5px}.promotion-scope-switch-v388 button{padding:8px 11px;font-size:.92rem}.promotion-current-list-title-v388{font-size:.95rem}}
 
-/* V41.0 — single-promotion grading and mobile promotion controls. */
+/* V41.1 — single-promotion grading and mobile promotion controls. */
 .promotion-custom-margin-batch-v407{display:flex;align-items:end;gap:8px;flex:1 1 100%;min-width:0}
 .promotion-custom-margin-batch-v407 label{display:grid!important;gap:4px!important;min-width:150px!important;margin:0!important;font-size:13px!important;white-space:normal!important}
 .promotion-custom-margin-batch-v407 input{width:100%;min-width:0;box-sizing:border-box;margin:0!important;text-align:left!important}
@@ -6619,7 +6619,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 }
 
 
-/* V41.0 — one promotion, batch margin groups, keyword-first selection. */
+/* V41.1 — one promotion, batch margin groups, keyword-first selection. */
 .promotion-pending-action-row-v408{display:grid;grid-template-columns:minmax(0,1fr) minmax(170px,240px);gap:10px;align-items:start;margin:8px 0}
 .promotion-pending-action-row-v408 .promotion-pending-selection-v193{margin:0}
 .promotion-custom-margin-inline-v408{display:grid;gap:5px;font-weight:800;color:#607069}
@@ -6637,4 +6637,18 @@ body.system-media-preview-open-v305{overflow:hidden}
   .promotion-custom-margin-inline-v408 input{width:92px}
   .promotion-margin-override-row-v407{grid-template-columns:1fr!important}
   .promotion-margin-override-row-v407>button{width:100%;white-space:normal!important}
+}
+
+
+/* V41.1 — promotion price list parity: horizontal mobile table + canonical colors. */
+.promotion-compact-list-v193{overflow-x:auto!important;-webkit-overflow-scrolling:touch}
+.promotion-compact-head-v193,.promotion-compact-row-v193{grid-template-columns:minmax(260px,2fr) 70px 120px 120px 135px 100px 125px!important;min-width:1000px!important}
+.promotion-compact-row-v193 .original-manual-v411{color:#0b68c9!important;font-weight:800}
+.promotion-compact-row-v193 .gain,.promotion-compact-row-v193 .gain .promotion-price-edit-v193{color:#087a43!important;font-weight:800}
+.promotion-compact-row-v193 .loss,.promotion-compact-row-v193 .loss .promotion-price-edit-v193{color:#c62828!important;font-weight:800}
+@media(max-width:719px){
+  .promotion-price-list-panel-v183{overflow-x:auto!important}
+  .promotion-compact-list-v193{overflow-x:auto!important;width:100%!important}
+  .promotion-compact-head-v193{display:grid!important}
+  .promotion-compact-row-v193{display:grid!important}
 }
