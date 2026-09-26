@@ -3570,14 +3570,35 @@ function getPromotionRunningDayV208(createdAt) {
   return Math.max(1, Math.floor((today - startDay) / 86400000) + 1);
 }
 
+function getPromotionParticipationStatsV407(promotion = null) {
+  const active = promotion || getPromotionSettingsV183();
+  if (!active) return { participating:0, excluded:0 };
+  const products = getProducts();
+  const participating = products.filter(product =>
+    (!isMinimumPriceManualV160(product) || active.includeManualPriceProducts === true) &&
+    promotionProductIncludedV388(String(product?.id || ""), active)
+  ).length;
+  const validIds = new Set(products.map(product => String(product?.id || "").trim().toUpperCase()).filter(Boolean));
+  const excluded = Array.from(new Set(Array.isArray(active.excludedProductIds) ? active.excludedProductIds : []))
+    .filter(id => validIds.has(String(id || "").trim().toUpperCase())).length;
+  return { participating, excluded };
+}
+
+function formatPromotionStatusV407(promotion, includeDay = false) {
+  if (!promotion) return "";
+  const stats = getPromotionParticipationStatsV407(promotion);
+  const margin = Number(promotion.targetMarginRate);
+  const marginText = Number.isFinite(margin) ? `${Number.isInteger(margin) ? margin.toFixed(0) : margin.toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}%` : "";
+  const dayText = includeDay ? ` · 第${getPromotionRunningDayV208(promotion.createdAt)}天` : "";
+  return `${promotion.name}${dayText} · ${marginText} · ${stats.participating}项参与 · 排除${stats.excluded}项`;
+}
+
 function renderDashboardPromotionStatusV208() {
   const target = document.getElementById("dashboardPromotionStatusV208");
   if (!target) return;
   const promotion = getPromotionSettingsV183();
   if (!promotion) { target.hidden = true; target.textContent = ""; return; }
-  const day = getPromotionRunningDayV208(promotion.createdAt);
-  const excluded = Array.isArray(promotion.excludedProductIds) ? promotion.excludedProductIds.length : 0;
-  target.textContent = `${promotion.name} 促销进行中 · 第${day}天 · ${promotion.targetMarginRate}% · 排除 ${excluded} 项`;
+  target.textContent = formatPromotionStatusV407(promotion, true);
   target.hidden = false;
 }
 
@@ -4363,6 +4384,8 @@ function getPromotionSettingsV183() {
       .map(id => String(id || "").trim().toUpperCase()).filter(Boolean))),
     priceOverrides: Object.fromEntries(Object.entries(raw.priceOverrides && typeof raw.priceOverrides === "object" ? raw.priceOverrides : {})
       .map(([id, price]) => [String(id || "").trim().toUpperCase(), Math.max(0, Number(price) || 0)]).filter(([id, price]) => id && price > 0)),
+    marginOverrides: Object.fromEntries(Object.entries(raw.marginOverrides && typeof raw.marginOverrides === "object" ? raw.marginOverrides : {})
+      .map(([id, rate]) => [String(id || "").trim().toUpperCase(), Number(rate)]).filter(([id, rate]) => id && Number.isFinite(rate))),
     includeManualPriceProducts: raw.includeManualPriceProducts === true,
     originalPromotionName: String(raw.originalPromotionName || "").trim(),
     createdAt: String(raw.createdAt || ""),
@@ -4383,17 +4406,25 @@ function getPromotionDeliveryV183(product, rules) {
   return getMinimumFreightTierV188(originalPrice, rules);
 }
 
+function getPromotionTargetMarginV407(product, promotion = null) {
+  const active = promotion || getPromotionSettingsV183();
+  const id = String(product?.id || "").trim().toUpperCase();
+  const override = Number(active?.marginOverrides?.[id]);
+  return Number.isFinite(override) ? override : Number(active?.targetMarginRate);
+}
+
 function getPromotionPriceBreakdownV183(product, promotion = null, rules = null, originIndex = null) {
   const active = promotion || getPromotionSettingsV183();
   const configuredRules = rules || getMinimumPriceRulesV160();
   const cost = getPromotionCostV183(product, configuredRules, originIndex);
-  if (!active || cost <= 0) return { price:0, cost, delivery:0, tier:"A", profit:0, profitRate:0 };
-  const denominator = 1 - active.commissionRate / 100 - active.targetMarginRate / 100;
-  if (denominator <= 0) return { price:0, cost, delivery:0, tier:"A", profit:0, profitRate:0 };
+  if (!active || cost <= 0) return { price:0, cost, delivery:0, tier:"A", profit:0, profitRate:0, targetMarginRate:0 };
+  const targetMarginRate = getPromotionTargetMarginV407(product, active);
+  const denominator = 1 - active.commissionRate / 100 - targetMarginRate / 100;
+  if (!Number.isFinite(targetMarginRate) || denominator <= 0) return { price:0, cost, delivery:0, tier:"A", profit:0, profitRate:0, targetMarginRate };
   const freightTier = getPromotionDeliveryV183(product, configuredRules);
   const price = Math.ceil((((cost + freightTier.amount) / denominator) - 1e-9) / 10) * 10;
   const profit = price * (1 - active.commissionRate / 100) - cost - freightTier.amount;
-  return { price, cost, delivery:freightTier.amount, tier:freightTier.code, profit, profitRate:price > 0 ? profit / price * 100 : 0 };
+  return { price, cost, delivery:freightTier.amount, tier:freightTier.code, profit, profitRate:price > 0 ? profit / price * 100 : 0, targetMarginRate };
 }
 
 function promotionProductIncludedV388(productId, promotion) {
@@ -4421,6 +4452,7 @@ let promotionExcludedDraftV183 = new Set();
 let promotionSelectedDraftV388 = new Set();
 let promotionScopeModeDraftV388 = "exclude";
 let promotionPriceOverridesDraftV193 = {};
+let promotionMarginOverridesDraftV407 = {};
 let promotionSearchSelectionV184 = new Set();
 let promotionExcludedSelectionV184 = new Set();
 let promotionDeleteInProgressV184 = false;
@@ -4453,6 +4485,7 @@ function getPromotionDraftV183() {
     promotionScope: promotionScopeModeDraftV388 === "selected" ? "selected" : "exclude",
     selectedProductIds: Array.from(promotionSelectedDraftV388),
     priceOverrides: { ...promotionPriceOverridesDraftV193 },
+    marginOverrides: { ...promotionMarginOverridesDraftV407 },
     includeManualPriceProducts: promotionIncludeManualDraftV361 === true,
     originalPromotionName: String(promotionOriginalNameDraftV361 || "").trim()
   };
@@ -4471,6 +4504,7 @@ function hasPromotionDraftChangesV183() {
     draft.promotionScope !== (expected.promotionScope === "selected" ? "selected" : "exclude") ||
     JSON.stringify([...draft.selectedProductIds].sort()) !== JSON.stringify([...(expected.selectedProductIds || [])].sort()) ||
     JSON.stringify(draft.priceOverrides || {}) !== JSON.stringify(expected.priceOverrides || {}) ||
+    JSON.stringify(draft.marginOverrides || {}) !== JSON.stringify(expected.marginOverrides || {}) ||
     Boolean(draft.includeManualPriceProducts) !== Boolean(expected.includeManualPriceProducts) ||
     String(draft.originalPromotionName || "") !== String(expected.originalPromotionName || "");
 }
@@ -4488,6 +4522,7 @@ function resetPromotionDraftV183() {
   promotionSelectedDraftV388 = new Set(active?.selectedProductIds || []);
   promotionScopeModeDraftV388 = active?.promotionScope === "selected" ? "selected" : "exclude";
   promotionPriceOverridesDraftV193 = { ...(active?.priceOverrides || {}) };
+  promotionMarginOverridesDraftV407 = { ...(active?.marginOverrides || {}) };
   promotionIncludeManualDraftV361 = active?.includeManualPriceProducts === true;
   promotionOriginalNameDraftV361 = String(active?.originalPromotionName || "").trim();
   promotionSearchSelectionV184 = new Set();
@@ -4553,10 +4588,42 @@ function getPromotionExcludeMatchesV183(query) {
   return getPromotionSearchProductsV185(query, String(document.getElementById("promotionExcludeFilterV184")?.value || "latest"));
 }
 
+function isPromotionProductAlreadyAssignedV407(productId) {
+  const id = String(productId || "").trim().toUpperCase();
+  if (!id) return true;
+  if (promotionExcludedDraftV183.has(id)) return true;
+  if (Object.prototype.hasOwnProperty.call(promotionMarginOverridesDraftV407, id)) return true;
+  if (promotionScopeModeDraftV388 === "selected" && promotionSelectedDraftV388.has(id)) return true;
+  return false;
+}
+
+function isPromotionProductSelectableV407(product) {
+  const id = String(product?.id || "").trim().toUpperCase();
+  if (!id || isPromotionProductAlreadyAssignedV407(id)) return false;
+  if (isMinimumPriceManualV160(product) && promotionIncludeManualDraftV361 !== true) return false;
+  return true;
+}
+
 function promotionCurrentProfitV183(product, effectivePrice, promotion, rules, originIndex) {
   const cost = getPromotionCostV183(product, rules, originIndex);
   const delivery = getPromotionDeliveryV183(product, rules).amount;
   return effectivePrice * (1 - promotion.commissionRate / 100) - cost - delivery;
+}
+
+function renderPromotionMarginOverridesV407() {
+  const box = document.getElementById("promotionMarginOverridesBoxV407");
+  const list = document.getElementById("promotionMarginOverridesListV407");
+  if (!box || !list) return;
+  const products = getProducts();
+  const rows = Object.entries(promotionMarginOverridesDraftV407).map(([id, rate]) => ({
+    product: products.find(p => String(p?.id || "").trim().toUpperCase() === id), id, rate:Number(rate)
+  })).filter(row => row.product && Number.isFinite(row.rate));
+  box.hidden = rows.length === 0;
+  const defaultRate = getPromotionDraftV183().targetMarginRate;
+  list.innerHTML = rows.map(row => `<div class="promotion-margin-override-row-v407">
+    <div><button type="button" class="inventory-product-name-copy promotion-excluded-name-v186" data-product-name="${escapeHTML(row.product.name)}" onclick="copyInventoryProductName(this)" title="点击复制产品名称">${escapeHTML(row.product.name)}</button>${buildProductIdCopyButtonV166(row.id, "promotion-product-id-v183")}<span>自定义目标净利率：${row.rate}%</span></div>
+    <button type="button" data-remove-promotion-margin-v407="${escapeHTML(row.id)}">恢复默认${escapeHTML(String(defaultRate))}%</button>
+  </div>`).join("");
 }
 
 function renderPromotionExcludedListV183() {
@@ -4576,6 +4643,7 @@ function renderPromotionExcludedListV183() {
       <div><button type="button" class="inventory-product-name-copy promotion-excluded-name-v186" data-product-name="${escapeHTML(product.name)}" onclick="copyInventoryProductName(this)" title="点击复制产品名称">${escapeHTML(product.name)}</button>${buildProductIdCopyButtonV166(product.id, "promotion-product-id-v183")}<span>${selectedMode ? "参与促销" : `使用原最低售价：${formatMoney(product.minimumPrice, "RM ")}`}</span></div>
       <button type="button" data-remove-promotion-exclusion="${escapeHTML(product.id)}">${selectedMode ? "移除促销" : "移除排除"}</button>
     </div>`).join("") : `<div class="promotion-empty-v183">${selectedMode ? "尚未选择促销产品" : "没有排除产品"}</div>`;
+  renderPromotionMarginOverridesV407();
   updatePromotionBatchControlsV184();
   updatePromotionDraftStatusV186();
 }
@@ -4629,11 +4697,14 @@ function updatePromotionBatchControlsV184() {
   const selectedModeV388 = promotionScopeModeDraftV388 === "selected";
   const currentSetV388 = selectedModeV388 ? promotionSelectedDraftV388 : promotionExcludedDraftV183;
   const selectableIds = matches
-    .filter(product => !currentSetV388.has(String(product.id || "").toUpperCase()))
+    .filter(product => isPromotionProductSelectableV407(product))
     .map(product => String(product.id || "").toUpperCase());
   // V19.8: keep pending selections across different search keywords.
   // Only confirmed exclusions are removed from the pending selection set.
-  promotionSearchSelectionV184 = new Set([...promotionSearchSelectionV184].filter(id => !currentSetV388.has(id)));
+  promotionSearchSelectionV184 = new Set([...promotionSearchSelectionV184].filter(id => {
+    const product = getProducts().find(item => String(item?.id || "").trim().toUpperCase() === id);
+    return product && isPromotionProductSelectableV407(product);
+  }));
   promotionExcludedSelectionV184 = new Set([...promotionExcludedSelectionV184].filter(id => currentSetV388.has(id)));
   const searchTools = document.getElementById("promotionSearchBatchToolsV184");
   const excludedTools = document.getElementById("promotionExcludedBatchToolsV184");
@@ -4641,9 +4712,11 @@ function updatePromotionBatchControlsV184() {
   const selectExcluded = document.getElementById("promotionSelectAllExcludedV184");
   const addSelected = document.getElementById("promotionExcludeSelectedV184");
   const removeSelected = document.getElementById("promotionRemoveSelectedV184");
+  const setMarginSelectedV407 = document.getElementById("promotionSetMarginSelectedV407");
+  const batchMarginInputV407 = document.getElementById("promotionBatchMarginV407");
   const selectSearchLabelV406 = document.getElementById("promotionSelectAllSearchLabelV401");
   if (selectSearchLabelV406) selectSearchLabelV406.textContent = `全选当前搜索结果（${selectableIds.length}项）`;
-  if (searchTools) searchTools.hidden = matches.length === 0;
+  if (searchTools) searchTools.hidden = selectableIds.length === 0;
   if (excludedTools) excludedTools.hidden = currentSetV388.size === 0;
   if (selectSearch) {
     const currentSelectedCount = selectableIds.filter(id => promotionSearchSelectionV184.has(id)).length;
@@ -4661,6 +4734,11 @@ function updatePromotionBatchControlsV184() {
     addSelected.textContent = `${selectedModeV388 ? "确认加入促销" : "确认加入排除"}（${promotionSearchSelectionV184.size}）`;
     addSelected.classList.add("promotion-confirm-action-v197", "promotion-confirm-add-v197");
   }
+  if (setMarginSelectedV407) {
+    setMarginSelectedV407.disabled = promotionSearchSelectionV184.size === 0 || selectedModeV388;
+    setMarginSelectedV407.textContent = `设定自定义利润率（${promotionSearchSelectionV184.size}）`;
+  }
+  if (batchMarginInputV407) batchMarginInputV407.disabled = selectedModeV388;
   renderPromotionPendingSelectionV193();
   if (removeSelected) {
     removeSelected.disabled = promotionExcludedSelectionV184.size === 0;
@@ -4686,17 +4764,18 @@ function renderPromotionExcludeSearchV183() {
     return;
   }
   const allMatches = getPromotionSearchProductsV185(query, filterMode)
-    .filter(product => !(promotionScopeModeDraftV388 === "selected" ? promotionSelectedDraftV388 : promotionExcludedDraftV183).has(String(product.id || "").toUpperCase()));
+    .filter(product => isPromotionProductSelectableV407(product));
   const matches = allMatches;
   results.innerHTML = matches.length ? matches.map(product => {
     const id = String(product.id || "").toUpperCase();
     const manual = isMinimumPriceManualV160(product);
     const manualProtected = manual && promotion.includeManualPriceProducts !== true;
+    const targetMarginV407 = getPromotionTargetMarginV407(product, promotion);
     const promoPrice = manualProtected ? Math.max(0, Number(product.minimumPrice) || 0) : getPromotionPriceBreakdownV183(product, promotion, rules, originIndex).price;
     return `<div class="promotion-search-result-v183 ${manualProtected ? "price-control" : ""}">
       <input class="promotion-row-check-v184" type="checkbox" data-select-search-v184="${escapeHTML(id)}" ${promotionSearchSelectionV184.has(id) ? "checked" : ""} aria-label="选择 ${escapeHTML(product.name)}" />
       <div><button type="button" class="inventory-product-name-copy promotion-search-name-v186" data-product-name="${escapeHTML(product.name)}" onclick="copyInventoryProductName(this)" title="点击复制产品名称">${escapeHTML(product.name)}</button>${buildProductIdCopyButtonV166(id, "promotion-product-id-v183")}
-      <span>库存 ${formatNumber(product.stock)} · ${getAverageCostLabelV205(product, originIndex)} ${formatMoney(product.averageCost, "RM ")} · 原最低售价 ${formatMoney(product.minimumPrice, "RM ")}${manualProtected ? ` · 售价控制（精品保护价，不参与促销）` : manual ? ` · 售价控制已加入 Crazy Sales · 促销最低售价 ${formatMoney(promoPrice, "RM ")}` : ` · 促销最低售价 ${formatMoney(promoPrice, "RM ")}`}</span></div>
+      <span>库存 ${formatNumber(product.stock)} · ${getAverageCostLabelV205(product, originIndex)} ${formatMoney(product.averageCost, "RM ")} · 原最低售价 ${formatMoney(product.minimumPrice, "RM ")}${manualProtected ? ` · 售价控制（精品保护价，不参与促销）` : manual ? ` · 售价控制已加入 Crazy Sales · 目标净利率 ${targetMarginV407}% · 促销最低售价 ${formatMoney(promoPrice, "RM ")}` : ` · 目标净利率 ${targetMarginV407}% · 促销最低售价 ${formatMoney(promoPrice, "RM ")}`}</span></div>
       <button type="button" data-add-promotion-exclusion="${escapeHTML(id)}">${promotionScopeModeDraftV388 === "selected" ? "加入促销" : "加入排除"}</button>
     </div>`;
   }).join("") : `<div class="promotion-empty-v183">${query ? "当前搜索没有更多可加入产品" : "当前筛选下没有更多可加入产品"}</div>`;
@@ -4893,7 +4972,7 @@ function getPromotionMarginBadgeV209(product, profitInfo = null) {
   if (!promotion || (isMinimumPriceManualV160(product) && promotion.includeManualPriceProducts !== true) || !promotionProductIncludedV388(id, promotion)) return "";
   const info = profitInfo || getProductMinimumProfitV205(product);
   const cls = info.profit < -0.005 ? "loss" : info.profit > 0.005 ? "gain" : "neutral";
-  const rate = Number(promotion.targetMarginRate);
+  const rate = getPromotionTargetMarginV407(product, promotion);
   const text = Number.isFinite(rate) ? `${Number.isInteger(rate) ? rate.toFixed(0) : rate.toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}%` : "";
   return text ? `<em class="inventory-promotion-margin-v209 ${cls}">${escapeHTML(text)}</em>` : "";
 }
@@ -4911,6 +4990,7 @@ function refreshPromotionUiV183() {
     promotionSelectedDraftV388 = new Set(promotion?.selectedProductIds || []);
     promotionScopeModeDraftV388 = promotion?.promotionScope === "selected" ? "selected" : "exclude";
     promotionPriceOverridesDraftV193 = { ...(promotion?.priceOverrides || {}) };
+    promotionMarginOverridesDraftV407 = { ...(promotion?.marginOverrides || {}) };
     promotionIncludeManualDraftV361 = promotion?.includeManualPriceProducts === true;
     promotionOriginalNameDraftV361 = String(promotion?.originalPromotionName || "").trim();
   }
@@ -4947,7 +5027,7 @@ function refreshPromotionUiV183() {
   const deleteButton = document.getElementById("deletePromotionV183");
   const toggleButton = document.getElementById("togglePromotionPriceListV183");
   if (summary) {
-    summary.textContent = promotion ? `${promotion.name}进行中 · 默认${promotion.targetMarginRate}% · ${promotion.promotionScope === "selected" ? `选择${Array.isArray(promotion.selectedProductIds) ? promotion.selectedProductIds.length : 0}项` : `排除${Array.isArray(promotion.excludedProductIds) ? promotion.excludedProductIds.length : 0}项`}` : "";
+    summary.textContent = promotion ? formatPromotionStatusV407(promotion, false) : "";
     summary.hidden = !promotion;
     summary.classList.toggle("promotion-active-summary-v191", Boolean(promotion));
   }
@@ -4956,7 +5036,7 @@ function refreshPromotionUiV183() {
   const actions = document.querySelector(".promotion-actions-v183");
   if (activeButtonStatus) {
     activeButtonStatus.hidden = !promotion;
-    activeButtonStatus.textContent = promotion ? `促销已开启：${promotion.name} · ${promotion.targetMarginRate}%` : "";
+    activeButtonStatus.textContent = promotion ? formatPromotionStatusV407(promotion, false) : "";
   }
   if (status && promotion) { status.textContent = ""; status.classList.remove("promotion-status-active-v193"); }
   else if (status) status.classList.remove("promotion-status-active-v193");
@@ -4971,12 +5051,14 @@ function clearPromotionSearchStateV212() {
   const results = document.getElementById("promotionExcludeSearchResultsV183");
   const selectAll = document.getElementById("promotionSelectAllSearchV184");
   const confirmButton = document.getElementById("promotionExcludeSelectedV184");
+  const marginButtonV407 = document.getElementById("promotionSetMarginSelectedV407");
   promotionSearchSelectionV184 = new Set();
   if (searchInput) searchInput.value = "";
   if (filterInput) filterInput.value = "latest";
   if (results) results.innerHTML = "";
   if (selectAll) { selectAll.checked = false; selectAll.indeterminate = false; }
   if (confirmButton) { confirmButton.disabled = true; confirmButton.textContent = `${promotionScopeModeDraftV388 === "selected" ? "确认加入促销" : "确认加入排除"}（0）`; }
+  if (marginButtonV407) { marginButtonV407.disabled = true; marginButtonV407.textContent = "设定自定义利润率（0）"; }
   try { updatePromotionBatchControlsV184(); } catch (_) {}
 }
 
@@ -5023,6 +5105,9 @@ function setupPromotionSettingsV183() {
   const searchResults = document.getElementById("promotionExcludeSearchResultsV183");
   const selectAllSearch = document.getElementById("promotionSelectAllSearchV184");
   const excludeSelected = document.getElementById("promotionExcludeSelectedV184");
+  const setMarginSelectedV407 = document.getElementById("promotionSetMarginSelectedV407");
+  const batchMarginInputV407 = document.getElementById("promotionBatchMarginV407");
+  const marginOverridesListV407 = document.getElementById("promotionMarginOverridesListV407");
   const excludedList = document.getElementById("promotionExcludedListV183");
   const selectAllExcluded = document.getElementById("promotionSelectAllExcludedV184");
   const removeSelected = document.getElementById("promotionRemoveSelectedV184");
@@ -5249,6 +5334,39 @@ function setupPromotionSettingsV183() {
     renderPromotionExcludedListV183(); renderPromotionExcludeSearchV183();
     if (pricePanel && !pricePanel.hidden) renderPromotionPriceListV183();
   });
+  setMarginSelectedV407?.addEventListener("click", () => {
+    if (promotionScopeModeDraftV388 === "selected") return;
+    const rate = parsePromotionPercentV211(batchMarginInputV407?.value);
+    const promotion = getPromotionDraftV183();
+    const maxRate = Math.floor((100 - promotion.commissionRate - 0.1) * 10 + 1e-9) / 10;
+    if (!Number.isFinite(rate) || rate < -99.9 || rate > maxRate) {
+      window.alert(`自定义目标净利率允许范围为 -99.9% ～ +${maxRate.toFixed(1)}%。`);
+      return;
+    }
+    const ids = [...promotionSearchSelectionV184].filter(id => {
+      const product = getProducts().find(item => String(item?.id || "").trim().toUpperCase() === id);
+      return product && isPromotionProductSelectableV407(product);
+    });
+    if (!ids.length || !window.confirm(`确认把已选择的 ${ids.length} 项产品设为 ${rate}% 目标净利率？
+
+这些产品仍属于同一个促销活动，只覆盖默认 ${promotion.targetMarginRate}% 目标净利率。`)) return;
+    ids.forEach(id => { promotionMarginOverridesDraftV407[id] = rate; delete promotionPriceOverridesDraftV193[id]; });
+    promotionDraftTouchedV209 = true;
+    promotionSearchSelectionV184.clear();
+    renderPromotionExcludedListV183(); renderPromotionExcludeSearchV183();
+    if (pricePanel && !pricePanel.hidden) renderPromotionPriceListV183();
+  });
+  marginOverridesListV407?.addEventListener("click", event => {
+    const button = event.target.closest("[data-remove-promotion-margin-v407]");
+    if (!button) return;
+    const id = String(button.dataset.removePromotionMarginV407 || "").trim().toUpperCase();
+    if (!Object.prototype.hasOwnProperty.call(promotionMarginOverridesDraftV407, id)) return;
+    delete promotionMarginOverridesDraftV407[id];
+    delete promotionPriceOverridesDraftV193[id];
+    promotionDraftTouchedV209 = true;
+    renderPromotionExcludedListV183(); renderPromotionExcludeSearchV183();
+    if (pricePanel && !pricePanel.hidden) renderPromotionPriceListV183();
+  });
   excludedList?.addEventListener("click", event => {
     const button = event.target.closest("[data-remove-promotion-exclusion]");
     if (!button) return;
@@ -5309,6 +5427,11 @@ function setupPromotionSettingsV183() {
       if (status) status.textContent = `当前主播佣金 ${promotion.commissionRate}%，目标净利率允许范围为 -99.9% ～ +${maxPromotionMarginV372.toFixed(1)}%`;
       return;
     }
+    const invalidMarginOverrideV407 = Object.entries(promotion.marginOverrides || {}).find(([, rate]) => !Number.isFinite(Number(rate)) || Number(rate) < -99.9 || Number(rate) > maxPromotionMarginV372);
+    if (invalidMarginOverrideV407) {
+      if (status) status.textContent = `产品 ${invalidMarginOverrideV407[0]} 的自定义目标净利率超出允许范围`;
+      return;
+    }
     const products = getProducts();
     const rules = getMinimumPriceRulesV160();
     const originIndex = getMinimumPriceOriginIndexV160();
@@ -5324,7 +5447,7 @@ function setupPromotionSettingsV183() {
     const activeNotice = currentActive
       ? `⚠️ 促销“${currentActive.name}”已经开启。\n本次确认会更新正在进行的促销设置，不会新增第二个促销。\n\n`
       : "";
-    if (!window.confirm(`${activeNotice}确认${currentActive ? "更新并继续开启" : "保存并开启"}促销？\n\n促销：${promotion.name}\n主播佣金：${promotion.commissionRate}%\n目标净利率：${promotion.targetMarginRate}%\n应用产品：${affected.length} 项\n${promotion.promotionScope === "selected" ? `选择促销产品：${promotion.selectedProductIds.length} 项` : `排除产品：${promotion.excludedProductIds.length} 项`}${manualNoticeV361}${warning}\n\n原最低售价不会被修改；精品退出促销并更新设置，或删除促销后会恢复。`)) return;
+    if (!window.confirm(`${activeNotice}确认${currentActive ? "更新并继续开启" : "保存并开启"}促销？\n\n促销：${promotion.name}\n主播佣金：${promotion.commissionRate}%\n默认目标净利率：${promotion.targetMarginRate}%\n参与产品：${affected.length} 项\n排除产品：${promotion.excludedProductIds.length} 项\n自定义利润率：${Object.keys(promotion.marginOverrides || {}).length} 项${manualNoticeV361}${warning}\n\n原最低售价不会被修改；精品退出促销并更新设置，或删除促销后会恢复。`)) return;
     const now = new Date().toISOString();
     const payload = { ...promotion, active:true, createdAt:currentActive?.createdAt||now, updatedAt:now };
     const saveButtonIdleTextV350 = currentActive ? "更新促销设置" : "开启促销管理";
@@ -18909,7 +19032,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "40.6",
+      version: "40.7",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),

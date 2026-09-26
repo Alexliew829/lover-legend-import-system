@@ -6601,3 +6601,19 @@ body.system-media-preview-open-v305{overflow:hidden}
 .promotion-scope-switch-v388 button.is-active-v388{background:#1f6a43;color:#fff;border-color:#1f6a43;box-shadow:inset 0 2px 4px rgba(0,0,0,.18);transform:translateY(1px);}
 .promotion-current-list-title-v388{font-weight:800;color:#225e3d;padding:8px 10px 2px;}
 @media(max-width:719px){.promotion-scope-switch-v388{gap:5px}.promotion-scope-switch-v388 button{padding:8px 11px;font-size:.92rem}.promotion-current-list-title-v388{font-size:.95rem}}
+
+/* V40.7 — single-promotion grading and mobile promotion controls. */
+.promotion-custom-margin-batch-v407{display:flex;align-items:end;gap:8px;flex:1 1 100%;min-width:0}
+.promotion-custom-margin-batch-v407 label{display:grid!important;gap:4px!important;min-width:150px!important;margin:0!important;font-size:13px!important;white-space:normal!important}
+.promotion-custom-margin-batch-v407 input{width:100%;min-width:0;box-sizing:border-box;margin:0!important;text-align:left!important}
+.promotion-margin-overrides-box-v407{border:1.5px solid #7aa7d9;border-radius:12px;background:#f3f8ff;padding:10px;margin:0 0 12px}
+.promotion-margin-overrides-list-v407{display:grid;gap:8px}
+.promotion-margin-override-row-v407{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 10px;border:1px solid #b8d1ea;border-radius:10px;background:#fff}
+.promotion-margin-override-row-v407>div{display:grid;gap:3px;min-width:0}.promotion-margin-override-row-v407 span{font-size:12px;color:#315b84;font-weight:800}.promotion-margin-override-row-v407>button{border:0;background:transparent;color:#0b68c9;font-weight:800;padding:7px 8px;white-space:nowrap}
+@media(max-width:719px){
+ .promotion-search-box-v186 .promotion-batch-tools-v184{flex-direction:column!important;align-items:stretch!important;overflow:visible!important}
+ .promotion-search-box-v186 .promotion-batch-tools-v184 .secondary-btn{display:block!important;width:100%!important;max-width:100%!important;min-width:0!important;white-space:normal!important;overflow-wrap:anywhere!important;box-sizing:border-box!important}
+ .promotion-custom-margin-batch-v407{display:grid;grid-template-columns:1fr;width:100%;gap:6px}
+ .promotion-custom-margin-batch-v407 label{width:100%!important;min-width:0!important}
+ .promotion-margin-override-row-v407{grid-template-columns:minmax(0,1fr);gap:6px}.promotion-margin-override-row-v407>button{justify-self:start;white-space:normal;text-align:left}
+}
