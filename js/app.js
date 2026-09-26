@@ -3617,7 +3617,8 @@ function formatPromotionStatusV408(promotion, includeDay = false) {
   if (!promotion) return "";
   const stats = getPromotionParticipationStatsV408(promotion);
   const dayText = includeDay ? ` · 第${getPromotionRunningDayV208(promotion.createdAt)}天` : "";
-  const parts = [`${promotion.name}${dayText}`, `${stats.defaultCount}项 ${formatPromotionRateV408(promotion.targetMarginRate)}`, `排除${stats.excluded}项`];
+  const parts = [`${promotion.name}${dayText}`, `${stats.defaultCount}项 ${formatPromotionRateV408(promotion.targetMarginRate)}`];
+  if (stats.excluded > 0) parts.push(`排除${stats.excluded}项`);
   stats.overrideGroups.forEach(group => parts.push(`${group.count}项 ${formatPromotionRateV408(group.rate, true)}`));
   return parts.join(" · ");
 }
@@ -4315,7 +4316,7 @@ function getAverageCostLabelV205(product, originIndex = null) {
   return isVndProductV205(product, originIndex) ? "平均成本（VND不含盆）" : "平均成本";
 }
 
-// V41.1: while a Current Minimum Price write is pending, every renderer must
+// V41.2: while a Current Minimum Price write is pending, every renderer must
 // use the locally-entered price. This prevents promotion auto-price / stale cloud
 // snapshots from flashing intermediate prices before the confirmed value arrives.
 function getPendingMinimumPriceValueV411(productId) {
@@ -4589,7 +4590,7 @@ function promotionProductMatchesV183(product, query) {
     normalizeSmartSearchText(row?.importNumber).includes(normalized));
 }
 
-// V41.1: Promotion keyword search reuses the exact Inventory Management search path.
+// V41.2: Promotion keyword search reuses the exact Inventory Management search path.
 // This fixes Chinese/form keywords such as 水梅、寿娘子、高提根、水旱 and keeps
 // product number / import number / tracking / original-cost matching identical.
 function getPromotionSearchProductsV185(query, sortMode = "latest") {
@@ -4611,7 +4612,7 @@ function isPromotionProductAlreadyAssignedV407(productId) { return isPromotionPr
 function isPromotionProductSelectableV407(product) {
   const id = String(product?.id || "").trim().toUpperCase();
   if (!id || isPromotionProductAlreadyAssignedV407(id)) return false;
-  // V41.1: once promotion is closed, selection search is a full reset and behaves
+  // V41.2: once promotion is closed, selection search is a full reset and behaves
   // exactly like Inventory Management. Old promotion assignment / 精品 filters must
   // not make valid products disappear while preparing the next promotion.
   const active = getPromotionSettingsV183();
@@ -4821,7 +4822,7 @@ function renderPromotionPriceListV183() {
   const originIndex = getMinimumPriceOriginIndexV160();
   const sortMode = String(document.getElementById("promotionPriceListSortV185")?.value || "latest");
   const products = getPromotionSearchProductsV185(query, sortMode);
-  const isMobile = false; // V41.1: price list stays a horizontal-scroll table on mobile too.
+  const isMobile = false; // V41.2: price list stays a horizontal-scroll table on mobile too.
 
   if (isMobile) {
     list.className = "promotion-mobile-cards-v195";
@@ -4852,7 +4853,7 @@ function renderPromotionPriceListV183() {
     }).join("") || `<div class="promotion-empty-v183">没有符合的产品</div>`;
   } else {
     list.className = "promotion-compact-list-v193";
-    list.innerHTML = `<div class="promotion-compact-head-v193"><span>产品名</span><span>库存</span><span>平均成本</span><span>原最低售价</span><span>促销最低售价</span><span>利润率</span><span>预计利润</span></div>` + products.map(product => {
+    list.innerHTML = `<div class="promotion-compact-head-v193"><span>产品名</span><span>库存</span><span>平均成本</span><span>促销最低售价</span><span>利润率</span><span>预计利润</span></div>` + products.map(product => {
       const id = String(product.id || "").toUpperCase();
       const manual = isMinimumPriceManualV160(product);
       const excluded = !promotionProductIncludedV388(id, promotion);
@@ -4863,11 +4864,10 @@ function renderPromotionPriceListV183() {
       const effectivePrice = (manualProtected || excluded) ? originalPrice : (override || autoPromo);
       const profit = (manualProtected || excluded) ? getProductMinimumProfitV205(product).profit : promotionCurrentProfitV183(product, effectivePrice, promotion, rules, originIndex);
       const profitRateV411 = effectivePrice > 0 ? profit / effectivePrice * 100 : 0;
-      const originalToneV411 = getOriginalMinimumPriceToneV411(product, originalPrice, rules, originIndex);
       const promoToneV411 = profit < -0.005 ? "loss" : profit > 0.005 ? "gain" : "";
       return `<div class="promotion-compact-row-v193 ${excluded ? "excluded" : ""} ${manualProtected ? "price-control" : ""}">
         <span class="promotion-compact-product-v193"><button type="button" class="promotion-compact-name-v193" data-product-name="${escapeHTML(product.name)}" onclick="copyInventoryProductName(this)">${escapeHTML(product.name)}</button>${buildProductIdCopyButtonV166(product.id, "promotion-product-id-v183")}</span>
-        <span>${formatNumber(product.stock)}</span><span>${formatPromotionMoneyV194(product.averageCost)}${isVndProductV205(product, originIndex) ? `<small class="average-cost-vnd-note-v207">（VND不含盆）</small>` : ""}</span><span class="${originalToneV411.className}">${formatPromotionMoneyV194(originalPrice)}</span>
+        <span>${formatNumber(product.stock)}</span><span>${formatPromotionMoneyV194(product.averageCost)}${isVndProductV205(product, originIndex) ? `<small class="average-cost-vnd-note-v207">（VND不含盆）</small>` : ""}</span>
         <span class="${promoToneV411}">${manualProtected || excluded ? `<b class="${manualProtected ? "promotion-price-control-value-v348" : ""}">${formatPromotionMoneyV194(originalPrice)}</b>` : `<button type="button" class="promotion-price-edit-v193 ${promoToneV411}" data-promo-price-edit-v193="${escapeHTML(id)}" data-current-price-v193="${effectivePrice}" title="长按修改本次促销最低售价" aria-label="长按修改 ${escapeHTML(product.name)} 本次促销最低售价">${formatPromotionMoneyV194(effectivePrice)}</button>`}${override && !excluded ? `<small class="promotion-manual-note-v193">已手动调整</small>` : ""}</span>
         <span class="${promoToneV411}">${formatProfitTargetV303(profitRateV411)}</span>
         <span class="${promoToneV411}">${formatSignedMoneyV411(profit)}</span>
@@ -5234,7 +5234,7 @@ function setupPromotionSettingsV183() {
     promotionScopeModeDraftV388 = next;
     promotionSearchSelectionV184.clear();
     promotionExcludedSelectionV184.clear();
-    // V41.1: this switch is only the batch action mode; it is not a saved promotion-scope change.
+    // V41.2: this switch is only the batch action mode; it is not a saved promotion-scope change.
     document.getElementById("promotionScopeSelectedV388")?.classList.toggle("is-active-v388", next === "selected");
     document.getElementById("promotionScopeExcludeV388")?.classList.toggle("is-active-v388", next === "exclude");
     const selectedButtonV406=document.getElementById("promotionScopeSelectedV388"),excludeButtonV406=document.getElementById("promotionScopeExcludeV388");
@@ -16528,7 +16528,7 @@ async function restoreInitialMinimumPricesV376(){
 window.restoreInitialMinimumPricesV376=restoreInitialMinimumPricesV376;
 
 
-// V41.1: when the user manually changes the product's current minimum price while a
+// V41.2: when the user manually changes the product's current minimum price while a
 // promotion is active, that value becomes the authoritative current minimum price.
 // If the product is participating in the active promotion, mirror the same value into
 // this promotion's priceOverrides so the promotion calculation cannot immediately
@@ -16633,7 +16633,7 @@ async function editProductMinimumPrice(productId) {
     minimumPriceManual: nextMinimumPriceManual,
     updatedAt
   };
-  // V41.1: a minimum-price edit made during an active promotion is a real Current
+  // V41.2: a minimum-price edit made during an active promotion is a real Current
   // Minimum Price edit, not a temporary promotion-only price. Mirror it into the
   // active promotion override only when that product participates in this promotion.
   const promotionCurrentPriceSnapshotV409 = preparePromotionCurrentMinimumPriceOverrideV409(
@@ -16678,7 +16678,7 @@ async function editProductMinimumPrice(productId) {
       renderBatchProductStockResults();
     }
     renderCostRevisionHistory();
-    // V41.1: updateMinimumPrice now mirrors the active-promotion price override in the
+    // V41.2: updateMinimumPrice now mirrors the active-promotion price override in the
     // same Apps Script lock/revision as the Current Minimum Price write. This removes the
     // old second promotion write race that could let Light Sync repaint RM440 over RM500.
     if (minimumPriceResultV380?.promotionV183 && minimumPriceResultV380.promotionV183.active === true) {
@@ -19118,7 +19118,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "41.1",
+      version: "41.2",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
