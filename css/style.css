@@ -6696,7 +6696,7 @@ body.system-media-preview-open-v305{overflow:hidden}
   .promotion-compact-head-v193,.promotion-compact-row-v193{display:grid!important}
 }
 
-/* V41.6 — mobile promotion price list uses the same scrolling model as 库存资料总表. */
+/* V41.7 — mobile promotion price list uses the same scrolling model as 库存资料总表. */
 .promotion-price-list-panel-v183{
   max-height:none!important;
   overflow:visible!important;
@@ -6756,7 +6756,7 @@ body.system-media-preview-open-v305{overflow:hidden}
   }
 }
 
-/* V41.6 — promotion price list product names must display in full on mobile/desktop. */
+/* V41.7 — promotion price list product names must display in full on mobile/desktop. */
 .promotion-compact-product-v193{
   align-items:flex-start!important;
   overflow:visible!important;
@@ -6777,7 +6777,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 }
 
 
-/* V41.6 — promotion price report is read-only; currency stays visible and amounts stay on one line. */
+/* V41.7 — promotion price report is read-only; currency stays visible and amounts stay on one line. */
 .promotion-currency-prefix-v194{display:inline!important}
 .promotion-price-readonly-v415{
   display:inline-flex!important;align-items:baseline!important;gap:0!important;
@@ -6804,7 +6804,7 @@ body.system-media-preview-open-v305{overflow:hidden}
   .promotion-compact-head-v193,.promotion-compact-row-v193{min-width:720px!important}
 }
 
-/* V41.6 — desktop promotion report: preserve manual-price blue identity and rebalance columns. */
+/* V41.7 — desktop promotion report: preserve manual-price blue identity and rebalance columns. */
 .promotion-compact-row-v193 .promotion-price-manual-v416{
   color:#0b68c9!important;
   font-weight:800!important;
@@ -6827,4 +6827,29 @@ body.system-media-preview-open-v305{overflow:hidden}
     white-space:nowrap!important;
     overflow:visible!important;
   }
+}
+
+/* V41.7 — desktop promotion report final spacing + manual-price blue priority. */
+@media(min-width:720px){
+  .promotion-compact-head-v193,.promotion-compact-row-v193{
+    grid-template-columns:minmax(290px,1fr) 48px 100px 135px 88px 140px!important;
+    min-width:805px!important;
+  }
+  .promotion-compact-product-v193{
+    min-width:290px!important;
+    max-width:none!important;
+    flex-wrap:nowrap!important;
+  }
+  .promotion-compact-name-v193{
+    flex:1 1 auto!important;
+    white-space:normal!important;
+    overflow-wrap:anywhere!important;
+  }
+}
+/* A manual/current controlled minimum price stays blue even when its profit is positive/negative. */
+.promotion-compact-row-v193 .gain .promotion-price-readonly-v415.promotion-price-manual-v416,
+.promotion-compact-row-v193 .loss .promotion-price-readonly-v415.promotion-price-manual-v416,
+.promotion-compact-row-v193 .promotion-price-readonly-v415.promotion-price-manual-v416{
+  color:#0b68c9!important;
+  font-weight:800!important;
 }
