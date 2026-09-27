@@ -4316,7 +4316,7 @@ function getAverageCostLabelV205(product, originIndex = null) {
   return isVndProductV205(product, originIndex) ? "平均成本（VND不含盆）" : "平均成本";
 }
 
-// V42.3: while a Current Minimum Price write is pending, every renderer must
+// V42.4: while a Current Minimum Price write is pending, every renderer must
 // use the locally-entered price. This prevents promotion auto-price / stale cloud
 // snapshots from flashing intermediate prices before the confirmed value arrives.
 function getPendingMinimumPriceValueV411(productId) {
@@ -4590,7 +4590,7 @@ function promotionProductMatchesV183(product, query) {
     normalizeSmartSearchText(row?.importNumber).includes(normalized));
 }
 
-// V42.3: Promotion keyword search reuses the exact Inventory Management search path.
+// V42.4: Promotion keyword search reuses the exact Inventory Management search path.
 // This fixes Chinese/form keywords such as 水梅、寿娘子、高提根、水旱 and keeps
 // product number / import number / tracking / original-cost matching identical.
 function getPromotionSearchProductsV185(query, sortMode = "latest") {
@@ -4612,7 +4612,7 @@ function isPromotionProductAlreadyAssignedV407(productId) { return isPromotionPr
 function isPromotionProductSelectableV407(product) {
   const id = String(product?.id || "").trim().toUpperCase();
   if (!id || isPromotionProductAlreadyAssignedV407(id)) return false;
-  // V42.3: once promotion is closed, selection search is a full reset and behaves
+  // V42.4: once promotion is closed, selection search is a full reset and behaves
   // exactly like Inventory Management. Old promotion assignment / 精品 filters must
   // not make valid products disappear while preparing the next promotion.
   const active = getPromotionSettingsV183();
@@ -4822,7 +4822,7 @@ function renderPromotionPriceListV183() {
   const originIndex = getMinimumPriceOriginIndexV160();
   const sortMode = String(document.getElementById("promotionPriceListSortV185")?.value || "latest");
   const products = getPromotionSearchProductsV185(query, sortMode);
-  const isMobile = false; // V42.3: price list stays a horizontal-scroll table on mobile too.
+  const isMobile = false; // V42.4: price list stays a horizontal-scroll table on mobile too.
 
   if (isMobile) {
     list.className = "promotion-mobile-cards-v195";
@@ -5234,7 +5234,7 @@ function setupPromotionSettingsV183() {
     promotionScopeModeDraftV388 = next;
     promotionSearchSelectionV184.clear();
     promotionExcludedSelectionV184.clear();
-    // V42.3: this switch is only the batch action mode; it is not a saved promotion-scope change.
+    // V42.4: this switch is only the batch action mode; it is not a saved promotion-scope change.
     document.getElementById("promotionScopeSelectedV388")?.classList.toggle("is-active-v388", next === "selected");
     document.getElementById("promotionScopeExcludeV388")?.classList.toggle("is-active-v388", next === "exclude");
     const selectedButtonV406=document.getElementById("promotionScopeSelectedV388"),excludeButtonV406=document.getElementById("promotionScopeExcludeV388");
@@ -5294,7 +5294,7 @@ function setupPromotionSettingsV183() {
     promotionSearchSelectionV184.delete(String(button.dataset.removePendingV193 || "").toUpperCase());
     renderPromotionExcludeSearchV183();
   });
-  // V42.3: “查看全部促销价格” is a read-only report.
+  // V42.4: “查看全部促销价格” is a read-only report.
   // Current Minimum Price edits stay in the official product/inventory edit entry;
   // the report never binds click/long-press price editing.
   const promotionPriceList = document.getElementById("promotionPriceListV183");
@@ -5513,7 +5513,7 @@ function setupPromotionSettingsV183() {
       if (priceList) priceList.innerHTML = "";
       if (toggleButton) toggleButton.textContent = "查看全部促销价格";
 
-      // V42.3: the cloud close is already authoritative at this point. Release the
+      // V42.4: the cloud close is already authoritative at this point. Release the
       // controls/status BEFORE any non-essential repaint, so a large custom-margin /
       // exclusion setup can never make a successful close look frozen.
       promotionDeleteInProgressV184 = false;
@@ -5522,9 +5522,9 @@ function setupPromotionSettingsV183() {
       if (status) status.textContent = "促销管理已关闭并恢复默认最低售价";
 
       window.requestAnimationFrame(() => {
-        try { renderPromotionExcludedListV183(); } catch (error) { console.warn("V42.3 promotion exclusion clear repaint skipped", error); }
-        try { refreshPromotionUiV183(); } catch (error) { console.warn("V42.3 promotion post-delete UI skipped", error); }
-        try { refreshPromotionDependentVisibleViewsV375(); } catch (error) { console.warn("V42.3 promotion dependent repaint skipped", error); }
+        try { renderPromotionExcludedListV183(); } catch (error) { console.warn("V42.4 promotion exclusion clear repaint skipped", error); }
+        try { refreshPromotionUiV183(); } catch (error) { console.warn("V42.4 promotion post-delete UI skipped", error); }
+        try { refreshPromotionDependentVisibleViewsV375(); } catch (error) { console.warn("V42.4 promotion dependent repaint skipped", error); }
       });
       return;
     }
@@ -15133,7 +15133,7 @@ async function promptProductOriginalCostEditorV257(productId, importRecordId = "
 }
 
 
-// V42.3: read-only cost breakdown. Reuses the exact current minimum-price
+// V42.4: read-only cost breakdown. Reuses the exact current minimum-price
 // profit components, so this view can never drift from the pricing/promotion rules.
 function openProductCostBreakdownV421(productId) {
   const id = String(productId || "").trim();
@@ -15161,6 +15161,77 @@ function openProductCostBreakdownV421(productId) {
       <button class="primary-btn product-cost-breakdown-close-v421" type="button">关闭</button>
     </div>`;
   document.body.appendChild(overlay);
+
+  // V42.4: the additional-cost dialog can be dragged by its title on desktop and mobile.
+  // This is display-only: dragging never changes pricing, cost, promotion, inventory or sync data.
+  const dialog = overlay.querySelector(".product-cost-breakdown-dialog-v421");
+  const dragHandle = overlay.querySelector("#productCostBreakdownTitleV421");
+  const positionDialogDefaultV424 = () => {
+    if (!dialog) return;
+    const rect = dialog.getBoundingClientRect();
+    const viewportW = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+    const viewportH = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+    const margin = viewportW <= 719 ? 10 : 16;
+    const left = Math.max(margin, Math.round((viewportW - rect.width) / 2));
+    const top = Math.max(margin, Math.round((viewportH - rect.height) / 2));
+    dialog.style.left = `${left}px`;
+    dialog.style.top = `${top}px`;
+    dialog.style.transform = "none";
+  };
+  window.requestAnimationFrame(positionDialogDefaultV424);
+
+  if (dialog && dragHandle) {
+    let draggingV424 = false;
+    let pointerIdV424 = null;
+    let startX = 0;
+    let startY = 0;
+    let startLeft = 0;
+    let startTop = 0;
+
+    const stopDragV424 = event => {
+      if (!draggingV424) return;
+      if (event && pointerIdV424 !== null && event.pointerId !== pointerIdV424) return;
+      draggingV424 = false;
+      dragHandle.classList.remove("is-dragging-v424");
+      try { if (pointerIdV424 !== null) dragHandle.releasePointerCapture(pointerIdV424); } catch (_) {}
+      pointerIdV424 = null;
+    };
+
+    dragHandle.addEventListener("pointerdown", event => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      const rect = dialog.getBoundingClientRect();
+      draggingV424 = true;
+      pointerIdV424 = event.pointerId;
+      startX = Number(event.clientX) || 0;
+      startY = Number(event.clientY) || 0;
+      startLeft = rect.left;
+      startTop = rect.top;
+      dialog.style.left = `${Math.round(rect.left)}px`;
+      dialog.style.top = `${Math.round(rect.top)}px`;
+      dialog.style.transform = "none";
+      dragHandle.classList.add("is-dragging-v424");
+      try { dragHandle.setPointerCapture(event.pointerId); } catch (_) {}
+      event.preventDefault();
+    });
+
+    dragHandle.addEventListener("pointermove", event => {
+      if (!draggingV424 || event.pointerId !== pointerIdV424) return;
+      const viewportW = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+      const viewportH = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+      const rect = dialog.getBoundingClientRect();
+      const margin = viewportW <= 719 ? 8 : 12;
+      const maxLeft = Math.max(margin, viewportW - rect.width - margin);
+      const maxTop = Math.max(margin, viewportH - rect.height - margin);
+      const nextLeft = Math.min(maxLeft, Math.max(margin, startLeft + ((Number(event.clientX) || 0) - startX)));
+      const nextTop = Math.min(maxTop, Math.max(margin, startTop + ((Number(event.clientY) || 0) - startY)));
+      dialog.style.left = `${Math.round(nextLeft)}px`;
+      dialog.style.top = `${Math.round(nextTop)}px`;
+      event.preventDefault();
+    });
+    dragHandle.addEventListener("pointerup", stopDragV424);
+    dragHandle.addEventListener("pointercancel", stopDragV424);
+  }
+
   const close = () => overlay.remove();
   overlay.querySelector(".product-cost-breakdown-close-v421")?.addEventListener("click", close);
   overlay.addEventListener("click", event => { if (event.target === overlay) close(); });
@@ -16533,7 +16604,7 @@ async function editInitialMinimumPriceV376(productId){
   const id=String(productId||"").trim(), product=getProducts().find(p=>String(p?.id||"").trim()===id);
   if(!product){alert("找不到这个产品。");return;}
   initialMinimumPriceEditBusyV419=true;
-  // V42.3: guard the entire native prompt/confirm + cloud save cycle so an iOS
+  // V42.4: guard the entire native prompt/confirm + cloud save cycle so an iOS
   // delayed click from the same long-press cannot reopen the editor with the old Initial value.
   try{
     const current=getInitialMinimumPriceV376(product);
@@ -16599,7 +16670,7 @@ async function restoreInitialMinimumPricesV376(){
 window.restoreInitialMinimumPricesV376=restoreInitialMinimumPricesV376;
 
 
-// V42.3: when the user manually changes the product's current minimum price while a
+// V42.4: when the user manually changes the product's current minimum price while a
 // promotion is active, that value becomes the authoritative current minimum price.
 // If the product is participating in the active promotion, mirror the same value into
 // this promotion's priceOverrides so the promotion calculation cannot immediately
@@ -16704,7 +16775,7 @@ async function editProductMinimumPrice(productId) {
     minimumPriceManual: nextMinimumPriceManual,
     updatedAt
   };
-  // V42.3: a minimum-price edit made during an active promotion is a real Current
+  // V42.4: a minimum-price edit made during an active promotion is a real Current
   // Minimum Price edit, not a temporary promotion-only price. Mirror it into the
   // active promotion override only when that product participates in this promotion.
   const promotionCurrentPriceSnapshotV409 = preparePromotionCurrentMinimumPriceOverrideV409(
@@ -16749,7 +16820,7 @@ async function editProductMinimumPrice(productId) {
       renderBatchProductStockResults();
     }
     renderCostRevisionHistory();
-    // V42.3: updateMinimumPrice now mirrors the active-promotion price override in the
+    // V42.4: updateMinimumPrice now mirrors the active-promotion price override in the
     // same Apps Script lock/revision as the Current Minimum Price write. This removes the
     // old second promotion write race that could let Light Sync repaint RM440 over RM500.
     if (minimumPriceResultV380?.promotionV183 && minimumPriceResultV380.promotionV183.active === true) {
@@ -19195,7 +19266,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "42.3",
+      version: "42.4",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -19911,7 +19982,7 @@ document.addEventListener("click",event=>{
   if(restore){event.preventDefault();event.stopPropagation();restoreInitialMinimumPricesV376();return;}
   const initial=event.target.closest('.product-stock-metric-v256[data-edit-type="initialMinimumPrice"]');
   if(initial){
-    // V42.3: Initial Minimum Price follows the same safety interaction as original cost.
+    // V42.4: Initial Minimum Price follows the same safety interaction as original cost.
     // A normal tap/click does nothing; only the existing 650ms long-press path may edit it.
     event.preventDefault();
     event.stopPropagation();
