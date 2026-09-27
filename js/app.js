@@ -4316,7 +4316,7 @@ function getAverageCostLabelV205(product, originIndex = null) {
   return isVndProductV205(product, originIndex) ? "平均成本（VND不含盆）" : "平均成本";
 }
 
-// V41.8: while a Current Minimum Price write is pending, every renderer must
+// V41.9: while a Current Minimum Price write is pending, every renderer must
 // use the locally-entered price. This prevents promotion auto-price / stale cloud
 // snapshots from flashing intermediate prices before the confirmed value arrives.
 function getPendingMinimumPriceValueV411(productId) {
@@ -4590,7 +4590,7 @@ function promotionProductMatchesV183(product, query) {
     normalizeSmartSearchText(row?.importNumber).includes(normalized));
 }
 
-// V41.8: Promotion keyword search reuses the exact Inventory Management search path.
+// V41.9: Promotion keyword search reuses the exact Inventory Management search path.
 // This fixes Chinese/form keywords such as 水梅、寿娘子、高提根、水旱 and keeps
 // product number / import number / tracking / original-cost matching identical.
 function getPromotionSearchProductsV185(query, sortMode = "latest") {
@@ -4612,7 +4612,7 @@ function isPromotionProductAlreadyAssignedV407(productId) { return isPromotionPr
 function isPromotionProductSelectableV407(product) {
   const id = String(product?.id || "").trim().toUpperCase();
   if (!id || isPromotionProductAlreadyAssignedV407(id)) return false;
-  // V41.8: once promotion is closed, selection search is a full reset and behaves
+  // V41.9: once promotion is closed, selection search is a full reset and behaves
   // exactly like Inventory Management. Old promotion assignment / 精品 filters must
   // not make valid products disappear while preparing the next promotion.
   const active = getPromotionSettingsV183();
@@ -4822,7 +4822,7 @@ function renderPromotionPriceListV183() {
   const originIndex = getMinimumPriceOriginIndexV160();
   const sortMode = String(document.getElementById("promotionPriceListSortV185")?.value || "latest");
   const products = getPromotionSearchProductsV185(query, sortMode);
-  const isMobile = false; // V41.8: price list stays a horizontal-scroll table on mobile too.
+  const isMobile = false; // V41.9: price list stays a horizontal-scroll table on mobile too.
 
   if (isMobile) {
     list.className = "promotion-mobile-cards-v195";
@@ -5234,7 +5234,7 @@ function setupPromotionSettingsV183() {
     promotionScopeModeDraftV388 = next;
     promotionSearchSelectionV184.clear();
     promotionExcludedSelectionV184.clear();
-    // V41.8: this switch is only the batch action mode; it is not a saved promotion-scope change.
+    // V41.9: this switch is only the batch action mode; it is not a saved promotion-scope change.
     document.getElementById("promotionScopeSelectedV388")?.classList.toggle("is-active-v388", next === "selected");
     document.getElementById("promotionScopeExcludeV388")?.classList.toggle("is-active-v388", next === "exclude");
     const selectedButtonV406=document.getElementById("promotionScopeSelectedV388"),excludeButtonV406=document.getElementById("promotionScopeExcludeV388");
@@ -5294,7 +5294,7 @@ function setupPromotionSettingsV183() {
     promotionSearchSelectionV184.delete(String(button.dataset.removePendingV193 || "").toUpperCase());
     renderPromotionExcludeSearchV183();
   });
-  // V41.8: “查看全部促销价格” is a read-only report.
+  // V41.9: “查看全部促销价格” is a read-only report.
   // Current Minimum Price edits stay in the official product/inventory edit entry;
   // the report never binds click/long-press price editing.
   const promotionPriceList = document.getElementById("promotionPriceListV183");
@@ -5513,7 +5513,7 @@ function setupPromotionSettingsV183() {
       if (priceList) priceList.innerHTML = "";
       if (toggleButton) toggleButton.textContent = "查看全部促销价格";
 
-      // V41.8: the cloud close is already authoritative at this point. Release the
+      // V41.9: the cloud close is already authoritative at this point. Release the
       // controls/status BEFORE any non-essential repaint, so a large custom-margin /
       // exclusion setup can never make a successful close look frozen.
       promotionDeleteInProgressV184 = false;
@@ -5522,9 +5522,9 @@ function setupPromotionSettingsV183() {
       if (status) status.textContent = "促销管理已关闭并恢复默认最低售价";
 
       window.requestAnimationFrame(() => {
-        try { renderPromotionExcludedListV183(); } catch (error) { console.warn("V41.8 promotion exclusion clear repaint skipped", error); }
-        try { refreshPromotionUiV183(); } catch (error) { console.warn("V41.8 promotion post-delete UI skipped", error); }
-        try { refreshPromotionDependentVisibleViewsV375(); } catch (error) { console.warn("V41.8 promotion dependent repaint skipped", error); }
+        try { renderPromotionExcludedListV183(); } catch (error) { console.warn("V41.9 promotion exclusion clear repaint skipped", error); }
+        try { refreshPromotionUiV183(); } catch (error) { console.warn("V41.9 promotion post-delete UI skipped", error); }
+        try { refreshPromotionDependentVisibleViewsV375(); } catch (error) { console.warn("V41.9 promotion dependent repaint skipped", error); }
       });
       return;
     }
@@ -16438,24 +16438,37 @@ function hasExplicitInitialMinimumPriceV379(productId){
   return isInitialMinimumPriceLockedV380(productId);
 }
 window.hasExplicitInitialMinimumPriceV379=hasExplicitInitialMinimumPriceV379;
+let initialMinimumPriceEditBusyV419=false;
+let initialMinimumPriceEditCooldownUntilV419=0;
 async function editInitialMinimumPriceV376(productId){
+  const now=Date.now();
+  if(initialMinimumPriceEditBusyV419 || now<initialMinimumPriceEditCooldownUntilV419)return;
   const id=String(productId||"").trim(), product=getProducts().find(p=>String(p?.id||"").trim()===id);
   if(!product){alert("找不到这个产品。");return;}
-  const current=getInitialMinimumPriceV376(product);
-  const entered=window.prompt(`修改初始最低售价：${product.name}\n\n目前初始最低售价：${formatMoney(current,"RM ")}\n请输入新的初始最低售价（最多2位小数）`,current.toFixed(2));
-  if(entered===null)return;
-  const next=normalizeMinimumPriceInput(entered); if(next===null){alert("初始最低售价必须是0或正数，最多2位小数。");return;}
-  if(Math.abs(next-current)<0.005)return;
-  if(!window.confirm(`确认修改初始最低售价？\n\n产品：${product.name}\n目前：${formatMoney(current,"RM ")}\n修改为：${formatMoney(next,"RM ")}\n\n这次只修改以后「恢复初始最低售价」的基准，不会改变当前最低售价、库存、平均成本或 FIFO。`))return;
-  const status=document.getElementById("batchProductStockStatus"); if(status)status.textContent="同步中：初始最低售价";
+  initialMinimumPriceEditBusyV419=true;
+  // V41.9: guard the entire native prompt/confirm + cloud save cycle so an iOS
+  // delayed click from the same long-press cannot reopen the editor with the old Initial value.
   try{
-    const data=await updateInitialMinimumPriceFastV376(id,next);
-    const confirmedInitial=Number(data?.initialMinimumPrice);
-    if(data?.verified!==true || !Number.isFinite(confirmedInitial) || Math.abs(confirmedInitial-next)>=0.005) throw new Error("云端初始最低售价验证失败，请重试。");
-    const map={...getInitialMinimumPriceMapV376(),[id]:confirmedInitial}; applyInitialMinimumPriceMapLocalV376(map);
-    applyInitialMinimumPriceLockLocalV380(id,true);
-    renderBatchProductStockResults(); if(status)status.textContent=`已更新：${product.name} 初始最低售价 ${formatMoney(confirmedInitial,"RM ")}`;
-  }catch(error){ if(status)status.textContent="初始最低售价同步失败"; alert(error?.message||"初始最低售价同步失败"); }
+    const current=getInitialMinimumPriceV376(product);
+    const entered=window.prompt(`修改初始最低售价：${product.name}\n\n目前初始最低售价：${formatMoney(current,"RM ")}\n请输入新的初始最低售价（最多2位小数）`,current.toFixed(2));
+    if(entered===null)return;
+    const next=normalizeMinimumPriceInput(entered); if(next===null){alert("初始最低售价必须是0或正数，最多2位小数。");return;}
+    if(Math.abs(next-current)<0.005)return;
+    if(!window.confirm(`确认修改初始最低售价？\n\n产品：${product.name}\n目前：${formatMoney(current,"RM ")}\n修改为：${formatMoney(next,"RM ")}\n\n这次只修改以后「恢复初始最低售价」的基准，不会改变当前最低售价、库存、平均成本或 FIFO。`))return;
+    const status=document.getElementById("batchProductStockStatus"); if(status)status.textContent="同步中：初始最低售价";
+    try{
+      const data=await updateInitialMinimumPriceFastV376(id,next);
+      const confirmedInitial=Number(data?.initialMinimumPrice);
+      if(data?.verified!==true || !Number.isFinite(confirmedInitial) || Math.abs(confirmedInitial-next)>=0.005) throw new Error("云端初始最低售价验证失败，请重试。");
+      const map={...getInitialMinimumPriceMapV376(),[id]:confirmedInitial}; applyInitialMinimumPriceMapLocalV376(map);
+      applyInitialMinimumPriceLockLocalV380(id,true);
+      renderBatchProductStockResults(); if(status)status.textContent=`已更新：${product.name} 初始最低售价 ${formatMoney(confirmedInitial,"RM ")}`;
+    }catch(error){ if(status)status.textContent="初始最低售价同步失败"; alert(error?.message||"初始最低售价同步失败"); }
+  }finally{
+    initialMinimumPriceEditBusyV419=false;
+    initialMinimumPriceEditCooldownUntilV419=Date.now()+1200;
+    window.initialMinimumPriceLongPressAtV376=Date.now();
+  }
 }
 window.editInitialMinimumPriceV376=editInitialMinimumPriceV376;
 async function restoreInitialMinimumPricesV376(){
@@ -16499,7 +16512,7 @@ async function restoreInitialMinimumPricesV376(){
 window.restoreInitialMinimumPricesV376=restoreInitialMinimumPricesV376;
 
 
-// V41.8: when the user manually changes the product's current minimum price while a
+// V41.9: when the user manually changes the product's current minimum price while a
 // promotion is active, that value becomes the authoritative current minimum price.
 // If the product is participating in the active promotion, mirror the same value into
 // this promotion's priceOverrides so the promotion calculation cannot immediately
@@ -16604,7 +16617,7 @@ async function editProductMinimumPrice(productId) {
     minimumPriceManual: nextMinimumPriceManual,
     updatedAt
   };
-  // V41.8: a minimum-price edit made during an active promotion is a real Current
+  // V41.9: a minimum-price edit made during an active promotion is a real Current
   // Minimum Price edit, not a temporary promotion-only price. Mirror it into the
   // active promotion override only when that product participates in this promotion.
   const promotionCurrentPriceSnapshotV409 = preparePromotionCurrentMinimumPriceOverrideV409(
@@ -16649,7 +16662,7 @@ async function editProductMinimumPrice(productId) {
       renderBatchProductStockResults();
     }
     renderCostRevisionHistory();
-    // V41.8: updateMinimumPrice now mirrors the active-promotion price override in the
+    // V41.9: updateMinimumPrice now mirrors the active-promotion price override in the
     // same Apps Script lock/revision as the Current Minimum Price write. This removes the
     // old second promotion write race that could let Light Sync repaint RM440 over RM500.
     if (minimumPriceResultV380?.promotionV183 && minimumPriceResultV380.promotionV183.active === true) {
@@ -19089,7 +19102,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "41.8",
+      version: "41.9",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
