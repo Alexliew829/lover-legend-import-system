@@ -6696,7 +6696,7 @@ body.system-media-preview-open-v305{overflow:hidden}
   .promotion-compact-head-v193,.promotion-compact-row-v193{display:grid!important}
 }
 
-/* V42.1 — mobile promotion price list uses the same scrolling model as 库存资料总表. */
+/* V42.2 — mobile promotion price list uses the same scrolling model as 库存资料总表. */
 .promotion-price-list-panel-v183{
   max-height:none!important;
   overflow:visible!important;
@@ -6756,7 +6756,7 @@ body.system-media-preview-open-v305{overflow:hidden}
   }
 }
 
-/* V42.1 — promotion price list product names must display in full on mobile/desktop. */
+/* V42.2 — promotion price list product names must display in full on mobile/desktop. */
 .promotion-compact-product-v193{
   align-items:flex-start!important;
   overflow:visible!important;
@@ -6777,7 +6777,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 }
 
 
-/* V42.1 — promotion price report is read-only; currency stays visible and amounts stay on one line. */
+/* V42.2 — promotion price report is read-only; currency stays visible and amounts stay on one line. */
 .promotion-currency-prefix-v194{display:inline!important}
 .promotion-price-readonly-v415{
   display:inline-flex!important;align-items:baseline!important;gap:0!important;
@@ -6804,7 +6804,7 @@ body.system-media-preview-open-v305{overflow:hidden}
   .promotion-compact-head-v193,.promotion-compact-row-v193{min-width:720px!important}
 }
 
-/* V42.1 — desktop promotion report: preserve manual-price blue identity and rebalance columns. */
+/* V42.2 — desktop promotion report: preserve manual-price blue identity and rebalance columns. */
 .promotion-compact-row-v193 .promotion-price-manual-v416{
   color:#0b68c9!important;
   font-weight:800!important;
@@ -6829,7 +6829,7 @@ body.system-media-preview-open-v305{overflow:hidden}
   }
 }
 
-/* V42.1 — desktop promotion report final spacing + manual-price blue priority. */
+/* V42.2 — desktop promotion report final spacing + manual-price blue priority. */
 @media(min-width:720px){
   .promotion-compact-head-v193,.promotion-compact-row-v193{
     grid-template-columns:minmax(290px,1fr) 48px 100px 135px 88px 140px!important;
@@ -6854,7 +6854,7 @@ body.system-media-preview-open-v305{overflow:hidden}
   font-weight:800!important;
 }
 
-/* V42.1 — desktop promotion report: balanced fixed numeric columns + elastic product column. */
+/* V42.2 — desktop promotion report: balanced fixed numeric columns + elastic product column. */
 @media(min-width:720px){
   .promotion-compact-head-v193,.promotion-compact-row-v193{
     grid-template-columns:minmax(300px,1fr) 52px 110px 140px 95px 155px!important;
@@ -6892,11 +6892,13 @@ body.system-media-preview-open-v305{overflow:hidden}
     text-overflow:clip!important;
   }
 }
-/* Mobile keeps the proven horizontal-scroll model from V42.1. */
+/* Mobile keeps the proven horizontal-scroll model from V42.2. */
 @media(max-width:719px){
   .promotion-compact-head-v193,.promotion-compact-row-v193{min-width:720px!important}
 }
-\n\n/* V42.1 display-only cost details + responsive product query filter. */
+
+
+/* V42.2 display-only cost details + responsive product query filter. */
 .product-master-query-toolbar-v421{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:10px;align-items:center}
 .product-master-query-toolbar-v421 .batch-product-search{margin:0;min-width:0;width:100%;max-width:100%}
 #batchProductStockSortV421{width:100%;max-width:100%;min-width:0;min-height:42px}
@@ -6918,4 +6920,18 @@ body.system-media-preview-open-v305{overflow:hidden}
   .product-master-query-toolbar-v421>*{min-width:0;max-width:100%;width:100%;box-sizing:border-box}
   .product-cost-breakdown-overlay-v421{padding:12px}
   .product-cost-breakdown-dialog-v421{padding:18px 16px;border-radius:16px}
+}
+
+
+/* V42.2 Product Query & Modify: match Home Inventory toolbar/summary layout. */
+.product-master-title-row-v422{margin-bottom:8px}
+.product-master-summary-v422{margin-left:auto}
+.product-master-query-toolbar-v422{margin-bottom:8px}
+.product-master-query-toolbar-v422 .batch-product-search{margin-bottom:0;min-width:0;width:100%;max-width:100%}
+.product-master-query-toolbar-v422 #batchProductStockSortV421{min-height:42px;height:42px;width:100%;max-width:100%;min-width:0}
+@media(max-width:719px){
+  .product-master-title-row-v422{align-items:flex-start;gap:8px;flex-wrap:wrap}
+  .product-master-summary-v422{width:100%;margin-left:0;display:flex;gap:10px;flex-wrap:wrap}
+  .product-master-query-toolbar-v422{grid-template-columns:minmax(0,1fr);width:100%;max-width:100%}
+  .product-master-query-toolbar-v422>*{min-width:0;max-width:100%;width:100%;box-sizing:border-box}
 }

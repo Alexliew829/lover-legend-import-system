@@ -2739,7 +2739,7 @@ function setupNavigation() {
         const inventoryQueryV317=String(document.getElementById("inventorySearch")?.value||"").trim();
         if(!inventoryQueryV317) closeOriginalCostPanel();
       }
-      if(target!==current&&current==="supplierPage"){const a=document.getElementById("inventoryMasterPanelV264"),qa=String(document.getElementById("inventoryMasterSearchV261")?.value||"").trim();if(a&&!qa)a.open=false;const p=document.getElementById("productPrefixSettingsV339"),k=String(document.getElementById("newProductPrefixKeyword")?.value||"").trim(),e=String(document.getElementById("newProductPrefixEnglishV319")?.value||"").trim(),c=String(document.getElementById("newProductPrefixCode")?.value||"").trim();if(p&&!k&&!e&&!c)p.open=false;const cp=document.getElementById("productCategorySettingsV343"),ck=String(document.getElementById("productCategoryKeywordV342")?.value||"").trim(),ce=String(document.getElementById("productCategoryEnglishV342")?.value||"").trim(),cc=String(document.getElementById("productCategoryPrefixV342")?.value||"").trim();if(cp&&!ck&&!ce&&!cc)cp.open=false;}
+      if(target!==current&&current==="supplierPage"){const a=document.getElementById("inventoryMasterPanelV264"),qa=String(document.getElementById("inventoryMasterSearchV261")?.value||"").trim();if(a&&!qa)a.open=false;const p=document.getElementById("productPrefixSettingsV339"),k=String(document.getElementById("newProductPrefixKeyword")?.value||"").trim(),e=String(document.getElementById("newProductPrefixEnglishV319")?.value||"").trim(),c=String(document.getElementById("newProductPrefixCode")?.value||"").trim();if(p&&!k&&!e&&!c)p.open=false;const cp=document.getElementById("productCategorySettingsV343"),ck=String(document.getElementById("productCategoryKeywordV342")?.value||"").trim(),ce=String(document.getElementById("productCategoryEnglishV342")?.value||"").trim(),cc=String(document.getElementById("productCategoryPrefixV342")?.value||"").trim();if(cp&&!ck&&!ce&&!cc)cp.open=false;const pq=String(document.getElementById("batchProductStockSearch")?.value||"").trim();if(!pq){const pr=document.getElementById("batchProductStockResults"),ps=document.getElementById("batchProductStockStatus");if(pr){pr.hidden=true;pr.innerHTML="";}if(ps)ps.textContent="";}}
       if(target!==current&&current==="settingsPage"){
         if(!confirmDiscardStaleZeroStockSelectionV227())return;
         if(!confirmLeaveSettingsV160())return;
@@ -4316,7 +4316,7 @@ function getAverageCostLabelV205(product, originIndex = null) {
   return isVndProductV205(product, originIndex) ? "平均成本（VND不含盆）" : "平均成本";
 }
 
-// V42.1: while a Current Minimum Price write is pending, every renderer must
+// V42.2: while a Current Minimum Price write is pending, every renderer must
 // use the locally-entered price. This prevents promotion auto-price / stale cloud
 // snapshots from flashing intermediate prices before the confirmed value arrives.
 function getPendingMinimumPriceValueV411(productId) {
@@ -4590,7 +4590,7 @@ function promotionProductMatchesV183(product, query) {
     normalizeSmartSearchText(row?.importNumber).includes(normalized));
 }
 
-// V42.1: Promotion keyword search reuses the exact Inventory Management search path.
+// V42.2: Promotion keyword search reuses the exact Inventory Management search path.
 // This fixes Chinese/form keywords such as 水梅、寿娘子、高提根、水旱 and keeps
 // product number / import number / tracking / original-cost matching identical.
 function getPromotionSearchProductsV185(query, sortMode = "latest") {
@@ -4612,7 +4612,7 @@ function isPromotionProductAlreadyAssignedV407(productId) { return isPromotionPr
 function isPromotionProductSelectableV407(product) {
   const id = String(product?.id || "").trim().toUpperCase();
   if (!id || isPromotionProductAlreadyAssignedV407(id)) return false;
-  // V42.1: once promotion is closed, selection search is a full reset and behaves
+  // V42.2: once promotion is closed, selection search is a full reset and behaves
   // exactly like Inventory Management. Old promotion assignment / 精品 filters must
   // not make valid products disappear while preparing the next promotion.
   const active = getPromotionSettingsV183();
@@ -4822,7 +4822,7 @@ function renderPromotionPriceListV183() {
   const originIndex = getMinimumPriceOriginIndexV160();
   const sortMode = String(document.getElementById("promotionPriceListSortV185")?.value || "latest");
   const products = getPromotionSearchProductsV185(query, sortMode);
-  const isMobile = false; // V42.1: price list stays a horizontal-scroll table on mobile too.
+  const isMobile = false; // V42.2: price list stays a horizontal-scroll table on mobile too.
 
   if (isMobile) {
     list.className = "promotion-mobile-cards-v195";
@@ -5234,7 +5234,7 @@ function setupPromotionSettingsV183() {
     promotionScopeModeDraftV388 = next;
     promotionSearchSelectionV184.clear();
     promotionExcludedSelectionV184.clear();
-    // V42.1: this switch is only the batch action mode; it is not a saved promotion-scope change.
+    // V42.2: this switch is only the batch action mode; it is not a saved promotion-scope change.
     document.getElementById("promotionScopeSelectedV388")?.classList.toggle("is-active-v388", next === "selected");
     document.getElementById("promotionScopeExcludeV388")?.classList.toggle("is-active-v388", next === "exclude");
     const selectedButtonV406=document.getElementById("promotionScopeSelectedV388"),excludeButtonV406=document.getElementById("promotionScopeExcludeV388");
@@ -5294,7 +5294,7 @@ function setupPromotionSettingsV183() {
     promotionSearchSelectionV184.delete(String(button.dataset.removePendingV193 || "").toUpperCase());
     renderPromotionExcludeSearchV183();
   });
-  // V42.1: “查看全部促销价格” is a read-only report.
+  // V42.2: “查看全部促销价格” is a read-only report.
   // Current Minimum Price edits stay in the official product/inventory edit entry;
   // the report never binds click/long-press price editing.
   const promotionPriceList = document.getElementById("promotionPriceListV183");
@@ -5513,7 +5513,7 @@ function setupPromotionSettingsV183() {
       if (priceList) priceList.innerHTML = "";
       if (toggleButton) toggleButton.textContent = "查看全部促销价格";
 
-      // V42.1: the cloud close is already authoritative at this point. Release the
+      // V42.2: the cloud close is already authoritative at this point. Release the
       // controls/status BEFORE any non-essential repaint, so a large custom-margin /
       // exclusion setup can never make a successful close look frozen.
       promotionDeleteInProgressV184 = false;
@@ -5522,9 +5522,9 @@ function setupPromotionSettingsV183() {
       if (status) status.textContent = "促销管理已关闭并恢复默认最低售价";
 
       window.requestAnimationFrame(() => {
-        try { renderPromotionExcludedListV183(); } catch (error) { console.warn("V42.1 promotion exclusion clear repaint skipped", error); }
-        try { refreshPromotionUiV183(); } catch (error) { console.warn("V42.1 promotion post-delete UI skipped", error); }
-        try { refreshPromotionDependentVisibleViewsV375(); } catch (error) { console.warn("V42.1 promotion dependent repaint skipped", error); }
+        try { renderPromotionExcludedListV183(); } catch (error) { console.warn("V42.2 promotion exclusion clear repaint skipped", error); }
+        try { refreshPromotionUiV183(); } catch (error) { console.warn("V42.2 promotion post-delete UI skipped", error); }
+        try { refreshPromotionDependentVisibleViewsV375(); } catch (error) { console.warn("V42.2 promotion dependent repaint skipped", error); }
       });
       return;
     }
@@ -15133,7 +15133,7 @@ async function promptProductOriginalCostEditorV257(productId, importRecordId = "
 }
 
 
-// V42.1: read-only cost breakdown. Reuses the exact current minimum-price
+// V42.2: read-only cost breakdown. Reuses the exact current minimum-price
 // profit components, so this view can never drift from the pricing/promotion rules.
 function openProductCostBreakdownV421(productId) {
   const id = String(productId || "").trim();
@@ -15285,6 +15285,22 @@ function bindProductStockLongPress() {
   }, true);
 }
 
+function updateBatchProductQuerySummaryV422(products) {
+  const rows = Array.isArray(products) ? products : [];
+  const totalStock = rows.reduce((sum, product) => sum + (Number(product?.stock) || 0), 0);
+  const totalValue = rows.reduce((sum, product) => {
+    const stock = Number(product?.stock) || 0;
+    const averageCost = Number(product?.averageCost) || 0;
+    return sum + (stock * averageCost);
+  }, 0);
+  const stockField = document.getElementById("batchProductFilteredStockV422");
+  const valueField = document.getElementById("batchProductFilteredValueV422");
+  const countField = document.getElementById("batchProductPageCountV422");
+  if (stockField) stockField.textContent = formatNumber(totalStock);
+  if (valueField) valueField.textContent = formatMoney(totalValue, "RM ");
+  if (countField) countField.textContent = `${rows.length} 项`;
+}
+
 function renderBatchProductStockResults() {
   const input = document.getElementById("batchProductStockSearch");
   const output = document.getElementById("batchProductStockResults");
@@ -15301,6 +15317,14 @@ function renderBatchProductStockResults() {
 
   if (status) status.textContent = "";
 
+  const preparedRowsV422 = getInventoryPreparedRowsV321();
+  const products = filterSortInventoryProductsV324(
+    keyword,
+    sortModeV421,
+    preparedRowsV422
+  );
+  updateBatchProductQuerySummaryV422(products);
+
   if (!keyword && sortModeV421 === "latest") {
     output.hidden = true;
     output.innerHTML = "";
@@ -15314,12 +15338,6 @@ function renderBatchProductStockResults() {
 
   if (recentBatchArea) recentBatchArea.hidden = true;
   if (toggleButton) toggleButton.hidden = true;
-
-  const products = filterSortInventoryProductsV324(
-    keyword,
-    sortModeV421,
-    getInventoryPreparedRowsV321()
-  );
 
   output.hidden = false;
 
@@ -16515,7 +16533,7 @@ async function editInitialMinimumPriceV376(productId){
   const id=String(productId||"").trim(), product=getProducts().find(p=>String(p?.id||"").trim()===id);
   if(!product){alert("找不到这个产品。");return;}
   initialMinimumPriceEditBusyV419=true;
-  // V42.1: guard the entire native prompt/confirm + cloud save cycle so an iOS
+  // V42.2: guard the entire native prompt/confirm + cloud save cycle so an iOS
   // delayed click from the same long-press cannot reopen the editor with the old Initial value.
   try{
     const current=getInitialMinimumPriceV376(product);
@@ -16581,7 +16599,7 @@ async function restoreInitialMinimumPricesV376(){
 window.restoreInitialMinimumPricesV376=restoreInitialMinimumPricesV376;
 
 
-// V42.1: when the user manually changes the product's current minimum price while a
+// V42.2: when the user manually changes the product's current minimum price while a
 // promotion is active, that value becomes the authoritative current minimum price.
 // If the product is participating in the active promotion, mirror the same value into
 // this promotion's priceOverrides so the promotion calculation cannot immediately
@@ -16686,7 +16704,7 @@ async function editProductMinimumPrice(productId) {
     minimumPriceManual: nextMinimumPriceManual,
     updatedAt
   };
-  // V42.1: a minimum-price edit made during an active promotion is a real Current
+  // V42.2: a minimum-price edit made during an active promotion is a real Current
   // Minimum Price edit, not a temporary promotion-only price. Mirror it into the
   // active promotion override only when that product participates in this promotion.
   const promotionCurrentPriceSnapshotV409 = preparePromotionCurrentMinimumPriceOverrideV409(
@@ -16731,7 +16749,7 @@ async function editProductMinimumPrice(productId) {
       renderBatchProductStockResults();
     }
     renderCostRevisionHistory();
-    // V42.1: updateMinimumPrice now mirrors the active-promotion price override in the
+    // V42.2: updateMinimumPrice now mirrors the active-promotion price override in the
     // same Apps Script lock/revision as the Current Minimum Price write. This removes the
     // old second promotion write race that could let Light Sync repaint RM440 over RM500.
     if (minimumPriceResultV380?.promotionV183 && minimumPriceResultV380.promotionV183.active === true) {
@@ -19177,7 +19195,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "42.1",
+      version: "42.2",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -19658,16 +19676,24 @@ function registerServiceWorker() {
       const dashboard=document.getElementById("dashboardPage");
       const historyVisible=history && history.classList.contains("active");
       const dashboardVisible=dashboard && dashboard.classList.contains("active");
+      const supplier=document.getElementById("supplierPage");
+      const supplierVisible=supplier && supplier.classList.contains("active");
       const historyResult=document.getElementById("historyResult");
       const hasResult=historyResult && !historyResult.querySelector(":scope > .empty-state");
       const hasInventory=inventoryVisibleProductsV153.length>0;
-      btn.classList.toggle("show",!!((historyVisible&&hasResult)||(dashboardVisible&&hasInventory)));
+      const productQueryResult=document.getElementById("batchProductStockResults");
+      const hasLargeProductQuery=!!(productQueryResult && !productQueryResult.hidden && productQueryResult.querySelectorAll(".product-stock-result-row").length>100);
+      btn.classList.toggle("show",!!((historyVisible&&hasResult)||(dashboardVisible&&hasInventory)||(supplierVisible&&hasLargeProductQuery)));
       updateLabel();
     };
 
     const historyResult=document.getElementById("historyResult");
     if(historyResult){
       new MutationObserver(updateVisibility).observe(historyResult,{childList:true,subtree:true});
+    }
+    const productQueryResult=document.getElementById("batchProductStockResults");
+    if(productQueryResult){
+      new MutationObserver(updateVisibility).observe(productQueryResult,{childList:true,subtree:true,attributes:true,attributeFilter:["hidden"]});
     }
     document.querySelectorAll(".bottom-nav button, .bottom-nav a").forEach(item=>{
       item.addEventListener("click",()=>window.setTimeout(updateVisibility,0));
