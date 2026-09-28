@@ -40,7 +40,7 @@ window.addEventListener("pageshow", () => {
 // V34.3 one-time live-settings cleanup: remove obsolete ZZ / 杂花杂木 / invoice-recognition / two-warehouse residue.
 // Current Products / Imports / Batches are never deleted here. Only settings/drafts that are not part of the
 // current authoritative product collection are pruned, so a restored formal inventory cannot be polluted again.
-// V42.6 one-time repair for the confirmed 28-09-2026 BX0003 partial-save incident.
+// V42.7 one-time repair for the confirmed 28-09-2026 BX0003 partial-save incident.
 // Delete ONLY the exact orphan signature (Products exists, no Imports/Batch link).
 // A completion flag prevents this repair from ever touching a newly re-entered BX0003.
 const BROKEN_BX0003_CLEANUP_FLAG_V426 = "brokenBx0003CleanupV426Completed";
@@ -116,7 +116,7 @@ function cleanupBrokenBx0003V426AfterSync() {
   if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
   if (exactBrokenSignature) {
     try { renderBatchSuggestions(); renderBatchList(); renderInventoryManagementList(); renderDashboard(); } catch (_) {}
-    console.warn("V42.6 repaired orphan BX0003 partial-save record; product can now be re-entered safely.");
+    console.warn("V42.7 repaired orphan BX0003 partial-save record; product can now be re-entered safely.");
   }
   return exactBrokenSignature;
 }
@@ -4397,7 +4397,7 @@ function getAverageCostLabelV205(product, originIndex = null) {
   return isVndProductV205(product, originIndex) ? "平均成本（VND不含盆）" : "平均成本";
 }
 
-// V42.6: while a Current Minimum Price write is pending, every renderer must
+// V42.7: while a Current Minimum Price write is pending, every renderer must
 // use the locally-entered price. This prevents promotion auto-price / stale cloud
 // snapshots from flashing intermediate prices before the confirmed value arrives.
 function getPendingMinimumPriceValueV411(productId) {
@@ -4671,7 +4671,7 @@ function promotionProductMatchesV183(product, query) {
     normalizeSmartSearchText(row?.importNumber).includes(normalized));
 }
 
-// V42.6: Promotion keyword search reuses the exact Inventory Management search path.
+// V42.7: Promotion keyword search reuses the exact Inventory Management search path.
 // This fixes Chinese/form keywords such as 水梅、寿娘子、高提根、水旱 and keeps
 // product number / import number / tracking / original-cost matching identical.
 function getPromotionSearchProductsV185(query, sortMode = "latest") {
@@ -4693,7 +4693,7 @@ function isPromotionProductAlreadyAssignedV407(productId) { return isPromotionPr
 function isPromotionProductSelectableV407(product) {
   const id = String(product?.id || "").trim().toUpperCase();
   if (!id || isPromotionProductAlreadyAssignedV407(id)) return false;
-  // V42.6: once promotion is closed, selection search is a full reset and behaves
+  // V42.7: once promotion is closed, selection search is a full reset and behaves
   // exactly like Inventory Management. Old promotion assignment / 精品 filters must
   // not make valid products disappear while preparing the next promotion.
   const active = getPromotionSettingsV183();
@@ -4903,7 +4903,7 @@ function renderPromotionPriceListV183() {
   const originIndex = getMinimumPriceOriginIndexV160();
   const sortMode = String(document.getElementById("promotionPriceListSortV185")?.value || "latest");
   const products = getPromotionSearchProductsV185(query, sortMode);
-  const isMobile = false; // V42.6: price list stays a horizontal-scroll table on mobile too.
+  const isMobile = false; // V42.7: price list stays a horizontal-scroll table on mobile too.
 
   if (isMobile) {
     list.className = "promotion-mobile-cards-v195";
@@ -5315,7 +5315,7 @@ function setupPromotionSettingsV183() {
     promotionScopeModeDraftV388 = next;
     promotionSearchSelectionV184.clear();
     promotionExcludedSelectionV184.clear();
-    // V42.6: this switch is only the batch action mode; it is not a saved promotion-scope change.
+    // V42.7: this switch is only the batch action mode; it is not a saved promotion-scope change.
     document.getElementById("promotionScopeSelectedV388")?.classList.toggle("is-active-v388", next === "selected");
     document.getElementById("promotionScopeExcludeV388")?.classList.toggle("is-active-v388", next === "exclude");
     const selectedButtonV406=document.getElementById("promotionScopeSelectedV388"),excludeButtonV406=document.getElementById("promotionScopeExcludeV388");
@@ -5375,7 +5375,7 @@ function setupPromotionSettingsV183() {
     promotionSearchSelectionV184.delete(String(button.dataset.removePendingV193 || "").toUpperCase());
     renderPromotionExcludeSearchV183();
   });
-  // V42.6: “查看全部促销价格” is a read-only report.
+  // V42.7: “查看全部促销价格” is a read-only report.
   // Current Minimum Price edits stay in the official product/inventory edit entry;
   // the report never binds click/long-press price editing.
   const promotionPriceList = document.getElementById("promotionPriceListV183");
@@ -5594,7 +5594,7 @@ function setupPromotionSettingsV183() {
       if (priceList) priceList.innerHTML = "";
       if (toggleButton) toggleButton.textContent = "查看全部促销价格";
 
-      // V42.6: the cloud close is already authoritative at this point. Release the
+      // V42.7: the cloud close is already authoritative at this point. Release the
       // controls/status BEFORE any non-essential repaint, so a large custom-margin /
       // exclusion setup can never make a successful close look frozen.
       promotionDeleteInProgressV184 = false;
@@ -5603,9 +5603,9 @@ function setupPromotionSettingsV183() {
       if (status) status.textContent = "促销管理已关闭并恢复默认最低售价";
 
       window.requestAnimationFrame(() => {
-        try { renderPromotionExcludedListV183(); } catch (error) { console.warn("V42.6 promotion exclusion clear repaint skipped", error); }
-        try { refreshPromotionUiV183(); } catch (error) { console.warn("V42.6 promotion post-delete UI skipped", error); }
-        try { refreshPromotionDependentVisibleViewsV375(); } catch (error) { console.warn("V42.6 promotion dependent repaint skipped", error); }
+        try { renderPromotionExcludedListV183(); } catch (error) { console.warn("V42.7 promotion exclusion clear repaint skipped", error); }
+        try { refreshPromotionUiV183(); } catch (error) { console.warn("V42.7 promotion post-delete UI skipped", error); }
+        try { refreshPromotionDependentVisibleViewsV375(); } catch (error) { console.warn("V42.7 promotion dependent repaint skipped", error); }
       });
       return;
     }
@@ -9714,11 +9714,46 @@ function buildProductIdCopyButtonV166(productId, extraClass = "") {
 async function copyProductIdV166(button) {
   const value = String(button?.dataset?.productIdCopy || "").trim();
   if (!value) return;
-  const copied = await copyHistoryText(value, `✓ 已复制产品编号：${value}`);
+  const isHistoryProductIdV427 = Boolean(button?.classList?.contains("history-product-id-v166"));
+  let copied = false;
+
+  if (isHistoryProductIdV427) {
+    // V42.7: History product-code feedback stays on the code badge itself.
+    // Do not create the global bottom-right “已复制产品编号 …” toast.
+    try {
+      if (navigator.clipboard?.writeText && window.isSecureContext) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = value;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        copied = document.execCommand("copy");
+        textarea.remove();
+        if (!copied) throw new Error("Copy command failed");
+      }
+      copied = true;
+    } catch (error) {
+      console.error("History product ID copy failed:", error);
+      showHistoryCopyToast("复制失败，请再试一次");
+      return;
+    }
+  } else {
+    copied = await copyHistoryText(value, `✓ 已复制产品编号：${value}`);
+  }
+
   if (!copied || !button) return;
+  const originalTextV427 = value;
+  button.textContent = "已复制";
   button.classList.add("copied");
   window.clearTimeout(button._productIdCopyTimerV166);
-  button._productIdCopyTimerV166 = window.setTimeout(() => button.classList.remove("copied"), 1200);
+  button._productIdCopyTimerV166 = window.setTimeout(() => {
+    button.textContent = originalTextV427;
+    button.classList.remove("copied");
+  }, 1200);
 }
 
 function buildHistoryProductNameButtons(productNames) {
@@ -10523,8 +10558,12 @@ function buildImportHistoryCard(batch, items, options = {}) {
   const historyCurrencyRate =
     getHistoryCurrencyAndRate(batch, items);
   const currency = escapeHTML(historyCurrencyRate.currency);
-  const exchangeRate = historyCurrencyRate.rate;
   const shippingRate = getBatchShippingRate(batch);
+  const hasStoredTotalQuantityV427 = batch?.totalQuantity !== undefined && batch?.totalQuantity !== null && batch?.totalQuantity !== "";
+  const storedTotalQuantityV427 = Number(batch?.totalQuantity);
+  const totalQuantityV427 = hasStoredTotalQuantityV427 && Number.isFinite(storedTotalQuantityV427)
+    ? Math.max(0, storedTotalQuantityV427)
+    : (items || []).reduce((sum, item) => sum + getHistoryItemQuantities(item).originalQuantity, 0);
 
   const rows = items.map(item => {
     const {
@@ -10565,15 +10604,13 @@ function buildImportHistoryCard(batch, items, options = {}) {
           batch.importNumber
         )}
       </div>
-      <div class="history-meta-grid">
+      <div class="history-meta-grid history-meta-grid-v427">
         <div><span>装柜日期</span><strong>${escapeHTML(batch.containerDate || "-")}</strong></div>
         <div><span>抵达日期</span><strong>${escapeHTML(batch.arrivalDate || "-")}</strong></div>
-        <div><span>货币 / 汇率</span><strong>${currency} / ${formatMoney(exchangeRate)}</strong></div>
-        <div><span>海外运费比例</span><strong>${formatMoney(shippingRate)}%</strong></div>
         <div><span>海外运费</span><strong>${formatMoney(Number(batch.shippingMY) || 0, "RM ")}</strong></div>
-        <div><span>整批原总成本</span><strong>${formatMoney(Number(batch.grandTotal) || 0, "RM ")}</strong></div>
-        <div><span>内地运输＋木架</span><strong>${formatMoney(Number(batch.chinaTransportCost) || 0)} ${currency}</strong></div>
-        <div><span>搭配花盆费用</span><strong>${formatMoney(Number(batch.potCost) || 0)} ${currency}</strong></div>
+        <div><span>海外运费比例</span><strong>${formatMoney(shippingRate)}%</strong></div>
+        <div><span>总数量</span><strong>${formatNumber(totalQuantityV427)}</strong></div>
+        <div><span>整批总成本</span><strong>${formatMoney(Number(batch.grandTotal) || 0, "RM ")}</strong></div>
       </div>
       <div class="history-readonly-note">只读历史资料，不能编辑</div>
       <div class="history-table-wrap">
@@ -11482,14 +11519,24 @@ function buildHistorySoldCostSummary(options = {}) {
   `;
 }
 
-// V35.2 History import-date rule:
-// Every import record is searched by ARRIVAL DATE only. Container/save/created dates
-// are display/audit metadata and must not decide Date Range results.
+// V42.7 History import-date rule: query by formal Import record/save date.
 function getHistoryImportTransactionDate(batch, item = null) {
-  const candidates = [item?.arrivalDate, batch?.arrivalDate];
+  // V42.7: History date range follows the formal Import record/save date,
+  // not container/arrival dates. A batch saved today must be discoverable under
+  // today's History even when its shipment arrived earlier. Keep arrival/container
+  // dates as display-only metadata inside the card.
+  const candidates = [item?.date, batch?.date];
   for (const value of candidates) {
     const normalized = normalizeDateToDDMMYYYY(value);
     if (normalized) return normalized;
+  }
+
+  // Older/migrated records may not carry `date`; use createdAt only as a safe
+  // fallback for the recorded/imported date. Never fall back to arrivalDate here.
+  const createdAt = String(item?.createdAt || batch?.createdAt || "").trim();
+  if (createdAt) {
+    const parsed = new Date(createdAt);
+    if (!Number.isNaN(parsed.getTime())) return formatDateDDMMYYYY(parsed);
   }
   return "";
 }
@@ -12681,7 +12728,7 @@ async function renderImportHistory() {
 
 function getImports(){return typeof loadJSONReadOnlyV317 === "function" ? loadJSONReadOnlyV317("importSystemImports",[]) : loadJSON("importSystemImports",[]);}
 function saveImports(v) {
-  // V42.6: read the pre-save truth directly from localStorage, not the mutable
+  // V42.7: read the pre-save truth directly from localStorage, not the mutable
   // read-only cache object. New-import code pushes into the array returned by
   // getImports(); using that same cached object as `previous` can falsely report
   // "no change" and skip the Imports cloud dirty flag.
@@ -12694,7 +12741,7 @@ function saveImports(v) {
 }
 function getBatches(){return typeof loadJSONReadOnlyV317 === "function" ? loadJSONReadOnlyV317("importSystemBatches",[]) : loadJSON("importSystemBatches",[]);}
 function saveBatches(v) {
-  // V42.6: same hard guard as saveImports(). Compare against an independent
+  // V42.7: same hard guard as saveImports(). Compare against an independent
   // localStorage snapshot so unshift/push mutations can never hide a Batch change.
   const previous = loadJSON("importSystemBatches", []);
   invalidateMinimumPriceOriginIndexV160();
@@ -12793,7 +12840,7 @@ function clearAutoArrivalWhenLeavingMYRV230() {
 }
 
 function ensureDefaultArrivalTodayV426() {
-  // V42.6: for a NEW import with no container date, Arrival Date starts at the
+  // V42.7: for a NEW import with no container date, Arrival Date starts at the
   // device/browser's current local date. It remains an ordinary editable field;
   // once the user changes it, this helper never overwrites the chosen value.
   if (currentEditingImportNumber) return false;
@@ -15250,7 +15297,7 @@ async function promptProductOriginalCostEditorV257(productId, importRecordId = "
 }
 
 
-// V42.6: read-only cost breakdown. Reuses the exact current minimum-price
+// V42.7: read-only cost breakdown. Reuses the exact current minimum-price
 // profit components, so this view can never drift from the pricing/promotion rules.
 function openProductCostBreakdownV421(productId) {
   const id = String(productId || "").trim();
@@ -15279,7 +15326,7 @@ function openProductCostBreakdownV421(productId) {
     </div>`;
   document.body.appendChild(overlay);
 
-  // V42.6: the additional-cost dialog can be dragged by its title on desktop and mobile.
+  // V42.7: the additional-cost dialog can be dragged by its title on desktop and mobile.
   // This is display-only: dragging never changes pricing, cost, promotion, inventory or sync data.
   const dialog = overlay.querySelector(".product-cost-breakdown-dialog-v421");
   const dragHandle = overlay.querySelector("#productCostBreakdownTitleV421");
@@ -16721,7 +16768,7 @@ async function editInitialMinimumPriceV376(productId){
   const id=String(productId||"").trim(), product=getProducts().find(p=>String(p?.id||"").trim()===id);
   if(!product){alert("找不到这个产品。");return;}
   initialMinimumPriceEditBusyV419=true;
-  // V42.6: guard the entire native prompt/confirm + cloud save cycle so an iOS
+  // V42.7: guard the entire native prompt/confirm + cloud save cycle so an iOS
   // delayed click from the same long-press cannot reopen the editor with the old Initial value.
   try{
     const current=getInitialMinimumPriceV376(product);
@@ -16787,7 +16834,7 @@ async function restoreInitialMinimumPricesV376(){
 window.restoreInitialMinimumPricesV376=restoreInitialMinimumPricesV376;
 
 
-// V42.6: when the user manually changes the product's current minimum price while a
+// V42.7: when the user manually changes the product's current minimum price while a
 // promotion is active, that value becomes the authoritative current minimum price.
 // If the product is participating in the active promotion, mirror the same value into
 // this promotion's priceOverrides so the promotion calculation cannot immediately
@@ -16892,7 +16939,7 @@ async function editProductMinimumPrice(productId) {
     minimumPriceManual: nextMinimumPriceManual,
     updatedAt
   };
-  // V42.6: a minimum-price edit made during an active promotion is a real Current
+  // V42.7: a minimum-price edit made during an active promotion is a real Current
   // Minimum Price edit, not a temporary promotion-only price. Mirror it into the
   // active promotion override only when that product participates in this promotion.
   const promotionCurrentPriceSnapshotV409 = preparePromotionCurrentMinimumPriceOverrideV409(
@@ -16937,7 +16984,7 @@ async function editProductMinimumPrice(productId) {
       renderBatchProductStockResults();
     }
     renderCostRevisionHistory();
-    // V42.6: updateMinimumPrice now mirrors the active-promotion price override in the
+    // V42.7: updateMinimumPrice now mirrors the active-promotion price override in the
     // same Apps Script lock/revision as the Current Minimum Price write. This removes the
     // old second promotion write race that could let Light Sync repaint RM440 over RM500.
     if (minimumPriceResultV380?.promotionV183 && minimumPriceResultV380.promotionV183.active === true) {
@@ -19383,7 +19430,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "42.6",
+      version: "42.7",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -20093,13 +20140,50 @@ function setupInventoryMasterV299(){
 
 
 
+// V42.7 mobile bottom-nav viewport guard. iOS/Android virtual keyboards can
+// leave a fixed nav painted against a stale visual viewport after dismissal. Hide
+// the nav while the keyboard materially shrinks the viewport, then force it back
+// to the true screen bottom when the viewport returns. Business/navigation actions
+// are untouched; this is display-positioning only.
+function setupMobileBottomNavViewportGuardV427(){
+  const vv = window.visualViewport;
+  if (!vv || !window.matchMedia?.("(max-width: 768px)")?.matches) return;
+  let timer = 0;
+  const sync = () => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => {
+      const nav = document.querySelector(".bottom-nav");
+      if (!nav) return;
+      const layoutHeight = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+      const keyboardOpen = layoutHeight > 0 && vv.height < layoutHeight * 0.72;
+      document.body.classList.toggle("mobile-keyboard-open-v427", keyboardOpen);
+      if (!keyboardOpen) {
+        nav.style.bottom = "0px";
+        nav.style.top = "auto";
+        nav.style.transform = "translate3d(-50%,0,0)";
+        void nav.offsetHeight;
+      }
+    }, 80);
+  };
+  vv.addEventListener("resize", sync, {passive:true});
+  vv.addEventListener("scroll", sync, {passive:true});
+  window.addEventListener("orientationchange", sync, {passive:true});
+  document.addEventListener("focusout", () => window.setTimeout(sync, 120), true);
+  sync();
+}
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", setupMobileBottomNavViewportGuardV427, {once:true});
+} else {
+  setupMobileBottomNavViewportGuardV427();
+}
+
 // V40.3 bindings: the summary action must not toggle the Promotion panel.
 document.addEventListener("click",event=>{
   const restore=event.target.closest("#restoreInitialMinimumPricesV376");
   if(restore){event.preventDefault();event.stopPropagation();restoreInitialMinimumPricesV376();return;}
   const initial=event.target.closest('.product-stock-metric-v256[data-edit-type="initialMinimumPrice"]');
   if(initial){
-    // V42.6: Initial Minimum Price follows the same safety interaction as original cost.
+    // V42.7: Initial Minimum Price follows the same safety interaction as original cost.
     // A normal tap/click does nothing; only the existing 650ms long-press path may edit it.
     event.preventDefault();
     event.stopPropagation();
