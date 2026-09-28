@@ -40,6 +40,87 @@ window.addEventListener("pageshow", () => {
 // V34.3 one-time live-settings cleanup: remove obsolete ZZ / 杂花杂木 / invoice-recognition / two-warehouse residue.
 // Current Products / Imports / Batches are never deleted here. Only settings/drafts that are not part of the
 // current authoritative product collection are pruned, so a restored formal inventory cannot be polluted again.
+// V42.6 one-time repair for the confirmed 28-09-2026 BX0003 partial-save incident.
+// Delete ONLY the exact orphan signature (Products exists, no Imports/Batch link).
+// A completion flag prevents this repair from ever touching a newly re-entered BX0003.
+const BROKEN_BX0003_CLEANUP_FLAG_V426 = "brokenBx0003CleanupV426Completed";
+function cleanupBrokenBx0003V426AfterSync() {
+  const settingsBefore = loadJSON("importSystemSettings", {});
+  if (settingsBefore?.[BROKEN_BX0003_CLEANUP_FLAG_V426] === true) return false;
+
+  const rawProducts = loadJSON("importSystemProducts", []);
+  const rawImports = loadJSON("importSystemImports", []);
+  const rawBatches = loadJSON("importSystemBatches", []);
+  const target = (Array.isArray(rawProducts) ? rawProducts : []).find(product =>
+    String(product?.id || "").trim().toUpperCase() === "BX0003"
+  );
+  const hasImportLink = (Array.isArray(rawImports) ? rawImports : []).some(record =>
+    String(record?.productId || "").trim().toUpperCase() === "BX0003"
+  );
+  const hasBatchLink = (Array.isArray(rawBatches) ? rawBatches : []).some(batch =>
+    (Array.isArray(batch?.items) ? batch.items : []).some(item =>
+      String(item?.productId || "").trim().toUpperCase() === "BX0003"
+    )
+  );
+  const exactBrokenSignature = Boolean(
+    target && !hasImportLink && !hasBatchLink &&
+    String(target?.name || "").trim() === "好景黄杨游龙矮霸1500" &&
+    Math.abs((Number(target?.stock) || 0) - 1) < 0.000001 &&
+    Math.abs((Number(target?.averageCost) || 0) - 1137.5) < 0.000001 &&
+    String(target?.createdAt || "").startsWith("2026-09-28T12:51:07")
+  );
+
+  // If this device has no BX0003 yet, do not set the completion flag. Another
+  // authoritative pull may still reveal the known orphan. A valid re-entered
+  // BX0003 (with Import/Batch links) is protected and simply seals the flag.
+  if (!target) return false;
+
+  if (exactBrokenSignature) {
+    saveProducts(rawProducts.filter(product => String(product?.id || "").trim().toUpperCase() !== "BX0003"));
+  }
+
+  const settings = loadJSON("importSystemSettings", {});
+  const nextSettings = { ...settings, [BROKEN_BX0003_CLEANUP_FLAG_V426]: true };
+  if (exactBrokenSignature) {
+    [
+      "minimumPriceManualOverrides",
+      "initialMinimumPricesV376",
+      "initialMinimumPriceLockedV380",
+      "productLanguageMetaV262",
+      "productEnglishNameManualOverridesV356",
+      "productMediaLinksV229"
+    ].forEach(key => {
+      const source = nextSettings[key];
+      if (!source || typeof source !== "object" || Array.isArray(source)) return;
+      const copy = { ...source };
+      Object.keys(copy).forEach(id => {
+        if (String(id || "").trim().toUpperCase() === "BX0003") delete copy[id];
+      });
+      nextSettings[key] = copy;
+    });
+    if (nextSettings.promotionV183 && typeof nextSettings.promotionV183 === "object") {
+      const p = { ...nextSettings.promotionV183 };
+      p.excludedProductIds = (Array.isArray(p.excludedProductIds) ? p.excludedProductIds : []).filter(id => String(id || "").trim().toUpperCase() !== "BX0003");
+      p.selectedProductIds = (Array.isArray(p.selectedProductIds) ? p.selectedProductIds : []).filter(id => String(id || "").trim().toUpperCase() !== "BX0003");
+      for (const key of ["priceOverrides", "marginOverrides"]) {
+        if (p[key] && typeof p[key] === "object" && !Array.isArray(p[key])) {
+          const copy = { ...p[key] };
+          Object.keys(copy).forEach(id => { if (String(id || "").trim().toUpperCase() === "BX0003") delete copy[id]; });
+          p[key] = copy;
+        }
+      }
+      nextSettings.promotionV183 = p;
+    }
+  }
+  saveJSON("importSystemSettings", nextSettings);
+  if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
+  if (exactBrokenSignature) {
+    try { renderBatchSuggestions(); renderBatchList(); renderInventoryManagementList(); renderDashboard(); } catch (_) {}
+    console.warn("V42.6 repaired orphan BX0003 partial-save record; product can now be re-entered safely.");
+  }
+  return exactBrokenSignature;
+}
+
 function cleanupLegacySettingsResidueV323() {
   // V34.3 hard cleanup. These legacy feature stores must never participate in the current system again.
   ["invoiceRecognitionDraftsV259","invoiceRecognitionHistoryV259","warehousePublicCatalogV275","supplierDirectoryV261",
@@ -4316,7 +4397,7 @@ function getAverageCostLabelV205(product, originIndex = null) {
   return isVndProductV205(product, originIndex) ? "平均成本（VND不含盆）" : "平均成本";
 }
 
-// V42.5: while a Current Minimum Price write is pending, every renderer must
+// V42.6: while a Current Minimum Price write is pending, every renderer must
 // use the locally-entered price. This prevents promotion auto-price / stale cloud
 // snapshots from flashing intermediate prices before the confirmed value arrives.
 function getPendingMinimumPriceValueV411(productId) {
@@ -4590,7 +4671,7 @@ function promotionProductMatchesV183(product, query) {
     normalizeSmartSearchText(row?.importNumber).includes(normalized));
 }
 
-// V42.5: Promotion keyword search reuses the exact Inventory Management search path.
+// V42.6: Promotion keyword search reuses the exact Inventory Management search path.
 // This fixes Chinese/form keywords such as 水梅、寿娘子、高提根、水旱 and keeps
 // product number / import number / tracking / original-cost matching identical.
 function getPromotionSearchProductsV185(query, sortMode = "latest") {
@@ -4612,7 +4693,7 @@ function isPromotionProductAlreadyAssignedV407(productId) { return isPromotionPr
 function isPromotionProductSelectableV407(product) {
   const id = String(product?.id || "").trim().toUpperCase();
   if (!id || isPromotionProductAlreadyAssignedV407(id)) return false;
-  // V42.5: once promotion is closed, selection search is a full reset and behaves
+  // V42.6: once promotion is closed, selection search is a full reset and behaves
   // exactly like Inventory Management. Old promotion assignment / 精品 filters must
   // not make valid products disappear while preparing the next promotion.
   const active = getPromotionSettingsV183();
@@ -4822,7 +4903,7 @@ function renderPromotionPriceListV183() {
   const originIndex = getMinimumPriceOriginIndexV160();
   const sortMode = String(document.getElementById("promotionPriceListSortV185")?.value || "latest");
   const products = getPromotionSearchProductsV185(query, sortMode);
-  const isMobile = false; // V42.5: price list stays a horizontal-scroll table on mobile too.
+  const isMobile = false; // V42.6: price list stays a horizontal-scroll table on mobile too.
 
   if (isMobile) {
     list.className = "promotion-mobile-cards-v195";
@@ -5234,7 +5315,7 @@ function setupPromotionSettingsV183() {
     promotionScopeModeDraftV388 = next;
     promotionSearchSelectionV184.clear();
     promotionExcludedSelectionV184.clear();
-    // V42.5: this switch is only the batch action mode; it is not a saved promotion-scope change.
+    // V42.6: this switch is only the batch action mode; it is not a saved promotion-scope change.
     document.getElementById("promotionScopeSelectedV388")?.classList.toggle("is-active-v388", next === "selected");
     document.getElementById("promotionScopeExcludeV388")?.classList.toggle("is-active-v388", next === "exclude");
     const selectedButtonV406=document.getElementById("promotionScopeSelectedV388"),excludeButtonV406=document.getElementById("promotionScopeExcludeV388");
@@ -5294,7 +5375,7 @@ function setupPromotionSettingsV183() {
     promotionSearchSelectionV184.delete(String(button.dataset.removePendingV193 || "").toUpperCase());
     renderPromotionExcludeSearchV183();
   });
-  // V42.5: “查看全部促销价格” is a read-only report.
+  // V42.6: “查看全部促销价格” is a read-only report.
   // Current Minimum Price edits stay in the official product/inventory edit entry;
   // the report never binds click/long-press price editing.
   const promotionPriceList = document.getElementById("promotionPriceListV183");
@@ -5513,7 +5594,7 @@ function setupPromotionSettingsV183() {
       if (priceList) priceList.innerHTML = "";
       if (toggleButton) toggleButton.textContent = "查看全部促销价格";
 
-      // V42.5: the cloud close is already authoritative at this point. Release the
+      // V42.6: the cloud close is already authoritative at this point. Release the
       // controls/status BEFORE any non-essential repaint, so a large custom-margin /
       // exclusion setup can never make a successful close look frozen.
       promotionDeleteInProgressV184 = false;
@@ -5522,9 +5603,9 @@ function setupPromotionSettingsV183() {
       if (status) status.textContent = "促销管理已关闭并恢复默认最低售价";
 
       window.requestAnimationFrame(() => {
-        try { renderPromotionExcludedListV183(); } catch (error) { console.warn("V42.5 promotion exclusion clear repaint skipped", error); }
-        try { refreshPromotionUiV183(); } catch (error) { console.warn("V42.5 promotion post-delete UI skipped", error); }
-        try { refreshPromotionDependentVisibleViewsV375(); } catch (error) { console.warn("V42.5 promotion dependent repaint skipped", error); }
+        try { renderPromotionExcludedListV183(); } catch (error) { console.warn("V42.6 promotion exclusion clear repaint skipped", error); }
+        try { refreshPromotionUiV183(); } catch (error) { console.warn("V42.6 promotion post-delete UI skipped", error); }
+        try { refreshPromotionDependentVisibleViewsV375(); } catch (error) { console.warn("V42.6 promotion dependent repaint skipped", error); }
       });
       return;
     }
@@ -7232,7 +7313,7 @@ function importDraftStateHasUserDataV246(state) {
       String(common.trackingNumber || "").trim() ||
       String(common.overseasTrackingNumber || "").trim() ||
       String(common.containerDate || "").trim() ||
-      (String(common.arrivalDate || "").trim() && !batchArrivalAutoFilledByMYRV230) ||
+      (String(common.arrivalDate || "").trim() && !batchArrivalAutoFilledByMYRV230 && !batchArrivalDefaultedTodayV426) ||
       (Number(common.rackQuantity) || 0) > 0 ||
       (Number(common.chinaTransportCost) || 0) > 0 ||
       (Number(common.potCost) || 0) > 0 ||
@@ -7523,6 +7604,7 @@ function applyImportDraftV242(draftId) {
   set("batchContainerDate", common.containerDate);
   set("batchArrivalDate", common.arrivalDate);
   set("batchShippingMY", common.shippingMY);
+  batchArrivalDefaultedTodayV426 = false;
   activeImportDraftIdV242 = String(draft.id || "");
   batchCurrencyManuallySelectedV229 = Boolean(common.currency);
   refreshAutoOriginalCostsForBatchV249();
@@ -12599,7 +12681,11 @@ async function renderImportHistory() {
 
 function getImports(){return typeof loadJSONReadOnlyV317 === "function" ? loadJSONReadOnlyV317("importSystemImports",[]) : loadJSON("importSystemImports",[]);}
 function saveImports(v) {
-  const previous = getImports();
+  // V42.6: read the pre-save truth directly from localStorage, not the mutable
+  // read-only cache object. New-import code pushes into the array returned by
+  // getImports(); using that same cached object as `previous` can falsely report
+  // "no change" and skip the Imports cloud dirty flag.
+  const previous = loadJSON("importSystemImports", []);
   invalidateMinimumPriceOriginIndexV160();
   saveJSON("importSystemImports", v);
   if (typeof markCloudCollectionSaved === "function") {
@@ -12608,7 +12694,9 @@ function saveImports(v) {
 }
 function getBatches(){return typeof loadJSONReadOnlyV317 === "function" ? loadJSONReadOnlyV317("importSystemBatches",[]) : loadJSON("importSystemBatches",[]);}
 function saveBatches(v) {
-  const previous = getBatches();
+  // V42.6: same hard guard as saveImports(). Compare against an independent
+  // localStorage snapshot so unshift/push mutations can never hide a Batch change.
+  const previous = loadJSON("importSystemBatches", []);
   invalidateMinimumPriceOriginIndexV160();
   saveJSON("importSystemBatches", v);
   if (typeof markCloudCollectionSaved === "function") {
@@ -12676,6 +12764,7 @@ function applyBatchRate(){
 
 let batchCurrencyManuallySelectedV229 = false;
 let batchArrivalAutoFilledByMYRV230 = false;
+let batchArrivalDefaultedTodayV426 = false;
 // V26.6: one currency-conflict acknowledgement per new import/draft.
 // It resets only when starting a genuinely new import, not on every row.
 let batchCurrencyConflictAcknowledgedV249 = false;
@@ -12701,6 +12790,24 @@ function clearAutoArrivalWhenLeavingMYRV230() {
   if (picker) picker.value = "";
   batchArrivalAutoFilledByMYRV230 = false;
   updateTransitDays();
+}
+
+function ensureDefaultArrivalTodayV426() {
+  // V42.6: for a NEW import with no container date, Arrival Date starts at the
+  // device/browser's current local date. It remains an ordinary editable field;
+  // once the user changes it, this helper never overwrites the chosen value.
+  if (currentEditingImportNumber) return false;
+  const container = document.getElementById("batchContainerDate");
+  const arrival = document.getElementById("batchArrivalDate");
+  const picker = document.getElementById("batchArrivalDatePicker");
+  if (!arrival) return false;
+  if (String(container?.value || "").trim() || String(arrival.value || "").trim()) return false;
+  const today = formatDateDDMMYYYY(new Date());
+  arrival.value = today;
+  if (picker) picker.value = formatDDMMYYYYToNative(today);
+  batchArrivalDefaultedTodayV426 = true;
+  updateTransitDays();
+  return true;
 }
 
 function formatNativeDateToDDMMYYYY(value) {
@@ -12775,18 +12882,26 @@ function setupDatePickers() {
 
     picker.addEventListener("change", () => {
       textInput.value = formatNativeDateToDDMMYYYY(picker.value);
-      if (textId === "batchArrivalDate") batchArrivalAutoFilledByMYRV230 = false;
+      if (textId === "batchArrivalDate") {
+        batchArrivalAutoFilledByMYRV230 = false;
+        batchArrivalDefaultedTodayV426 = false;
+      }
+      if (textId === "batchContainerDate") ensureDefaultArrivalTodayV426();
       updateTransitDays();
       calculateBatch();
     });
 
     textInput.addEventListener("input", () => {
-      if (textId === "batchArrivalDate") batchArrivalAutoFilledByMYRV230 = false;
+      if (textId === "batchArrivalDate") {
+        batchArrivalAutoFilledByMYRV230 = false;
+        batchArrivalDefaultedTodayV426 = false;
+      }
     });
 
     textInput.addEventListener("blur", () => {
       normalizeFlexibleDateInput(textInput);
       picker.value = formatDDMMYYYYToNative(textInput.value);
+      if (textId === "batchContainerDate") ensureDefaultArrivalTodayV426();
       updateTransitDays();
       calculateBatch();
     });
@@ -12984,7 +13099,9 @@ function resetBatchForm(options = {}) {
 
   batchCurrencyManuallySelectedV229 = false;
   batchArrivalAutoFilledByMYRV230 = false;
+  batchArrivalDefaultedTodayV426 = false;
   batchCurrencyConflictAcknowledgedV249 = false;
+  ensureDefaultArrivalTodayV426();
   const currency = document.getElementById("batchCurrency");
   if (currency) { currency.value = "CNY"; applyBatchRate(); }
 
@@ -15133,7 +15250,7 @@ async function promptProductOriginalCostEditorV257(productId, importRecordId = "
 }
 
 
-// V42.5: read-only cost breakdown. Reuses the exact current minimum-price
+// V42.6: read-only cost breakdown. Reuses the exact current minimum-price
 // profit components, so this view can never drift from the pricing/promotion rules.
 function openProductCostBreakdownV421(productId) {
   const id = String(productId || "").trim();
@@ -15162,7 +15279,7 @@ function openProductCostBreakdownV421(productId) {
     </div>`;
   document.body.appendChild(overlay);
 
-  // V42.5: the additional-cost dialog can be dragged by its title on desktop and mobile.
+  // V42.6: the additional-cost dialog can be dragged by its title on desktop and mobile.
   // This is display-only: dragging never changes pricing, cost, promotion, inventory or sync data.
   const dialog = overlay.querySelector(".product-cost-breakdown-dialog-v421");
   const dragHandle = overlay.querySelector("#productCostBreakdownTitleV421");
@@ -16604,7 +16721,7 @@ async function editInitialMinimumPriceV376(productId){
   const id=String(productId||"").trim(), product=getProducts().find(p=>String(p?.id||"").trim()===id);
   if(!product){alert("找不到这个产品。");return;}
   initialMinimumPriceEditBusyV419=true;
-  // V42.5: guard the entire native prompt/confirm + cloud save cycle so an iOS
+  // V42.6: guard the entire native prompt/confirm + cloud save cycle so an iOS
   // delayed click from the same long-press cannot reopen the editor with the old Initial value.
   try{
     const current=getInitialMinimumPriceV376(product);
@@ -16670,7 +16787,7 @@ async function restoreInitialMinimumPricesV376(){
 window.restoreInitialMinimumPricesV376=restoreInitialMinimumPricesV376;
 
 
-// V42.5: when the user manually changes the product's current minimum price while a
+// V42.6: when the user manually changes the product's current minimum price while a
 // promotion is active, that value becomes the authoritative current minimum price.
 // If the product is participating in the active promotion, mirror the same value into
 // this promotion's priceOverrides so the promotion calculation cannot immediately
@@ -16775,7 +16892,7 @@ async function editProductMinimumPrice(productId) {
     minimumPriceManual: nextMinimumPriceManual,
     updatedAt
   };
-  // V42.5: a minimum-price edit made during an active promotion is a real Current
+  // V42.6: a minimum-price edit made during an active promotion is a real Current
   // Minimum Price edit, not a temporary promotion-only price. Mirror it into the
   // active promotion override only when that product participates in this promotion.
   const promotionCurrentPriceSnapshotV409 = preparePromotionCurrentMinimumPriceOverrideV409(
@@ -16820,7 +16937,7 @@ async function editProductMinimumPrice(productId) {
       renderBatchProductStockResults();
     }
     renderCostRevisionHistory();
-    // V42.5: updateMinimumPrice now mirrors the active-promotion price override in the
+    // V42.6: updateMinimumPrice now mirrors the active-promotion price override in the
     // same Apps Script lock/revision as the Current Minimum Price write. This removes the
     // old second promotion write race that could let Light Sync repaint RM440 over RM500.
     if (minimumPriceResultV380?.promotionV183 && minimumPriceResultV380.promotionV183.active === true) {
@@ -19266,7 +19383,7 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "42.5",
+      version: "42.6",
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -19982,7 +20099,7 @@ document.addEventListener("click",event=>{
   if(restore){event.preventDefault();event.stopPropagation();restoreInitialMinimumPricesV376();return;}
   const initial=event.target.closest('.product-stock-metric-v256[data-edit-type="initialMinimumPrice"]');
   if(initial){
-    // V42.5: Initial Minimum Price follows the same safety interaction as original cost.
+    // V42.6: Initial Minimum Price follows the same safety interaction as original cost.
     // A normal tap/click does nothing; only the existing 650ms long-press path may edit it.
     event.preventDefault();
     event.stopPropagation();
