@@ -15619,7 +15619,7 @@ function renderBatchProductStockResults() {
           data-product-id-copy-v256="${escapeHTML(productIdV256)}"
           aria-label="点击复制产品编号；长按安全修改产品编号" title="点击复制产品编号；长按安全修改产品编号">${escapeHTML(productIdV256)}</button>` : ""}
       </div>
-      <button type="button" class="product-stock-english-edit-btn-v266" data-product-id="${escapeHTML(productIdV256)}" title="点击复制英文名">${escapeHTML(productEnglishNameV262(product)||"英文名：未设置")}</button>
+      <button type="button" class="product-stock-english-edit-btn-v266" data-product-id="${escapeHTML(productIdV256)}" aria-label="点击复制英文名；长按修改英文名" title="点击复制英文名；长按修改英文名">${escapeHTML(productEnglishNameV262(product)||"英文名：未设置")}</button>
 
       <div class="product-stock-modify-card-v376">
         <div class="product-stock-modify-grid-v376">
@@ -16110,8 +16110,39 @@ function editProductEnglishNameFromImportPageV266(productId){
 }
 
 function bindProductEnglishNameEditV266(){
-  const output=document.getElementById("batchProductStockResults");if(!output||output.dataset.englishEditBoundV266==="1")return;output.dataset.englishEditBoundV266="1";
-  output.addEventListener("click",async e=>{const b=e.target.closest(".product-stock-english-edit-btn-v266");if(!b)return;e.preventDefault();e.stopPropagation();const p=getProducts().find(x=>String(x.id||"")===String(b.dataset.productId||""));const txt=String(productEnglishNameV262(p)||"").trim();if(!txt)return;let copied=false;try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(txt);copied=true}}catch(_){}if(!copied){const ta=document.createElement("textarea");ta.value=txt;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();try{copied=document.execCommand("copy")}catch(_){}ta.remove()}if(copied){const original=b.textContent;b.textContent="已复制";window.setTimeout(()=>{if(b.isConnected)b.textContent=original},1500)}});
+  const output=document.getElementById("batchProductStockResults");
+  if(!output||output.dataset.englishEditBoundV266==="1")return;
+  output.dataset.englishEditBoundV266="1";
+
+  let timer=0,button=null,startX=0,startY=0,moved=false,longPressed=false,pointerId=null;
+  const clearTimer=()=>{if(timer)window.clearTimeout(timer);timer=0;};
+  const reset=()=>{clearTimer();button?.classList.remove("long-press-active");button=null;moved=false;longPressed=false;pointerId=null;};
+  const copyEnglish=async b=>{
+    const p=getProducts().find(x=>String(x.id||"")===String(b.dataset.productId||""));
+    const txt=String(productEnglishNameV262(p)||"").trim();
+    if(!txt)return;
+    let copied=false;
+    try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(txt);copied=true}}catch(_){}
+    if(!copied){
+      const ta=document.createElement("textarea");ta.value=txt;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();
+      try{copied=document.execCommand("copy")}catch(_){}ta.remove();
+    }
+    if(copied){const original=b.textContent;b.textContent="已复制";b.classList.add("copied");window.setTimeout(()=>{if(b.isConnected){const latest=getProducts().find(x=>String(x.id||"")===String(b.dataset.productId||""));b.textContent=String(productEnglishNameV262(latest)||original);b.classList.remove("copied")}},1200)}
+  };
+
+  output.addEventListener("pointerdown",event=>{
+    const target=event.target.closest(".product-stock-english-edit-btn-v266");
+    if(!target||(event.pointerType==="mouse"&&event.button!==0))return;
+    reset();button=target;pointerId=event.pointerId;startX=Number(event.clientX)||0;startY=Number(event.clientY)||0;button.classList.add("long-press-active");
+    timer=window.setTimeout(()=>{
+      timer=0;if(!button||moved)return;longPressed=true;const id=String(button.dataset.productId||"");button.classList.remove("long-press-active");editProductEnglishNameFromImportPageV266(id);
+    },650);
+  });
+  output.addEventListener("pointermove",event=>{if(!button||event.pointerId!==pointerId)return;if(Math.abs((Number(event.clientX)||0)-startX)>12||Math.abs((Number(event.clientY)||0)-startY)>12){moved=true;clearTimer();button.classList.remove("long-press-active")}});
+  output.addEventListener("pointerup",event=>{if(!button||event.pointerId!==pointerId)return;const target=button;const shouldCopy=!moved&&!longPressed;reset();if(shouldCopy)copyEnglish(target)});
+  output.addEventListener("pointercancel",event=>{if(pointerId!==null&&event.pointerId!==pointerId)return;reset()});
+  output.addEventListener("contextmenu",event=>{if(event.target.closest(".product-stock-english-edit-btn-v266"))event.preventDefault()});
+  output.addEventListener("click",event=>{if(!event.target.closest(".product-stock-english-edit-btn-v266"))return;event.preventDefault();event.stopPropagation()});
 }
 
 
