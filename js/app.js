@@ -180,7 +180,9 @@ function cleanupLegacySettingsResidueV323() {
   return changed;
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+function setupMainAppV431() {
+  if (window.__loverLegendMainAppSetupV431) return;
+  window.__loverLegendMainAppSetupV431 = true;
   clearTransientSearchInputsOnReloadV304();
   // V37.4: clean any stale PZ+BS duplicate cache before Dashboard/Inventory first paint.
   if (typeof repairLocalBsCanonicalCacheV365 === "function") repairLocalBsCanonicalCacheV365();
@@ -214,7 +216,14 @@ document.addEventListener("DOMContentLoaded", () => {
   setupCloudSync();
   setupSalesInventoryReminder();
   setupDataOperationSafety();
-});
+  try { window.finishMainAppLoadingV431?.(); } catch (_) {}
+}
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", setupMainAppV431, { once:true });
+} else {
+  queueMicrotask(setupMainAppV431);
+}
+
 
 
 
