@@ -5,38 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=43.2" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=43.2" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=43.2" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=43.2" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=43.2" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=43.2" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=43.2" />
+  <link rel="manifest" href="./manifest.json?v=42.9" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=42.9" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=42.9" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=42.9" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=42.9" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=42.9" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=42.9" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=43.2" />
-  <style id="access-lock-critical-v430">
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=42.9" />
+  <style id="access-lock-critical-v299">
     html,body{margin:0;min-height:100%;font-family:Arial,Helvetica,sans-serif}
-    .access-lock{position:fixed;inset:0;z-index:20000;display:grid;place-items:center;padding:20px;background:linear-gradient(rgba(240,247,242,.97),rgba(234,242,236,.98))}
+    .access-lock{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(242,248,244,.96)}
     .access-lock[hidden]{display:none!important}
-    .access-lock-card{width:min(100%,360px);box-sizing:border-box;padding:28px 22px;border:1px solid #c9d8ce;border-radius:18px;background:#fff;box-shadow:0 14px 40px rgba(29,67,44,.18);text-align:center}
-    .access-lock-logo{margin-bottom:8px;font-size:38px}
-    .access-lock-card h1{margin:0 0 6px;color:#1f5d3a;font-size:24px}
-    .access-lock-card p{margin:0 0 18px;color:#66736b;line-height:1.5}
-    .access-lock-card form{display:grid;gap:12px}
-    .access-lock-card input,.access-lock-card button{box-sizing:border-box;width:100%;min-height:46px;border-radius:11px;font-size:17px}
-    .access-lock-card input{border:1px solid #1f5d3a;padding:0 14px;text-align:center;font-size:18px;letter-spacing:1px}
-    .access-lock-card .primary-btn{border:0;background:#1f6b40;color:#fff;font-weight:700}
-    .password-hint-btn{margin-top:13px!important;border:0!important;background:transparent!important;color:#1f5d3a!important;font-weight:700!important;text-decoration:underline}
-    .access-password-hint{margin-top:10px;padding:9px 11px;border-radius:9px;background:#eef6f0;color:#275d3c;font-weight:700}
-    .access-lock-status{min-height:22px;margin-top:10px;color:#bf2020;font-weight:700}
-    .biometric-login-btn{width:100%;margin-top:12px;border:1px solid #2f7350;border-radius:10px;padding:11px 14px;background:#edf7f0;color:#205c3d;font-weight:800}
-    .biometric-login-status{margin-top:9px;color:#315f43;font-size:13px;font-weight:700}
-    body.access-locked{overflow:hidden}
-    .app-shell{visibility:hidden}.access-lock-ready .app-shell{visibility:visible}html:not(.access-lock-ready) .app-shell{display:none!important}
-    html.desktop-auto-pending-v316 .access-lock-card,html.biometric-auto-pending-v304 .access-lock-card{visibility:hidden}
+    .access-lock-card{width:min(360px,calc(100vw - 36px));box-sizing:border-box;background:#fff;border:1px solid #cad8d0;border-radius:18px;padding:28px 22px;text-align:center;box-shadow:0 18px 48px rgba(31,93,58,.16)}
+    .access-lock-logo{font-size:34px}.access-lock-card h1{margin:10px 0 8px;color:#1f5d3a}.access-lock-card p{margin:0 0 16px;color:#66736b;line-height:1.5}
+    .access-lock-card form{display:grid;gap:10px}.access-lock-card input,.access-lock-card button{box-sizing:border-box;width:100%;min-height:46px;border-radius:11px;font-size:17px}
+    .access-lock-card input{border:1px solid #1f5d3a;padding:0 14px;text-align:center}.app-shell{visibility:hidden}.access-lock-ready .app-shell{visibility:visible}html:not(.access-lock-ready) .app-shell{display:none!important}html.desktop-auto-pending-v316 .access-lock-card{visibility:hidden}.access-lock-card .primary-btn{border:0;background:#1f6b40;color:#fff;font-weight:700}
+    html.biometric-auto-pending-v304 .access-lock-card{visibility:hidden}
   </style>
   <script id="biometric-first-paint-v304">
     try {
@@ -48,70 +37,12 @@
       }
     } catch (_) {}
   </script>
-  <link rel="preload" href="./css/style.css?v=43.2" as="style" fetchpriority="high" />
-  <link rel="preload" href="./js/access.js?v=43.2" as="script" fetchpriority="high" />
-    <link rel="stylesheet" href="./css/style.css?v=43.2" media="print" onload="this.media='all'" />
-  <noscript><link rel="stylesheet" href="./css/style.css?v=43.2" /></noscript>
-  <script src="./js/common.js?v=43.2"></script>
-  <script id="main-app-lazy-loader-v432">
-    (() => {
-      let mainAppPromise = null;
-      const loadScript = src => new Promise((resolve, reject) => {
-        const script = document.createElement("script");
-        script.src = src;
-        script.async = false;
-        script.onload = () => resolve();
-        script.onerror = () => reject(new Error(`无法加载 ${src}`));
-        document.head.appendChild(script);
-      });
-
-      window.finishMainAppLoadingV432 = () => {
-        const overlay = document.getElementById("mainAppLoadingV432");
-        if (overlay) overlay.hidden = true;
-        document.documentElement.classList.remove("main-app-loading-v432");
-      };
-
-      const prefetchMainAppV432 = () => {
-        ["./js/sync.js?v=43.2", "./js/app.js?v=43.2"].forEach(href => {
-          if (document.querySelector(`link[data-main-prefetch-v432="${href}"]`)) return;
-          const link = document.createElement("link");
-          link.rel = "prefetch";
-          link.as = "script";
-          link.href = href;
-          link.dataset.mainPrefetchV432 = href;
-          document.head.appendChild(link);
-        });
-      };
-      if ("requestIdleCallback" in window) {
-        window.requestIdleCallback(prefetchMainAppV432, { timeout: 1200 });
-      } else {
-        window.setTimeout(prefetchMainAppV432, 500);
-      }
-
-      window.startMainAppV432 = () => {
-        if (mainAppPromise) return mainAppPromise;
-        document.documentElement.classList.add("main-app-loading-v432");
-        const overlay = document.getElementById("mainAppLoadingV432");
-        if (overlay) {
-          overlay.hidden = false;
-          const text = overlay.querySelector("[data-loading-text]");
-          if (text) text.textContent = "正在进入系统…";
-        }
-        mainAppPromise = loadScript("./js/sync.js?v=43.2")
-          .then(() => loadScript("./js/app.js?v=43.2"))
-          .catch(error => {
-            console.error("Main app lazy load failed:", error);
-            if (overlay) {
-              overlay.hidden = false;
-              const text = overlay.querySelector("[data-loading-text]");
-              if (text) text.textContent = "系统载入失败，请刷新重试";
-            }
-            throw error;
-          });
-        return mainAppPromise;
-      };
-    })();
-  </script>
+  <link rel="preload" href="./css/style.css?v=42.9" as="style" />
+  <link rel="stylesheet" href="./css/style.css?v=42.9" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="./css/style.css?v=42.9" /></noscript>
+  <script defer src="./js/common.js?v=42.9"></script>
+  <script defer src="./js/sync.js?v=42.9"></script>
+  <script defer src="./js/app.js?v=42.9"></script>
 </head>
 <body>
   <div id="accessLock"
@@ -167,22 +98,12 @@
            class="status-text access-lock-status"></div>
     </div>
   </div>
-  <div id="mainAppLoadingV432" hidden style="position:fixed;inset:0;z-index:19990;display:grid;place-items:center;background:rgba(240,247,242,.97);">
-    <div style="min-width:220px;padding:22px 26px;border:1px solid #c9d8ce;border-radius:16px;background:#fff;box-shadow:0 14px 40px rgba(29,67,44,.16);text-align:center;color:#1f5d3a;font-weight:800;">
-      <div style="font-size:28px;margin-bottom:10px;">🌱</div>
-      <div data-loading-text>正在进入系统…</div>
-    </div>
-  </div>
   <script id="access-lock-fast-prefill-v300">
     try {
       const saved = localStorage.getItem("loverLegendDesktopSavedPassword");
       const input = document.getElementById("accessPasswordInput");
       if (saved && input) input.value = saved;
     } catch (_) {}
-  </script>
-  <script src="./js/access.js?v=43.2"></script>
-  <script id="access-lock-early-start-v430">
-    try { setupAccessLock(); } catch (error) { console.error("Early access setup failed:", error); }
   </script>
   <div class="app-shell">
     <header class="app-header-wrap">
@@ -195,7 +116,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 43.2 Stable</div>
+          <div class="app-header-version">正式版 42.9 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -1034,7 +955,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 43.2 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 42.9 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
