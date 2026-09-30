@@ -1,4 +1,4 @@
-// V43.1 startup access module: extracted from app.js so password login is ready before the large main app bundle.
+// V43.2 startup access module: extracted from app.js so password login is ready before the large main app bundle.
 const DEFAULT_ACCESS_PASSWORD_HASH =
   "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92";
 const DEFAULT_ACCESS_PASSWORD_HINT = "6个数字";
@@ -330,7 +330,7 @@ function unlockAccessLock(lock, input, status) {
   document.body.classList.remove("access-locked");
   document.documentElement.classList.remove("biometric-auto-pending-v304");
   document.documentElement.classList.add("access-lock-ready");
-  try { window.startMainAppV431?.(); } catch (error) { console.error("Main app start failed:", error); }
+  try { window.startMainAppV432?.(); } catch (error) { console.error("Main app start failed:", error); }
 }
 
 function setupDeviceBiometricSettings() {
@@ -500,7 +500,7 @@ function setupAccessLock() {
     document.body.classList.remove("access-locked");
     document.documentElement.classList.remove("biometric-auto-pending-v304", "desktop-auto-pending-v316");
     document.documentElement.classList.add("access-lock-ready");
-    try { window.startMainAppV431?.(); } catch (error) { console.error("Main app start failed:", error); }
+    try { window.startMainAppV432?.(); } catch (error) { console.error("Main app start failed:", error); }
   } else {
     lock.hidden = false;
     document.body.classList.add("access-locked");

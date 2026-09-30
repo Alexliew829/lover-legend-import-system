@@ -180,9 +180,9 @@ function cleanupLegacySettingsResidueV323() {
   return changed;
 }
 
-function setupMainAppV431() {
-  if (window.__loverLegendMainAppSetupV431) return;
-  window.__loverLegendMainAppSetupV431 = true;
+function setupMainAppV432() {
+  if (window.__loverLegendMainAppSetupV432) return;
+  window.__loverLegendMainAppSetupV432 = true;
   clearTransientSearchInputsOnReloadV304();
   // V37.4: clean any stale PZ+BS duplicate cache before Dashboard/Inventory first paint.
   if (typeof repairLocalBsCanonicalCacheV365 === "function") repairLocalBsCanonicalCacheV365();
@@ -191,6 +191,7 @@ function setupMainAppV431() {
   setupNavigation();
   setupSettings();
   setupInventoryMasterV299();
+
   const requestedPageV210 = String(new URLSearchParams(window.location.search).get("page") || "").trim().toLowerCase();
   const deepLinkPageMapV210 = {
     home: "dashboardPage",
@@ -203,25 +204,39 @@ function setupMainAppV431() {
     suppliers: "supplierPage"
   };
   const requestedTargetV210 = deepLinkPageMapV210[requestedPageV210];
-  if (requestedTargetV210) {
-    window.setTimeout(() => document.querySelector(`.nav-btn[data-page="${requestedTargetV210}"]`)?.click(), 0);
-  }
+
+  // V43.2: first paint only. Render the usable Dashboard, then release the full-screen
+  // startup overlay before heavier feature modules / cloud sync are initialized.
   setupDashboard();
-  setupImportModule();
-  setupImportDraftV247();
-  setupImportHistory();
-  setupInventoryModule();
-  setupGlobalMobilePullDownClear();
-  registerServiceWorker();
-  setupCloudSync();
-  setupSalesInventoryReminder();
-  setupDataOperationSafety();
-  try { window.finishMainAppLoadingV431?.(); } catch (_) {}
+  try { window.finishMainAppLoadingV432?.(); } catch (_) {}
+
+  const finishDeferredStartupV432 = () => {
+    setupImportModule();
+    setupImportDraftV247();
+    setupImportHistory();
+    setupInventoryModule();
+    setupGlobalMobilePullDownClear();
+    registerServiceWorker();
+    setupCloudSync();
+    setupSalesInventoryReminder();
+    setupDataOperationSafety();
+    if (requestedTargetV210) {
+      window.setTimeout(() => document.querySelector(`.nav-btn[data-page="${requestedTargetV210}"]`)?.click(), 0);
+    }
+  };
+
+  // Yield one paint so users can interact with the Dashboard immediately. The same
+  // initialization functions and sync algorithms still run unchanged in the next task.
+  if (typeof requestAnimationFrame === "function") {
+    requestAnimationFrame(() => window.setTimeout(finishDeferredStartupV432, 0));
+  } else {
+    window.setTimeout(finishDeferredStartupV432, 0);
+  }
 }
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", setupMainAppV431, { once:true });
+  document.addEventListener("DOMContentLoaded", setupMainAppV432, { once:true });
 } else {
-  queueMicrotask(setupMainAppV431);
+  queueMicrotask(setupMainAppV432);
 }
 
 
