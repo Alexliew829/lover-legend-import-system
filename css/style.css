@@ -7009,3 +7009,15 @@ body.system-media-preview-open-v305{overflow:hidden}
   .history-number-with-count-v428{gap:6px;}
   .history-import-item-count-v428{font-size:15px;}
 }
+
+/* V43.0 History Sales financial retry: compact inline action only. */
+.history-sales-retry-v430{
+  border:0;
+  background:transparent;
+  color:inherit;
+  font:inherit;
+  font-weight:800;
+  text-decoration:underline;
+  cursor:pointer;
+  padding:0;
+}
