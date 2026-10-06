@@ -3711,7 +3711,7 @@ function formatPromotionStatusV408(promotion, includeDay = false) {
 function formatPromotionStatusV407(promotion, includeDay = false) { return formatPromotionStatusV408(promotion, includeDay); }
 
 function renderDashboardPromotionStatusV208() {
-  // V43.3: Dashboard and Product Management share one promotion-status source.
+  // V43.4: Dashboard and Product Management share one promotion-status source.
   // Do not create a second promotion state/formatter here; both surfaces must always
   // show the exact same name/day/item-count/rate/exclusion/override information.
   const targets = [

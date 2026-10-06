@@ -7034,30 +7034,40 @@ body.system-media-preview-open-v305{overflow:hidden}
 .product-stock-english-edit-btn-v266:hover{text-decoration:none!important;}
 
 
-/* V43.3 — Product Management mirrors the Dashboard promotion status. */
-.product-page-title-row-v433{align-items:center;margin-bottom:12px}
-.product-page-title-row-v433>h2{margin:0}
+/* V43.4 — Product Management promotion status is centered like Dashboard. */
+.product-page-title-row-v433{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+  align-items:center;
+  margin-bottom:12px;
+}
+.product-page-title-row-v433>h2{grid-column:1;margin:0;justify-self:start}
 .product-page-title-row-v433 .product-page-promotion-status-v433{
-  margin:0 0 0 auto!important;
-  padding:0!important;
+  grid-column:2;
+  justify-self:center;
+  margin:0!important;
+  padding:0 8px!important;
   border:0!important;
   background:transparent!important;
   color:#d71920!important;
   font-size:17px!important;
   font-weight:900!important;
   letter-spacing:.05px;
-  text-align:right;
+  text-align:center;
   line-height:1.35;
+  white-space:nowrap;
 }
 .product-page-title-row-v433 .product-page-promotion-status-v433[hidden]{display:none!important}
 @media(max-width:719px){
-  .product-page-title-row-v433{gap:8px;align-items:flex-start}
-  .product-page-title-row-v433>h2{flex:0 0 auto}
+  .product-page-title-row-v433{grid-template-columns:auto minmax(0,1fr);gap:8px}
+  .product-page-title-row-v433>h2{grid-column:1}
   .product-page-title-row-v433 .product-page-promotion-status-v433{
-    flex:1 1 auto;
+    grid-column:2;
     min-width:0;
+    padding:0 6px!important;
     font-size:15px!important;
     line-height:1.35!important;
+    white-space:normal;
     overflow-wrap:anywhere;
   }
 }
