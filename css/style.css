@@ -7032,3 +7032,32 @@ body.system-media-preview-open-v305{overflow:hidden}
 .original-cost-average-breakdown-v431 .average-cost-vnd-note-v207{font-size:.72em;font-weight:600;}
 /* V43.1 — English-name hover stays visually identical to normal text. */
 .product-stock-english-edit-btn-v266:hover{text-decoration:none!important;}
+
+
+/* V43.3 — Product Management mirrors the Dashboard promotion status. */
+.product-page-title-row-v433{align-items:center;margin-bottom:12px}
+.product-page-title-row-v433>h2{margin:0}
+.product-page-title-row-v433 .product-page-promotion-status-v433{
+  margin:0 0 0 auto!important;
+  padding:0!important;
+  border:0!important;
+  background:transparent!important;
+  color:#d71920!important;
+  font-size:17px!important;
+  font-weight:900!important;
+  letter-spacing:.05px;
+  text-align:right;
+  line-height:1.35;
+}
+.product-page-title-row-v433 .product-page-promotion-status-v433[hidden]{display:none!important}
+@media(max-width:719px){
+  .product-page-title-row-v433{gap:8px;align-items:flex-start}
+  .product-page-title-row-v433>h2{flex:0 0 auto}
+  .product-page-title-row-v433 .product-page-promotion-status-v433{
+    flex:1 1 auto;
+    min-width:0;
+    font-size:15px!important;
+    line-height:1.35!important;
+    overflow-wrap:anywhere;
+  }
+}

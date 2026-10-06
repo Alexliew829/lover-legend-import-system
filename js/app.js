@@ -3711,12 +3711,20 @@ function formatPromotionStatusV408(promotion, includeDay = false) {
 function formatPromotionStatusV407(promotion, includeDay = false) { return formatPromotionStatusV408(promotion, includeDay); }
 
 function renderDashboardPromotionStatusV208() {
-  const target = document.getElementById("dashboardPromotionStatusV208");
-  if (!target) return;
+  // V43.3: Dashboard and Product Management share one promotion-status source.
+  // Do not create a second promotion state/formatter here; both surfaces must always
+  // show the exact same name/day/item-count/rate/exclusion/override information.
+  const targets = [
+    document.getElementById("dashboardPromotionStatusV208"),
+    document.getElementById("productPagePromotionStatusV433")
+  ].filter(Boolean);
+  if (!targets.length) return;
   const promotion = getPromotionSettingsV183();
-  if (!promotion) { target.hidden = true; target.textContent = ""; return; }
-  target.textContent = formatPromotionStatusV407(promotion, true);
-  target.hidden = false;
+  const text = promotion ? formatPromotionStatusV407(promotion, true) : "";
+  targets.forEach(target => {
+    target.textContent = text;
+    target.hidden = !promotion;
+  });
 }
 
 function setupDashboard() {
