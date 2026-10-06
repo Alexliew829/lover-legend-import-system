@@ -1,4 +1,4 @@
-// V43.0 startup access module: extracted from app.js so password login is ready before the large main app bundle.
+// V43.1 startup access module: extracted from app.js so password login is ready before the large main app bundle.
 const DEFAULT_ACCESS_PASSWORD_HASH =
   "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92";
 const DEFAULT_ACCESS_PASSWORD_HINT = "6个数字";

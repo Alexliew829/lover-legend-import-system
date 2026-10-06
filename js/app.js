@@ -295,7 +295,7 @@ function refreshProfitAnalyticsInBackgroundV360(rerender,label="profit analytics
 const HISTORY_SALES_CACHE_KEY_V179 = "lover_import_history_sales_financial_v179";
 let historySalesCacheHydratedV179 = false;
 let historySalesCacheHasDataV179 = false;
-// V43.0: focused History financial fetch state. History queries should only
+// V43.1: focused History financial fetch state. History queries should only
 // request Sales contexts that are currently visible, and must not confuse an
 // unrelated old cache entry with "financial data ready" for the current query.
 const historySalesFailedLinkIdsV430 = new Set();
@@ -18943,7 +18943,7 @@ function renderOriginalCostPanel(visibleProducts = inventoryVisibleProductsV153)
         </td>
         <td class="number-cell"><span class="original-cost-readonly-v356">${formatNumber(row.stock)}</span></td>
         <td class="money-cell original-currency-cell">${originalCostText}</td>
-        <td class="money-cell">${formatMoney(row.averageCost, "RM ")}${row.originalCurrency === "VND" ? `<small class="average-cost-vnd-note-v207">（VND不含盆）</small>` : ""}</td>
+        <td class="money-cell"><button type="button" class="original-cost-average-breakdown-v431" data-product-id-v431="${escapeHTML(row.product?.id || row.productId || "")}" title="点击查看附加成本明细" onclick="openProductCostBreakdownV421(this.dataset.productIdV431)">${formatMoney(row.averageCost, "RM ")}${row.originalCurrency === "VND" ? `<small class="average-cost-vnd-note-v207">（VND不含盆）</small>` : ""}</button></td>
         <td class="money-cell minimum-price-cell">
           <span class="original-cost-readonly-v356 ${displayStateV315.className}" data-minimum-price-state-v324="${displayStateV315.state}" style="color:${getMinimumPriceColorV340(displayStateV315.state) || 'inherit'} !important">${formatMoney(displayStateV315.price, "RM ")}</span>
         </td>
@@ -20189,7 +20189,7 @@ function renderInventoryMasterV261(){
       <td><button type="button" class="master-copy-v263 master-name-v262 master-edit-v356" data-product-id-v356="${escapeHTML(r.productId)}" data-master-edit-v356="name" data-master-copy-v356="${escapeHTML(r.cnName)}" title="点击复制中文名；长按修改">${escapeHTML(r.cnName)}</button></td>
       <td><button type="button" class="master-copy-v263 master-en-v262 master-edit-v356" data-product-id-v356="${escapeHTML(r.productId)}" data-master-edit-v356="english" data-master-copy-v356="${escapeHTML(r.enName)}" title="点击复制英文名；长按修改">${escapeHTML(enDisplay)}</button></td>
       <td class="master-num-v264"><button type="button" class="master-value-btn-v356 master-edit-v356" data-product-id-v356="${escapeHTML(r.productId)}" data-master-edit-v356="stock" title="长按修改当前库存">${formatNumber(r.stock)}</button></td>
-      <td class="master-num-v264"><button type="button" class="master-value-btn-v356 master-edit-v356" data-product-id-v356="${escapeHTML(r.productId)}" data-master-edit-v356="averageCost" title="长按修改平均成本">${formatMoney(r.averageCost)}</button></td>
+      <td class="master-num-v264"><button type="button" class="master-value-btn-v356 master-edit-v356 master-average-cost-breakdown-v431" data-product-id-v356="${escapeHTML(r.productId)}" data-master-edit-v356="averageCost" title="点击查看附加成本明细；长按修改平均成本">${formatMoney(r.averageCost)}</button></td>
       <td class="master-num-v264 ${stateV315.className}" data-minimum-price-state-v324="${stateV315.state}" style="color:${priceColor} !important"><button type="button" class="master-value-btn-v356 master-price-main-v266 master-edit-v356 ${stateV315.className}" data-product-id-v356="${escapeHTML(r.productId)}" data-master-edit-v356="minimumPrice" data-minimum-price-state-v324="${stateV315.state}" style="color:${priceColor} !important" title="长按修改最低售价">${formatMoney(r.minimumPrice)}</button></td>
     </tr>`;
   }).join("")||'<tr><td colspan="6">暂无符合资料</td></tr>';
@@ -20240,9 +20240,12 @@ function bindInventoryMasterInteractionsV356(){
   body.addEventListener("pointerup",event=>{
     if(!active||event.pointerId!==pointerId)return;
     const button=active;
+    const editType=String(button.dataset.masterEditV356||"").trim();
     const shouldCopy=!moved&&!longPressed&&button.hasAttribute("data-master-copy-v356");
+    const shouldOpenAverageBreakdown=!moved&&!longPressed&&editType==="averageCost";
     clearTimer();button.classList.remove("long-press-active");active=null;pointerId=null;moved=false;longPressed=false;
     if(shouldCopy){const value=String(button.dataset.masterCopyV356||"").trim();if(value)void copyRuleLabelV232(button,value);}
+    else if(shouldOpenAverageBreakdown){openProductCostBreakdownV421(String(button.dataset.productIdV356||""));}
   });
   body.addEventListener("pointercancel",event=>{if(pointerId!==null&&event.pointerId!==pointerId)return;reset();});
   body.addEventListener("contextmenu",event=>{if(event.target.closest(".master-edit-v356"))event.preventDefault();});
