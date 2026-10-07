@@ -5045,6 +5045,9 @@ function hasRealLocalPromotionDraftV370() {
 }
 function refreshPromotionSettingsAfterCloudSyncV370() {
   try {
+    // V43.5: Promotion status is a lightweight shared surface. Repaint it as soon
+    // as authoritative promotionV183 changes, without waiting for any heavy list render.
+    try { renderDashboardPromotionStatusV208(); } catch (error) { console.warn("V43.5 promotion status repaint skipped", error); }
     if (hasRealLocalPromotionDraftV370()) {
       // A user is genuinely editing this device. Keep the draft, but still repaint
       // authoritative summary/status outside the form through the normal render path.
@@ -5541,6 +5544,9 @@ function setupPromotionSettingsV183() {
       await updatePromotionSettingsFastV185(payload);
       const settings = loadJSON("importSystemSettings", {});
       saveJSON("importSystemSettings", { ...settings, promotionV183:payload });
+      // V43.5: update the shared Dashboard/Product Management status immediately
+      // after the cloud-confirmed local write. This is intentionally lightweight.
+      try { renderDashboardPromotionStatusV208(); } catch (error) { console.warn("V43.5 promotion status post-save repaint skipped", error); }
       promotionDraftTouchedV209 = false;
       resetPromotionDraftV183();
       capturePromotionDraftBaselineV370();
@@ -5580,6 +5586,8 @@ function setupPromotionSettingsV183() {
       const next = { ...settings };
       delete next.promotionV183;
       saveJSON("importSystemSettings", next);
+      // V43.5: close/hide the shared status immediately after the cloud-confirmed close.
+      try { renderDashboardPromotionStatusV208(); } catch (error) { console.warn("V43.5 promotion status post-close repaint skipped", error); }
       deleted = true;
     } catch (error) {
       if (status) status.textContent = `促销没有删除：${String(error?.message || error)}`;
