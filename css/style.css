@@ -7139,16 +7139,20 @@ body.system-media-preview-open-v305{overflow:hidden}
 
 /* V44.7 — Product Management mobile title cleanup.
    Keep Chinese name + Product ID on one line; move Copy Product beside English name only on mobile. */
+/* V44.8 — Product Management mobile identity row.
+   Keep Product ID with the Chinese name; place a compact Copy Product button directly beside English name. */
 .product-stock-english-row-v447{min-width:0}
 .product-stock-copy-mobile-v447{display:none!important}
 @media(max-width:720px){
   .product-stock-copy-desktop-v447{display:none!important}
-  .product-stock-english-row-v447{display:flex;align-items:center;gap:8px;min-width:0;margin:5px 0 10px}
-  .product-stock-english-row-v447 .product-stock-english-edit-btn-v266{flex:1 1 auto;min-width:0;max-width:none!important;margin:0!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .product-stock-english-row-v447 .product-stock-copy-mobile-v447{display:inline-flex!important;flex:0 0 auto;min-width:72px;max-width:78px;margin:0;padding:4px 7px;font-size:.76rem}
+  .product-stock-english-row-v447{display:flex;align-items:center;justify-content:flex-start;gap:10px;min-width:0;margin:5px 0 10px}
+  .product-stock-english-row-v447 .product-stock-english-edit-btn-v266{flex:0 1 auto;min-width:0;max-width:calc(100% - 92px)!important;width:auto!important;margin:0!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .product-stock-english-row-v447 .product-stock-copy-mobile-v447{display:inline-flex!important;align-items:center;justify-content:center;flex:0 0 auto;min-width:0;max-width:none;margin:0;padding:4px 8px;font-size:.74rem;line-height:1.15}
   .product-stock-title-row-v256{margin-bottom:0}
   .product-stock-title-row-v256 .product-stock-name-v256{max-width:calc(100% - 82px)}
 }
 @media(max-width:420px){
-  .product-stock-english-row-v447 .product-stock-copy-mobile-v447{min-width:68px;max-width:72px;padding-inline:5px;font-size:.72rem}
+  .product-stock-english-row-v447{gap:8px}
+  .product-stock-english-row-v447 .product-stock-english-edit-btn-v266{max-width:calc(100% - 84px)!important}
+  .product-stock-english-row-v447 .product-stock-copy-mobile-v447{padding-inline:6px;font-size:.70rem}
 }
