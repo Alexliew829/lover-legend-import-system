@@ -3205,11 +3205,12 @@ function setShippingResponsibilityStatusV440(message, state = "success") {
 }
 
 
-// V44.2: setting-driven repricing uses the raw Product snapshot once.
-// This avoids the V44.1 saveProducts(getProducts()) double normalization path while
-// preserving the exact existing minimum-price formula, manual-price protection and
-// Cloud dirty tracking. No inventory / FIFO / Sales ACK fields are changed here.
-function recalculateAutomaticMinimumPricesForSettingsV442(productsBeforeRaw = null) {
+// V44.3: pricing-setting changes are derived from Settings, not independent Product edits.
+// Recalculate the local Product cache once so every existing UI keeps the same data shape,
+// but DO NOT mark the whole Products collection dirty. The V44.3 Apps Script settings-delta
+// path recalculates the authoritative Product minimumPrice column in one server-side batch.
+// This prevents a 168-product full Push from blocking taps, page switches or the next startup.
+function recalculateAutomaticMinimumPricesForSettingsV443(productsBeforeRaw = null) {
   const rawProducts = Array.isArray(productsBeforeRaw)
     ? productsBeforeRaw
     : loadJSON("importSystemProducts", []);
@@ -3217,6 +3218,7 @@ function recalculateAutomaticMinimumPricesForSettingsV442(productsBeforeRaw = nu
   const overrides = { ...getMinimumPriceManualOverridesV160() };
   const originIndex = getMinimumPriceOriginIndexV160();
   let overridesChanged = false;
+  let productsChanged = false;
   const normalizedProducts = (Array.isArray(rawProducts) ? rawProducts : []).map(product => {
     const normalized = normalizeProductMinimumPriceV160(product, rules, overrides, originIndex);
     const productId = String(normalized?.id || "").trim();
@@ -3227,16 +3229,20 @@ function recalculateAutomaticMinimumPricesForSettingsV442(productsBeforeRaw = nu
         overridesChanged = true;
       }
     }
+    if (!productsChanged) {
+      const oldPrice = Math.max(0, Number(product?.minimumPrice) || 0);
+      const nextPrice = Math.max(0, Number(normalized?.minimumPrice) || 0);
+      const oldManual = product?.minimumPriceManual === true;
+      const nextManual = normalized?.minimumPriceManual === true;
+      if (Math.abs(oldPrice - nextPrice) >= 0.005 || oldManual !== nextManual) productsChanged = true;
+    }
     return normalized;
   });
   if (overridesChanged) saveMinimumPriceManualOverridesV160(overrides);
-  const beforeJson = JSON.stringify(Array.isArray(rawProducts) ? rawProducts : []);
-  const afterJson = JSON.stringify(normalizedProducts);
-  if (beforeJson !== afterJson) {
+  if (productsChanged) {
     saveJSON("importSystemProducts", normalizedProducts);
     if (typeof historyProductLookupCacheV322 !== "undefined") historyProductLookupCacheV322 = { raw:null, byId:new Map(), byName:new Map() };
     if (typeof historyAdjustmentCacheV322 !== "undefined") historyAdjustmentCacheV322 = { raw:null, rows:[] };
-    if (typeof markCloudCollectionSaved === "function") markCloudCollectionSaved("products", rawProducts, normalizedProducts);
   }
   if (typeof inventoryPreparedRowsCacheV321 !== "undefined") inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
   return normalizedProducts;
@@ -3282,8 +3288,8 @@ function setupShippingResponsibilityV439() {
         const productsBeforeV439 = loadJSON("importSystemProducts", []);
         saveJSON("importSystemSettings", { ...settings, [SHIPPING_RESPONSIBILITY_KEY_V439]: selected });
         if (getShippingResponsibilityV439() !== selected) throw new Error("shipping responsibility persistence verification failed");
-        recalculateAutomaticMinimumPricesForSettingsV442(productsBeforeV439);
-        if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
+        recalculateAutomaticMinimumPricesForSettingsV443(productsBeforeV439);
+        if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved(180);
         populateShippingResponsibilityV439();
         if (panel) panel.dataset.dirtyV439 = "0";
         setShippingResponsibilityStatusV440(`✓ 保存成功 · 当前为${selected === "buyer" ? "买家包邮" : "卖家包邮"}`);
@@ -3387,8 +3393,8 @@ function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
         : settings.promotionV183;
       saveJSON("importSystemSettings", { ...settings, minimumPriceRules: nextRules, ...(nextPromotion ? { promotionV183: nextPromotion } : {}) });
       if (Math.abs(Number(getMinimumPriceRulesV160().commissionRate) - nextRate) >= 0.005) throw new Error("commission persistence verification failed");
-      recalculateAutomaticMinimumPricesForSettingsV442(productsBefore);
-      if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
+      recalculateAutomaticMinimumPricesForSettingsV443(productsBefore);
+      if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved(180);
       populateCommissionRateV441();
       if (panel) panel.dataset.dirtyV441 = "0";
       const activePromotionV442 = getPromotionSettingsV183();
