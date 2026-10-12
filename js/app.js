@@ -3182,13 +3182,26 @@ function refreshShippingResponsibilitySettingsAfterCloudSyncV439() {
 }
 window.refreshShippingResponsibilitySettingsAfterCloudSyncV439 = refreshShippingResponsibilitySettingsAfterCloudSyncV439;
 
+function setShippingResponsibilityStatusV440(message, state = "success") {
+  const status = document.getElementById("shippingResponsibilityStatusV439");
+  if (!status) return;
+  status.textContent = String(message || "");
+  status.classList.remove("is-saving-v440", "is-error-v440", "is-neutral-v440");
+  if (state === "saving") status.classList.add("is-saving-v440");
+  else if (state === "error") status.classList.add("is-error-v440");
+  else if (state === "neutral") status.classList.add("is-neutral-v440");
+}
+
 function setupShippingResponsibilityV439() {
   populateShippingResponsibilityV439();
   const panel = document.querySelector(".shipping-responsibility-settings-v439");
   document.querySelectorAll('input[name="shippingResponsibilityV439"]').forEach(input => {
     if (input.dataset.boundV439 === "1") return;
     input.dataset.boundV439 = "1";
-    input.addEventListener("change", () => { if (panel) panel.dataset.dirtyV439 = "1"; });
+    input.addEventListener("change", () => {
+      if (panel) panel.dataset.dirtyV439 = "1";
+      setShippingResponsibilityStatusV440("尚未保存", "neutral");
+    });
   });
   const button = document.getElementById("saveShippingResponsibilityV439");
   if (!button || button.dataset.boundV439 === "1") return;
@@ -3196,40 +3209,57 @@ function setupShippingResponsibilityV439() {
   button.addEventListener("click", () => {
     const selected = document.querySelector('input[name="shippingResponsibilityV439"]:checked')?.value === "buyer" ? "buyer" : "seller";
     const current = getShippingResponsibilityV439();
-    const status = document.getElementById("shippingResponsibilityStatusV439");
     if (selected === current) {
       if (panel) panel.dataset.dirtyV439 = "0";
-      if (status) status.textContent = "运费承担方式没有改变";
+      setShippingResponsibilityStatusV440(`设置没有改变 · 当前为${selected === "buyer" ? "买家包邮" : "卖家包邮"}`, "neutral");
       return;
     }
     const label = selected === "buyer" ? "买家包邮（运费木架不计入成本）" : "卖家包邮（运费木架计入成本）";
-    if (!window.confirm(`确认切换为「${label}」？\n\n保存后，自动最低售价、促销最低售价、利润/利润率和附加成本会立即按新的运费承担方式重新计算；手动最低售价数值本身不会被覆盖。`)) {
-      if (status) status.textContent = "已取消，设置没有改变";
+    if (!window.confirm(`确认切换为「${label}」？
+
+保存后，自动最低售价、促销最低售价、利润/利润率和附加成本会立即按新的运费承担方式重新计算；手动最低售价数值本身不会被覆盖。`)) {
+      setShippingResponsibilityStatusV440("已取消 · 设置没有改变", "neutral");
       return;
     }
-    const settings = loadJSON("importSystemSettings", {});
-    const productsBeforeV439 = loadJSON("importSystemProducts", []);
-    saveJSON("importSystemSettings", { ...settings, [SHIPPING_RESPONSIBILITY_KEY_V439]: selected });
-    if (typeof inventoryPreparedRowsCacheV321 !== "undefined") inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
-    saveProducts(getProducts());
-    // saveProducts normalizes against the new setting. Compare to the raw pre-switch
-    // snapshot as well, so recalculated automatic minimum prices are pushed to Cloud.
-    if (typeof markCloudCollectionSaved === "function") {
-      markCloudCollectionSaved("products", productsBeforeV439, loadJSON("importSystemProducts", []));
-    }
-    if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
-    renderInventoryManagementList();
-    renderDashboard();
-    try { renderProductList(); } catch (_) {}
-    try { renderBatchProductStockResults(); } catch (_) {}
-    try { renderPromotionPriceListV183(); } catch (_) {}
-    populateShippingResponsibilityV439();
-    if (panel) panel.dataset.dirtyV439 = "0";
-    if (status) status.textContent = selected === "buyer" ? "已切换为买家包邮 · 运费木架已从成本计算排除" : "已切换为卖家包邮 · 运费木架已恢复计入成本";
-    window.setTimeout(() => { if (status) status.textContent = ""; }, 3200);
+
+    button.disabled = true;
+    button.textContent = "保存中…";
+    setShippingResponsibilityStatusV440("保存中…", "saving");
+
+    window.setTimeout(() => {
+      try {
+        const settings = loadJSON("importSystemSettings", {});
+        const productsBeforeV439 = loadJSON("importSystemProducts", []);
+        saveJSON("importSystemSettings", { ...settings, [SHIPPING_RESPONSIBILITY_KEY_V439]: selected });
+        if (getShippingResponsibilityV439() !== selected) throw new Error("shipping responsibility persistence verification failed");
+        if (typeof inventoryPreparedRowsCacheV321 !== "undefined") inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
+        saveProducts(getProducts());
+        // saveProducts normalizes against the new setting. Compare to the raw pre-switch
+        // snapshot as well, so recalculated automatic minimum prices are pushed to Cloud.
+        if (typeof markCloudCollectionSaved === "function") {
+          markCloudCollectionSaved("products", productsBeforeV439, loadJSON("importSystemProducts", []));
+        }
+        if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
+        populateShippingResponsibilityV439();
+        if (panel) panel.dataset.dirtyV439 = "0";
+        setShippingResponsibilityStatusV440(`✓ 保存成功 · 当前为${selected === "buyer" ? "买家包邮" : "卖家包邮"}`);
+        try { renderInventoryManagementList(); } catch (_) {}
+        try { renderDashboard(); } catch (_) {}
+        try { renderProductList(); } catch (_) {}
+        try { renderBatchProductStockResults(); } catch (_) {}
+        try { renderPromotionPriceListV183(); } catch (_) {}
+      } catch (error) {
+        console.error("save shipping responsibility failed", error);
+        populateShippingResponsibilityV439();
+        if (panel) panel.dataset.dirtyV439 = "0";
+        setShippingResponsibilityStatusV440("保存失败，请重试", "error");
+      } finally {
+        button.disabled = false;
+        button.textContent = "保存设置";
+      }
+    }, 0);
   });
 }
-
 function setupSettings() {
   const defaults = DEFAULT_EXCHANGE_RATES_V160;
 
@@ -4598,7 +4628,7 @@ function getMinimumFreightTierV188(price, rules) {
   return { code:"F", amount:rules.freightTierF };
 }
 
-// V43.9: shipping responsibility is one cloud-synced global setting.
+// V44.0: shipping responsibility is one cloud-synced global setting.
 // seller (default) = current behavior; buyer = preserve the A-F configuration
 // but exclude local freight/rack from every current pricing/profit calculation.
 const SHIPPING_RESPONSIBILITY_KEY_V439 = "shippingResponsibilityV439";

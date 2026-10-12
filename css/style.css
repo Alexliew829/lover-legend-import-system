@@ -7098,13 +7098,25 @@ body.system-media-preview-open-v305{overflow:hidden}
 }
 
 
-/* V43.9 — global shipping responsibility selector. */
-.shipping-responsibility-settings-v439 h3{margin:0 0 8px}
-.shipping-responsibility-options-v439{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0 14px}
-.shipping-responsibility-options-v439 label{display:flex;align-items:flex-start;gap:9px;border:1px solid #d9e5dc;border-radius:14px;padding:12px 14px;background:#fbfdfb;cursor:pointer}
-.shipping-responsibility-options-v439 label:has(input:checked){border-color:#23814a;background:#eef8f1;box-shadow:0 0 0 1px rgba(35,129,74,.08)}
-.shipping-responsibility-options-v439 input{margin-top:3px;accent-color:#176b3c}
-.shipping-responsibility-options-v439 span{display:flex;flex-direction:column;gap:3px}
-.shipping-responsibility-options-v439 strong{font-size:15px;color:#15261b}
-.shipping-responsibility-options-v439 small{font-size:12px;color:#68776e}
-@media(max-width:560px){.shipping-responsibility-options-v439{grid-template-columns:1fr}.shipping-responsibility-options-v439 label{padding:11px 12px}}
+/* V44.0 — compact global shipping responsibility selector with persistent save status. */
+.shipping-responsibility-settings-v440{padding:16px 18px}
+.shipping-responsibility-settings-v440 h3{margin:0 0 4px;font-size:18px;line-height:1.25}
+.shipping-responsibility-settings-v440 .settings-help{margin:0;color:#66736b;font-size:12.5px;line-height:1.45}
+.shipping-responsibility-heading-v440{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.shipping-responsibility-options-v440{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0 10px}
+.shipping-responsibility-options-v440 label{min-height:58px;display:grid;grid-template-columns:auto auto 1fr;align-items:center;gap:10px;border:1px solid #d6e1d8;border-radius:12px;padding:9px 12px;background:#fff;cursor:pointer;transition:border-color .15s ease,background .15s ease,box-shadow .15s ease}
+.shipping-responsibility-options-v440 label:hover{border-color:#a9c9b4}
+.shipping-responsibility-options-v440 label:has(input:checked){border-color:#23814a;background:#eef8f1;box-shadow:0 0 0 1px rgba(35,129,74,.07)}
+.shipping-responsibility-options-v440 input{margin:0;accent-color:#176b3c;transform:scale(1.05)}
+.shipping-option-icon-v440{font-size:22px;line-height:1;filter:saturate(.8)}
+.shipping-option-copy-v440{display:flex;flex-direction:column;gap:2px;min-width:0}
+.shipping-option-copy-v440 strong{font-size:15px;line-height:1.2;color:#15261b}
+.shipping-option-copy-v440 strong em{display:inline-block;margin-left:5px;padding:1px 6px;border-radius:999px;background:#e4f2e8;color:#257345;font-size:10px;font-style:normal;vertical-align:1px}
+.shipping-option-copy-v440 small{font-size:12px;line-height:1.2;color:#68776e}
+.shipping-responsibility-actions-v440{display:flex;align-items:center;justify-content:flex-end;gap:10px;min-height:36px}
+.shipping-responsibility-save-v440{width:auto!important;min-width:116px;padding:8px 18px!important;margin:0!important;border-radius:10px;font-size:14px;line-height:1.2}.shipping-responsibility-save-v440:disabled{opacity:.65;cursor:wait}
+.shipping-responsibility-status-v440{flex:1;min-height:0;margin:0;padding:0;font-size:12.5px;font-weight:700;text-align:right;color:#176b3c}
+.shipping-responsibility-status-v440.is-saving-v440{color:#7a6a26}
+.shipping-responsibility-status-v440.is-error-v440{color:#b42318}
+.shipping-responsibility-status-v440.is-neutral-v440{color:#68776e}
+@media(max-width:560px){.shipping-responsibility-settings-v440{padding:14px}.shipping-responsibility-options-v440{grid-template-columns:1fr;gap:8px}.shipping-responsibility-options-v440 label{min-height:54px;padding:9px 11px}.shipping-responsibility-actions-v440{align-items:stretch;flex-direction:column-reverse;gap:7px}.shipping-responsibility-save-v440{width:100%!important}.shipping-responsibility-status-v440{text-align:left;min-height:18px}}
