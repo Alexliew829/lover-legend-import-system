@@ -7096,3 +7096,15 @@ body.system-media-preview-open-v305{overflow:hidden}
     font-size:.68rem;
   }
 }
+
+
+/* V43.9 — global shipping responsibility selector. */
+.shipping-responsibility-settings-v439 h3{margin:0 0 8px}
+.shipping-responsibility-options-v439{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0 14px}
+.shipping-responsibility-options-v439 label{display:flex;align-items:flex-start;gap:9px;border:1px solid #d9e5dc;border-radius:14px;padding:12px 14px;background:#fbfdfb;cursor:pointer}
+.shipping-responsibility-options-v439 label:has(input:checked){border-color:#23814a;background:#eef8f1;box-shadow:0 0 0 1px rgba(35,129,74,.08)}
+.shipping-responsibility-options-v439 input{margin-top:3px;accent-color:#176b3c}
+.shipping-responsibility-options-v439 span{display:flex;flex-direction:column;gap:3px}
+.shipping-responsibility-options-v439 strong{font-size:15px;color:#15261b}
+.shipping-responsibility-options-v439 small{font-size:12px;color:#68776e}
+@media(max-width:560px){.shipping-responsibility-options-v439{grid-template-columns:1fr}.shipping-responsibility-options-v439 label{padding:11px 12px}}

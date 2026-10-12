@@ -2991,6 +2991,9 @@ function hasUnsavedSettingsChangesV160() {
   if (["newProductPrefixKeyword", "newProductPrefixCode"].some(id =>
     String(document.getElementById(id)?.value || "").trim() !== "")) return true;
 
+  const selectedShippingV439 = document.querySelector('input[name="shippingResponsibilityV439"]:checked')?.value === "buyer" ? "buyer" : "seller";
+  if (selectedShippingV439 !== getShippingResponsibilityV439()) return true;
+
   const storedRules = getMinimumPriceRulesV160();
   return Object.entries(MINIMUM_PRICE_SETTING_FIELDS_V160).some(([key, field]) => {
     const input = document.getElementById(field.id);
@@ -3008,6 +3011,9 @@ function discardSettingsDraftV160() {
       if (input) input.value = formatMoney(saved[currency] ?? DEFAULT_EXCHANGE_RATES_V160[currency]);
     });
   populateMinimumPriceSettingsV160();
+  populateShippingResponsibilityV439();
+  const shippingPanelV439 = document.querySelector(".shipping-responsibility-settings-v439");
+  if (shippingPanelV439) shippingPanelV439.dataset.dirtyV439 = "0";
   ["oldAccessPassword", "newAccessPassword", "confirmAccessPassword"].forEach(id => {
     const input = document.getElementById(id);
     if (input) input.value = "";
@@ -3157,6 +3163,73 @@ function setupMinimumPriceSettingsV160() {
   }
 }
 
+function populateShippingResponsibilityV439() {
+  const mode = getShippingResponsibilityV439();
+  const seller = document.getElementById("shippingResponsibilitySellerV439");
+  const buyer = document.getElementById("shippingResponsibilityBuyerV439");
+  if (seller) seller.checked = mode === "seller";
+  if (buyer) buyer.checked = mode === "buyer";
+}
+
+function refreshShippingResponsibilitySettingsAfterCloudSyncV439() {
+  const page = document.getElementById("settingsPage");
+  if (!page?.classList.contains("active")) return;
+  const panel = page.querySelector(".shipping-responsibility-settings-v439");
+  // Preserve only an actual local user draft. Otherwise a remote device change
+  // must repaint this Settings control immediately after Cloud Pull.
+  if (panel?.dataset.dirtyV439 === "1") return;
+  populateShippingResponsibilityV439();
+}
+window.refreshShippingResponsibilitySettingsAfterCloudSyncV439 = refreshShippingResponsibilitySettingsAfterCloudSyncV439;
+
+function setupShippingResponsibilityV439() {
+  populateShippingResponsibilityV439();
+  const panel = document.querySelector(".shipping-responsibility-settings-v439");
+  document.querySelectorAll('input[name="shippingResponsibilityV439"]').forEach(input => {
+    if (input.dataset.boundV439 === "1") return;
+    input.dataset.boundV439 = "1";
+    input.addEventListener("change", () => { if (panel) panel.dataset.dirtyV439 = "1"; });
+  });
+  const button = document.getElementById("saveShippingResponsibilityV439");
+  if (!button || button.dataset.boundV439 === "1") return;
+  button.dataset.boundV439 = "1";
+  button.addEventListener("click", () => {
+    const selected = document.querySelector('input[name="shippingResponsibilityV439"]:checked')?.value === "buyer" ? "buyer" : "seller";
+    const current = getShippingResponsibilityV439();
+    const status = document.getElementById("shippingResponsibilityStatusV439");
+    if (selected === current) {
+      if (panel) panel.dataset.dirtyV439 = "0";
+      if (status) status.textContent = "运费承担方式没有改变";
+      return;
+    }
+    const label = selected === "buyer" ? "买家包邮（运费木架不计入成本）" : "卖家包邮（运费木架计入成本）";
+    if (!window.confirm(`确认切换为「${label}」？\n\n保存后，自动最低售价、促销最低售价、利润/利润率和附加成本会立即按新的运费承担方式重新计算；手动最低售价数值本身不会被覆盖。`)) {
+      if (status) status.textContent = "已取消，设置没有改变";
+      return;
+    }
+    const settings = loadJSON("importSystemSettings", {});
+    const productsBeforeV439 = loadJSON("importSystemProducts", []);
+    saveJSON("importSystemSettings", { ...settings, [SHIPPING_RESPONSIBILITY_KEY_V439]: selected });
+    if (typeof inventoryPreparedRowsCacheV321 !== "undefined") inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
+    saveProducts(getProducts());
+    // saveProducts normalizes against the new setting. Compare to the raw pre-switch
+    // snapshot as well, so recalculated automatic minimum prices are pushed to Cloud.
+    if (typeof markCloudCollectionSaved === "function") {
+      markCloudCollectionSaved("products", productsBeforeV439, loadJSON("importSystemProducts", []));
+    }
+    if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
+    renderInventoryManagementList();
+    renderDashboard();
+    try { renderProductList(); } catch (_) {}
+    try { renderBatchProductStockResults(); } catch (_) {}
+    try { renderPromotionPriceListV183(); } catch (_) {}
+    populateShippingResponsibilityV439();
+    if (panel) panel.dataset.dirtyV439 = "0";
+    if (status) status.textContent = selected === "buyer" ? "已切换为买家包邮 · 运费木架已从成本计算排除" : "已切换为卖家包邮 · 运费木架已恢复计入成本";
+    window.setTimeout(() => { if (status) status.textContent = ""; }, 3200);
+  });
+}
+
 function setupSettings() {
   const defaults = DEFAULT_EXCHANGE_RATES_V160;
 
@@ -3252,6 +3325,7 @@ function setupSettings() {
 
   setupPasswordChange();
   setupMinimumPriceSettingsV160();
+  setupShippingResponsibilityV439();
   setupPromotionSettingsV183();
   setupProductPrefixSettingsV181();
   setupProductCategorySettingsV342();
@@ -4502,8 +4576,8 @@ function getProductMinimumProfitV205(product, rules = null, originIndex = null) 
   const basePriceForFreight = manual ? Math.max(0, Number(product?.minimumPrice) || 0)
     : getAutomaticMinimumPriceV160(product?.averageCost, configuredRules, product, index);
   const freightTier = promotionApplies
-    ? getMinimumFreightTierV188(basePriceForFreight, configuredRules)
-    : getMinimumFreightTierV188(price, configuredRules);
+    ? getChargeableMinimumFreightTierV439(basePriceForFreight, configuredRules)
+    : getChargeableMinimumFreightTierV439(price, configuredRules);
   const commission = price * commissionRate / 100;
   const profit = price - averageCost - potCost - freightTier.amount - commission;
   return {
@@ -4524,13 +4598,29 @@ function getMinimumFreightTierV188(price, rules) {
   return { code:"F", amount:rules.freightTierF };
 }
 
+// V43.9: shipping responsibility is one cloud-synced global setting.
+// seller (default) = current behavior; buyer = preserve the A-F configuration
+// but exclude local freight/rack from every current pricing/profit calculation.
+const SHIPPING_RESPONSIBILITY_KEY_V439 = "shippingResponsibilityV439";
+function getShippingResponsibilityV439() {
+  const settings = getCachedSettingsV317();
+  return settings?.[SHIPPING_RESPONSIBILITY_KEY_V439] === "buyer" ? "buyer" : "seller";
+}
+function isSellerShippingResponsibilityV439() {
+  return getShippingResponsibilityV439() !== "buyer";
+}
+function getChargeableMinimumFreightTierV439(price, rules) {
+  const tier = getMinimumFreightTierV188(price, rules);
+  return isSellerShippingResponsibilityV439() ? tier : { code:tier.code, amount:0 };
+}
+
 function calculateTieredMinimumPriceV188(cost, denominator, rules) {
   if (cost <= 0 || denominator <= 0) return { price:0, delivery:0, tier:"A" };
-  let tier = { code:"A", amount:rules.freightTierA };
+  let tier = getChargeableMinimumFreightTierV439(0, rules);
   let price = 0;
   for (let i = 0; i < 8; i += 1) {
     price = Math.ceil((((cost + tier.amount) / denominator) - 1e-9) / 10) * 10;
-    const nextTier = getMinimumFreightTierV188(price, rules);
+    const nextTier = getChargeableMinimumFreightTierV439(price, rules);
     if (nextTier.code === tier.code) return { price, delivery:tier.amount, tier:tier.code };
     tier = nextTier;
   }
@@ -4589,7 +4679,7 @@ function getPromotionDeliveryV183(product, rules) {
   // V19.8: promotion freight is locked by the product's original minimum price.
   // A promotion may lower the selling price, but it must never lower the real freight tier.
   const originalPrice = Math.max(0, Number(product?.minimumPrice) || 0);
-  return getMinimumFreightTierV188(originalPrice, rules);
+  return getChargeableMinimumFreightTierV439(originalPrice, rules);
 }
 
 function getPromotionTargetMarginV407(product, promotion = null) {
@@ -4935,7 +5025,7 @@ function getOriginalMinimumPriceToneV411(product, originalPrice, rules, originIn
   const configuredRules = rules || getMinimumPriceRulesV160();
   const averageCost = Math.max(0, Number(product?.averageCost) || 0);
   const potCost = getVndPotCostV160(product, configuredRules, originIndex);
-  const freight = getMinimumFreightTierV188(originalPrice, configuredRules).amount;
+  const freight = getChargeableMinimumFreightTierV439(originalPrice, configuredRules).amount;
   const commission = originalPrice * (Math.max(0, Number(configuredRules.commissionRate) || 0) / 100);
   const profit = originalPrice - averageCost - potCost - freight - commission;
   return profit < -0.005 ? {state:"loss",className:"loss"} : profit > 0.005 ? {state:"gain",className:"gain"} : {state:"neutral",className:""};
@@ -15479,6 +15569,7 @@ function openProductCostBreakdownV421(productId) {
   const product = getProducts().find(item => String(item?.id || "").trim() === id);
   if (!product) { window.alert("找不到这个产品。"); return; }
   const info = getProductMinimumProfitV205(product);
+  const includeFreightV439 = isSellerShippingResponsibilityV439();
   const extras = Math.max(0, Number(info.potCost) || 0) + Math.max(0, Number(info.freight) || 0) + Math.max(0, Number(info.commission) || 0);
   const total = Math.max(0, Number(info.averageCost) || 0) + extras;
   document.getElementById("productCostBreakdownOverlayV421")?.remove();
@@ -15491,7 +15582,7 @@ function openProductCostBreakdownV421(productId) {
       <div class="product-cost-breakdown-name-v421">${escapeHTML(product.name || "未命名产品")} · ${escapeHTML(product.id || "")}</div>
       <div class="product-cost-breakdown-lines-v421">
         ${Number(info.potCost) > 0 ? `<div><span>花盆成本</span><strong>${formatMoney(info.potCost, "RM ")}</strong></div>` : ""}
-        <div><span>运费木架</span><strong>${formatMoney(info.freight, "RM ")}</strong></div>
+        ${includeFreightV439 ? `<div><span>运费木架</span><strong>${formatMoney(info.freight, "RM ")}</strong></div>` : ""}
         <div><span>主播佣金</span><strong>${formatMoney(info.commission, "RM ")}</strong></div>
         <div class="cost-subtotal-v421"><span>共</span><strong>${formatMoney(extras, "RM ")}</strong></div>
         <div><span>${escapeHTML(getAverageCostLabelV205(product))}</span><strong>${formatMoney(info.averageCost, "RM ")}</strong></div>
@@ -16893,7 +16984,7 @@ function minimumPriceHistoryMetaV374(product, price, manual, stateLabel = "") {
   const averageCost=Math.max(0,Number(p.averageCost)||0);
   const potCost=getVndPotCostV160(p,rules,index);
   const commissionRate=Math.max(0,Number(rules.commissionRate)||0);
-  const freight=getMinimumFreightTierV188(salePrice,rules).amount;
+  const freight=getChargeableMinimumFreightTierV439(salePrice,rules).amount;
   const profit=salePrice-averageCost-potCost-(salePrice*commissionRate/100)-freight;
   const state=stateLabel || (manual ? "控制精品售价" : "系统计算");
   return {
@@ -17570,11 +17661,13 @@ function clearCurrentPageUnsavedInputs() {
 
     const settingsStatus = document.getElementById("settingsStatus");
     const minimumPriceSettingsStatus = document.getElementById("minimumPriceSettingsStatus");
+    const shippingResponsibilityStatusV439 = document.getElementById("shippingResponsibilityStatusV439");
     const toolsStatus = document.getElementById("dataToolsStatus");
     const restoreInput = document.getElementById("restoreFileInput");
 
     if (settingsStatus) settingsStatus.textContent = "";
     if (minimumPriceSettingsStatus) minimumPriceSettingsStatus.textContent = "";
+    if (shippingResponsibilityStatusV439) shippingResponsibilityStatusV439.textContent = "";
     if (toolsStatus) toolsStatus.textContent = "";
     if (restoreInput) restoreInput.value = "";
 
