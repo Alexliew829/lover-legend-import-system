@@ -3205,47 +3205,17 @@ function setShippingResponsibilityStatusV440(message, state = "success") {
 }
 
 
-// V44.3: pricing-setting changes are derived from Settings, not independent Product edits.
-// Recalculate the local Product cache once so every existing UI keeps the same data shape,
-// but DO NOT mark the whole Products collection dirty. The V44.3 Apps Script settings-delta
-// path recalculates the authoritative Product minimumPrice column in one server-side batch.
-// This prevents a 168-product full Push from blocking taps, page switches or the next startup.
-function recalculateAutomaticMinimumPricesForSettingsV443(productsBeforeRaw = null) {
-  const rawProducts = Array.isArray(productsBeforeRaw)
-    ? productsBeforeRaw
-    : loadJSON("importSystemProducts", []);
-  const rules = getMinimumPriceRulesV160();
-  const overrides = { ...getMinimumPriceManualOverridesV160() };
-  const originIndex = getMinimumPriceOriginIndexV160();
-  let overridesChanged = false;
-  let productsChanged = false;
-  const normalizedProducts = (Array.isArray(rawProducts) ? rawProducts : []).map(product => {
-    const normalized = normalizeProductMinimumPriceV160(product, rules, overrides, originIndex);
-    const productId = String(normalized?.id || "").trim();
-    if (productId) {
-      const nextManual = Boolean(normalized.minimumPriceManual);
-      if (overrides[productId] !== nextManual) {
-        overrides[productId] = nextManual;
-        overridesChanged = true;
-      }
-    }
-    if (!productsChanged) {
-      const oldPrice = Math.max(0, Number(product?.minimumPrice) || 0);
-      const nextPrice = Math.max(0, Number(normalized?.minimumPrice) || 0);
-      const oldManual = product?.minimumPriceManual === true;
-      const nextManual = normalized?.minimumPriceManual === true;
-      if (Math.abs(oldPrice - nextPrice) >= 0.005 || oldManual !== nextManual) productsChanged = true;
-    }
-    return normalized;
-  });
-  if (overridesChanged) saveMinimumPriceManualOverridesV160(overrides);
-  if (productsChanged) {
-    saveJSON("importSystemProducts", normalizedProducts);
+// V44.5: global pricing settings are applied from Settings at render time.
+// Do not rewrite/persist the whole local Products cache when commission/shipping changes.
+// The dedicated Apps Script writer updates the canonical minimumPrice column in one batch.
+// This keeps the browser responsive and prevents stale full-product work from surviving into the next startup.
+function invalidatePricingRuntimeCachesV445() {
+  try {
+    if (typeof inventoryPreparedRowsCacheV321 !== "undefined") inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
+    if (typeof inventoryLastRenderedPreparedRowsV321 !== "undefined") inventoryLastRenderedPreparedRowsV321 = null;
     if (typeof historyProductLookupCacheV322 !== "undefined") historyProductLookupCacheV322 = { raw:null, byId:new Map(), byName:new Map() };
     if (typeof historyAdjustmentCacheV322 !== "undefined") historyAdjustmentCacheV322 = { raw:null, rows:[] };
-  }
-  if (typeof inventoryPreparedRowsCacheV321 !== "undefined") inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
-  return normalizedProducts;
+  } catch (_) {}
 }
 
 function setupShippingResponsibilityV439() {
@@ -3281,22 +3251,21 @@ function setupShippingResponsibilityV439() {
     button.disabled = true;
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
-    const settingsBeforeV444 = loadJSON("importSystemSettings", {});
-    const productsBeforeV444 = loadJSON("importSystemProducts", []);
+    const settingsBeforeV445 = loadJSON("importSystemSettings", {});
     try {
-      saveJSON("importSystemSettings", { ...settingsBeforeV444, [SHIPPING_RESPONSIBILITY_KEY_V439]: selected });
+      saveJSON("importSystemSettings", { ...settingsBeforeV445, [SHIPPING_RESPONSIBILITY_KEY_V439]: selected });
       if (getShippingResponsibilityV439() !== selected) throw new Error("shipping responsibility persistence verification failed");
-      recalculateAutomaticMinimumPricesForSettingsV443(productsBeforeV444);
-      if (typeof updatePricingSettingsFastV444 !== "function") throw new Error("V44.4 成本设置快速同步模块未载入，请强制刷新。");
-      await updatePricingSettingsFastV444({ shippingResponsibilityV439:selected });
+      invalidatePricingRuntimeCachesV445();
+      if (typeof updatePricingSettingsFastV445 !== "function") throw new Error("V44.5 成本设置快速同步模块未载入，请强制刷新。");
+      await updatePricingSettingsFastV445({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
       setShippingResponsibilityStatusV440(`✓ 保存成功 · 当前为${selected === "buyer" ? "买家包邮" : "卖家包邮"}`);
       scheduleVisibleSettingsRepaintV441();
     } catch (error) {
       console.error("save shipping responsibility failed", error);
-      saveJSON("importSystemSettings", settingsBeforeV444);
-      recalculateAutomaticMinimumPricesForSettingsV443(productsBeforeV444);
+      saveJSON("importSystemSettings", settingsBeforeV445);
+      invalidatePricingRuntimeCachesV445();
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
       setShippingResponsibilityStatusV440("保存失败，请重试", "error");
@@ -3306,16 +3275,26 @@ function setupShippingResponsibilityV439() {
     }
   });
 }
-// V44.1: only repaint controls that are actually visible on Settings. Heavy product/dashboard
-// lists are rendered when their page is entered, so saving a setting no longer blocks taps/typing.
+// V44.5: repaint the lightweight shared status immediately, but defer the heavy
+// Promotion price list until the browser is idle. This keeps the Save click responsive
+// even when an active promotion contains many products. Hidden pages render on navigation.
+let pricingSettingsRepaintTokenV445 = 0;
 function scheduleVisibleSettingsRepaintV441() {
-  window.requestAnimationFrame(() => window.setTimeout(() => {
+  const tokenV445 = ++pricingSettingsRepaintTokenV445;
+  window.requestAnimationFrame(() => {
+    try {
+      if (typeof renderDashboardPromotionStatusV208 === "function") renderDashboardPromotionStatusV208();
+    } catch (error) { console.warn("V44.5 pricing status repaint skipped", error); }
+  });
+  const runHeavyV445 = () => {
+    if (tokenV445 !== pricingSettingsRepaintTokenV445) return;
     try {
       const pricePanel = document.getElementById("promotionPriceListPanelV183");
       if (pricePanel && !pricePanel.hidden && typeof renderPromotionPriceListV183 === "function") renderPromotionPriceListV183();
-      if (typeof renderDashboardPromotionStatusV208 === "function") renderDashboardPromotionStatusV208();
-    } catch (error) { console.warn("V44.1 settings repaint skipped", error); }
-  }, 0));
+    } catch (error) { console.warn("V44.5 promotion price idle repaint skipped", error); }
+  };
+  if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(runHeavyV445, { timeout:450 });
+  else window.setTimeout(runHeavyV445, 120);
 }
 
 function setCommissionRateStatusV441(message, state = "success") {
@@ -3382,22 +3361,21 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   }
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
-  const settingsBeforeV444 = loadJSON("importSystemSettings", {});
-  const productsBeforeV444 = loadJSON("importSystemProducts", []);
+  const settingsBeforeV445 = loadJSON("importSystemSettings", {});
   try {
     const rules = getMinimumPriceRulesV160();
     const nextRules = { ...rules, commissionRate: nextRate };
-    const nextPromotion = settingsBeforeV444.promotionV183 && typeof settingsBeforeV444.promotionV183 === "object"
-      ? { ...settingsBeforeV444.promotionV183, commissionRate: nextRate, updatedAt: new Date().toISOString() }
-      : settingsBeforeV444.promotionV183;
-    saveJSON("importSystemSettings", { ...settingsBeforeV444, minimumPriceRules: nextRules, ...(nextPromotion ? { promotionV183: nextPromotion } : {}) });
+    const nextPromotion = settingsBeforeV445.promotionV183 && typeof settingsBeforeV445.promotionV183 === "object"
+      ? { ...settingsBeforeV445.promotionV183, commissionRate: nextRate, updatedAt: new Date().toISOString() }
+      : settingsBeforeV445.promotionV183;
+    saveJSON("importSystemSettings", { ...settingsBeforeV445, minimumPriceRules: nextRules, ...(nextPromotion ? { promotionV183: nextPromotion } : {}) });
     if (Math.abs(Number(getMinimumPriceRulesV160().commissionRate) - nextRate) >= 0.005) throw new Error("commission persistence verification failed");
-    recalculateAutomaticMinimumPricesForSettingsV443(productsBeforeV444);
-    if (typeof updatePricingSettingsFastV444 !== "function") throw new Error("V44.4 成本设置快速同步模块未载入，请强制刷新。");
-    const cloudResultV444 = await updatePricingSettingsFastV444({ commissionRate:nextRate });
-    if (cloudResultV444?.promotionV183 && cloudResultV444.promotionV183.active === true) {
-      const currentLocalV444 = loadJSON("importSystemSettings", {});
-      saveJSON("importSystemSettings", { ...currentLocalV444, promotionV183:cloudResultV444.promotionV183 });
+    invalidatePricingRuntimeCachesV445();
+    if (typeof updatePricingSettingsFastV445 !== "function") throw new Error("V44.5 成本设置快速同步模块未载入，请强制刷新。");
+    const cloudResultV445 = await updatePricingSettingsFastV445({ commissionRate:nextRate });
+    if (cloudResultV445?.promotionV183 && cloudResultV445.promotionV183.active === true) {
+      const currentLocalV445 = loadJSON("importSystemSettings", {});
+      saveJSON("importSystemSettings", { ...currentLocalV445, promotionV183:cloudResultV445.promotionV183 });
     }
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -3405,17 +3383,15 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
     setCommissionRateStatusV441(activePromotionV442
       ? `✓ 保存成功 · 当前 ${formatMoney(nextRate)}% · 进行中的促销已自动重算`
       : `✓ 保存成功 · 当前 ${formatMoney(nextRate)}%`);
-    // V44.4: cloud-confirm the global commission before the success state. No generic
-    // Settings dirty queue is left behind, so a subsequent 精品加入/退出促销 write
-    // cannot collide with a stale pricing-settings Push or slow the next startup.
-    resetPromotionDraftV183();
-    try { capturePromotionDraftBaselineV370(); } catch (_) {}
+    // V44.5: do not reset/rebuild Promotion draft lists here. Commission is a global
+    // pricing input, not a Promotion-form edit. Rebuilding those lists was redundant
+    // work and could stall taps while an active promotion was being recalculated.
     scheduleVisibleSettingsRepaintV441();
     return true;
   } catch (error) {
     console.error("save commission rate failed", error);
-    saveJSON("importSystemSettings", settingsBeforeV444);
-    recalculateAutomaticMinimumPricesForSettingsV443(productsBeforeV444);
+    saveJSON("importSystemSettings", settingsBeforeV445);
+    invalidatePricingRuntimeCachesV445();
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
     setCommissionRateStatusV441("保存失败，请重试", "error");
