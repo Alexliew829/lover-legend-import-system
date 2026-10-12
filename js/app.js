@@ -3218,6 +3218,40 @@ function invalidatePricingRuntimeCachesV445() {
   } catch (_) {}
 }
 
+
+// V44.6: one authoritative repaint after the atomic cloud-confirmed pricing commit.
+// Only the currently visible heavy page is rebuilt; hidden tabs/pages wait until visible.
+let pricingSettingsVisibleCommitTokenV446 = 0;
+function applyPricingSettingsCommitV446({ source = "writer" } = {}) {
+  invalidatePricingRuntimeCachesV445();
+  try { refreshShippingResponsibilitySettingsAfterCloudSyncV439(); } catch (_) {}
+  try { refreshCommissionRateAfterCloudSyncV441(); } catch (_) {}
+  try { renderDashboardPromotionStatusV208(); } catch (_) {}
+
+  const token = ++pricingSettingsVisibleCommitTokenV446;
+  window.requestAnimationFrame(() => {
+    if (token !== pricingSettingsVisibleCommitTokenV446 || document.hidden) return;
+    const pageId = document.querySelector(".page.active")?.id || "";
+    if (pageId === "dashboardPage") {
+      try { renderDashboard(); } catch (error) { console.warn("V44.6 dashboard pricing repaint skipped", error); }
+      try { renderInventoryManagementList(); } catch (error) { console.warn("V44.6 inventory pricing repaint skipped", error); }
+    } else if (pageId === "supplierPage") {
+      try { renderProductList(); } catch (error) { console.warn("V44.6 product pricing repaint skipped", error); }
+    } else if (pageId === "settingsPage") {
+      const pricePanel = document.getElementById("promotionPriceListPanelV183");
+      if (pricePanel && !pricePanel.hidden && typeof renderPromotionPriceListV183 === "function") {
+        const renderVisiblePriceList = () => {
+          if (token !== pricingSettingsVisibleCommitTokenV446 || document.hidden) return;
+          try { renderPromotionPriceListV183(); } catch (error) { console.warn("V44.6 promotion pricing repaint skipped", error); }
+        };
+        if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(renderVisiblePriceList, { timeout:600 });
+        else window.setTimeout(renderVisiblePriceList, 120);
+      }
+    }
+  });
+}
+window.applyPricingSettingsCommitV446 = applyPricingSettingsCommitV446;
+
 function setupShippingResponsibilityV439() {
   populateShippingResponsibilityV439();
   const panel = document.querySelector(".shipping-responsibility-settings-v439");
@@ -3251,24 +3285,17 @@ function setupShippingResponsibilityV439() {
     button.disabled = true;
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
-    const settingsBeforeV445 = loadJSON("importSystemSettings", {});
     try {
-      saveJSON("importSystemSettings", { ...settingsBeforeV445, [SHIPPING_RESPONSIBILITY_KEY_V439]: selected });
-      if (getShippingResponsibilityV439() !== selected) throw new Error("shipping responsibility persistence verification failed");
-      invalidatePricingRuntimeCachesV445();
-      if (typeof updatePricingSettingsFastV445 !== "function") throw new Error("V44.5 成本设置快速同步模块未载入，请强制刷新。");
-      await updatePricingSettingsFastV445({ shippingResponsibilityV439:selected });
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V44.6 成本设置原子同步模块未载入，请强制刷新。");
+      await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
       setShippingResponsibilityStatusV440(`✓ 保存成功 · 当前为${selected === "buyer" ? "买家包邮" : "卖家包邮"}`);
-      scheduleVisibleSettingsRepaintV441();
     } catch (error) {
       console.error("save shipping responsibility failed", error);
-      saveJSON("importSystemSettings", settingsBeforeV445);
-      invalidatePricingRuntimeCachesV445();
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
-      setShippingResponsibilityStatusV440("保存失败，请重试", "error");
+      setShippingResponsibilityStatusV440(String(error?.message || "保存失败，请重试"), "error");
     } finally {
       button.disabled = false;
       button.textContent = "保存设置";
@@ -3361,40 +3388,21 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   }
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
-  const settingsBeforeV445 = loadJSON("importSystemSettings", {});
   try {
-    const rules = getMinimumPriceRulesV160();
-    const nextRules = { ...rules, commissionRate: nextRate };
-    const nextPromotion = settingsBeforeV445.promotionV183 && typeof settingsBeforeV445.promotionV183 === "object"
-      ? { ...settingsBeforeV445.promotionV183, commissionRate: nextRate, updatedAt: new Date().toISOString() }
-      : settingsBeforeV445.promotionV183;
-    saveJSON("importSystemSettings", { ...settingsBeforeV445, minimumPriceRules: nextRules, ...(nextPromotion ? { promotionV183: nextPromotion } : {}) });
-    if (Math.abs(Number(getMinimumPriceRulesV160().commissionRate) - nextRate) >= 0.005) throw new Error("commission persistence verification failed");
-    invalidatePricingRuntimeCachesV445();
-    if (typeof updatePricingSettingsFastV445 !== "function") throw new Error("V44.5 成本设置快速同步模块未载入，请强制刷新。");
-    const cloudResultV445 = await updatePricingSettingsFastV445({ commissionRate:nextRate });
-    if (cloudResultV445?.promotionV183 && cloudResultV445.promotionV183.active === true) {
-      const currentLocalV445 = loadJSON("importSystemSettings", {});
-      saveJSON("importSystemSettings", { ...currentLocalV445, promotionV183:cloudResultV445.promotionV183 });
-    }
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V44.6 成本设置原子同步模块未载入，请强制刷新。");
+    await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
     const activePromotionV442 = getPromotionSettingsV183();
     setCommissionRateStatusV441(activePromotionV442
       ? `✓ 保存成功 · 当前 ${formatMoney(nextRate)}% · 进行中的促销已自动重算`
       : `✓ 保存成功 · 当前 ${formatMoney(nextRate)}%`);
-    // V44.5: do not reset/rebuild Promotion draft lists here. Commission is a global
-    // pricing input, not a Promotion-form edit. Rebuilding those lists was redundant
-    // work and could stall taps while an active promotion was being recalculated.
-    scheduleVisibleSettingsRepaintV441();
     return true;
   } catch (error) {
     console.error("save commission rate failed", error);
-    saveJSON("importSystemSettings", settingsBeforeV445);
-    invalidatePricingRuntimeCachesV445();
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
-    setCommissionRateStatusV441("保存失败，请重试", "error");
+    setCommissionRateStatusV441(String(error?.message || "保存失败，请重试"), "error");
     return false;
   } finally {
     if (button) { button.disabled = false; button.textContent = "保存主播佣金"; }
@@ -5329,6 +5337,10 @@ function editPromotionPriceV194(button) {
 
 async function refreshPromotionCloudStateV209(force = false) {
   if (!navigator.onLine || promotionDeleteInProgressV184 || promotionDraftTouchedV209) return false;
+  // V44.6: a pricing save already commits Settings, Product minimum prices and the
+  // authoritative revision atomically across tabs. Do not immediately start the old
+  // focus/visibility Promotion pull and rebuild the same heavy views a second time.
+  if (typeof window.shouldSuppressPromotionCloudRefreshV446 === "function" && window.shouldSuppressPromotionCloudRefreshV446()) return false;
   if (typeof pullLatestAfterSalesCommitV83 !== "function") return false;
   const now = Date.now();
   if (!force && (promotionCloudRefreshBusyV209 || now - promotionCloudRefreshLastAtV209 < 1500)) return false;
