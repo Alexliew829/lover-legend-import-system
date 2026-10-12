@@ -678,6 +678,14 @@ async function refreshSalesInventoryFeedV77({ silent = true } = {}) {
     salesInventoryFeedFailureCountV226 = 0;
     recomputeSalesInventoryPendingV77();
     renderSalesInventoryReminderV77();
+    // V43.6: the 60-second Sales Feed refresh must surface newly arrived
+    // pending inventory work without requiring a page reload. Keep the existing
+    // feed cadence; only open the existing modal when pending rows exist and no
+    // Sales inventory modal is already open.
+    if (salesInventoryPendingV77.length && !document.getElementById("salesInventoryStartupOverlayV81")) {
+      window.__salesStartupReminderShownV80 = false;
+      showStartupSalesInventoryReminderV80();
+    }
     renderImportAnomalyCenterV201();
     if (document.getElementById("batchProductStockSearch")?.value?.trim()) renderBatchProductStockResults();
   } catch (error) {
@@ -1640,15 +1648,23 @@ function renderStartupSalesInventoryReminderV81() {
       const active = group.filter(x => !x.v82Processed);
       const lineHtml = [];
       let groupBlocked = false;
+      // V43.7: preview repeated lines for the same Import product cumulatively.
+      // This is display/safety state only; it never mutates real product stock.
+      const previewStockByProductV437 = new Map();
 
       group.forEach((item, index) => {
         const product = findImportProductForSalesItemV77(item);
         const name = String(item.importProductName || item.productName || product?.name || "未找到产品");
         const qty = Math.max(1, Math.trunc(Number(item.remainingQty || item.quantity || 1)));
-        const stock = product ? Math.max(0, Math.trunc(Number(product.stock) || 0)) : 0;
+        const productKeyV437 = product ? String(product.id || normalizeSalesInventoryTextV77(product.name) || "").trim() : "";
+        const baseStockV437 = product ? Math.max(0, Math.trunc(Number(product.stock) || 0)) : 0;
+        const stock = product && previewStockByProductV437.has(productKeyV437)
+          ? previewStockByProductV437.get(productKeyV437)
+          : baseStockV437;
         const legacy = Boolean(item?.legacyAckOnlyV105);
         const insufficient = !legacy && product && stock < qty;
         if (!product || insufficient) groupBlocked = true;
+        if (product && !legacy && !insufficient) previewStockByProductV437.set(productKeyV437, stock - qty);
 
         let statusHtml = "";
         if (!product) {
@@ -1688,6 +1704,20 @@ function renderStartupSalesInventoryReminderV81() {
 
   body.innerHTML = cards.join("");
 }
+function recheckSalesInventoryPendingAfterProductsSyncV436() {
+  // V43.6: Sales Feed can finish before the first authoritative Products/Cloud
+  // sync. Recompute against the now-current product list and surface any rows
+  // that were temporarily filtered because findImportProductForSalesItemV77()
+  // could not resolve a product during startup. No extra polling or network call.
+  recomputeSalesInventoryPendingV77();
+  if (!salesInventoryPendingV77.length) return false;
+  if (document.getElementById("salesInventoryStartupOverlayV81")) return false;
+  window.__salesStartupReminderShownV80 = false;
+  showStartupSalesInventoryReminderV80();
+  return true;
+}
+window.recheckSalesInventoryPendingAfterProductsSyncV436 = recheckSalesInventoryPendingAfterProductsSyncV436;
+
 function showStartupSalesInventoryReminderV80() {
   if (window.__salesStartupReminderShownV80) return;
   window.__salesStartupReminderShownV80 = true;
@@ -1774,7 +1804,22 @@ function showStartupSalesInventoryReminderV80() {
     const live=group.map(x=>salesInventoryPendingV77.find(r=>String(r.key||"")===String(x.key||""))).filter(Boolean);
     if(!live.length){alert("这张销售卡已经处理，系统不会再次扣库存。");return;}
     const lines=[];let totalQty=0;
-    for(const item of live){const product=findImportProductForSalesItemV77(item);if(!product){alert(`找不到对应产品：${item.productName||""}。整张销售卡没有扣库存。`);return;}const legacy=Boolean(item?.legacyAckOnlyV105);const qty=legacy?0:Math.max(1,Math.trunc(Number(item.remainingQty||item.quantity||1)));if(!legacy&&Math.max(0,Math.trunc(Number(product.stock)||0))<qty){alert(`库存不足：${product.name}。整张销售卡没有扣库存。`);return;}lines.push({item,product,qty,legacy});totalQty+=qty;}
+    // V43.7: validate a whole card against running stock, so duplicate rows that
+    // resolve to the same Import product cannot each pass against the same base stock.
+    const validationStockByProductV437=new Map();
+    for(const item of live){
+      const product=findImportProductForSalesItemV77(item);
+      if(!product){alert(`找不到对应产品：${item.productName||""}。整张销售卡没有扣库存。`);return;}
+      const legacy=Boolean(item?.legacyAckOnlyV105);
+      const qty=legacy?0:Math.max(1,Math.trunc(Number(item.remainingQty||item.quantity||1)));
+      const productKeyV437=String(product.id||normalizeSalesInventoryTextV77(product.name)||"").trim();
+      const currentStock=validationStockByProductV437.has(productKeyV437)
+        ? validationStockByProductV437.get(productKeyV437)
+        : Math.max(0,Math.trunc(Number(product.stock)||0));
+      if(!legacy&&currentStock<qty){alert(`库存不足：${product.name}。整张销售卡没有扣库存。`);return;}
+      if(!legacy)validationStockByProductV437.set(productKeyV437,currentStock-qty);
+      lines.push({item,product,qty,legacy});totalQty+=qty;
+    }
     if(!confirm(`确认处理这张销售卡的待处理库存？\n\n${lines.map(x=>x.legacy?`${x.product.name}（库存已处理，仅回写 Sales）`:`${x.product.name} 需再扣 ×${x.qty}`).join("\n")}\n\n本次实际再扣 ${totalQty} 棵。处理期间会锁定窗口；云端确认过的 Sales Key 永远不会重复扣库存。`))return;
     button.disabled=true;
     button.textContent="⏳ 处理中…";
