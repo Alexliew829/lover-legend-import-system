@@ -3262,7 +3262,7 @@ function setupShippingResponsibilityV439() {
   const button = document.getElementById("saveShippingResponsibilityV439");
   if (!button || button.dataset.boundV439 === "1") return;
   button.dataset.boundV439 = "1";
-  button.addEventListener("click", () => {
+  button.addEventListener("click", async () => {
     const selected = document.querySelector('input[name="shippingResponsibilityV439"]:checked')?.value === "buyer" ? "buyer" : "seller";
     const current = getShippingResponsibilityV439();
     if (selected === current) {
@@ -3281,29 +3281,29 @@ function setupShippingResponsibilityV439() {
     button.disabled = true;
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
-
-    window.setTimeout(() => {
-      try {
-        const settings = loadJSON("importSystemSettings", {});
-        const productsBeforeV439 = loadJSON("importSystemProducts", []);
-        saveJSON("importSystemSettings", { ...settings, [SHIPPING_RESPONSIBILITY_KEY_V439]: selected });
-        if (getShippingResponsibilityV439() !== selected) throw new Error("shipping responsibility persistence verification failed");
-        recalculateAutomaticMinimumPricesForSettingsV443(productsBeforeV439);
-        if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved(180);
-        populateShippingResponsibilityV439();
-        if (panel) panel.dataset.dirtyV439 = "0";
-        setShippingResponsibilityStatusV440(`✓ 保存成功 · 当前为${selected === "buyer" ? "买家包邮" : "卖家包邮"}`);
-        scheduleVisibleSettingsRepaintV441();
-      } catch (error) {
-        console.error("save shipping responsibility failed", error);
-        populateShippingResponsibilityV439();
-        if (panel) panel.dataset.dirtyV439 = "0";
-        setShippingResponsibilityStatusV440("保存失败，请重试", "error");
-      } finally {
-        button.disabled = false;
-        button.textContent = "保存设置";
-      }
-    }, 0);
+    const settingsBeforeV444 = loadJSON("importSystemSettings", {});
+    const productsBeforeV444 = loadJSON("importSystemProducts", []);
+    try {
+      saveJSON("importSystemSettings", { ...settingsBeforeV444, [SHIPPING_RESPONSIBILITY_KEY_V439]: selected });
+      if (getShippingResponsibilityV439() !== selected) throw new Error("shipping responsibility persistence verification failed");
+      recalculateAutomaticMinimumPricesForSettingsV443(productsBeforeV444);
+      if (typeof updatePricingSettingsFastV444 !== "function") throw new Error("V44.4 成本设置快速同步模块未载入，请强制刷新。");
+      await updatePricingSettingsFastV444({ shippingResponsibilityV439:selected });
+      populateShippingResponsibilityV439();
+      if (panel) panel.dataset.dirtyV439 = "0";
+      setShippingResponsibilityStatusV440(`✓ 保存成功 · 当前为${selected === "buyer" ? "买家包邮" : "卖家包邮"}`);
+      scheduleVisibleSettingsRepaintV441();
+    } catch (error) {
+      console.error("save shipping responsibility failed", error);
+      saveJSON("importSystemSettings", settingsBeforeV444);
+      recalculateAutomaticMinimumPricesForSettingsV443(productsBeforeV444);
+      populateShippingResponsibilityV439();
+      if (panel) panel.dataset.dirtyV439 = "0";
+      setShippingResponsibilityStatusV440("保存失败，请重试", "error");
+    } finally {
+      button.disabled = false;
+      button.textContent = "保存设置";
+    }
   });
 }
 // V44.1: only repaint controls that are actually visible on Settings. Heavy product/dashboard
@@ -3363,7 +3363,7 @@ function validateCommissionRateAgainstMarginsV441(rate) {
   return "";
 }
 
-function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
+async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   const nextRate = Math.round((Number(value) + Number.EPSILON) * 100) / 100;
   const error = validateCommissionRateAgainstMarginsV441(nextRate);
   const input = document.getElementById("commissionRateV441");
@@ -3382,41 +3382,47 @@ function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   }
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
-  window.setTimeout(() => {
-    try {
-      const settings = loadJSON("importSystemSettings", {});
-      const rules = getMinimumPriceRulesV160();
-      const productsBefore = loadJSON("importSystemProducts", []);
-      const nextRules = { ...rules, commissionRate: nextRate };
-      const nextPromotion = settings.promotionV183 && typeof settings.promotionV183 === "object"
-        ? { ...settings.promotionV183, commissionRate: nextRate, updatedAt: new Date().toISOString() }
-        : settings.promotionV183;
-      saveJSON("importSystemSettings", { ...settings, minimumPriceRules: nextRules, ...(nextPromotion ? { promotionV183: nextPromotion } : {}) });
-      if (Math.abs(Number(getMinimumPriceRulesV160().commissionRate) - nextRate) >= 0.005) throw new Error("commission persistence verification failed");
-      recalculateAutomaticMinimumPricesForSettingsV443(productsBefore);
-      if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved(180);
-      populateCommissionRateV441();
-      if (panel) panel.dataset.dirtyV441 = "0";
-      const activePromotionV442 = getPromotionSettingsV183();
-      setCommissionRateStatusV441(activePromotionV442
-        ? `✓ 保存成功 · 当前 ${formatMoney(nextRate)}% · 进行中的促销已自动重算`
-        : `✓ 保存成功 · 当前 ${formatMoney(nextRate)}%`);
-      // V44.2: commissionRate is the single global source. If Crazy Sales is active,
-      // promotion prices already read this live value through getPromotionSettingsV183().
-      // Rebind the existing promotion draft/UI only; do NOT invoke the promotion-save
-      // workflow or alter exclusions, margin overrides, Initial/Current/Restore logic.
-      resetPromotionDraftV183();
-      try { capturePromotionDraftBaselineV370(); } catch (_) {}
-      scheduleVisibleSettingsRepaintV441();
-    } catch (error) {
-      console.error("save commission rate failed", error);
-      populateCommissionRateV441();
-      setCommissionRateStatusV441("保存失败，请重试", "error");
-    } finally {
-      if (button) { button.disabled = false; button.textContent = "保存主播佣金"; }
+  const settingsBeforeV444 = loadJSON("importSystemSettings", {});
+  const productsBeforeV444 = loadJSON("importSystemProducts", []);
+  try {
+    const rules = getMinimumPriceRulesV160();
+    const nextRules = { ...rules, commissionRate: nextRate };
+    const nextPromotion = settingsBeforeV444.promotionV183 && typeof settingsBeforeV444.promotionV183 === "object"
+      ? { ...settingsBeforeV444.promotionV183, commissionRate: nextRate, updatedAt: new Date().toISOString() }
+      : settingsBeforeV444.promotionV183;
+    saveJSON("importSystemSettings", { ...settingsBeforeV444, minimumPriceRules: nextRules, ...(nextPromotion ? { promotionV183: nextPromotion } : {}) });
+    if (Math.abs(Number(getMinimumPriceRulesV160().commissionRate) - nextRate) >= 0.005) throw new Error("commission persistence verification failed");
+    recalculateAutomaticMinimumPricesForSettingsV443(productsBeforeV444);
+    if (typeof updatePricingSettingsFastV444 !== "function") throw new Error("V44.4 成本设置快速同步模块未载入，请强制刷新。");
+    const cloudResultV444 = await updatePricingSettingsFastV444({ commissionRate:nextRate });
+    if (cloudResultV444?.promotionV183 && cloudResultV444.promotionV183.active === true) {
+      const currentLocalV444 = loadJSON("importSystemSettings", {});
+      saveJSON("importSystemSettings", { ...currentLocalV444, promotionV183:cloudResultV444.promotionV183 });
     }
-  }, 0);
-  return true;
+    populateCommissionRateV441();
+    if (panel) panel.dataset.dirtyV441 = "0";
+    const activePromotionV442 = getPromotionSettingsV183();
+    setCommissionRateStatusV441(activePromotionV442
+      ? `✓ 保存成功 · 当前 ${formatMoney(nextRate)}% · 进行中的促销已自动重算`
+      : `✓ 保存成功 · 当前 ${formatMoney(nextRate)}%`);
+    // V44.4: cloud-confirm the global commission before the success state. No generic
+    // Settings dirty queue is left behind, so a subsequent 精品加入/退出促销 write
+    // cannot collide with a stale pricing-settings Push or slow the next startup.
+    resetPromotionDraftV183();
+    try { capturePromotionDraftBaselineV370(); } catch (_) {}
+    scheduleVisibleSettingsRepaintV441();
+    return true;
+  } catch (error) {
+    console.error("save commission rate failed", error);
+    saveJSON("importSystemSettings", settingsBeforeV444);
+    recalculateAutomaticMinimumPricesForSettingsV443(productsBeforeV444);
+    populateCommissionRateV441();
+    if (panel) panel.dataset.dirtyV441 = "0";
+    setCommissionRateStatusV441("保存失败，请重试", "error");
+    return false;
+  } finally {
+    if (button) { button.disabled = false; button.textContent = "保存主播佣金"; }
+  }
 }
 
 function setupCommissionRateV441() {
