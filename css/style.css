@@ -7135,3 +7135,20 @@ body.system-media-preview-open-v305{overflow:hidden}
 .promotion-main-grid-single-v441{grid-template-columns:minmax(180px,320px)!important}
 .promotion-main-grid-single-v441 label:first-child{grid-column:auto!important}
 @media(max-width:560px){.commission-settings-v441{padding:14px}.commission-settings-row-v441{grid-template-columns:1fr 1fr;gap:8px}.commission-settings-row-v441 label{grid-column:1/-1}.commission-settings-row-v441 input{max-width:none;width:100%;box-sizing:border-box}.commission-reset-v441{width:100%!important}.commission-settings-actions-v441{align-items:stretch;flex-direction:column-reverse;gap:7px}.commission-save-v441{width:100%!important}.commission-status-v441{text-align:left;min-height:18px}}
+
+
+/* V44.7 — Product Management mobile title cleanup.
+   Keep Chinese name + Product ID on one line; move Copy Product beside English name only on mobile. */
+.product-stock-english-row-v447{min-width:0}
+.product-stock-copy-mobile-v447{display:none!important}
+@media(max-width:720px){
+  .product-stock-copy-desktop-v447{display:none!important}
+  .product-stock-english-row-v447{display:flex;align-items:center;gap:8px;min-width:0;margin:5px 0 10px}
+  .product-stock-english-row-v447 .product-stock-english-edit-btn-v266{flex:1 1 auto;min-width:0;max-width:none!important;margin:0!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .product-stock-english-row-v447 .product-stock-copy-mobile-v447{display:inline-flex!important;flex:0 0 auto;min-width:72px;max-width:78px;margin:0;padding:4px 7px;font-size:.76rem}
+  .product-stock-title-row-v256{margin-bottom:0}
+  .product-stock-title-row-v256 .product-stock-name-v256{max-width:calc(100% - 82px)}
+}
+@media(max-width:420px){
+  .product-stock-english-row-v447 .product-stock-copy-mobile-v447{min-width:68px;max-width:72px;padding-inline:5px;font-size:.72rem}
+}

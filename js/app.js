@@ -3219,7 +3219,7 @@ function invalidatePricingRuntimeCachesV445() {
 }
 
 
-// V44.6: one authoritative repaint after the atomic cloud-confirmed pricing commit.
+// V44.7: one authoritative repaint after the atomic cloud-confirmed pricing commit.
 // Only the currently visible heavy page is rebuilt; hidden tabs/pages wait until visible.
 let pricingSettingsVisibleCommitTokenV446 = 0;
 function applyPricingSettingsCommitV446({ source = "writer" } = {}) {
@@ -3233,16 +3233,24 @@ function applyPricingSettingsCommitV446({ source = "writer" } = {}) {
     if (token !== pricingSettingsVisibleCommitTokenV446 || document.hidden) return;
     const pageId = document.querySelector(".page.active")?.id || "";
     if (pageId === "dashboardPage") {
-      try { renderDashboard(); } catch (error) { console.warn("V44.6 dashboard pricing repaint skipped", error); }
-      try { renderInventoryManagementList(); } catch (error) { console.warn("V44.6 inventory pricing repaint skipped", error); }
+      try { renderDashboard(); } catch (error) { console.warn("V44.7 dashboard pricing repaint skipped", error); }
+      // V44.7: the inventory card list is the heavy part. Paint summary/status first,
+      // then rebuild the still-visible list once the browser has an idle slice.
+      const renderVisibleInventoryV447 = () => {
+        if (token !== pricingSettingsVisibleCommitTokenV446 || document.hidden) return;
+        if (document.querySelector(".page.active")?.id !== "dashboardPage") return;
+        try { renderInventoryManagementList(); } catch (error) { console.warn("V44.7 inventory pricing repaint skipped", error); }
+      };
+      if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(renderVisibleInventoryV447, { timeout:450 });
+      else window.setTimeout(renderVisibleInventoryV447, 80);
     } else if (pageId === "supplierPage") {
-      try { renderProductList(); } catch (error) { console.warn("V44.6 product pricing repaint skipped", error); }
+      try { renderProductList(); } catch (error) { console.warn("V44.7 product pricing repaint skipped", error); }
     } else if (pageId === "settingsPage") {
       const pricePanel = document.getElementById("promotionPriceListPanelV183");
       if (pricePanel && !pricePanel.hidden && typeof renderPromotionPriceListV183 === "function") {
         const renderVisiblePriceList = () => {
           if (token !== pricingSettingsVisibleCommitTokenV446 || document.hidden) return;
-          try { renderPromotionPriceListV183(); } catch (error) { console.warn("V44.6 promotion pricing repaint skipped", error); }
+          try { renderPromotionPriceListV183(); } catch (error) { console.warn("V44.7 promotion pricing repaint skipped", error); }
         };
         if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(renderVisiblePriceList, { timeout:600 });
         else window.setTimeout(renderVisiblePriceList, 120);
@@ -3286,7 +3294,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V44.6 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V44.7 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3389,7 +3397,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V44.6 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V44.7 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -5337,7 +5345,7 @@ function editPromotionPriceV194(button) {
 
 async function refreshPromotionCloudStateV209(force = false) {
   if (!navigator.onLine || promotionDeleteInProgressV184 || promotionDraftTouchedV209) return false;
-  // V44.6: a pricing save already commits Settings, Product minimum prices and the
+  // V44.7: a pricing save already commits Settings, Product minimum prices and the
   // authoritative revision atomically across tabs. Do not immediately start the old
   // focus/visibility Promotion pull and rebuild the same heavy views a second time.
   if (typeof window.shouldSuppressPromotionCloudRefreshV446 === "function" && window.shouldSuppressPromotionCloudRefreshV446()) return false;
@@ -16083,9 +16091,12 @@ function renderBatchProductStockResults() {
         ${productIdV256 ? `<button type="button" class="product-stock-id-copy-v256"
           data-product-id-copy-v256="${escapeHTML(productIdV256)}"
           aria-label="点击复制产品编号；长按安全修改产品编号" title="点击复制产品编号；长按安全修改产品编号">${escapeHTML(productIdV256)}</button>` : ""}
-        ${productIdV256 ? buildProductManagementCopyButtonV438(productIdV256) : ""}
+        ${productIdV256 ? buildProductManagementCopyButtonV438(productIdV256, "product-stock-copy-desktop-v447") : ""}
       </div>
-      <button type="button" class="product-stock-english-edit-btn-v266" data-product-id="${escapeHTML(productIdV256)}" aria-label="点击复制英文名；长按修改英文名" title="点击复制英文名；长按修改英文名">${escapeHTML(productEnglishNameV262(product)||"英文名：未设置")}</button>
+      <div class="product-stock-english-row-v447">
+        <button type="button" class="product-stock-english-edit-btn-v266" data-product-id="${escapeHTML(productIdV256)}" aria-label="点击复制英文名；长按修改英文名" title="点击复制英文名；长按修改英文名">${escapeHTML(productEnglishNameV262(product)||"英文名：未设置")}</button>
+        ${productIdV256 ? buildProductManagementCopyButtonV438(productIdV256, "product-stock-copy-mobile-v447") : ""}
+      </div>
 
       <div class="product-stock-modify-card-v376">
         <div class="product-stock-modify-grid-v376">
@@ -18837,14 +18848,58 @@ async function copyInventoryProductForDriveV306(button) {
 }
 window.copyInventoryProductForDriveV306 = copyInventoryProductForDriveV306;
 
-// V43.8: Product Management reuses the exact Home inventory copy-name cleanup,
-// but outputs the requested reversed file name format: name-productId-.
+// V44.7: Product Management copy names keep a meaningful leading form word
+// (for example 矮霸水梅 / 丛林式水梅), but remove supplier prefixes plus trailing
+// size / form / model-price text. Home inventory copy format remains unchanged.
+const PRODUCT_COPY_LEADING_FORM_V447 = /((?:超小|迷你|高|低|大|小)?(?:半悬崖|全悬崖|矮霸|提根|悬崖|丛林|文人|斜干|直干|曲干|双干|双杆|多干|临水|附石|抱石|风吹|游龙|小品|老桩|米叶|雀舌|小叶|大叶|细叶|圆叶|金边|银边|斑叶|红花|白花|紫花)(?:式)?)$/u;
+const PRODUCT_COPY_TRAILING_SIZE_V447 = /(?:高|宽|冠幅|盆径|树径|干径|直径)?\d+(?:\.\d+)?(?:\s*(?:-|–|—|~|～|至|到|\/)\s*\d+(?:\.\d+)?)?\s*(?:公分|厘米|cm|CM|mm|MM|毫米|寸|尺)$/u;
+const PRODUCT_COPY_TRAILING_FORM_V447 = /(?:半悬崖式|全悬崖式|悬崖式|丛林式|提根式|附石式|抱石式|文人式|斜干式|直干式|曲干式|双干式|双杆式|多干式|临水式|风吹式|冬菇型|蘑菇型|三角型|三角形|云朵型|宝塔型|塔型|伞型|圆冠型|球型|飘枝型|自然型|八方根|板根|高提根|低提根|小游龙|大游龙|游龙|矮霸|老桩|小品|大品)$/u;
+
+function buildProductManagementCleanNameV447(product) {
+  let rawName = String(product?.name || "").normalize("NFKC").trim();
+  if (!rawName) return "";
+
+  const rules = typeof getProductPrefixRulesV181 === "function" ? getProductPrefixRulesV181() : [];
+  const chineseKeywords = rules
+    .map(row => String(Array.isArray(row) ? row[0] : "").normalize("NFKC").trim())
+    .filter(keyword => keyword && /[\u3400-\u9fff]/u.test(keyword));
+
+  let speciesStart = -1;
+  for (const keyword of chineseKeywords) {
+    const index = rawName.indexOf(keyword);
+    if (index >= 0 && (speciesStart < 0 || index < speciesStart)) speciesStart = index;
+  }
+
+  if (speciesStart > 0) {
+    const leadingText = rawName.slice(0, speciesStart).replace(/[\s\u3000]+/gu, "");
+    const leadingForm = leadingText.match(PRODUCT_COPY_LEADING_FORM_V447)?.[1] || "";
+    rawName = `${leadingForm}${rawName.slice(speciesStart)}`;
+  }
+
+  let name = rawName
+    .replace(/[\s\u3000]+/gu, "")
+    .replace(/(?:[A-Za-z]{1,8})?\d+(?:\.\d+)?[A-Za-z]{0,3}$/u, "")
+    .replace(/[\-_\/]+$/g, "")
+    .trim();
+
+  // Strip only trailing descriptors. A leading form word is intentionally retained,
+  // so 矮霸水梅5-6公分 becomes 矮霸水梅 rather than 水梅.
+  let previous = "";
+  while (name && name !== previous) {
+    previous = name;
+    name = name
+      .replace(PRODUCT_COPY_TRAILING_SIZE_V447, "")
+      .replace(PRODUCT_COPY_TRAILING_FORM_V447, "")
+      .replace(/[\-_\/]+$/g, "")
+      .trim();
+  }
+  return name || rawName;
+}
+
 function buildProductManagementCopyNameV438(product) {
   const id = String(product?.id || product?.productId || "").trim().toUpperCase();
-  const homeValue = buildInventoryProductCopyNameV306(product);
-  if (!id || !homeValue) return homeValue || id;
-  const prefix = `${id}-`;
-  const cleanedName = homeValue.startsWith(prefix) ? homeValue.slice(prefix.length) : "";
+  const cleanedName = buildProductManagementCleanNameV447(product);
+  if (!id) return cleanedName;
   return cleanedName ? `${cleanedName}-${id}-` : `${id}-`;
 }
 
@@ -18871,10 +18926,11 @@ async function copyProductManagementForDriveV438(button) {
 }
 window.copyProductManagementForDriveV438 = copyProductManagementForDriveV438;
 
-function buildProductManagementCopyButtonV438(productId) {
+function buildProductManagementCopyButtonV438(productId, extraClass = "") {
   const id = String(productId || "").trim();
   if (!id) return "";
-  return `<button type="button" class="inventory-product-file-copy-v306 product-stock-copy-product-v438" data-product-id-v438="${escapeHTML(id)}" onclick="copyProductManagementForDriveV438(this)" title="复制产品：产品名-产品编号-">复制产品</button>`;
+  const safeExtraClass = String(extraClass || "").replace(/[^A-Za-z0-9_-]+/g, " ").trim();
+  return `<button type="button" class="inventory-product-file-copy-v306 product-stock-copy-product-v438${safeExtraClass ? ` ${safeExtraClass}` : ""}" data-product-id-v438="${escapeHTML(id)}" onclick="copyProductManagementForDriveV438(this)" title="复制产品：名称（不含尾部尺寸/造型）-产品编号-">复制产品</button>`;
 }
 
 function buildInventoryProductCopyButtonV306(productId) {
