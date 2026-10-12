@@ -2825,6 +2825,20 @@ function repairLegacyImportDates() {
   }
 }
 
+const pageRenderTimersV441 = new Map();
+function schedulePageRenderV441(pageId, fn) {
+  const old = pageRenderTimersV441.get(pageId);
+  if (old) window.clearTimeout(old);
+  window.requestAnimationFrame(() => {
+    const timer = window.setTimeout(() => {
+      pageRenderTimersV441.delete(pageId);
+      if (!document.getElementById(pageId)?.classList.contains("active")) return;
+      try { fn(); } catch (error) { console.warn("V44.1 page render failed", pageId, error); }
+    }, 0);
+    pageRenderTimersV441.set(pageId, timer);
+  });
+}
+
 function setupNavigation() {
   const buttons = document.querySelectorAll(".nav-btn");
   const pages = document.querySelectorAll(".page");
@@ -2920,12 +2934,11 @@ function setupNavigation() {
       }
 
       if (target === "dashboardPage") {
-        renderInventoryManagementList();
-        renderDashboard();
+        schedulePageRenderV441("dashboardPage", () => { renderInventoryManagementList(); renderDashboard(); });
       }
 
       if (target === "supplierPage") {
-        renderProductList();
+        schedulePageRenderV441("supplierPage", () => renderProductList());
       }
 
       if (target === "settingsPage") {
@@ -2943,7 +2956,6 @@ function setupNavigation() {
 }
 
 const MINIMUM_PRICE_SETTING_FIELDS_V160 = Object.freeze({
-  commissionRate: { id: "minimumCommissionRate", label: "主播佣金", suffix: "%", kind: "commission" },
   margin0To300: { id: "minimumMargin0To300", label: "成本 RM0–300 净利率", suffix: "%", kind: "margin" },
   margin300To500: { id: "minimumMargin300To500", label: "成本 RM300.01–500 净利率", suffix: "%", kind: "margin" },
   margin500To800: { id: "minimumMargin500To800", label: "成本 RM500.01–799.99 净利率", suffix: "%", kind: "margin" },
@@ -2994,6 +3006,13 @@ function hasUnsavedSettingsChangesV160() {
   const selectedShippingV439 = document.querySelector('input[name="shippingResponsibilityV439"]:checked')?.value === "buyer" ? "buyer" : "seller";
   if (selectedShippingV439 !== getShippingResponsibilityV439()) return true;
 
+  const commissionInputV441 = document.getElementById("commissionRateV441");
+  if (commissionInputV441) {
+    const commissionDraftV441 = parseAmount(commissionInputV441.value);
+    const storedCommissionV441 = Number(getMinimumPriceRulesV160().commissionRate);
+    if (!Number.isFinite(commissionDraftV441) || Math.abs(commissionDraftV441 - storedCommissionV441) >= 0.005) return true;
+  }
+
   const storedRules = getMinimumPriceRulesV160();
   return Object.entries(MINIMUM_PRICE_SETTING_FIELDS_V160).some(([key, field]) => {
     const input = document.getElementById(field.id);
@@ -3012,6 +3031,7 @@ function discardSettingsDraftV160() {
     });
   populateMinimumPriceSettingsV160();
   populateShippingResponsibilityV439();
+  populateCommissionRateV441();
   const shippingPanelV439 = document.querySelector(".shipping-responsibility-settings-v439");
   if (shippingPanelV439) shippingPanelV439.dataset.dirtyV439 = "0";
   ["oldAccessPassword", "newAccessPassword", "confirmAccessPassword"].forEach(id => {
@@ -3041,7 +3061,6 @@ function updateMinimumPriceCustomBadgeV202(rules = getMinimumPriceRulesV160()) {
   if (!badge) return;
   const changed = keys => keys.some(key => Math.abs((Number(rules[key]) || 0) - (Number(DEFAULT_MINIMUM_PRICE_RULES_V160[key]) || 0)) >= 0.005);
   const groups = [];
-  if (changed(["commissionRate"])) groups.push("佣金");
   if (changed(["margin0To300","margin300To500","margin500To800","margin800To5000","margin5000To8000","margin8000Plus"])) groups.push("净利");
   if (changed(["freightTierA","freightTierB","freightTierC","freightTierD","freightTierE","freightTierF"])) groups.push("运费");
   if (changed(["vndPotUnder1m","vndPot1mTo4m","vndPot4mTo10m","vndPot10mPlus"])) groups.push("VND");
@@ -3085,20 +3104,17 @@ function setupMinimumPriceSettingsV160() {
   if (!button) return;
   button.addEventListener("click", () => {
     const currentRules = getMinimumPriceRulesV160();
-    const nextRules = {};
+    const nextRules = { ...currentRules };
     const changes = [];
 
     for (const [key, field] of Object.entries(MINIMUM_PRICE_SETTING_FIELDS_V160)) {
       const input = document.getElementById(field.id);
       const value = parseAmount(input?.value || "");
       const isMargin = field.kind === "margin";
-      const isCommission = field.kind === "commission";
-      if (!Number.isFinite(value) || value < 0 || ((isMargin || isCommission) && value >= 100)) {
+      if (!Number.isFinite(value) || value < 0 || (isMargin && value >= 100)) {
         alert(isMargin
           ? `${field.label}必须是0至99.99之间。`
-          : isCommission
-            ? `${field.label}必须是0至99.99之间。`
-            : `${field.label}必须是0或正数。`);
+          : `${field.label}必须是0或正数。`);
         input?.focus();
         return;
       }
@@ -3135,8 +3151,7 @@ function setupMinimumPriceSettingsV160() {
     updateMinimumPriceCustomBadgeV202(nextRules);
     saveProducts(getProducts());
     if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
-    renderInventoryManagementList();
-    renderDashboard();
+    scheduleVisibleSettingsRepaintV441();
     if (status) status.textContent = "最低售价设置已保存，自动售价已重新计算";
     setTimeout(() => { if (status) status.textContent = ""; }, 2600);
   });
@@ -3145,17 +3160,18 @@ function setupMinimumPriceSettingsV160() {
   if (resetButton && resetButton.dataset.boundV200 !== "1") {
     resetButton.dataset.boundV200 = "1";
     resetButton.addEventListener("click", () => {
-      const warning = "Reset to Factory 会把自动最低售价管理的主播佣金、目标净利率、木架＋本地运费和 VND 花盆成本全部恢复为系统默认值。\n\n手动原最低售价不会被覆盖。";
+      const warning = "Reset to Factory 会把自动最低售价管理的目标净利率、木架＋本地运费和 VND 花盆成本恢复为系统默认值。\n\n主播佣金已移到独立板块，不会在这里改变；手动原最低售价不会被覆盖。";
       if (!window.confirm(`${warning}\n\n是否继续？`)) return;
       if (!window.confirm("再次确认：恢复原设置后，所有自动原最低售价会立即按默认参数重新计算。\n\n确定执行 Reset to Factory？")) return;
       const settings = loadJSON("importSystemSettings", {});
-      saveJSON("importSystemSettings", { ...settings, minimumPriceRules: { ...DEFAULT_MINIMUM_PRICE_RULES_V160 } });
+      const currentRulesV441 = getMinimumPriceRulesV160();
+      const resetRulesV441 = { ...DEFAULT_MINIMUM_PRICE_RULES_V160, commissionRate: currentRulesV441.commissionRate };
+      saveJSON("importSystemSettings", { ...settings, minimumPriceRules: resetRulesV441 });
       populateMinimumPriceSettingsV160();
-      updateMinimumPriceCustomBadgeV202(DEFAULT_MINIMUM_PRICE_RULES_V160);
+      updateMinimumPriceCustomBadgeV202(resetRulesV441);
       saveProducts(getProducts());
       if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
-      renderInventoryManagementList();
-      renderDashboard();
+      scheduleVisibleSettingsRepaintV441();
       const status = document.getElementById("minimumPriceSettingsStatus");
       if (status) status.textContent = "已恢复原设置，自动原最低售价已重新计算；手动原最低售价未改变";
       setTimeout(() => { if (status) status.textContent = ""; }, 3600);
@@ -3243,11 +3259,7 @@ function setupShippingResponsibilityV439() {
         populateShippingResponsibilityV439();
         if (panel) panel.dataset.dirtyV439 = "0";
         setShippingResponsibilityStatusV440(`✓ 保存成功 · 当前为${selected === "buyer" ? "买家包邮" : "卖家包邮"}`);
-        try { renderInventoryManagementList(); } catch (_) {}
-        try { renderDashboard(); } catch (_) {}
-        try { renderProductList(); } catch (_) {}
-        try { renderBatchProductStockResults(); } catch (_) {}
-        try { renderPromotionPriceListV183(); } catch (_) {}
+        scheduleVisibleSettingsRepaintV441();
       } catch (error) {
         console.error("save shipping responsibility failed", error);
         populateShippingResponsibilityV439();
@@ -3260,6 +3272,143 @@ function setupShippingResponsibilityV439() {
     }, 0);
   });
 }
+// V44.1: only repaint controls that are actually visible on Settings. Heavy product/dashboard
+// lists are rendered when their page is entered, so saving a setting no longer blocks taps/typing.
+function scheduleVisibleSettingsRepaintV441() {
+  window.requestAnimationFrame(() => window.setTimeout(() => {
+    try {
+      const pricePanel = document.getElementById("promotionPriceListPanelV183");
+      if (pricePanel && !pricePanel.hidden && typeof renderPromotionPriceListV183 === "function") renderPromotionPriceListV183();
+      if (typeof renderDashboardPromotionStatusV208 === "function") renderDashboardPromotionStatusV208();
+    } catch (error) { console.warn("V44.1 settings repaint skipped", error); }
+  }, 0));
+}
+
+function setCommissionRateStatusV441(message, state = "success") {
+  const status = document.getElementById("commissionRateStatusV441");
+  if (!status) return;
+  status.textContent = String(message || "");
+  status.classList.remove("is-saving-v441", "is-error-v441", "is-neutral-v441");
+  if (state === "saving") status.classList.add("is-saving-v441");
+  else if (state === "error") status.classList.add("is-error-v441");
+  else if (state === "neutral") status.classList.add("is-neutral-v441");
+}
+
+function populateCommissionRateV441() {
+  const input = document.getElementById("commissionRateV441");
+  if (input) input.value = formatMoney(getMinimumPriceRulesV160().commissionRate);
+  const panel = document.querySelector(".commission-settings-v441");
+  if (panel) panel.dataset.dirtyV441 = "0";
+}
+
+function refreshCommissionRateAfterCloudSyncV441() {
+  const page = document.getElementById("settingsPage");
+  if (!page?.classList.contains("active")) return;
+  const panel = page.querySelector(".commission-settings-v441");
+  if (panel?.dataset.dirtyV441 === "1") return;
+  populateCommissionRateV441();
+}
+window.refreshCommissionRateAfterCloudSyncV441 = refreshCommissionRateAfterCloudSyncV441;
+
+function validateCommissionRateAgainstMarginsV441(rate) {
+  const commissionRate = Number(rate);
+  if (!Number.isFinite(commissionRate) || commissionRate < 0 || commissionRate >= 100) {
+    return "主播佣金必须是0至99.99之间。";
+  }
+  const rules = getMinimumPriceRulesV160();
+  const marginKeys = ["margin0To300","margin300To500","margin500To800","margin800To5000","margin5000To8000","margin8000Plus"];
+  const invalid = marginKeys.find(key => 1 - commissionRate / 100 - Number(rules[key] || 0) / 100 <= 0);
+  if (invalid) return `主播佣金 ${formatMoney(commissionRate)}% 与现有目标净利率组合必须小于 100%。`;
+  const promotion = getPromotionSettingsV183();
+  if (promotion) {
+    const maxRate = Math.floor((100 - commissionRate - 0.1) * 10 + 1e-9) / 10;
+    if (Number(promotion.targetMarginRate) > maxRate) return `当前促销目标净利率 ${promotion.targetMarginRate}% 与主播佣金 ${formatMoney(commissionRate)}% 不兼容。请先调整促销目标净利率。`;
+    const badOverride = Object.entries(promotion.marginOverrides || {}).find(([, value]) => Number(value) > maxRate);
+    if (badOverride) return `产品 ${badOverride[0]} 的促销自定义利润率与主播佣金 ${formatMoney(commissionRate)}% 不兼容。`;
+  }
+  return "";
+}
+
+function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
+  const nextRate = Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+  const error = validateCommissionRateAgainstMarginsV441(nextRate);
+  const input = document.getElementById("commissionRateV441");
+  const panel = document.querySelector(".commission-settings-v441");
+  const button = document.getElementById("saveCommissionRateV441");
+  if (error) { setCommissionRateStatusV441(error, "error"); input?.focus(); return false; }
+  const currentRate = Number(getMinimumPriceRulesV160().commissionRate);
+  if (Math.abs(nextRate - currentRate) < 0.005) {
+    if (panel) panel.dataset.dirtyV441 = "0";
+    setCommissionRateStatusV441(`设置没有改变 · 当前 ${formatMoney(currentRate)}%`, "neutral");
+    return true;
+  }
+  if (!skipConfirm && !window.confirm(`确认把主播佣金从 ${formatMoney(currentRate)}% 改为 ${formatMoney(nextRate)}%？\n\n保存后会重新计算自动最低售价、促销最低售价、附加成本、利润和利润率；库存、Average Cost、Sales Key / ACK 不会改变。`)) {
+    setCommissionRateStatusV441("已取消 · 设置没有改变", "neutral");
+    return false;
+  }
+  if (button) { button.disabled = true; button.textContent = "保存中…"; }
+  setCommissionRateStatusV441("保存中…", "saving");
+  window.setTimeout(() => {
+    try {
+      const settings = loadJSON("importSystemSettings", {});
+      const rules = getMinimumPriceRulesV160();
+      const productsBefore = loadJSON("importSystemProducts", []);
+      const nextRules = { ...rules, commissionRate: nextRate };
+      const nextPromotion = settings.promotionV183 && typeof settings.promotionV183 === "object"
+        ? { ...settings.promotionV183, commissionRate: nextRate, updatedAt: new Date().toISOString() }
+        : settings.promotionV183;
+      saveJSON("importSystemSettings", { ...settings, minimumPriceRules: nextRules, ...(nextPromotion ? { promotionV183: nextPromotion } : {}) });
+      if (Math.abs(Number(getMinimumPriceRulesV160().commissionRate) - nextRate) >= 0.005) throw new Error("commission persistence verification failed");
+      if (typeof inventoryPreparedRowsCacheV321 !== "undefined") inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
+      saveProducts(getProducts());
+      if (typeof markCloudCollectionSaved === "function") markCloudCollectionSaved("products", productsBefore, loadJSON("importSystemProducts", []));
+      if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
+      populateCommissionRateV441();
+      if (panel) panel.dataset.dirtyV441 = "0";
+      setCommissionRateStatusV441(`✓ 保存成功 · 当前 ${formatMoney(nextRate)}%`);
+      resetPromotionDraftV183();
+      scheduleVisibleSettingsRepaintV441();
+    } catch (error) {
+      console.error("save commission rate failed", error);
+      populateCommissionRateV441();
+      setCommissionRateStatusV441("保存失败，请重试", "error");
+    } finally {
+      if (button) { button.disabled = false; button.textContent = "保存主播佣金"; }
+    }
+  }, 0);
+  return true;
+}
+
+function setupCommissionRateV441() {
+  populateCommissionRateV441();
+  const panel = document.querySelector(".commission-settings-v441");
+  const input = document.getElementById("commissionRateV441");
+  if (input && input.dataset.boundV441 !== "1") {
+    input.dataset.boundV441 = "1";
+    input.addEventListener("focus", () => input.select());
+    input.addEventListener("blur", () => {
+      const value = parseAmount(input.value);
+      if (Number.isFinite(value)) input.value = formatMoney(value);
+    });
+    input.addEventListener("input", () => { if (panel) panel.dataset.dirtyV441 = "1"; setCommissionRateStatusV441("尚未保存", "neutral"); });
+  }
+  const saveButton = document.getElementById("saveCommissionRateV441");
+  if (saveButton && saveButton.dataset.boundV441 !== "1") {
+    saveButton.dataset.boundV441 = "1";
+    saveButton.addEventListener("click", () => saveCommissionRateV441(parseAmount(input?.value || "")));
+  }
+  const resetButton = document.getElementById("resetCommissionRateV441");
+  if (resetButton && resetButton.dataset.boundV441 !== "1") {
+    resetButton.dataset.boundV441 = "1";
+    resetButton.addEventListener("click", () => {
+      if (!window.confirm("确认把主播佣金恢复为原厂默认 10%？")) return;
+      if (input) input.value = "10.00";
+      if (panel) panel.dataset.dirtyV441 = "1";
+      saveCommissionRateV441(10, { skipConfirm:true });
+    });
+  }
+}
+
 function setupSettings() {
   const defaults = DEFAULT_EXCHANGE_RATES_V160;
 
@@ -3356,6 +3505,7 @@ function setupSettings() {
   setupPasswordChange();
   setupMinimumPriceSettingsV160();
   setupShippingResponsibilityV439();
+  setupCommissionRateV441();
   setupPromotionSettingsV183();
   setupProductPrefixSettingsV181();
   setupProductCategorySettingsV342();
@@ -4676,12 +4826,12 @@ function getPromotionSettingsV183() {
   const saved = loadJSON("importSystemSettings", {});
   const raw = saved.promotionV183;
   if (!raw || raw.active !== true) return null;
-  const commissionRate = Number(raw.commissionRate);
+  const globalCommissionRateV441 = Math.max(0, Number(getMinimumPriceRulesV160().commissionRate) || 0);
   const targetMarginRate = Number(raw.targetMarginRate);
   return {
     active: true,
     name: String(raw.name || "年尾清货").trim() || "年尾清货",
-    commissionRate: Number.isFinite(commissionRate) ? commissionRate : 10,
+    commissionRate: globalCommissionRateV441,
     targetMarginRate: Number.isFinite(targetMarginRate) ? targetMarginRate : 30,
     excludedProductIds: Array.from(new Set((Array.isArray(raw.excludedProductIds) ? raw.excludedProductIds : [])
       .map(id => String(id || "").trim().toUpperCase()).filter(Boolean))),
@@ -4787,7 +4937,7 @@ function getPromotionDraftV183() {
   return {
     active: true,
     name: String(document.getElementById("promotionNameV183")?.value || "年尾清货").trim() || "年尾清货",
-    commissionRate: parsePromotionPercentV211(document.getElementById("promotionCommissionV183")?.value),
+    commissionRate: Math.max(0, Number(getMinimumPriceRulesV160().commissionRate) || 0),
     targetMarginRate: parsePromotionPercentV211(document.getElementById("promotionMarginV183")?.value),
     excludedProductIds: Array.from(promotionExcludedDraftV183),
     promotionScope: "exclude",
@@ -4806,7 +4956,6 @@ function hasPromotionDraftChangesV183() {
   const draft = getPromotionDraftV183();
   const expected = active || {name:"年尾清货",commissionRate:10,targetMarginRate:30,excludedProductIds:[],promotionScope:"exclude",selectedProductIds:[]};
   return draft.name !== expected.name ||
-    Math.abs(draft.commissionRate - expected.commissionRate) >= 0.005 ||
     Math.abs(draft.targetMarginRate - expected.targetMarginRate) >= 0.005 ||
     JSON.stringify([...draft.excludedProductIds].sort()) !== JSON.stringify([...(expected.excludedProductIds || [])].sort()) ||
     JSON.stringify(draft.priceOverrides || {}) !== JSON.stringify(expected.priceOverrides || {}) ||
@@ -4819,10 +4968,8 @@ function resetPromotionDraftV183() {
   promotionDraftTouchedV209 = false;
   const active = getPromotionSettingsV183();
   const nameInput = document.getElementById("promotionNameV183");
-  const commissionInput = document.getElementById("promotionCommissionV183");
   const marginInput = document.getElementById("promotionMarginV183");
   if (nameInput) nameInput.value = active?.name || "年尾清货";
-  if (commissionInput) commissionInput.value = String(active?.commissionRate ?? 10);
   if (marginInput) marginInput.value = String(active?.targetMarginRate ?? 30);
   promotionExcludedDraftV183 = new Set(active?.excludedProductIds || []);
   promotionSelectedDraftV388 = new Set();
@@ -5266,10 +5413,8 @@ function refreshPromotionUiV183() {
   const promotion = getPromotionSettingsV183();
   if (!promotionDraftTouchedV209) {
     const nameInput = document.getElementById("promotionNameV183");
-    const commissionInput = document.getElementById("promotionCommissionV183");
-    const marginInput = document.getElementById("promotionMarginV183");
+      const marginInput = document.getElementById("promotionMarginV183");
     if (nameInput) nameInput.value = promotion?.name || "年尾清货";
-    if (commissionInput) commissionInput.value = String(promotion?.commissionRate ?? 10);
     if (marginInput) marginInput.value = String(promotion?.targetMarginRate ?? 30);
     promotionExcludedDraftV183 = new Set(promotion?.excludedProductIds || []);
     promotionSelectedDraftV388 = new Set(promotion?.selectedProductIds || []);
@@ -5356,8 +5501,8 @@ function showPromotionDesktopOnlyV377() {
 }
 
 function setupPromotionMobileReadOnlyV377(elements) {
-  const {nameInput,commissionInput,marginInput,searchInput,filterInput,selectAllSearch,excludeSelected,selectAllExcluded,removeSelected,saveButton,deleteButton,manualPricingToggleV361,pricePanel,priceSearch,toggleButton,promotionDetails,toggleHint} = elements;
-  [nameInput,commissionInput,marginInput,searchInput,filterInput,selectAllSearch,selectAllExcluded,priceSearch].forEach(el=>{ if(el){el.disabled=true;el.setAttribute("aria-disabled","true");} });
+  const {nameInput,marginInput,searchInput,filterInput,selectAllSearch,excludeSelected,selectAllExcluded,removeSelected,saveButton,deleteButton,manualPricingToggleV361,pricePanel,priceSearch,toggleButton,promotionDetails,toggleHint} = elements;
+  [nameInput,marginInput,searchInput,filterInput,selectAllSearch,selectAllExcluded,priceSearch].forEach(el=>{ if(el){el.disabled=true;el.setAttribute("aria-disabled","true");} });
   [excludeSelected,removeSelected,saveButton,deleteButton,manualPricingToggleV361].forEach(el=>{
     if(!el)return;
     el.disabled=false;
@@ -5383,7 +5528,6 @@ function setupPromotionMobileReadOnlyV377(elements) {
 
 function setupPromotionSettingsV183() {
   const nameInput = document.getElementById("promotionNameV183");
-  const commissionInput = document.getElementById("promotionCommissionV183");
   const marginInput = document.getElementById("promotionMarginV183");
   const searchInput = document.getElementById("promotionExcludeSearchV183");
   const filterInput = document.getElementById("promotionExcludeFilterV184");
@@ -5473,7 +5617,6 @@ function setupPromotionSettingsV183() {
   const active = getPromotionSettingsV183();
   if (active) {
     nameInput.value = active.name;
-    if (commissionInput) commissionInput.value = String(active.commissionRate);
     if (marginInput) marginInput.value = String(active.targetMarginRate);
     promotionExcludedDraftV183 = new Set(active.excludedProductIds);
     promotionSelectedDraftV388 = new Set(active.selectedProductIds || []);
@@ -5511,7 +5654,7 @@ function setupPromotionSettingsV183() {
   document.getElementById("promotionScopeExcludeV388")?.addEventListener("click", () => setPromotionScopeModeV388("exclude"));
   document.getElementById("promotionScopeSelectedV388")?.classList.toggle("is-active-v388", promotionScopeModeDraftV388 === "selected");
   document.getElementById("promotionScopeExcludeV388")?.classList.toggle("is-active-v388", promotionScopeModeDraftV388 !== "selected");
-  [nameInput, commissionInput, marginInput].forEach(input => input?.addEventListener("input", () => {
+  [nameInput, marginInput].forEach(input => input?.addEventListener("input", () => {
     promotionDraftTouchedV209 = true;
     renderPromotionExcludeSearchV183();
     if (pricePanel && !pricePanel.hidden) renderPromotionPriceListV183();
@@ -15613,7 +15756,7 @@ function openProductCostBreakdownV421(productId) {
       <div class="product-cost-breakdown-lines-v421">
         ${Number(info.potCost) > 0 ? `<div><span>花盆成本</span><strong>${formatMoney(info.potCost, "RM ")}</strong></div>` : ""}
         ${includeFreightV439 ? `<div><span>运费木架</span><strong>${formatMoney(info.freight, "RM ")}</strong></div>` : ""}
-        <div><span>主播佣金</span><strong>${formatMoney(info.commission, "RM ")}</strong></div>
+        ${Number(info.commission) > 0.0001 ? `<div><span>主播佣金</span><strong>${formatMoney(info.commission, "RM ")}</strong></div>` : ""}
         <div class="cost-subtotal-v421"><span>共</span><strong>${formatMoney(extras, "RM ")}</strong></div>
         <div><span>${escapeHTML(getAverageCostLabelV205(product))}</span><strong>${formatMoney(info.averageCost, "RM ")}</strong></div>
         <div class="cost-total-v421"><span>总成本</span><strong>${formatMoney(total, "RM ")}</strong></div>

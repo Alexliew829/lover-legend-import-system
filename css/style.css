@@ -6345,8 +6345,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 }
 #savePromotionV183.promotion-save-needs-confirm-v197{cursor:pointer!important;opacity:1!important}
 
-/* V19.8 — promotion commission and target margin share one compact row. */
-.promotion-main-grid-v183 #promotionCommissionV183,
+/* V44.1 — promotion commission is global; Promotion keeps only target margin editable. */
 .promotion-main-grid-v183 #promotionMarginV183{
   text-align:center!important;
 }
@@ -7120,3 +7119,19 @@ body.system-media-preview-open-v305{overflow:hidden}
 .shipping-responsibility-status-v440.is-error-v440{color:#b42318}
 .shipping-responsibility-status-v440.is-neutral-v440{color:#68776e}
 @media(max-width:560px){.shipping-responsibility-settings-v440{padding:14px}.shipping-responsibility-options-v440{grid-template-columns:1fr;gap:8px}.shipping-responsibility-options-v440 label{min-height:54px;padding:9px 11px}.shipping-responsibility-actions-v440{align-items:stretch;flex-direction:column-reverse;gap:7px}.shipping-responsibility-save-v440{width:100%!important}.shipping-responsibility-status-v440{text-align:left;min-height:18px}}
+
+/* V44.1 — standalone global commission control + lighter settings interactions. */
+.commission-settings-v441{padding:16px 18px}
+.commission-settings-v441 h3{margin:0 0 4px;font-size:18px;line-height:1.25}
+.commission-settings-v441 .settings-help{margin:0;color:#66736b;font-size:12.5px;line-height:1.45}
+.commission-settings-heading-v441{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.commission-settings-row-v441{display:grid;grid-template-columns:auto minmax(120px,180px) auto;align-items:center;justify-content:start;gap:10px;margin:12px 0 10px}
+.commission-settings-row-v441 label{font-weight:800;color:#183b2a}
+.commission-settings-row-v441 input{height:42px;text-align:center;font-weight:800;font-size:16px;max-width:180px}
+.commission-reset-v441,.commission-save-v441{width:auto!important;min-width:126px;padding:8px 16px!important;margin:0!important;border-radius:10px;font-size:14px;line-height:1.2}
+.commission-settings-actions-v441{display:flex;align-items:center;justify-content:flex-end;gap:10px;min-height:36px}
+.commission-status-v441{flex:1;min-height:0;margin:0;padding:0;font-size:12.5px;font-weight:700;text-align:right;color:#176b3c}
+.commission-status-v441.is-saving-v441{color:#7a6a26}.commission-status-v441.is-error-v441{color:#b42318}.commission-status-v441.is-neutral-v441{color:#68776e}
+.promotion-main-grid-single-v441{grid-template-columns:minmax(180px,320px)!important}
+.promotion-main-grid-single-v441 label:first-child{grid-column:auto!important}
+@media(max-width:560px){.commission-settings-v441{padding:14px}.commission-settings-row-v441{grid-template-columns:1fr 1fr;gap:8px}.commission-settings-row-v441 label{grid-column:1/-1}.commission-settings-row-v441 input{max-width:none;width:100%;box-sizing:border-box}.commission-reset-v441{width:100%!important}.commission-settings-actions-v441{align-items:stretch;flex-direction:column-reverse;gap:7px}.commission-save-v441{width:100%!important}.commission-status-v441{text-align:left;min-height:18px}}
