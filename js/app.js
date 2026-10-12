@@ -2825,17 +2825,13 @@ function repairLegacyImportDates() {
   }
 }
 
-const pageRenderTimersV441 = new Map();
-function schedulePageRenderV441(pageId, fn) {
-  const old = pageRenderTimersV441.get(pageId);
-  if (old) window.clearTimeout(old);
+// V44.2: keep page switches responsive without adding the extra zero-delay timer
+// introduced in V44.1. The page becomes visible first, then the heavy renderer runs
+// on the very next animation frame. This preserves the original startup/login path.
+function schedulePageRenderV442(pageId, fn) {
   window.requestAnimationFrame(() => {
-    const timer = window.setTimeout(() => {
-      pageRenderTimersV441.delete(pageId);
-      if (!document.getElementById(pageId)?.classList.contains("active")) return;
-      try { fn(); } catch (error) { console.warn("V44.1 page render failed", pageId, error); }
-    }, 0);
-    pageRenderTimersV441.set(pageId, timer);
+    if (!document.getElementById(pageId)?.classList.contains("active")) return;
+    try { fn(); } catch (error) { console.warn("V44.2 page render failed", pageId, error); }
   });
 }
 
@@ -2934,11 +2930,11 @@ function setupNavigation() {
       }
 
       if (target === "dashboardPage") {
-        schedulePageRenderV441("dashboardPage", () => { renderInventoryManagementList(); renderDashboard(); });
+        schedulePageRenderV442("dashboardPage", () => { renderInventoryManagementList(); renderDashboard(); });
       }
 
       if (target === "supplierPage") {
-        schedulePageRenderV441("supplierPage", () => renderProductList());
+        schedulePageRenderV442("supplierPage", () => renderProductList());
       }
 
       if (target === "settingsPage") {
@@ -3208,6 +3204,44 @@ function setShippingResponsibilityStatusV440(message, state = "success") {
   else if (state === "neutral") status.classList.add("is-neutral-v440");
 }
 
+
+// V44.2: setting-driven repricing uses the raw Product snapshot once.
+// This avoids the V44.1 saveProducts(getProducts()) double normalization path while
+// preserving the exact existing minimum-price formula, manual-price protection and
+// Cloud dirty tracking. No inventory / FIFO / Sales ACK fields are changed here.
+function recalculateAutomaticMinimumPricesForSettingsV442(productsBeforeRaw = null) {
+  const rawProducts = Array.isArray(productsBeforeRaw)
+    ? productsBeforeRaw
+    : loadJSON("importSystemProducts", []);
+  const rules = getMinimumPriceRulesV160();
+  const overrides = { ...getMinimumPriceManualOverridesV160() };
+  const originIndex = getMinimumPriceOriginIndexV160();
+  let overridesChanged = false;
+  const normalizedProducts = (Array.isArray(rawProducts) ? rawProducts : []).map(product => {
+    const normalized = normalizeProductMinimumPriceV160(product, rules, overrides, originIndex);
+    const productId = String(normalized?.id || "").trim();
+    if (productId) {
+      const nextManual = Boolean(normalized.minimumPriceManual);
+      if (overrides[productId] !== nextManual) {
+        overrides[productId] = nextManual;
+        overridesChanged = true;
+      }
+    }
+    return normalized;
+  });
+  if (overridesChanged) saveMinimumPriceManualOverridesV160(overrides);
+  const beforeJson = JSON.stringify(Array.isArray(rawProducts) ? rawProducts : []);
+  const afterJson = JSON.stringify(normalizedProducts);
+  if (beforeJson !== afterJson) {
+    saveJSON("importSystemProducts", normalizedProducts);
+    if (typeof historyProductLookupCacheV322 !== "undefined") historyProductLookupCacheV322 = { raw:null, byId:new Map(), byName:new Map() };
+    if (typeof historyAdjustmentCacheV322 !== "undefined") historyAdjustmentCacheV322 = { raw:null, rows:[] };
+    if (typeof markCloudCollectionSaved === "function") markCloudCollectionSaved("products", rawProducts, normalizedProducts);
+  }
+  if (typeof inventoryPreparedRowsCacheV321 !== "undefined") inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
+  return normalizedProducts;
+}
+
 function setupShippingResponsibilityV439() {
   populateShippingResponsibilityV439();
   const panel = document.querySelector(".shipping-responsibility-settings-v439");
@@ -3248,13 +3282,7 @@ function setupShippingResponsibilityV439() {
         const productsBeforeV439 = loadJSON("importSystemProducts", []);
         saveJSON("importSystemSettings", { ...settings, [SHIPPING_RESPONSIBILITY_KEY_V439]: selected });
         if (getShippingResponsibilityV439() !== selected) throw new Error("shipping responsibility persistence verification failed");
-        if (typeof inventoryPreparedRowsCacheV321 !== "undefined") inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
-        saveProducts(getProducts());
-        // saveProducts normalizes against the new setting. Compare to the raw pre-switch
-        // snapshot as well, so recalculated automatic minimum prices are pushed to Cloud.
-        if (typeof markCloudCollectionSaved === "function") {
-          markCloudCollectionSaved("products", productsBeforeV439, loadJSON("importSystemProducts", []));
-        }
+        recalculateAutomaticMinimumPricesForSettingsV442(productsBeforeV439);
         if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
         populateShippingResponsibilityV439();
         if (panel) panel.dataset.dirtyV439 = "0";
@@ -3359,14 +3387,20 @@ function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
         : settings.promotionV183;
       saveJSON("importSystemSettings", { ...settings, minimumPriceRules: nextRules, ...(nextPromotion ? { promotionV183: nextPromotion } : {}) });
       if (Math.abs(Number(getMinimumPriceRulesV160().commissionRate) - nextRate) >= 0.005) throw new Error("commission persistence verification failed");
-      if (typeof inventoryPreparedRowsCacheV321 !== "undefined") inventoryPreparedRowsCacheV321 = { rawProducts:null, settings:null, imports:null, batches:null, sales:null, rows:[] };
-      saveProducts(getProducts());
-      if (typeof markCloudCollectionSaved === "function") markCloudCollectionSaved("products", productsBefore, loadJSON("importSystemProducts", []));
+      recalculateAutomaticMinimumPricesForSettingsV442(productsBefore);
       if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
       populateCommissionRateV441();
       if (panel) panel.dataset.dirtyV441 = "0";
-      setCommissionRateStatusV441(`✓ 保存成功 · 当前 ${formatMoney(nextRate)}%`);
+      const activePromotionV442 = getPromotionSettingsV183();
+      setCommissionRateStatusV441(activePromotionV442
+        ? `✓ 保存成功 · 当前 ${formatMoney(nextRate)}% · 进行中的促销已自动重算`
+        : `✓ 保存成功 · 当前 ${formatMoney(nextRate)}%`);
+      // V44.2: commissionRate is the single global source. If Crazy Sales is active,
+      // promotion prices already read this live value through getPromotionSettingsV183().
+      // Rebind the existing promotion draft/UI only; do NOT invoke the promotion-save
+      // workflow or alter exclusions, margin overrides, Initial/Current/Restore logic.
       resetPromotionDraftV183();
+      try { capturePromotionDraftBaselineV370(); } catch (_) {}
       scheduleVisibleSettingsRepaintV441();
     } catch (error) {
       console.error("save commission rate failed", error);
@@ -3401,10 +3435,10 @@ function setupCommissionRateV441() {
   if (resetButton && resetButton.dataset.boundV441 !== "1") {
     resetButton.dataset.boundV441 = "1";
     resetButton.addEventListener("click", () => {
-      if (!window.confirm("确认把主播佣金恢复为原厂默认 10%？")) return;
       if (input) input.value = "10.00";
       if (panel) panel.dataset.dirtyV441 = "1";
-      saveCommissionRateV441(10, { skipConfirm:true });
+      setCommissionRateStatusV441("尚未保存 · 已填入原厂设置 10.00%", "neutral");
+      input?.focus();
     });
   }
 }
