@@ -15785,6 +15785,7 @@ function renderBatchProductStockResults() {
         ${productIdV256 ? `<button type="button" class="product-stock-id-copy-v256"
           data-product-id-copy-v256="${escapeHTML(productIdV256)}"
           aria-label="点击复制产品编号；长按安全修改产品编号" title="点击复制产品编号；长按安全修改产品编号">${escapeHTML(productIdV256)}</button>` : ""}
+        ${productIdV256 ? buildProductManagementCopyButtonV438(productIdV256) : ""}
       </div>
       <button type="button" class="product-stock-english-edit-btn-v266" data-product-id="${escapeHTML(productIdV256)}" aria-label="点击复制英文名；长按修改英文名" title="点击复制英文名；长按修改英文名">${escapeHTML(productEnglishNameV262(product)||"英文名：未设置")}</button>
 
@@ -18535,6 +18536,46 @@ async function copyInventoryProductForDriveV306(button) {
   }, 1200);
 }
 window.copyInventoryProductForDriveV306 = copyInventoryProductForDriveV306;
+
+// V43.8: Product Management reuses the exact Home inventory copy-name cleanup,
+// but outputs the requested reversed file name format: name-productId-.
+function buildProductManagementCopyNameV438(product) {
+  const id = String(product?.id || product?.productId || "").trim().toUpperCase();
+  const homeValue = buildInventoryProductCopyNameV306(product);
+  if (!id || !homeValue) return homeValue || id;
+  const prefix = `${id}-`;
+  const cleanedName = homeValue.startsWith(prefix) ? homeValue.slice(prefix.length) : "";
+  return cleanedName ? `${cleanedName}-${id}-` : `${id}-`;
+}
+
+async function copyProductManagementForDriveV438(button) {
+  const productId = String(button?.dataset?.productIdV438 || "").trim();
+  const products = typeof getProducts === "function" ? getProducts() : [];
+  const product = products.find(item => String(item?.id || item?.productId || "").trim() === productId);
+  if (!product) {
+    window.alert("找不到产品资料，无法复制。");
+    return;
+  }
+  const value = buildProductManagementCopyNameV438(product);
+  if (!value) return;
+  const copied = await copyHistoryText(value, `✓ 已复制产品：${value}`);
+  if (!copied || !button) return;
+  const original = button.textContent;
+  button.textContent = "已复制";
+  button.classList.add("copied");
+  window.clearTimeout(button._copyProductV438Timer);
+  button._copyProductV438Timer = window.setTimeout(() => {
+    button.textContent = original || "复制产品";
+    button.classList.remove("copied");
+  }, 1200);
+}
+window.copyProductManagementForDriveV438 = copyProductManagementForDriveV438;
+
+function buildProductManagementCopyButtonV438(productId) {
+  const id = String(productId || "").trim();
+  if (!id) return "";
+  return `<button type="button" class="inventory-product-file-copy-v306 product-stock-copy-product-v438" data-product-id-v438="${escapeHTML(id)}" onclick="copyProductManagementForDriveV438(this)" title="复制产品：产品名-产品编号-">复制产品</button>`;
+}
 
 function buildInventoryProductCopyButtonV306(productId) {
   const id = String(productId || "").trim();

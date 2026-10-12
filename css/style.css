@@ -7071,3 +7071,28 @@ body.system-media-preview-open-v305{overflow:hidden}
     overflow-wrap:anywhere;
   }
 }
+
+
+/* V43.8 — Product Management copy-product button beside Product ID. */
+.product-stock-title-row-v256 .product-stock-copy-product-v438{
+  flex:0 0 auto;
+  min-width:76px;
+  max-width:86px;
+  margin:0;
+}
+@media(max-width:720px){
+  .product-stock-title-row-v256 .product-stock-copy-product-v438{
+    min-width:68px;
+    max-width:72px;
+    padding:4px 6px;
+    font-size:.72rem;
+  }
+}
+@media(max-width:420px){
+  .product-stock-title-row-v256 .product-stock-copy-product-v438{
+    min-width:62px;
+    max-width:66px;
+    padding-inline:4px;
+    font-size:.68rem;
+  }
+}
