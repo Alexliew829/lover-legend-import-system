@@ -632,7 +632,7 @@ async function commitSalesInventoryToCloudV83(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V44.8 Stable",
+      updatedBy: "System V44.9 Stable",
       ...payload
     });
 
@@ -668,7 +668,7 @@ async function commitSalesInventoryBatchToCloudV125(payload) {
       baseRevision: Number(config.revision) || 0,
       bootstrapToken: String(config.bootstrapToken || ""),
       bootstrapRevision: Number(config.bootstrapRevision) || 0,
-      updatedBy: "System V44.8 Stable",
+      updatedBy: "System V44.9 Stable",
       ...payload
     });
     if (data.conflict || data.stockChanged) {
@@ -691,7 +691,7 @@ window.commitSalesInventoryBatchToCloudV125 = commitSalesInventoryBatchToCloudV1
 
 async function commitSalesCorrectionBatchToCloudV110(payload) {
   await flushCloudQueueStrictV83(); const config=getCloudConfig(); setCloudState("syncing");
-  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V44.8 Stable",...payload});
+  try { const data=await callGoogleApi({action:"commitSalesCorrectionBatchV110",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V44.9 Stable",...payload});
     if(data.conflict||data.stockChanged) throw new Error(data.message||"Google Sheet 资料已改变，全部库存差异没有处理。请同步后重试。");
     config.revision=Number(data.revision)||Number(config.revision)||0; config.lastSyncAt=new Date().toISOString(); config.bootstrapToken=String(data.bootstrapToken||config.bootstrapToken||""); config.bootstrapRevision=Number(data.revision)||Number(config.bootstrapRevision)||0; saveCloudConfig(config); renderCloudMeta(config); setCloudState("synced"); return data;
   } catch(error){setCloudState("failed");throw error;}
@@ -705,7 +705,7 @@ async function migrateProductPrefixesV164() {
     action: "migrateProductPrefixesV164", clientVersion: APP_VERSION,
     schemaVersion: CLOUD_SCHEMA_VERSION, baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""), bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V44.8 Stable"
+    updatedBy: "System V44.9 Stable"
   });
   if (data.conflict) throw new Error(data.message || "资料已改变，请同步后重试。");
   config.revision = Number(data.revision) || Number(config.revision) || 0;
@@ -988,7 +988,7 @@ async function pullLatestSnapshot(forceBootstrap = false) {
     const repair = await callGoogleApi({
       action:"repairBsCanonicalV364", clientVersion:APP_VERSION, schemaVersion:CLOUD_SCHEMA_VERSION,
       baseRevision:Number(data.revision)||0, bootstrapToken:String(data.bootstrapToken||""),
-      bootstrapRevision:Number(data.revision)||0, updatedBy:"System V44.8 Stable"
+      bootstrapRevision:Number(data.revision)||0, updatedBy:"System V44.9 Stable"
     });
     if (!repair?.ok || repair?.conflict || repair?.writeBlocked) throw new Error(repair?.message || "BS 编号修复失败，已停止载入重复库存。");
     data = await callGoogleApi({
@@ -1100,7 +1100,7 @@ async function updateProductMinimumPriceFast(productId, minimumPrice, updatedAt,
     baseRevision: Number(config.revision) || 0,
     bootstrapToken: String(config.bootstrapToken || ""),
     bootstrapRevision: Number(config.bootstrapRevision) || 0,
-    updatedBy: "System V44.8 Stable",
+    updatedBy: "System V44.9 Stable",
     productId: String(productId || ""),
     minimumPrice: Number(minimumPrice),
     minimumPriceManual: Boolean(minimumPriceManual),
@@ -1196,7 +1196,7 @@ async function updateProductAverageCostFastV358(productId, averageCost, minimumP
     clientVersion:APP_VERSION, schemaVersion:CLOUD_SCHEMA_VERSION,
     baseRevision:Number(config.revision)||0,
     bootstrapToken:String(config.bootstrapToken||""), bootstrapRevision:Number(config.bootstrapRevision)||0,
-    updatedBy:"System V44.8 Stable",
+    updatedBy:"System V44.9 Stable",
     productId:String(productId||"").trim(),
     averageCost:Number(averageCost),
     minimumPrice:Number(minimumPrice),
@@ -1310,7 +1310,7 @@ async function updatePromotionSettingsFastV185(promotion, retryCountV374 = 0, fo
       baseRevision:credentialV398.revision,
       bootstrapToken:credentialV398.bootstrapToken,
       bootstrapRevision:credentialV398.bootstrapRevision,
-      updatedBy:"System V44.8 Stable",
+      updatedBy:"System V44.9 Stable",
       promotion:promotion || null
     });
 
@@ -1453,7 +1453,7 @@ async function updatePricingSettingsFastV446(payload = {}) {
         baseRevision:credential.revision,
         bootstrapToken:credential.bootstrapToken,
         bootstrapRevision:credential.bootstrapRevision,
-        updatedBy:"System V44.8 Stable",
+        updatedBy:"System V44.9 Stable",
         ...(Object.prototype.hasOwnProperty.call(payload,"commissionRate") ? {commissionRate:Number(payload.commissionRate)} : {}),
         ...(Object.prototype.hasOwnProperty.call(payload,"shippingResponsibilityV439") ? {shippingResponsibilityV439:payload.shippingResponsibilityV439 === "buyer" ? "buyer" : "seller"} : {})
       });
@@ -1643,7 +1643,7 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
     action: "pushDeltaV346",
     clientVersion: APP_VERSION, schemaVersion: CLOUD_SCHEMA_VERSION, force:false,
     baseRevision:Number(config.revision)||0, bootstrapToken:String(config.bootstrapToken||""), bootstrapRevision:Number(config.bootstrapRevision)||0,
-    updatedBy:"System V44.8 Stable", collections,
+    updatedBy:"System V44.9 Stable", collections,
     ...(collections.includes("settings")?{settings:snapshot.settings,productIds:(snapshot.products||[]).map(item=>String(item?.id||"").trim()).filter(Boolean)}:{}),
     ...(collections.includes("products")?{products:snapshot.products}:{}),
     ...(collections.includes("imports")?{imports:snapshot.imports}:{}),
@@ -1688,7 +1688,8 @@ async function pushPendingSnapshot(queue, retryCount = 0) {
 }
 
 function sanitizeLegacySettingsV323(settings = {}, products = []) {
-  const validIds = new Set((Array.isArray(products) ? products : []).map(p => String(p?.id || "").trim().toUpperCase()).filter(Boolean));
+  const aliasesV449 = getProductIdAliasesV449(settings);
+  const validIds = new Set((Array.isArray(products) ? products : []).map(p => canonicalizeProductIdV449(p?.id, aliasesV449)).filter(Boolean));
   const out = { ...(settings || {}) };
   ["invoiceRecognitionDraftsV259","invoiceRecognitionHistoryV259","warehousePublicCatalogV275","supplierDirectoryV261",
    "testSupplierCleanupV268","twoWarehouseMigrationV270","twoWarehouseMigrationAddedV270","warehouseRepairV276",
@@ -1696,7 +1697,17 @@ function sanitizeLegacySettingsV323(settings = {}, products = []) {
   const prune = key => {
     const src = out[key];
     if (!src || typeof src !== "object" || Array.isArray(src)) return;
-    out[key] = Object.fromEntries(Object.entries(src).filter(([id]) => validIds.has(String(id || "").trim().toUpperCase())));
+    const next = {};
+    Object.entries(src).sort(([left],[right]) => {
+      const lc=canonicalizeProductIdV449(left,aliasesV449),rc=canonicalizeProductIdV449(right,aliasesV449);
+      const ld=String(left||"").trim().toUpperCase()===lc?1:0;
+      const rd=String(right||"").trim().toUpperCase()===rc?1:0;
+      return ld-rd;
+    }).forEach(([id,value]) => {
+      const canonical=canonicalizeProductIdV449(id,aliasesV449);
+      if(canonical&&validIds.has(canonical))next[canonical]=value;
+    });
+    out[key]=next;
   };
   prune("minimumPriceManualOverrides");
   prune("initialMinimumPricesV376");
@@ -1731,18 +1742,18 @@ function sanitizeLegacySettingsV323(settings = {}, products = []) {
         name: String(promo.name || "年尾清货").trim().slice(0, 30) || "年尾清货",
         commissionRate, targetMarginRate,
         excludedProductIds: [...new Set((Array.isArray(promo.excludedProductIds) ? promo.excludedProductIds : [])
-          .map(id => String(id || "").trim().toUpperCase())
+          .map(id => canonicalizeProductIdV449(id, aliasesV449))
           .filter(id => id && validIds.has(id)))],
         promotionScope: promo.promotionScope === "selected" ? "selected" : "exclude",
         selectedProductIds: [...new Set((Array.isArray(promo.selectedProductIds) ? promo.selectedProductIds : [])
-          .map(id => String(id || "").trim().toUpperCase())
+          .map(id => canonicalizeProductIdV449(id, aliasesV449))
           .filter(id => id && validIds.has(id)))],
         priceOverrides: Object.fromEntries(Object.entries(promo.priceOverrides && typeof promo.priceOverrides === "object" ? promo.priceOverrides : {})
-          .map(([id, price]) => [String(id || "").trim().toUpperCase(), Number(price)])
+          .map(([id, price]) => [canonicalizeProductIdV449(id, aliasesV449), Number(price)])
           .filter(([id, price]) => id && validIds.has(id) && Number.isFinite(price) && price > 0)
           .map(([id, price]) => [id, Math.round(price * 100) / 100])),
         marginOverrides: Object.fromEntries(Object.entries(promo.marginOverrides && typeof promo.marginOverrides === "object" ? promo.marginOverrides : {})
-          .map(([id, rate]) => [String(id || "").trim().toUpperCase(), Number(rate)])
+          .map(([id, rate]) => [canonicalizeProductIdV449(id, aliasesV449), Number(rate)])
           .filter(([id, rate]) => id && validIds.has(id) && Number.isFinite(rate) && rate >= -99.9 && rate < 100 && 1 - commissionRate / 100 - rate / 100 > 0)),
         includeManualPriceProducts: promo.includeManualPriceProducts === true,
         originalPromotionName: String(promo.originalPromotionName || "").trim().slice(0, 30),
@@ -2026,7 +2037,7 @@ function setCloudState(state, error = null) {
 async function updateInitialMinimumPriceFastV376(productId, initialMinimumPrice, retryCount=0){
   if(!isCloudWriteCredentialCurrentV341()) await pullLatestSnapshot(false);
   const config=getCloudConfig();
-  const data=await callGoogleApi({action:"updateInitialMinimumPriceV376",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V44.8 Stable",productId:String(productId||"").trim(),initialMinimumPrice:Number(initialMinimumPrice)});
+  const data=await callGoogleApi({action:"updateInitialMinimumPriceV376",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V44.9 Stable",productId:String(productId||"").trim(),initialMinimumPrice:Number(initialMinimumPrice)});
   if(data.busy){if(retryCount<2){await new Promise(resolve=>window.setTimeout(resolve,500+retryCount*400));return updateInitialMinimumPriceFastV376(productId,initialMinimumPrice,retryCount+1);}throw new Error(data?.message||"云端正在处理其他资料，请稍后再试。");}
   if(data.conflict){config.revision=Number(data.revision)||config.revision;if(data.bootstrapToken){config.bootstrapToken=String(data.bootstrapToken);config.bootstrapRevision=Number(data.revision)||0;}saveCloudConfig(config);if(retryCount<1){await pullLatestSnapshot(false);return updateInitialMinimumPriceFastV376(productId,initialMinimumPrice,retryCount+1);}throw new Error("资料版本刚刚发生变化，请再试一次。");}
   if(!data?.ok || data?.verified!==true) throw new Error(data?.message||"初始最低售价第一次写入验证失败，请重试。");
@@ -2037,7 +2048,7 @@ window.updateInitialMinimumPriceFastV376=updateInitialMinimumPriceFastV376;
 async function restoreInitialMinimumPricesFastV376(retryCount=0){
   if(!isCloudWriteCredentialCurrentV341()) await pullLatestSnapshot(false);
   const config=getCloudConfig();setCloudState("syncing");
-  const data=await callGoogleApi({action:"restoreInitialMinimumPricesV376",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V44.8 Stable"});
+  const data=await callGoogleApi({action:"restoreInitialMinimumPricesV376",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION,baseRevision:Number(config.revision)||0,bootstrapToken:String(config.bootstrapToken||""),bootstrapRevision:Number(config.bootstrapRevision)||0,updatedBy:"System V44.9 Stable"});
   if(data.promotionActive)throw new Error("促销进行中，请先关闭促销后再恢复初始最低售价。");
   if(data.conflict){config.revision=Number(data.revision)||config.revision;if(data.bootstrapToken){config.bootstrapToken=String(data.bootstrapToken);config.bootstrapRevision=Number(data.revision)||0;}saveCloudConfig(config);if(retryCount<1){await pullLatestSnapshot(false);return restoreInitialMinimumPricesFastV376(retryCount+1);}throw new Error("资料版本刚刚发生变化，请再试一次。");}
   if(!data?.ok) throw new Error(data?.message||"恢复初始最低售价失败");

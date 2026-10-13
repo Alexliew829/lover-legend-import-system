@@ -130,8 +130,9 @@ function cleanupLegacySettingsResidueV323() {
   });
   const settings = loadJSON("importSystemSettings", {});
   const rawProducts = loadJSON("importSystemProducts", []);
+  const aliasesV449 = getProductIdAliasesV449(settings);
   const validIds = new Set((Array.isArray(rawProducts) ? rawProducts : [])
-    .map(p => String(p?.id || "").trim().toUpperCase()).filter(Boolean));
+    .map(p => canonicalizeProductIdV449(p?.id, aliasesV449)).filter(Boolean));
   let changed = false;
   const next = { ...settings };
 
@@ -145,11 +146,17 @@ function cleanupLegacySettingsResidueV323() {
     const source = next[key];
     if (!source || typeof source !== "object" || Array.isArray(source)) return;
     const pruned = {};
-    Object.entries(source).forEach(([id, value]) => {
-      const upper = String(id || "").trim().toUpperCase();
-      if (upper && validIds.has(upper)) pruned[id] = value;
+    Object.entries(source).sort(([left],[right]) => {
+      const lc=canonicalizeProductIdV449(left,aliasesV449),rc=canonicalizeProductIdV449(right,aliasesV449);
+      const ld=String(left||"").trim().toUpperCase()===lc?1:0;
+      const rd=String(right||"").trim().toUpperCase()===rc?1:0;
+      return ld-rd;
+    }).forEach(([id, value]) => {
+      const canonical = canonicalizeProductIdV449(id, aliasesV449);
+      if (canonical && validIds.has(canonical)) pruned[canonical] = value;
     });
-    if (Object.keys(pruned).length !== Object.keys(source).length) { next[key] = pruned; changed = true; }
+    const before=JSON.stringify(source),after=JSON.stringify(pruned);
+    if (before !== after) { next[key] = pruned; changed = true; }
   };
   if (validIds.size) {
     pruneByLiveProductId("minimumPriceManualOverrides");
@@ -395,7 +402,7 @@ function getSalesInventoryItemKeyV77(item) {
   }
   return [
     String(item?.linkId || "").trim(),
-    String(item?.productId || "").trim() || normalizeSalesInventoryTextV77(item?.productName)
+    canonicalizeProductIdV449(item?.productId) || normalizeSalesInventoryTextV77(item?.productName)
   ].join("|");
 }
 
@@ -420,9 +427,10 @@ function getSalesInventoryCommitKeyV122(item, processedQty, commitQty) {
 
 function findImportProductForSalesItemV77(item) {
   const products = getProducts();
-  const productId = String(item?.productId || "").trim();
+  const aliasesV449 = getProductIdAliasesV449();
+  const productId = canonicalizeProductIdV449(item?.productId, aliasesV449);
   if (productId) {
-    const exact = products.find(product => String(product?.id || "").trim() === productId);
+    const exact = products.find(product => canonicalizeProductIdV449(product?.id, aliasesV449) === productId);
     if (exact) return exact;
   }
   const targetName = normalizeSalesInventoryTextV77(item?.productName);
@@ -436,6 +444,7 @@ function getProcessedSalesInventoryQuantitiesV77() {
   // corrections for the same linkId subtract from it. This is the authoritative
   // baseline for 3→2 (+1), 3→5 (-2), delete (+all), and product replacement.
   const processed = new Map();
+  const aliasesV449 = getProductIdAliasesV449();
   getProducts().forEach(product => {
     getProductStockAdjustments(product).forEach(adjustment => {
       const links = Array.isArray(adjustment?.salesLinks) ? adjustment.salesLinks : [];
@@ -444,10 +453,10 @@ function getProcessedSalesInventoryQuantitiesV77() {
       const adjustmentType = String(adjustment?.adjustmentType || "").toLowerCase();
       links.forEach(link => {
         const linkId = String(link?.linkId || "").trim();
-        const productId = String(link?.productId || product?.id || "").trim();
+        const productId = canonicalizeProductIdV449(link?.productId || product?.id, aliasesV449);
         const key = linkId
           ? [linkId, productId || normalizeSalesInventoryTextV77(link?.productName || product?.name)].join("|")
-          : String(link?.key || "").trim();
+          : canonicalizeSalesKeyV449(link?.key, aliasesV449);
         const qty = Math.max(0, Math.trunc(Number(link?.processedQty) || 0));
         if (!key || !qty) return;
         const correctionAction = String(link?.correctionAction || "").toLowerCase();
@@ -463,13 +472,14 @@ function getProcessedSalesInventoryQuantitiesV77() {
 function getSalesFeedDesiredQtyV121(manualItem, change) {
   const saleId = String(manualItem?.saleId || manualItem?.transactionId || "").trim();
   const linkId = String(change?.linkId || manualItem?.linkId || "").trim();
-  const productId = String(change?.importProductId || change?.productId || "").trim();
+  const aliasesV449 = getProductIdAliasesV449();
+  const productId = canonicalizeProductIdV449(change?.importProductId || change?.productId, aliasesV449);
   const productName = normalizeSalesInventoryTextV77(change?.productName || change?.name || "");
   const rows = salesInventoryFeedV77.filter(row => {
     if (isSalesManualCorrectionTaskV102(row)) return false;
     const rowSaleId = String(row?.saleId || row?.transactionId || "").trim();
     if (saleId && rowSaleId !== saleId) return false;
-    const rowProductId = String(row?.productId || "").trim();
+    const rowProductId = canonicalizeProductIdV449(row?.productId, aliasesV449);
     const rowProductName = normalizeSalesInventoryTextV77(row?.productName);
     if (productId ? rowProductId !== productId : (productName && rowProductName !== productName)) return false;
     if (linkId && String(row?.linkId || "").trim() !== linkId) return false;
@@ -485,7 +495,8 @@ function getSalesFeedDesiredQtyV121(manualItem, change) {
 }
 
 function getProcessedQtyForManualChangeV121(processed, manualItem, change) {
-  const productId = String(change?.importProductId || change?.productId || "").trim();
+  const aliasesV449 = getProductIdAliasesV449();
+  const productId = canonicalizeProductIdV449(change?.importProductId || change?.productId, aliasesV449);
   const productName = normalizeSalesInventoryTextV77(change?.productName || change?.name || "");
   const linkId = String(change?.linkId || manualItem?.linkId || "").trim();
   if (linkId) {
@@ -501,7 +512,7 @@ function getProcessedQtyForManualChangeV121(processed, manualItem, change) {
   if (!saleId || (!productId && !productName)) return 0;
   let net = 0;
   getProducts().forEach(product => {
-    const pid = String(product?.id || "").trim();
+    const pid = canonicalizeProductIdV449(product?.id, aliasesV449);
     const pname = normalizeSalesInventoryTextV77(product?.name);
     if (productId ? pid !== productId : pname !== productName) return;
     getProductStockAdjustments(product).forEach(adjustment => {
@@ -509,7 +520,7 @@ function getProcessedQtyForManualChangeV121(processed, manualItem, change) {
       const adjustmentType = String(adjustment?.adjustmentType || "").toLowerCase();
       (Array.isArray(adjustment?.salesLinks) ? adjustment.salesLinks : []).forEach(link => {
         if (String(link?.saleId || "").trim() !== saleId) return;
-        const lpid = String(link?.productId || pid || "").trim();
+        const lpid = canonicalizeProductIdV449(link?.productId || pid, aliasesV449);
         const lpname = normalizeSalesInventoryTextV77(link?.productName || product?.name);
         if (productId ? lpid !== productId : lpname !== productName) return;
         const qty = Math.max(0, Math.trunc(Number(link?.processedQty) || 0));
@@ -1562,7 +1573,8 @@ function getSalesStartupSessionItemV82(key) {
 }
 
 function salesItemAlreadyProcessedLocallyV104(item, product) {
-  const key = String(item?.key || getSalesInventoryItemKeyV77(item)).trim();
+  const aliasesV449 = getProductIdAliasesV449();
+  const key = canonicalizeSalesKeyV449(item?.key || getSalesInventoryItemKeyV77(item), aliasesV449);
   if (!key || !product) return false;
 
   let rows = [];
@@ -1584,8 +1596,8 @@ function salesItemAlreadyProcessedLocallyV104(item, product) {
   return rows.some(adj =>
     Array.isArray(adj?.salesLinks) &&
     adj.salesLinks.some(link => {
-      const commitKey = String(link?.key || "").trim();
-      const accountingKey = String(link?.accountingKey || "").trim();
+      const commitKey = canonicalizeSalesKeyV449(link?.key, aliasesV449);
+      const accountingKey = canonicalizeSalesKeyV449(link?.accountingKey, aliasesV449);
       return commitKey === key || accountingKey === key;
     })
   );
@@ -3294,7 +3306,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V44.8 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V44.9 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3397,7 +3409,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V44.8 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V44.9 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -4200,12 +4212,13 @@ function getRawRemainingQuantityV201(record) {
 }
 
 function getBatchRemainingForProductV201(product, batches = getBatches()) {
-  const productId = String(product?.id || "").trim();
+  const aliasesV449 = getProductIdAliasesV449();
+  const productId = canonicalizeProductIdV449(product?.id, aliasesV449);
   const productName = normalizeAnomalyProductKeyV201(product?.name);
   let total = 0;
   (batches || []).forEach(batch => {
     (Array.isArray(batch?.items) ? batch.items : []).forEach(item => {
-      const itemId = String(item?.productId || item?.id || "").trim();
+      const itemId = canonicalizeProductIdV449(item?.productId || item?.id, aliasesV449);
       const itemName = normalizeAnomalyProductKeyV201(item?.productName || item?.name);
       const sameId = productId && itemId && itemId === productId;
       const sameName = !sameId && productName && itemName === productName;
@@ -4216,10 +4229,11 @@ function getBatchRemainingForProductV201(product, batches = getBatches()) {
 }
 
 function getImportsRemainingForProductV201(product, imports = getImports()) {
-  const productId = String(product?.id || "").trim();
+  const aliasesV449 = getProductIdAliasesV449();
+  const productId = canonicalizeProductIdV449(product?.id, aliasesV449);
   const productName = normalizeAnomalyProductKeyV201(product?.name);
   return (imports || []).reduce((sum, record) => {
-    const recordId = String(record?.productId || "").trim();
+    const recordId = canonicalizeProductIdV449(record?.productId, aliasesV449);
     const recordName = normalizeAnomalyProductKeyV201(record?.productName || record?.name);
     const sameId = productId && recordId && recordId === productId;
     const sameName = !sameId && productName && recordName === productName;
@@ -4344,14 +4358,19 @@ function getImportAnomaliesV201() {
 
   batches.forEach(batch => {
     const items = Array.isArray(batch?.items) ? batch.items : [];
-    if (!items.length || !batchCostSnapshotIsStaleV206(batch, items)) return;
+    if (!items.length) return;
+    // V44.9: an incomplete historical item list cannot be safely recalculated.
+    // Keep the stored Batch/Item cost snapshot authoritative and do not raise a
+    // false stale-cost warning from the surviving rows only.
+    if (isHistoricalPartialBatchSnapshotV449(batch, items)) return;
+    if (!batchCostSnapshotIsStaleV206(batch, items)) return;
     const expected = getCanonicalBatchCostSnapshotV206(batch, items);
     const importNumber = String(batch?.importNumber || "未编号批次");
     issues.push({
       severity:"warning", type:"batch-cost-snapshot", importNumber,
       title:`${importNumber} 批次成本换算资料不一致`,
-      detail:`按当前汇率与费用应为 ${formatMoney(expected.totalForeignCostsRM, "RM ")} + 海外运费 ${formatMoney(expected.shippingMY, "RM " )} = ${formatMoney(expected.grandTotal, "RM ")}`,
-      action:"请到进口记录开启修改模式后保存此进口编号；重新检查本身不会修改资料。"
+      detail:`完整批次按已保存汇率与费用重算应为 ${formatMoney(expected.totalForeignCostsRM, "RM ")} + 海外运费 ${formatMoney(expected.shippingMY, "RM " )} = ${formatMoney(expected.grandTotal, "RM ")}`,
+      action:"请先 Backup 并核对该批次的汇率、费用及产品原始数量。系统检查不会自动修改历史成本。"
     });
   });
 
@@ -4375,12 +4394,14 @@ function getAnomalyCopyItemsV206(issue) {
     items.push({ label, value:text });
   };
   if (issue?.productId) {
-    const product = getProducts().find(p => String(p?.id || "") === String(issue.productId));
+    const aliasesV449 = getProductIdAliasesV449();
+    const issueProductIdV449 = canonicalizeProductIdV449(issue.productId, aliasesV449);
+    const product = getProducts().find(p => canonicalizeProductIdV449(p?.id, aliasesV449) === issueProductIdV449);
     if (product?.name) push("产品", product.name);
-    push("产品编号", issue.productId);
-    const relatedImports = getImports().filter(record => String(record?.productId || "") === String(issue.productId));
+    push("产品编号", issueProductIdV449 || issue.productId);
+    const relatedImports = getImports().filter(record => canonicalizeProductIdV449(record?.productId, aliasesV449) === issueProductIdV449);
     [...new Set(relatedImports.map(record => String(record?.importNumber || "").trim()).filter(Boolean))].slice(0,6).forEach(value => push("进口编号", value));
-    const relatedBatches = getBatches().filter(batch => (Array.isArray(batch?.items) ? batch.items : []).some(item => String(item?.productId || "") === String(issue.productId)));
+    const relatedBatches = getBatches().filter(batch => (Array.isArray(batch?.items) ? batch.items : []).some(item => canonicalizeProductIdV449(item?.productId, aliasesV449) === issueProductIdV449));
     relatedBatches.forEach(batch => {
       if (Number(batch?.rackQuantity) > 0) push("木架", String(batch.rackQuantity));
     });
@@ -5329,7 +5350,7 @@ async function refreshPromotionCloudStateV209(force = false) {
     refreshPromotionDependentVisibleViewsV375();
     return true;
   } catch (error) {
-    console.warn("V44.8 promotion cloud refresh skipped:", error);
+    console.warn("V44.9 promotion cloud refresh skipped:", error);
     return false;
   } finally {
     promotionCloudRefreshBusyV209 = false;
@@ -5366,7 +5387,7 @@ function hasRealLocalPromotionDraftV370() {
 }
 function refreshPromotionSettingsAfterCloudSyncV370() {
   try {
-    try { renderDashboardPromotionStatusV208(); } catch (error) { console.warn("V44.8 promotion status repaint skipped", error); }
+    try { renderDashboardPromotionStatusV208(); } catch (error) { console.warn("V44.9 promotion status repaint skipped", error); }
     if (hasRealLocalPromotionDraftV370()) {
       refreshPromotionUiV183();
       return;
@@ -5384,7 +5405,7 @@ function refreshPromotionSettingsAfterCloudSyncV370() {
     updatePromotionDraftStatusV186();
     capturePromotionDraftBaselineV370();
   } catch (error) {
-    console.warn("V44.8 promotion settings cloud repaint skipped", error);
+    console.warn("V44.9 promotion settings cloud repaint skipped", error);
   }
 }
 window.refreshPromotionSettingsAfterCloudSyncV370 = refreshPromotionSettingsAfterCloudSyncV370;
@@ -5851,12 +5872,12 @@ function setupPromotionSettingsV183() {
       saveButton.textContent = saveButtonIdleTextV350;
     }
     if (saved) {
-      // V44.8: resetPromotionDraft no longer performs hidden duplicate list renders.
+      // V44.9: resetPromotionDraft no longer performs hidden duplicate list renders.
       // Rebuild the visible Promotion form exactly once after the cloud-confirmed save.
-      try { refreshPromotionUiV183(); } catch (error) { console.warn("V44.8 promotion post-save UI skipped", error); }
-      try { renderPromotionExcludedListV183(); } catch (error) { console.warn("V44.8 promotion exclusion repaint skipped", error); }
-      try { renderPromotionExcludeSearchV183(); } catch (error) { console.warn("V44.8 promotion search repaint skipped", error); }
-      try { if (pricePanel && !pricePanel.hidden) renderPromotionPriceListV183(); } catch (error) { console.warn("V44.8 promotion price repaint skipped", error); }
+      try { refreshPromotionUiV183(); } catch (error) { console.warn("V44.9 promotion post-save UI skipped", error); }
+      try { renderPromotionExcludedListV183(); } catch (error) { console.warn("V44.9 promotion exclusion repaint skipped", error); }
+      try { renderPromotionExcludeSearchV183(); } catch (error) { console.warn("V44.9 promotion search repaint skipped", error); }
+      try { if (pricePanel && !pricePanel.hidden) renderPromotionPriceListV183(); } catch (error) { console.warn("V44.9 promotion price repaint skipped", error); }
       updatePromotionDraftStatusV186();
       window.requestAnimationFrame(() => {
         refreshPromotionDependentVisibleViewsV375();
@@ -5981,9 +6002,10 @@ function saveMinimumPriceManualOverridesV160(overrides) {
 
 function getLegacyManualOverrideV341(product, configuredOverrides = null) {
   const overrides = configuredOverrides || getMinimumPriceManualOverridesV160();
-  const productIdUpper = String(product?.id || "").trim().toUpperCase();
+  const aliasesV449 = getProductIdAliasesV449();
+  const productIdUpper = canonicalizeProductIdV449(product?.id, aliasesV449);
   if (!productIdUpper) return undefined;
-  const matchedKey = Object.keys(overrides || {}).find(key => String(key || "").trim().toUpperCase() === productIdUpper);
+  const matchedKey = Object.keys(overrides || {}).find(key => canonicalizeProductIdV449(key, aliasesV449) === productIdUpper);
   return matchedKey && typeof overrides[matchedKey] === "boolean" ? overrides[matchedKey] : undefined;
 }
 
@@ -6127,7 +6149,7 @@ function getCategoryPrefixConflictV229(prefix, excludeCategoryName = "") {
     if (normalizeCategoryPrefixV228(rule.prefix) === wanted) return `产品类别“${rule.name}”`;
   }
   const settings = loadJSON("importSystemSettings", {});
-  const aliases = settings.productIdAliases || {};
+  const aliases = getProductIdAliasesV449(settings);
   const ids = [
     ...getProducts().map(p => p?.id),
     ...getImports().map(r => r?.productId),
@@ -6659,7 +6681,7 @@ function getProductPrefix(category, name = "") {
 function generateNextProductIdFromPrefixV240(products, preferredPrefix) {
   const prefix = normalizeCategoryPrefixV228(preferredPrefix || "") || "BS";
   const settings = loadJSON("importSystemSettings", {});
-  const aliases = settings.productIdAliases || {};
+  const aliases = getProductIdAliasesV449(settings);
   const used = new Set([
     ...products.map(p => String(p.id || "").trim()),
     ...getImports().map(row => String(row.productId || "").trim()),
@@ -8569,6 +8591,39 @@ function getLockedBatchOriginalQuantity(item) {
   return Math.max(0, Math.floor(value || 0));
 }
 
+// V44.9: some early batches intentionally preserve an authoritative historical
+// cost snapshot after old product rows were renamed, merged or removed. When the
+// stored item/quantity count is larger than the rows still present, recalculating
+// from the partial rows would create a false cost warning and could corrupt
+// Average Cost. Treat the stored snapshot as authoritative and never auto-repair it.
+function getHistoricalBatchSnapshotGapV449(batch, items = []) {
+  const safeItems = Array.isArray(items) ? items : [];
+  const storedItemCountRaw = Number(batch?.itemCount);
+  const storedQuantityRaw = Number(batch?.totalQuantity);
+  const storedItemCount = Number.isFinite(storedItemCountRaw) && storedItemCountRaw >= 0
+    ? Math.floor(storedItemCountRaw)
+    : 0;
+  const storedQuantity = Number.isFinite(storedQuantityRaw) && storedQuantityRaw >= 0
+    ? Math.floor(storedQuantityRaw)
+    : 0;
+  const currentItemCount = safeItems.length;
+  const currentQuantity = safeItems.reduce((sum, item) => sum + getLockedBatchOriginalQuantity(item), 0);
+  const missingItemCount = storedItemCount > currentItemCount ? storedItemCount - currentItemCount : 0;
+  const missingQuantity = storedQuantity > currentQuantity ? storedQuantity - currentQuantity : 0;
+  return {
+    // Item-count loss is the reliable signal that the historical Batch item
+    // snapshot is partial. Quantity-only differences may come from older data
+    // repairs and must not hide a genuinely stale complete Batch.
+    incomplete: storedItemCount > 0 && missingItemCount > 0,
+    storedItemCount, currentItemCount, missingItemCount,
+    storedQuantity, currentQuantity, missingQuantity
+  };
+}
+
+function isHistoricalPartialBatchSnapshotV449(batch, items = []) {
+  return getHistoricalBatchSnapshotGapV449(batch, items).incomplete;
+}
+
 function getCanonicalBatchCostSnapshotV206(batch, items = []) {
   const safeItems = Array.isArray(items) ? items : [];
   const rate = Number(batch?.rate) > 0
@@ -8603,6 +8658,7 @@ function getCanonicalBatchCostSnapshotV206(batch, items = []) {
 }
 
 function batchCostSnapshotIsStaleV206(batch, items = []) {
+  if (isHistoricalPartialBatchSnapshotV449(batch, items)) return false;
   const expected = getCanonicalBatchCostSnapshotV206(batch, items);
   if (!(expected.rate > 0) || !(expected.totalPurchaseForeign > 0)) return false;
   const diff = (a,b,t=0.02) => Math.abs((Number(a)||0)-(Number(b)||0)) > t;
@@ -8749,14 +8805,16 @@ function restoreStoredBatchRMDisplay(batch, items) {
 }
 
 function recalculateProductLastImport(productId, remainingImports, productName = "", category = "盆栽") {
+  const aliasesV449 = getProductIdAliasesV449();
+  const canonicalProductIdV449 = canonicalizeProductIdV449(productId, aliasesV449);
   const normalizedName = String(productName || "").trim().toLowerCase();
   const normalizedCategory = String(category || "盆栽");
 
   return remainingImports
     .filter(record => {
       const sameProductId =
-        productId && record.productId &&
-        String(record.productId) === String(productId);
+        canonicalProductIdV449 && record.productId &&
+        canonicalizeProductIdV449(record.productId, aliasesV449) === canonicalProductIdV449;
       const sameProductIdentity =
         normalizedName &&
         String(record.productName || "").trim().toLowerCase() === normalizedName &&
@@ -8884,7 +8942,8 @@ function repairStaleBatchUnitCostsV206({ persistCloud = true } = {}) {
     items: Array.isArray(batch?.items) ? batch.items.map(item => ({ ...item })) : []
   }));
 
-  const productIndexById = new Map(products.map((product, index) => [String(product.id || ""), index]));
+  const aliasesV449 = getProductIdAliasesV449();
+  const productIndexById = new Map(products.map((product, index) => [canonicalizeProductIdV449(product.id, aliasesV449), index]));
   const importIndexById = new Map(imports.map((record, index) => [String(record.id || ""), index]));
   const inventoryValueDeltaByProduct = new Map();
   const now = new Date().toISOString();
@@ -8916,6 +8975,7 @@ function repairStaleBatchUnitCostsV206({ persistCloud = true } = {}) {
   batches.forEach(batch => {
     const items = Array.isArray(batch.items) ? batch.items : [];
     if (!items.length) return;
+    if (isHistoricalPartialBatchSnapshotV449(batch, items)) return;
 
     const totalPurchaseForeign = items.reduce((sum, item) => {
       const foreign = Number(item?.foreignTotal);
@@ -8948,7 +9008,7 @@ function repairStaleBatchUnitCostsV206({ persistCloud = true } = {}) {
       if (Math.abs(expected.unitCost - oldUnitCost) <= 0.005) return item;
 
       const remainingQuantity = Math.max(0, Number(item?.remainingQuantity ?? item?.stockAdded ?? item?.quantity) || 0);
-      const productId = String(item?.productId || "");
+      const productId = canonicalizeProductIdV449(item?.productId, aliasesV449);
       if (remainingQuantity > 0 && productId) {
         inventoryValueDeltaByProduct.set(
           productId,
@@ -8976,7 +9036,7 @@ function repairStaleBatchUnitCostsV206({ persistCloud = true } = {}) {
         const fallbackIndex = imports.findIndex(record =>
           (String(record?.batchId || "") === String(batch?.id || "") ||
            String(record?.importNumber || "") === String(batch?.importNumber || "")) &&
-          String(record?.productId || "") === productId
+          canonicalizeProductIdV449(record?.productId, aliasesV449) === productId
         );
         if (fallbackIndex >= 0) {
           imports[fallbackIndex] = { ...imports[fallbackIndex], ...repaired, id: imports[fallbackIndex].id };
@@ -8992,7 +9052,7 @@ function repairStaleBatchUnitCostsV206({ persistCloud = true } = {}) {
 
   let productsChanged = false;
   inventoryValueDeltaByProduct.forEach((delta, productId) => {
-    const index = productIndexById.get(String(productId));
+    const index = productIndexById.get(canonicalizeProductIdV449(productId, aliasesV449));
     if (index === undefined) return;
     const stock = Math.max(0, Number(products[index]?.stock) || 0);
     const averageCost = Math.max(0, Number(products[index]?.averageCost) || 0);
@@ -9011,10 +9071,10 @@ function repairStaleBatchUnitCostsV206({ persistCloud = true } = {}) {
     const stock = Math.max(0, Number(product?.stock) || 0);
     const averageCost = Number(product?.averageCost);
     if (!(stock > 0) || (Number.isFinite(averageCost) && averageCost > 0)) return;
-    const productId = String(product?.id || "");
+    const productId = canonicalizeProductIdV449(product?.id, aliasesV449);
     const productName = String(product?.name || "").trim().toLowerCase();
     const matching = imports.filter(record => {
-      const sameId = productId && String(record?.productId || "") === productId;
+      const sameId = productId && canonicalizeProductIdV449(record?.productId, aliasesV449) === productId;
       const sameName = !sameId && productName && String(record?.productName || "").trim().toLowerCase() === productName;
       return sameId || sameName;
     });
@@ -9136,14 +9196,15 @@ function resolveImportUnitCost(record, batch = null, fallbackProduct = null, fal
 }
 
 function rebuildProductInventoryFromImports(product, remainingImports) {
-  const productId = String(product.id || "");
+  const aliasesV449 = getProductIdAliasesV449();
+  const productId = canonicalizeProductIdV449(product.id, aliasesV449);
   const productName = String(product.name || "").trim().toLowerCase();
   const productCategory = String(product.category || "盆栽");
 
   const matchingImports = remainingImports.filter(record => {
     const sameProductId =
       productId && record.productId &&
-      String(record.productId) === productId;
+      canonicalizeProductIdV449(record.productId, aliasesV449) === productId;
     const sameProductIdentity =
       productName &&
       String(record.productName || "").trim().toLowerCase() === productName &&
@@ -9185,14 +9246,16 @@ function rebuildProductInventoryFromImports(product, remainingImports) {
 
 function reverseBatchInventoryImpact(products, batchItems, remainingImports) {
   const affectedProductIds = new Set();
+  const aliasesV449 = getProductIdAliasesV449();
 
   (batchItems || []).forEach(record => {
     const recordName = String(record.productName || "").trim().toLowerCase();
     const recordCategory = String(record.category || "盆栽");
+    const recordProductIdV449 = canonicalizeProductIdV449(record.productId, aliasesV449);
     const productIndex = products.findIndex(product => {
       const sameProductId =
-        product.id && record.productId &&
-        String(product.id) === String(record.productId);
+        product.id && recordProductIdV449 &&
+        canonicalizeProductIdV449(product.id, aliasesV449) === recordProductIdV449;
       const sameProductIdentity =
         recordName &&
         String(product.name || "").trim().toLowerCase() === recordName &&
@@ -16098,7 +16161,7 @@ function editProductIdFromManagementV302(productId) {
     window.alert(`编号 ${nextId} 已经被其他产品使用，不能修改。`); return;
   }
   const settingsBefore = loadJSON("importSystemSettings", {});
-  const aliasesBefore = settingsBefore.productIdAliases || {};
+  const aliasesBefore = getProductIdAliasesV449(settingsBefore);
   if (Object.keys(aliasesBefore).some(key => String(key).toUpperCase() === nextId) || Object.values(aliasesBefore).some(value => String(value).toUpperCase() === nextId && String(value).toUpperCase() !== oldId)) {
     window.alert(`编号 ${nextId} 已存在历史兼容映射，请先检查资料，系统没有修改。`); return;
   }
@@ -17175,12 +17238,14 @@ function getInitialMinimumPriceLockMapV380(){
   return settings && settings[INITIAL_MINIMUM_PRICE_LOCK_KEY_V380] && typeof settings[INITIAL_MINIMUM_PRICE_LOCK_KEY_V380] === "object" ? settings[INITIAL_MINIMUM_PRICE_LOCK_KEY_V380] : {};
 }
 function isInitialMinimumPriceLockedV380(productOrId){
-  const product=typeof productOrId==="object"&&productOrId?productOrId:getProducts().find(p=>String(p?.id||"").trim().toUpperCase()===String(productOrId||"").trim().toUpperCase());
-  const id=String(product?.id||productOrId||"").trim().toUpperCase();
+  const aliasesV449=getProductIdAliasesV449();
+  const requestedId=canonicalizeProductIdV449(typeof productOrId==="object"&&productOrId?productOrId?.id:productOrId,aliasesV449);
+  const product=typeof productOrId==="object"&&productOrId?productOrId:getProducts().find(p=>canonicalizeProductIdV449(p?.id,aliasesV449)===requestedId);
+  const id=canonicalizeProductIdV449(product?.id||requestedId,aliasesV449);
   if(!id)return false;
   if(INITIAL_MINIMUM_PRICE_REAL_BASELINE_IDS_V380.has(id))return true;
   const locks=getInitialMinimumPriceLockMapV380();
-  const lockKey=Object.keys(locks||{}).find(key=>String(key||"").trim().toUpperCase()===id);
+  const lockKey=Object.keys(locks||{}).find(key=>canonicalizeProductIdV449(key,aliasesV449)===id);
   if(lockKey)return locks[lockKey]===true;
   // V40.3: never infer formal initial-price lock from the ordinary manual-price flag.
   // Only the confirmed 77 baseline IDs or an explicit lock-map entry are formal.
@@ -17188,11 +17253,14 @@ function isInitialMinimumPriceLockedV380(productOrId){
 }
 window.isInitialMinimumPriceLockedV380=isInitialMinimumPriceLockedV380;
 function getInitialMinimumPriceV376(product){
-  const id=String(product?.id||"").trim().toUpperCase();
+  const aliasesV449=getProductIdAliasesV449();
+  const id=canonicalizeProductIdV449(product?.id,aliasesV449);
   const map=getInitialMinimumPriceMapV376();
-  const entry=Object.prototype.hasOwnProperty.call(map,id)
-    ? {found:true,value:map[id]}
-    : (()=>{const hit=Object.entries(map).find(([key])=>String(key||"").trim().toUpperCase()===id);return hit?{found:true,value:hit[1]}:{found:false,value:null};})();
+  const directKey=Object.keys(map).find(key=>String(key||"").trim().toUpperCase()===id);
+  const aliasHit=Object.entries(map).find(([key])=>canonicalizeProductIdV449(key,aliasesV449)===id);
+  const entry=directKey!==undefined
+    ? {found:true,value:map[directKey]}
+    : (aliasHit?{found:true,value:aliasHit[1]}:{found:false,value:null});
   // V40.3: missing/null/blank is NOT zero. Number(null) / Number("") both become 0,
   // which was the root cause of a locked initial price being displayed/rewritten as RM0.00.
   const raw=entry.value;
@@ -17208,7 +17276,7 @@ function applyInitialMinimumPriceMapLocalV376(map){
   localStorage.setItem("importSystemSettings",JSON.stringify({...settings,[INITIAL_MINIMUM_PRICE_KEY_V376]:{...(map||{})}}));
 }
 function applyInitialMinimumPriceLockLocalV380(productId,locked=true){
-  const id=String(productId||"").trim().toUpperCase(); if(!id)return;
+  const id=canonicalizeProductIdV449(productId); if(!id)return;
   const settings=loadJSON("importSystemSettings",{});
   const locks=settings[INITIAL_MINIMUM_PRICE_LOCK_KEY_V380]&&typeof settings[INITIAL_MINIMUM_PRICE_LOCK_KEY_V380]==="object"?{...settings[INITIAL_MINIMUM_PRICE_LOCK_KEY_V380]}:{};
   locks[id]=locked===true;
@@ -17223,7 +17291,8 @@ let initialMinimumPriceEditCooldownUntilV419=0;
 async function editInitialMinimumPriceV376(productId){
   const now=Date.now();
   if(initialMinimumPriceEditBusyV419 || now<initialMinimumPriceEditCooldownUntilV419)return;
-  const id=String(productId||"").trim(), product=getProducts().find(p=>String(p?.id||"").trim()===id);
+  const aliasesV449=getProductIdAliasesV449();
+  const id=canonicalizeProductIdV449(productId,aliasesV449), product=getProducts().find(p=>canonicalizeProductIdV449(p?.id,aliasesV449)===id);
   if(!product){alert("找不到这个产品。");return;}
   initialMinimumPriceEditBusyV419=true;
   // V42.8: guard the entire native prompt/confirm + cloud save cycle so an iOS
@@ -17270,10 +17339,12 @@ async function restoreInitialMinimumPricesV376(){
     }
     const restoredPrices=data?.restoredPrices&&typeof data.restoredPrices==="object"?data.restoredPrices:{};
     if(Object.keys(restoredPrices).length){
+      const aliasesV449=getProductIdAliasesV449();
       const products=getProducts().map(product=>{
-        const id=String(product?.id||"").trim().toUpperCase();
-        if(!Object.prototype.hasOwnProperty.call(restoredPrices,id))return product;
-        return {...product,minimumPrice:Number(restoredPrices[id]),minimumPriceManual:true,updatedAt:data.updatedAt||product.updatedAt};
+        const id=canonicalizeProductIdV449(product?.id,aliasesV449);
+        const priceKey=Object.keys(restoredPrices).find(key=>canonicalizeProductIdV449(key,aliasesV449)===id);
+        if(!priceKey)return product;
+        return {...product,minimumPrice:Number(restoredPrices[priceKey]),minimumPriceManual:true,updatedAt:data.updatedAt||product.updatedAt};
       });
       localStorage.setItem("importSystemProducts",JSON.stringify(products));
       const restoredOverrides={...getMinimumPriceManualOverridesV160()};

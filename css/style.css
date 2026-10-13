@@ -7139,7 +7139,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 
 /* V44.7 — Product Management mobile title cleanup.
    Keep Chinese name + Product ID on one line; move Copy Product beside English name only on mobile. */
-/* V44.8 — Product Management mobile identity row.
+/* V44.9 — Product Management mobile identity row.
    Keep Product ID with the Chinese name; place a compact Copy Product button directly beside English name. */
 .product-stock-english-row-v447{min-width:0}
 .product-stock-copy-mobile-v447{display:none!important}
