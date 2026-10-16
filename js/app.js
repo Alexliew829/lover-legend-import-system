@@ -3306,7 +3306,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V44.9 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.0 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3409,7 +3409,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V44.9 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.0 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -6111,8 +6111,10 @@ function normalizePrimaryProductCategoryV255(value) {
   const rules = getProductCategoryRulesV228();
   const exact = rules.find(rule => normalizeProductCategoryNameV227(rule.name) === wanted);
   if (exact) return exact.name;
-  const other = rules.find(rule => normalizeProductCategoryNameV227(rule.name) === "其他");
-  return other?.name || rules[0]?.name || "盆栽";
+  // V45.0: an unknown/missing category is a bonsai product by default.
+  // "其他 / QT" is reserved for an explicit manual category choice.
+  const bonsai = rules.find(rule => normalizeProductCategoryNameV227(rule.name) === "盆栽");
+  return bonsai?.name || rules[0]?.name || "盆栽";
 }
 
 function normalizeProductCategoryNameV227(value) {
@@ -13893,7 +13895,11 @@ function fillExistingProductOriginalCostV244(rowId, product, { force = false } =
 
 function inferProductCategoryFromNameV345(name) {
   const text = String(name || "").trim().toLowerCase();
-  if (!text) return "其他";
+  // V45.0 category priority:
+  // - new/unknown products stay 盆栽;
+  // - only a positive non-bonsai match may auto-switch the category;
+  // - 其他/QT is manual-only.
+  if (!text) return "盆栽";
   const rules = typeof getProductCategoryRulesV228 === "function" ? getProductCategoryRulesV228() : [];
   for (const rule of rules) {
     const category = normalizeProductCategoryNameV227(rule?.name || "");
@@ -13907,8 +13913,7 @@ function inferProductCategoryFromNameV345(name) {
   if (/肥料|农药|杀虫|杀菌|fertili|pestic/.test(text)) return "肥料 / 农药";
   if (/泥土|介质|土壤|soil|media/.test(text)) return "泥土 / 介质";
   if (/工具|剪刀|钳|锯|tool/.test(text)) return "工具";
-  if (typeof findNamePrefixRuleV231 === "function" && findNamePrefixRuleV231(name)) return "盆栽";
-  return "其他";
+  return "盆栽";
 }
 
 function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, commitCurrency = false } = {}) {
@@ -13927,7 +13932,12 @@ function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, c
     tr.dataset.autoOriginalCostSourceValueV249 = "";
     tr.dataset.autoOriginalCostSourceCurrencyV249 = "";
     tr.dataset.priceManuallyEditedV249 = "0";
-    tr.dataset.categoryManualForName = "";
+    // A manual category may be chosen before the product name is entered.
+    // Only a real name clear/reset returns the row to the default 盆栽 state.
+    if (!fromCategoryChange) {
+      tr.dataset.categoryManualV450 = "0";
+      categoryField.value = normalizePrimaryProductCategoryV255("盆栽");
+    }
     tr.dataset.lastIdentityNameV231 = "";
     return;
   }
@@ -13944,7 +13954,7 @@ function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, c
     const identityChanged = tr.dataset.lastIdentityNameV231 !== normalizedName;
     productIdField.value = product.id || "";
     categoryField.value = normalizePrimaryProductCategoryV255(product.category);
-    tr.dataset.categoryManualForName = normalizedName;
+    tr.dataset.categoryManualV450 = "0";
     tr.dataset.lastIdentityNameV231 = normalizedName;
     fillExistingProductOriginalCostV244(rowId, product, { force: identityChanged });
     const historicalCurrenciesV250 = getHistoricalProductCurrenciesV232(product);
@@ -13963,8 +13973,8 @@ function applyProductIdentityDefaultsV231(rowId, { fromCategoryChange = false, c
     tr.dataset.autoOriginalCostSourceCurrencyV249 = "";
   }
   productIdField.value = "";
-  const manualForSameName = tr.dataset.categoryManualForName === normalizedName;
-  if (!fromCategoryChange && !manualForSameName) {
+  const categoryWasManuallySelectedV450 = tr.dataset.categoryManualV450 === "1";
+  if (!fromCategoryChange && !categoryWasManuallySelectedV450) {
     categoryField.value = inferProductCategoryFromNameV345(name);
   }
   tr.dataset.lastIdentityNameV231 = normalizedName;
@@ -14011,6 +14021,10 @@ function addBatchRow(prefill = {}){
   document.getElementById("batchRows").appendChild(tr);
   document.getElementById(`batchCategory-${id}`).value =
     normalizePrimaryProductCategoryV255(prefill.category || "盆栽");
+  // V45.0: a category restored from a draft/import is authoritative. A brand-new
+  // blank row stays automatic with the default 盆栽 category.
+  tr.dataset.categoryManualV450 = Object.prototype.hasOwnProperty.call(prefill, "category") &&
+    String(prefill.category || "").trim() ? "1" : "0";
   if (Number.isFinite(Number(prefill.quantity))) {
     const quantity = Math.max(0, Math.floor(Number(prefill.quantity)));
     const quantityInput = document.getElementById(`batchQty-${id}`);
@@ -14238,7 +14252,7 @@ function attachBatchRowEvents(id){
 
     document.getElementById(`batchProductId-${id}`).value = product?.id || "";
     const tr = document.querySelector(`#batchRows tr[data-row-id="${id}"]`);
-    if (tr) tr.dataset.categoryManualForName = "";
+    if (tr) tr.dataset.categoryManualV450 = "0";
     applyProductIdentityDefaultsV231(id, { commitCurrency: true });
     fillExistingProductOriginalCostV244(id, product, { force: true });
     hideBatchRowSuggestionBox(id);
@@ -14275,9 +14289,6 @@ function attachBatchRowEvents(id){
     }
     if (productIdField) productIdField.value = "";
     const currentName = n.value.trim().toLowerCase();
-    if (tr && tr.dataset.categoryManualForName && tr.dataset.categoryManualForName !== currentName) {
-      tr.dataset.categoryManualForName = "";
-    }
 
     if (!currentName) {
       const rowPrice = document.getElementById(`batchPrice-${id}`);
@@ -14287,7 +14298,10 @@ function attachBatchRowEvents(id){
         tr.dataset.autoOriginalCostSourceValueV249 = "";
         tr.dataset.autoOriginalCostSourceCurrencyV249 = "";
         tr.dataset.priceManuallyEditedV249 = "0";
+        tr.dataset.categoryManualV450 = "0";
       }
+      const categoryFieldV450 = document.getElementById(`batchCategory-${id}`);
+      if (categoryFieldV450) categoryFieldV450.value = normalizePrimaryProductCategoryV255("盆栽");
       hideBatchRowSuggestionBox(id);
       calculateBatch();
       return;
@@ -14395,7 +14409,7 @@ function attachBatchRowEvents(id){
     productIdField.value = product?.id || "";
     const tr = document.querySelector(`#batchRows tr[data-row-id="${id}"]`);
     if (tr) {
-      tr.dataset.categoryManualForName = name;
+      tr.dataset.categoryManualV450 = "1";
     }
     applyProductIdentityDefaultsV231(id, { fromCategoryChange: true, commitCurrency: true });
     calculateBatch();
