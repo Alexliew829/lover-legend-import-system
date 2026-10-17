@@ -3702,26 +3702,22 @@ html, body {
 }
 
 
-/* V45.2 History Sales-card coverage / partial financial summary */
-.history-sales-coverage-v452 {
-  margin-top: 10px;
-  padding: 10px 12px;
-  border: 1px solid #d8c7a1;
-  border-radius: 11px;
-  background: #fffaf0;
-  color: #76520a;
+/* V45.3 History Sales-card coverage note.
+   Financial cards show clean values; incomplete legacy coverage is disclosed once below. */
+.history-sales-coverage-note-v453 {
+  margin: 8px 4px 0;
+  color: #7b6c5a;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 10px;
-  font-size: 13px;
-  font-weight: 700;
+  gap: 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
   line-height: 1.45;
 }
-.history-sales-coverage-v452.is-loading { border-color:#b9c9d8; background:#f5f9fc; color:#486476; }
-.history-sales-coverage-v452.has-error { border-color:#efb1aa; background:#fff5f4; color:#9d2d22; }
-.history-sales-coverage-v452 i { color:#a89b80; font-style:normal; }
-.history-sales-coverage-v452 b { color:inherit; }
+.history-sales-coverage-note-v453.is-loading { color:#567083; }
+.history-sales-coverage-note-v453.has-error { color:#a13a31; }
+.history-sales-coverage-note-v453 i { color:#aa9d8d; font-style:normal; }
 .history-sales-summary-retry-v452,
 .history-sales-retry-v430 {
   border:0;
@@ -3734,22 +3730,8 @@ html, body {
   text-underline-offset:2px;
   cursor:pointer;
 }
-.history-financial-partial-badge-v452 {
-  display:inline-flex;
-  margin-left:6px;
-  padding:2px 6px;
-  border-radius:999px;
-  background:#fff0cf;
-  color:#8a5a00;
-  font-size:10px;
-  font-weight:800;
-  vertical-align:middle;
-  white-space:nowrap;
-}
 @media(max-width:720px){
-  .history-sales-coverage-v452{align-items:flex-start;flex-direction:column;gap:5px}
-  .history-sales-coverage-v452 i{display:none}
-  .history-financial-partial-badge-v452{margin-left:0;margin-top:4px}
+  .history-sales-coverage-note-v453 { margin-top:7px; font-size:11px; }
 }
 
 

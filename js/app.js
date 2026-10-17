@@ -306,7 +306,7 @@ let historySalesCacheHasDataV179 = false;
 // request Sales contexts that are currently visible, and must not confuse an
 // unrelated old cache entry with "financial data ready" for the current query.
 const historySalesFailedLinkIdsV430 = new Set();
-// V45.2: keep successful-but-missing historical cards separate from real
+// V45.3: keep successful-but-missing historical cards separate from real
 // transport/API failures. One old card must never mark the whole date range as
 // "读取失败".
 const historySalesMissingLinkIdsV452 = new Set();
@@ -3315,7 +3315,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.2 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.3 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3418,7 +3418,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.2 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.3 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -11359,7 +11359,7 @@ async function ensureHistorySalesContextV134(context, options = {}) {
       historySalesMissingLinkIdsV452.delete(id);
     });
     historySalesContextLoadedV134.add(key);
-    // V45.2: a long range can contain dozens of Sales contexts. Coalesce the
+    // V45.3: a long range can contain dozens of Sales contexts. Coalesce the
     // localStorage cache write instead of serialising the full cache after every
     // single context response.
     scheduleHistorySalesCachePersistV452();
@@ -11448,7 +11448,7 @@ async function ensureCurrentVisibleHistorySalesDetailsV430() {
     return rightTime - leftTime;
   });
 
-  // V45.2: do not launch every date/location JSONP request at once. Long ranges
+  // V45.3: do not launch every date/location JSONP request at once. Long ranges
   // such as Aug-Oct can contain 40+ contexts; a small worker pool avoids browser
   // connection pressure and Apps Script throttling while still loading quickly.
   // A range-level budget prevents a totally unavailable Sales API from keeping
@@ -11480,7 +11480,7 @@ async function ensureCurrentVisibleHistorySalesDetailsV430() {
         }
       });
     } catch (error) {
-      console.warn("V45.2 history Sales context read failed", entry.context, error);
+      console.warn("V45.3 history Sales context read failed", entry.context, error);
       entry.linkIds.forEach(id => {
         historySalesFailedLinkIdsV430.add(id);
         historySalesMissingLinkIdsV452.delete(id);
@@ -12267,38 +12267,44 @@ function getHistorySalesFinancialStateV430(options = {}) {
 }
 
 function buildHistorySalesCoverageHTMLV452(snapshot) {
-  if (!snapshot || snapshot.soldQuantity <= 0 || snapshot.completeQuantity >= snapshot.soldQuantity) return "";
-  const parts = [
-    `<span>销售卡金额覆盖 <b>${formatNumber(snapshot.completeQuantity, 0)}</b> / <b>${formatNumber(snapshot.soldQuantity, 0)}</b> 棵</span>`
-  ];
-  if (snapshot.noLinkQuantity > 0) {
-    parts.push(`<span>旧记录无销售卡金额 <b>${formatNumber(snapshot.noLinkQuantity, 0)}</b> 棵</span>`);
+  if (!snapshot || snapshot.soldQuantity <= 0) return "";
+
+  const notes = [];
+  const historicalMissingQuantity =
+    Math.max(0, Number(snapshot.noLinkQuantity) || 0) +
+    Math.max(0, Number(snapshot.missingQuantity) || 0);
+
+  if (historicalMissingQuantity > 0) {
+    const allHistoricalMissing =
+      Number(snapshot.completeQuantity || 0) <= 0 &&
+      historicalMissingQuantity >= Number(snapshot.soldQuantity || 0) &&
+      Number(snapshot.loadingQuantity || 0) <= 0 &&
+      Number(snapshot.failedQuantity || 0) <= 0;
+    notes.push(`<span>${allHistoricalMissing ? "所选范围的历史销售卡无金额资料" : "部分历史销售卡无金额资料"}</span>`);
   }
-  if (snapshot.missingQuantity > 0) {
-    parts.push(`<span>历史销售卡金额缺失 <b>${formatNumber(snapshot.missingQuantity, 0)}</b> 棵</span>`);
-  }
+
   if (snapshot.loadingQuantity > 0) {
-    parts.push(`<span>正在读取 <b>${formatNumber(snapshot.loadingQuantity, 0)}</b> 棵</span>`);
+    notes.push('<span>部分销售金额资料仍在读取中…</span>');
   }
+
   if (snapshot.failedQuantity > 0) {
-    parts.push(`<span class="history-sales-coverage-error-v452">读取失败 <b>${formatNumber(snapshot.failedQuantity, 0)}</b> 棵 <button type="button" class="history-sales-summary-retry-v452">点击重试</button></span>`);
+    notes.push('<span class="history-sales-coverage-error-v452">部分销售金额资料读取失败 <button type="button" class="history-sales-summary-retry-v452">点击重试</button></span>');
   }
+
+  if (!notes.length) return "";
+
   const tone = snapshot.failedQuantity > 0
     ? "has-error"
     : snapshot.loadingQuantity > 0
       ? "is-loading"
       : "is-partial";
-  return `<div class="history-sales-coverage-v452 ${tone}">${parts.join('<i aria-hidden="true">·</i>')}</div>`;
+
+  return `<div class="history-sales-coverage-note-v453 ${tone}">${notes.join('<i aria-hidden="true">·</i>')}</div>`;
 }
 
 function getHistoryFinancialValueHTMLV452(value, snapshot) {
   if (snapshot.soldQuantity <= 0) return formatMoney(0, "RM ");
-  if (snapshot.completeQuantity > 0) {
-    const partial = snapshot.completeQuantity < snapshot.soldQuantity
-      ? '<small class="history-financial-partial-badge-v452">已读取部分</small>'
-      : "";
-    return `${formatMoney(value, "RM ")}${partial}`;
-  }
+  if (snapshot.completeQuantity > 0) return formatMoney(value, "RM ");
   if (snapshot.loadingQuantity > 0) return "读取中…";
   if (snapshot.failedQuantity > 0) return "读取失败";
   return "无销售卡金额资料";
@@ -12337,7 +12343,6 @@ function buildHistorySoldCostSummary(options = {}) {
       <span>卖出所有产品总数量 <b>${formatNumber(soldQuantity, 0)}</b></span>
       ${buildHistorySoldCategoryBreakdownHTMLV451(soldCategoryBreakdownV451)}
     </div>
-    ${buildHistorySalesCoverageHTMLV452(financialSnapshotV452)}
     <div class="history-cost-profit-summary-v137">
       <div class="history-total-sales-amount-summary-v142">
         <span>销售总额</span>
@@ -12358,6 +12363,7 @@ function buildHistorySoldCostSummary(options = {}) {
         <strong>${salesProfitText}</strong>
       </div>
     </div>
+    ${buildHistorySalesCoverageHTMLV452(financialSnapshotV452)}
     ${pending.count ? `<div class="history-pending-legacy-note">⚠ 旧记录待确认：${formatNumber(pending.count, 0)} 笔 / ${formatNumber(pending.quantity, 0)} 棵，暂不计入卖出统计。请到「设置 → 历史销售修复」确认。</div>` : ""}
   `;
 }
