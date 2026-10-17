@@ -306,6 +306,15 @@ let historySalesCacheHasDataV179 = false;
 // request Sales contexts that are currently visible, and must not confuse an
 // unrelated old cache entry with "financial data ready" for the current query.
 const historySalesFailedLinkIdsV430 = new Set();
+// V45.2: keep successful-but-missing historical cards separate from real
+// transport/API failures. One old card must never mark the whole date range as
+// "读取失败".
+const historySalesMissingLinkIdsV452 = new Set();
+const HISTORY_SALES_CONTEXT_TIMEOUT_MS_V452 = 12000;
+const HISTORY_SALES_CONTEXT_CONCURRENCY_V452 = 5;
+const HISTORY_SALES_RANGE_BUDGET_MS_V452 = 30000;
+let historySalesCachePersistTimerV452 = null;
+let historySalesOfflineV452 = false;
 
 function setSalesInventoryOperationLockV117(active, stage = "") {
   salesInventoryOperationActiveV115 = Boolean(active);
@@ -3306,7 +3315,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.1 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.2 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3409,7 +3418,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.1 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.2 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -10422,10 +10431,24 @@ function setupImportHistory() {
   });
 
   historyResult?.addEventListener("click", async event => {
+    const summaryRetryV452 = event.target.closest(".history-sales-summary-retry-v452");
+    if (summaryRetryV452) {
+      historySalesFailedLinkIdsV430.clear();
+      historySalesMissingLinkIdsV452.clear();
+      historySalesContextLoadedV134.clear();
+      lastCompletedHistoryLookup = "";
+      historyManualLookupReadyV246 = true;
+      await renderImportHistory();
+      return;
+    }
+
     const retryButtonV430 = event.target.closest(".history-sales-retry-v430");
     if (retryButtonV430) {
       const linkId = String(retryButtonV430.dataset.historySalesRetryLink || "").trim();
-      if (linkId) historySalesFailedLinkIdsV430.delete(linkId);
+      if (linkId) {
+        historySalesFailedLinkIdsV430.delete(linkId);
+        historySalesMissingLinkIdsV452.delete(linkId);
+      }
       historySalesContextLoadedV134.clear();
       lastCompletedHistoryLookup = "";
       historyManualLookupReadyV246 = true;
@@ -11240,16 +11263,33 @@ function historySalesContextKeyV134(type, date, location) {
   return [String(type || "").toLowerCase(), normalizeDateToDDMMYYYY(date), String(location || "").trim().toLowerCase()].join("|");
 }
 
+function historySalesFiniteOrNullV452(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 function slimHistorySalesLinkV179(link) {
   return {
-    linkId:String(link?.linkId||""), quantity:Number(link?.quantity||0),
-    averageCost:Number(link?.averageCost), localDelivery:Number(link?.localDelivery),
-    extraFee:Number(link?.extraFee), commissionAmount:Number(link?.commissionAmount),
-    actualPrice:Number(link?.actualPrice), profit:Number(link?.profit),
-    profitRate:Number(link?.profitRate), productId:String(link?.productId||""),
-    productName:String(link?.productName||""), transactionId:String(link?.transactionId||link?.saleId||""),
-    saleId:String(link?.saleId||link?.transactionId||""), type:String(link?.type||""),
-    date:String(link?.date||""), location:String(link?.location||""),
+    linkId:String(link?.linkId||""),
+    quantity:Math.max(0, Number(link?.quantity) || Number(link?.processedQty) || 0),
+    processedQty:Math.max(0, Number(link?.processedQty) || Number(link?.quantity) || 0),
+    averageCost:historySalesFiniteOrNullV452(link?.averageCost),
+    localDelivery:historySalesFiniteOrNullV452(link?.localDelivery),
+    extraFee:historySalesFiniteOrNullV452(link?.extraFee),
+    commissionAmount:historySalesFiniteOrNullV452(link?.commissionAmount),
+    actualPrice:historySalesFiniteOrNullV452(link?.actualPrice),
+    profit:historySalesFiniteOrNullV452(link?.profit),
+    profitRate:historySalesFiniteOrNullV452(link?.profitRate),
+    productId:String(link?.productId||""),
+    productName:String(link?.productName||""),
+    transactionId:String(link?.transactionId||link?.saleId||""),
+    saleId:String(link?.saleId||link?.transactionId||""),
+    type:String(link?.type||""),
+    date:String(link?.saleDate||link?.date||""),
+    saleDate:String(link?.saleDate||link?.date||""),
+    location:String(link?.location||link?.source||""),
+    source:String(link?.source||link?.location||""),
     importSyncStatus:String(link?.importSyncStatus||"")
   };
 }
@@ -11272,7 +11312,24 @@ function persistHistorySalesCacheV179(links) {
   historySalesCacheHydratedV179=true;historySalesCacheHasDataV179=clean.length>0;
 }
 
-function callHistorySalesProductLinksV134(context) {
+
+function flushHistorySalesCacheV452() {
+  if (historySalesCachePersistTimerV452) {
+    window.clearTimeout(historySalesCachePersistTimerV452);
+    historySalesCachePersistTimerV452 = null;
+  }
+  persistHistorySalesCacheV179(Array.from(historySalesDetailsByLinkV134.values()));
+}
+
+function scheduleHistorySalesCachePersistV452(delay = 180) {
+  if (historySalesCachePersistTimerV452) window.clearTimeout(historySalesCachePersistTimerV452);
+  historySalesCachePersistTimerV452 = window.setTimeout(() => {
+    historySalesCachePersistTimerV452 = null;
+    persistHistorySalesCacheV179(Array.from(historySalesDetailsByLinkV134.values()));
+  }, Math.max(0, Number(delay) || 0));
+}
+
+function callHistorySalesProductLinksV134(context, timeoutMs = HISTORY_SALES_CONTEXT_TIMEOUT_MS_V452) {
   return new Promise((resolve, reject) => {
     const callbackName = `loverLegendHistoryLinksV134_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const script = document.createElement("script");
@@ -11283,26 +11340,29 @@ function callHistorySalesProductLinksV134(context) {
     script.src = `${SALES_INVENTORY_FEED_URL_V77}?${params.toString()}`;
     script.async = true;
     script.onerror = () => { cleanup(); reject(new Error("无法读取销售卡")); };
-    const timeoutId = window.setTimeout(() => { cleanup(); reject(new Error("读取销售卡超时")); }, 8000);
+    const safeTimeout = Math.max(1500, Math.min(HISTORY_SALES_CONTEXT_TIMEOUT_MS_V452, Number(timeoutMs) || HISTORY_SALES_CONTEXT_TIMEOUT_MS_V452));
+    const timeoutId = window.setTimeout(() => { cleanup(); reject(new Error("读取销售卡超时")); }, safeTimeout);
     document.head.appendChild(script);
   });
 }
 
-async function ensureHistorySalesContextV134(context) {
+async function ensureHistorySalesContextV134(context, options = {}) {
   const key = historySalesContextKeyV134(context.type, context.date, context.location);
   if (historySalesContextLoadedV134.has(key)) return [];
   if (historySalesContextLoadingV134.has(key)) return historySalesContextLoadingV134.get(key);
-  const request = callHistorySalesProductLinksV134(context).then(links => {
+  const request = callHistorySalesProductLinksV134(context, options.timeoutMs).then(links => {
     links.forEach(link => {
       const id = String(link?.linkId || "").trim();
       if (!id) return;
       historySalesDetailsByLinkV134.set(id, link);
       historySalesFailedLinkIdsV430.delete(id);
+      historySalesMissingLinkIdsV452.delete(id);
     });
     historySalesContextLoadedV134.add(key);
-    // Merge the focused result into the existing local cache. Never replace a
-    // useful old cache with only the small context fetched by this query.
-    persistHistorySalesCacheV179(Array.from(historySalesDetailsByLinkV134.values()));
+    // V45.2: a long range can contain dozens of Sales contexts. Coalesce the
+    // localStorage cache write instead of serialising the full cache after every
+    // single context response.
+    scheduleHistorySalesCachePersistV452();
     return links;
   }).finally(() => historySalesContextLoadingV134.delete(key));
   historySalesContextLoadingV134.set(key, request);
@@ -11314,7 +11374,7 @@ function isHistorySalesFinancialCompleteV430(detail) {
   return [
     detail.averageCost, detail.localDelivery, detail.extraFee,
     detail.commissionAmount, detail.actualPrice, detail.profit, detail.profitRate
-  ].every(value => Number.isFinite(Number(value)));
+  ].every(value => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value)));
 }
 
 function getHistorySalesContextFromLinkV430(link) {
@@ -11326,9 +11386,23 @@ function getHistorySalesContextFromLinkV430(link) {
   return { type, date, location };
 }
 
+async function runHistorySalesContextQueueV452(entries, worker) {
+  const list = Array.isArray(entries) ? entries : [];
+  if (!list.length) return;
+  let cursor = 0;
+  const workerCount = Math.min(HISTORY_SALES_CONTEXT_CONCURRENCY_V452, list.length);
+  const runners = Array.from({ length: workerCount }, async () => {
+    while (cursor < list.length) {
+      const index = cursor;
+      cursor += 1;
+      await worker(list[index], index);
+    }
+  });
+  await Promise.all(runners);
+}
+
 async function ensureCurrentVisibleHistorySalesDetailsV430() {
   hydrateHistorySalesCacheV179();
-  if (!navigator.onLine) return;
   const result = document.getElementById("historyResult");
   if (!result) return;
 
@@ -11337,33 +11411,84 @@ async function ensureCurrentVisibleHistorySalesDetailsV430() {
   ).map(node => String(node.dataset.historySalesLinkId || "").trim()).filter(Boolean));
   if (!visibleIds.size) return;
 
+  historySalesOfflineV452 = !navigator.onLine;
+  if (historySalesOfflineV452) {
+    visibleIds.forEach(id => {
+      if (!isHistorySalesFinancialCompleteV430(historySalesDetailsByLinkV134.get(id))) {
+        historySalesFailedLinkIdsV430.add(id);
+      }
+    });
+    return;
+  }
+
   const contextLinks = new Map();
   getAllHistoryStockAdjustments().forEach(adjustment => {
     const link = historyAdjustmentSaleLinkV134(adjustment);
     const linkId = String(link?.linkId || "").trim();
     if (!linkId || !visibleIds.has(linkId)) return;
-    if (isHistorySalesFinancialCompleteV430(historySalesDetailsByLinkV134.get(linkId))) return;
+    if (isHistorySalesFinancialCompleteV430(historySalesDetailsByLinkV134.get(linkId))) {
+      historySalesFailedLinkIdsV430.delete(linkId);
+      historySalesMissingLinkIdsV452.delete(linkId);
+      return;
+    }
     const context = getHistorySalesContextFromLinkV430(link);
-    if (!context) { historySalesFailedLinkIdsV430.add(linkId); return; }
+    if (!context) {
+      historySalesMissingLinkIdsV452.add(linkId);
+      historySalesFailedLinkIdsV430.delete(linkId);
+      return;
+    }
     const key = historySalesContextKeyV134(context.type, context.date, context.location);
     if (!contextLinks.has(key)) contextLinks.set(key, { context, linkIds:new Set() });
     contextLinks.get(key).linkIds.add(linkId);
   });
 
-  await Promise.all(Array.from(contextLinks.values()).map(async entry => {
+  const entries = Array.from(contextLinks.values()).sort((left, right) => {
+    const leftTime = Number(parseDDMMYYYY(left?.context?.date)) || 0;
+    const rightTime = Number(parseDDMMYYYY(right?.context?.date)) || 0;
+    return rightTime - leftTime;
+  });
+
+  // V45.2: do not launch every date/location JSONP request at once. Long ranges
+  // such as Aug-Oct can contain 40+ contexts; a small worker pool avoids browser
+  // connection pressure and Apps Script throttling while still loading quickly.
+  // A range-level budget prevents a totally unavailable Sales API from keeping
+  // the History page waiting through every queued 12-second timeout.
+  const rangeDeadlineV452 = Date.now() + HISTORY_SALES_RANGE_BUDGET_MS_V452;
+  await runHistorySalesContextQueueV452(entries, async entry => {
+    const remainingBudget = rangeDeadlineV452 - Date.now();
+    if (remainingBudget <= 0) {
+      entry.linkIds.forEach(id => {
+        historySalesFailedLinkIdsV430.add(id);
+        historySalesMissingLinkIdsV452.delete(id);
+      });
+      return;
+    }
     try {
-      await ensureHistorySalesContextV134(entry.context);
+      await ensureHistorySalesContextV134(entry.context, {
+        timeoutMs: Math.min(HISTORY_SALES_CONTEXT_TIMEOUT_MS_V452, remainingBudget)
+      });
       entry.linkIds.forEach(id => {
         if (isHistorySalesFinancialCompleteV430(historySalesDetailsByLinkV134.get(id))) {
           historySalesFailedLinkIdsV430.delete(id);
+          historySalesMissingLinkIdsV452.delete(id);
         } else {
-          historySalesFailedLinkIdsV430.add(id);
+          // The context was read successfully but this historical link/card is
+          // absent or lacks financial fields. This is missing legacy data, not a
+          // network failure.
+          historySalesMissingLinkIdsV452.add(id);
+          historySalesFailedLinkIdsV430.delete(id);
         }
       });
-    } catch (_) {
-      entry.linkIds.forEach(id => historySalesFailedLinkIdsV430.add(id));
+    } catch (error) {
+      console.warn("V45.2 history Sales context read failed", entry.context, error);
+      entry.linkIds.forEach(id => {
+        historySalesFailedLinkIdsV430.add(id);
+        historySalesMissingLinkIdsV452.delete(id);
+      });
     }
-  }));
+  });
+
+  flushHistorySalesCacheV452();
 }
 
 async function ensureVisibleHistorySalesDetailsV134() {
@@ -11406,17 +11531,22 @@ function buildHistorySalesFinancialHtmlV134(adjustment) {
   }
   const detail = historySalesDetailsByLinkV134.get(linkId) || link;
   const quantity = Math.max(1, Number(detail?.quantity || link?.processedQty || Math.abs(Number(adjustment?.delta) || 0)) || 1);
-  const averageCost = Number(detail?.averageCost), delivery = Number(detail?.localDelivery), extra = Number(detail?.extraFee), commission = Number(detail?.commissionAmount);
-  const saleAmount = Number(detail?.actualPrice), profit = Number(detail?.profit), profitRate = Number(detail?.profitRate);
-  if (![averageCost, delivery, extra, commission, saleAmount, profit, profitRate].every(Number.isFinite)) {
+  if (!isHistorySalesFinancialCompleteV430(detail)) {
     if (historySalesFailedLinkIdsV430.has(linkId)) {
       return `<div class="history-sales-financial-v134 history-sales-financial-unavailable-v182" data-history-sales-link-id="${escapeHTML(linkId)}">销售金额资料读取失败 · <button type="button" class="history-sales-retry-v430" data-history-sales-retry-link="${escapeHTML(linkId)}">点击重试</button></div>`;
     }
-    if (historyAllSalesLinksLoadedV136) {
-      return `<div class="history-sales-financial-v134 history-sales-financial-unavailable-v182" data-history-sales-link-id="${escapeHTML(linkId)}">旧记录无销售卡金额资料</div>`;
+    if (historySalesMissingLinkIdsV452.has(linkId) || historyAllSalesLinksLoadedV136) {
+      return `<div class="history-sales-financial-v134 history-sales-financial-unavailable-v182" data-history-sales-link-id="${escapeHTML(linkId)}">历史销售卡金额资料缺失</div>`;
     }
     return `<div class="history-sales-financial-v134 history-sales-financial-loading-v179" data-history-sales-link-id="${escapeHTML(linkId)}">销售金额／成本／利润读取中…</div>`;
   }
+  const averageCost = Number(detail.averageCost);
+  const delivery = Number(detail.localDelivery);
+  const extra = Number(detail.extraFee);
+  const commission = Number(detail.commissionAmount);
+  const saleAmount = Number(detail.actualPrice);
+  const profit = Number(detail.profit);
+  const profitRate = Number(detail.profitRate);
   const totalCost = averageCost * quantity + delivery + extra + commission;
   const profitRateText = (Number(profitRate) || 0).toLocaleString("en-MY", {
     minimumFractionDigits: 2,
@@ -12009,33 +12139,108 @@ function getHistorySalesLinkForAdjustmentV137(adjustment, allAdjustments) {
 // V19.8: sum Sales-card profit and complete Sales-card cost for the exact
 // net-sold lots selected by the current product/import/date filters. Group by
 // Link ID so FIFO batch splits do not count the same Sales line more than once.
-function getHistorySoldProfitTotalV137(options = {}) {
+function getHistorySalesFinancialSnapshotV452(options = {}) {
   const lots = getHistorySoldLotsV451(options);
   const allAdjustments = getAllHistoryStockAdjustments();
   const grouped = new Map();
+  let soldQuantity = 0;
+  let noLinkQuantity = 0;
+
   lots.forEach(lot => {
+    const quantity = Math.max(0, Number(lot?.remainingQuantity) || 0);
+    if (!(quantity > 0)) return;
+    soldQuantity += quantity;
     const link = getHistorySalesLinkForAdjustmentV137(lot.adjustment, allAdjustments);
     const linkId = String(link?.linkId || "").trim();
-    const detail = historySalesDetailsByLinkV134.get(linkId) || link;
-    const profit = Number(detail?.profit), originalQuantity = Math.max(1, Number(detail?.quantity || link?.processedQty || 0) || 1);
-    const averageCost = Number(detail?.averageCost), delivery = Number(detail?.localDelivery), extra = Number(detail?.extraFee), commission = Number(detail?.commissionAmount);
-    const totalSalesCost = [averageCost, delivery, extra, commission].every(Number.isFinite)
-      ? averageCost * originalQuantity + delivery + extra + commission
-      : NaN;
-    if (!linkId || !Number.isFinite(profit)) return;
-    const entry = grouped.get(linkId) || {quantity:0, originalQuantity, profit, totalSalesCost};
-    entry.quantity += Math.max(0, Number(lot.remainingQuantity) || 0);
+    if (!linkId) {
+      noLinkQuantity += quantity;
+      return;
+    }
+    const entry = grouped.get(linkId) || { linkId, quantity:0, fallbackLink:link };
+    entry.quantity += quantity;
+    if (!entry.fallbackLink) entry.fallbackLink = link;
     grouped.set(linkId, entry);
   });
-  let matchedQuantity = 0, totalProfit = 0, totalSalesCost = 0;
+
+  let totalProfit = 0;
+  let totalSalesCost = 0;
+  let completeQuantity = 0;
+  let missingQuantity = 0;
+  let failedQuantity = 0;
+  let loadingQuantity = 0;
+  let completeLinks = 0;
+  let missingLinks = 0;
+  let failedLinks = 0;
+  let loadingLinks = 0;
+
   grouped.forEach(entry => {
-    const quantity = Math.min(entry.originalQuantity, entry.quantity);
-    const ratio = quantity / entry.originalQuantity;
-    matchedQuantity += quantity;
-    totalProfit += entry.profit * ratio;
-    if (Number.isFinite(entry.totalSalesCost)) totalSalesCost += entry.totalSalesCost * ratio;
+    const detail = historySalesDetailsByLinkV134.get(entry.linkId) || entry.fallbackLink;
+    const originalQuantity = Math.max(1,
+      Number(detail?.quantity) ||
+      Number(detail?.processedQty) ||
+      Number(entry.fallbackLink?.processedQty) ||
+      Number(entry.quantity) ||
+      1
+    );
+
+    if (isHistorySalesFinancialCompleteV430(detail)) {
+      const matchedQuantity = Math.min(entry.quantity, originalQuantity);
+      const overflowQuantity = Math.max(0, entry.quantity - matchedQuantity);
+      const ratio = matchedQuantity / originalQuantity;
+      const averageCost = Number(detail.averageCost);
+      const delivery = Number(detail.localDelivery);
+      const extra = Number(detail.extraFee);
+      const commission = Number(detail.commissionAmount);
+      const profit = Number(detail.profit);
+      const totalCost = averageCost * originalQuantity + delivery + extra + commission;
+      totalProfit += profit * ratio;
+      totalSalesCost += totalCost * ratio;
+      completeQuantity += matchedQuantity;
+      completeLinks += 1;
+      if (overflowQuantity > 0) missingQuantity += overflowQuantity;
+      return;
+    }
+
+    if (historySalesFailedLinkIdsV430.has(entry.linkId) || historySalesOfflineV452) {
+      failedQuantity += entry.quantity;
+      failedLinks += 1;
+    } else if (historySalesMissingLinkIdsV452.has(entry.linkId) || historyAllSalesLinksLoadedV136) {
+      missingQuantity += entry.quantity;
+      missingLinks += 1;
+    } else {
+      loadingQuantity += entry.quantity;
+      loadingLinks += 1;
+    }
   });
-  return {totalProfit, totalSalesCost, matchedQuantity};
+
+  return {
+    soldQuantity,
+    linkedQuantity: Math.max(0, soldQuantity - noLinkQuantity),
+    noLinkQuantity,
+    completeQuantity,
+    missingQuantity,
+    failedQuantity,
+    loadingQuantity,
+    expectedLinks: grouped.size,
+    completeLinks,
+    missingLinks,
+    failedLinks,
+    loadingLinks,
+    totalProfit,
+    totalSalesCost,
+    totalSalesAmount: totalSalesCost + totalProfit,
+    ready: soldQuantity <= 0 || completeQuantity >= soldQuantity
+  };
+}
+
+// Backward-compatible wrapper for existing analytics callers.
+function getHistorySoldProfitTotalV137(options = {}) {
+  const snapshot = getHistorySalesFinancialSnapshotV452(options);
+  return {
+    totalProfit:snapshot.totalProfit,
+    totalSalesCost:snapshot.totalSalesCost,
+    matchedQuantity:snapshot.completeQuantity
+  };
 }
 
 function getHistoryPendingLegacySalesSummary(options = {}) {
@@ -12051,23 +12256,52 @@ function getHistoryPendingLegacySalesSummary(options = {}) {
 }
 
 function getHistorySalesFinancialStateV430(options = {}) {
-  const lots = getHistorySoldLotsV451(options);
-  const allAdjustments = getAllHistoryStockAdjustments();
-  const ids = new Set();
-  lots.forEach(lot => {
-    const link = getHistorySalesLinkForAdjustmentV137(lot.adjustment, allAdjustments);
-    const id = String(link?.linkId || "").trim();
-    if (id) ids.add(id);
-  });
-  let complete = 0, failed = 0;
-  ids.forEach(id => {
-    const adjustment = allAdjustments.find(row => String(historyAdjustmentSaleLinkV134(row)?.linkId || "").trim() === id);
-    const fallbackLink = adjustment ? historyAdjustmentSaleLinkV134(adjustment) : null;
-    const detail = historySalesDetailsByLinkV134.get(id) || fallbackLink;
-    if (isHistorySalesFinancialCompleteV430(detail)) complete += 1;
-    else if (historySalesFailedLinkIdsV430.has(id)) failed += 1;
-  });
-  return { expected:ids.size, complete, failed, ready:ids.size > 0 && complete === ids.size };
+  const snapshot = getHistorySalesFinancialSnapshotV452(options);
+  return {
+    expected:snapshot.expectedLinks,
+    complete:snapshot.completeLinks,
+    failed:snapshot.failedLinks,
+    missing:snapshot.missingLinks,
+    ready:snapshot.ready
+  };
+}
+
+function buildHistorySalesCoverageHTMLV452(snapshot) {
+  if (!snapshot || snapshot.soldQuantity <= 0 || snapshot.completeQuantity >= snapshot.soldQuantity) return "";
+  const parts = [
+    `<span>销售卡金额覆盖 <b>${formatNumber(snapshot.completeQuantity, 0)}</b> / <b>${formatNumber(snapshot.soldQuantity, 0)}</b> 棵</span>`
+  ];
+  if (snapshot.noLinkQuantity > 0) {
+    parts.push(`<span>旧记录无销售卡金额 <b>${formatNumber(snapshot.noLinkQuantity, 0)}</b> 棵</span>`);
+  }
+  if (snapshot.missingQuantity > 0) {
+    parts.push(`<span>历史销售卡金额缺失 <b>${formatNumber(snapshot.missingQuantity, 0)}</b> 棵</span>`);
+  }
+  if (snapshot.loadingQuantity > 0) {
+    parts.push(`<span>正在读取 <b>${formatNumber(snapshot.loadingQuantity, 0)}</b> 棵</span>`);
+  }
+  if (snapshot.failedQuantity > 0) {
+    parts.push(`<span class="history-sales-coverage-error-v452">读取失败 <b>${formatNumber(snapshot.failedQuantity, 0)}</b> 棵 <button type="button" class="history-sales-summary-retry-v452">点击重试</button></span>`);
+  }
+  const tone = snapshot.failedQuantity > 0
+    ? "has-error"
+    : snapshot.loadingQuantity > 0
+      ? "is-loading"
+      : "is-partial";
+  return `<div class="history-sales-coverage-v452 ${tone}">${parts.join('<i aria-hidden="true">·</i>')}</div>`;
+}
+
+function getHistoryFinancialValueHTMLV452(value, snapshot) {
+  if (snapshot.soldQuantity <= 0) return formatMoney(0, "RM ");
+  if (snapshot.completeQuantity > 0) {
+    const partial = snapshot.completeQuantity < snapshot.soldQuantity
+      ? '<small class="history-financial-partial-badge-v452">已读取部分</small>'
+      : "";
+    return `${formatMoney(value, "RM ")}${partial}`;
+  }
+  if (snapshot.loadingQuantity > 0) return "读取中…";
+  if (snapshot.failedQuantity > 0) return "读取失败";
+  return "无销售卡金额资料";
 }
 
 function buildHistorySoldCostSummary(options = {}) {
@@ -12082,16 +12316,19 @@ function buildHistorySoldCostSummary(options = {}) {
   const pending = forceZero ? {count:0, quantity:0} : (options?.source ? {count:0, quantity:0} : getHistoryPendingLegacySalesSummary(options));
   const soldLotsV451 = forceZero ? [] : getHistoryNetSoldLots(options);
   const soldOptionsV451 = { ...options, precomputedLotsV451: soldLotsV451 };
-  const profitSummary = forceZero ? { totalSalesCost:0, totalProfit:0 } : getHistorySoldProfitTotalV137(soldOptionsV451);
-  const soldQuantity = forceZero ? 0 : getHistorySoldQuantityTotal(soldOptionsV451);
+  const financialSnapshotV452 = forceZero
+    ? {
+        soldQuantity:0, completeQuantity:0, noLinkQuantity:0, missingQuantity:0,
+        failedQuantity:0, loadingQuantity:0, totalSalesAmount:0,
+        totalSalesCost:0, totalProfit:0, ready:true
+      }
+    : getHistorySalesFinancialSnapshotV452(soldOptionsV451);
+  const soldQuantity = forceZero ? 0 : financialSnapshotV452.soldQuantity;
   const soldCategoryBreakdownV451 = forceZero ? [] : getHistorySoldCategoryBreakdownV451(soldOptionsV451);
-  const totalSalesAmount = forceZero ? 0 : Number(profitSummary.totalSalesCost || 0) + Number(profitSummary.totalProfit || 0);
-  const financialStateV430 = forceZero ? {ready:true, failed:0} : getHistorySalesFinancialStateV430(soldOptionsV451);
-  const salesFinancialReady = forceZero || soldQuantity <= 0 || financialStateV430.ready;
-  const salesFinancialStatusV430 = financialStateV430.failed > 0 ? "读取失败" : "读取中…";
-  const salesTotalText = salesFinancialReady ? formatMoney(totalSalesAmount, "RM ") : salesFinancialStatusV430;
-  const salesCostText = salesFinancialReady ? formatMoney(profitSummary.totalSalesCost, "RM ") : salesFinancialStatusV430;
-  const salesProfitText = salesFinancialReady ? formatMoney(profitSummary.totalProfit, "RM ") : salesFinancialStatusV430;
+  const salesTotalText = getHistoryFinancialValueHTMLV452(financialSnapshotV452.totalSalesAmount, financialSnapshotV452);
+  const salesCostText = getHistoryFinancialValueHTMLV452(financialSnapshotV452.totalSalesCost, financialSnapshotV452);
+  const salesProfitText = getHistoryFinancialValueHTMLV452(financialSnapshotV452.totalProfit, financialSnapshotV452);
+  const hasFinancialValuesV452 = financialSnapshotV452.completeQuantity > 0;
   const periodLayoutClass = "history-selected-period-range-v143";
 
   return `
@@ -12100,6 +12337,7 @@ function buildHistorySoldCostSummary(options = {}) {
       <span>卖出所有产品总数量 <b>${formatNumber(soldQuantity, 0)}</b></span>
       ${buildHistorySoldCategoryBreakdownHTMLV451(soldCategoryBreakdownV451)}
     </div>
+    ${buildHistorySalesCoverageHTMLV452(financialSnapshotV452)}
     <div class="history-cost-profit-summary-v137">
       <div class="history-total-sales-amount-summary-v142">
         <span>销售总额</span>
@@ -12115,7 +12353,7 @@ function buildHistorySoldCostSummary(options = {}) {
         <span>卖出总成本</span>
         <strong>${salesCostText}</strong>
       </div>
-      <div class="history-total-profit-summary-v137 ${!salesFinancialReady ? "neutral" : profitSummary.totalProfit > 0 ? "gain" : profitSummary.totalProfit < 0 ? "loss" : "neutral"}">
+      <div class="history-total-profit-summary-v137 ${!hasFinancialValuesV452 ? "neutral" : financialSnapshotV452.totalProfit > 0 ? "gain" : financialSnapshotV452.totalProfit < 0 ? "loss" : "neutral"}">
         <span>销售总利润</span>
         <strong>${salesProfitText}</strong>
       </div>

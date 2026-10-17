@@ -3702,6 +3702,57 @@ html, body {
 }
 
 
+/* V45.2 History Sales-card coverage / partial financial summary */
+.history-sales-coverage-v452 {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid #d8c7a1;
+  border-radius: 11px;
+  background: #fffaf0;
+  color: #76520a;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+.history-sales-coverage-v452.is-loading { border-color:#b9c9d8; background:#f5f9fc; color:#486476; }
+.history-sales-coverage-v452.has-error { border-color:#efb1aa; background:#fff5f4; color:#9d2d22; }
+.history-sales-coverage-v452 i { color:#a89b80; font-style:normal; }
+.history-sales-coverage-v452 b { color:inherit; }
+.history-sales-summary-retry-v452,
+.history-sales-retry-v430 {
+  border:0;
+  padding:0;
+  background:transparent;
+  color:#176b3c;
+  font:inherit;
+  font-weight:900;
+  text-decoration:underline;
+  text-underline-offset:2px;
+  cursor:pointer;
+}
+.history-financial-partial-badge-v452 {
+  display:inline-flex;
+  margin-left:6px;
+  padding:2px 6px;
+  border-radius:999px;
+  background:#fff0cf;
+  color:#8a5a00;
+  font-size:10px;
+  font-weight:800;
+  vertical-align:middle;
+  white-space:nowrap;
+}
+@media(max-width:720px){
+  .history-sales-coverage-v452{align-items:flex-start;flex-direction:column;gap:5px}
+  .history-sales-coverage-v452 i{display:none}
+  .history-financial-partial-badge-v452{margin-left:0;margin-top:4px}
+}
+
+
 /* V5.4 minimum sale price */
 .inventory-minimum-price-btn {
   width: 100%;
