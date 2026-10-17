@@ -7156,3 +7156,52 @@ body.system-media-preview-open-v305{overflow:hidden}
   .product-stock-english-row-v447 .product-stock-english-edit-btn-v266{max-width:calc(100% - 84px)!important}
   .product-stock-english-row-v447 .product-stock-copy-mobile-v447{padding-inline:6px;font-size:.70rem}
 }
+
+/* V45.1 History sold quantity: reuse Product Import category/species resolver. */
+.history-sold-category-breakdown-v451{
+  width:100%;
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:5px 9px;
+  padding-top:8px;
+  border-top:1px dashed rgba(180,35,24,.25);
+  color:#8f2d21;
+}
+.history-sold-category-breakdown-v451 small{
+  display:inline-flex;
+  align-items:baseline;
+  gap:4px;
+  font-size:14px;
+  line-height:1.35;
+  font-weight:700;
+  color:#8f2d21;
+}
+.history-sold-category-breakdown-v451 small strong{color:#6f221a;font-weight:850}
+.history-sold-category-breakdown-v451 small b{color:#b42318;font-size:15px;font-weight:900}
+.history-sold-category-breakdown-v451>i{font-style:normal;color:#d18a81}
+@media(max-width:720px){
+  .history-sold-category-breakdown-v451{gap:4px 7px;padding-top:7px}
+  .history-sold-category-breakdown-v451 small{font-size:13px}
+  .history-sold-category-breakdown-v451 small b{font-size:14px}
+}
+
+/* V45.1 Product Management search/filter layout.
+   Use the panel width, not only viewport width, so narrow desktop panels stack
+   the sort selector instead of squeezing/truncating the search conditions. */
+.product-master-query-v267{container-type:inline-size;container-name:product-master-query-v451}
+.product-master-query-v267 .product-master-query-toolbar-v422{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(180px,220px);
+  gap:10px;
+  align-items:center;
+}
+@container product-master-query-v451 (max-width:820px){
+  .product-master-query-v267 .product-master-query-toolbar-v422{
+    grid-template-columns:minmax(0,1fr);
+  }
+  .product-master-query-v267 .product-master-query-toolbar-v422 #batchProductStockSortV421{
+    width:100%;
+    max-width:100%;
+  }
+}

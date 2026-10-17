@@ -3306,7 +3306,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.0 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.1 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3409,7 +3409,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.0 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.1 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -11857,24 +11857,138 @@ function getHistoryNetSoldLots(options = {}) {
     .filter(lot => !source || historyAdjustmentMatchesSourceV149(lot.adjustment, source));
 }
 
+// V45.1: History financial/category summaries reuse one net-sold-lot result.
+// This avoids recalculating the same FIFO-adjusted history selection multiple
+// times just to render quantity, cost, profit, financial state and species mix.
+function getHistorySoldLotsV451(options = {}) {
+  return Array.isArray(options?.precomputedLotsV451)
+    ? options.precomputedLotsV451
+    : getHistoryNetSoldLots(options);
+}
+
 function getHistorySoldAdjustments(options = {}) {
-  return getHistoryNetSoldLots(options).map(lot => ({
+  return getHistorySoldLotsV451(options).map(lot => ({
     ...lot.adjustment,
     delta: -lot.remainingQuantity
   }));
 }
 
 function getHistorySoldCostTotal(options = {}) {
-  return getHistoryNetSoldLots(options).reduce((sum, lot) => {
+  return getHistorySoldLotsV451(options).reduce((sum, lot) => {
     return sum +
       (lot.remainingQuantity * (Number(lot.unitCost) || 0));
   }, 0);
 }
 
 function getHistorySoldQuantityTotal(options = {}) {
-  return getHistoryNetSoldLots(options).reduce((sum, lot) => {
+  return getHistorySoldLotsV451(options).reduce((sum, lot) => {
     return sum + (Number(lot.remainingQuantity) || 0);
   }, 0);
+}
+
+function getHistorySoldClassificationContextV451() {
+  const lookup = getHistoryProductLookupV322();
+  const aliases = getProductIdAliasesV449();
+  const byCanonicalId = new Map();
+  lookup.byId.forEach((product, productId) => {
+    const canonicalId = canonicalizeProductIdV449(productId, aliases);
+    if (canonicalId && !byCanonicalId.has(canonicalId)) {
+      byCanonicalId.set(canonicalId, product);
+    }
+  });
+  return { lookup, aliases, byCanonicalId };
+}
+
+function normalizeHistorySoldCategoryV451(categoryValue, productName) {
+  const source = normalizeProductCategoryNameV227(categoryValue);
+  if (source && isPrimaryProductCategoryV255(source)) {
+    return normalizePrimaryProductCategoryV255(source);
+  }
+  // Older rows may contain bilingual labels such as “花盆 Pot”. Feed both the
+  // stored label and product name through the same Product Import resolver.
+  return inferProductCategoryFromNameV345(`${source} ${String(productName || "")}`.trim());
+}
+
+function getHistorySoldProductForClassificationV451(adjustment, context) {
+  const rawId = String(adjustment?.productId || "").trim().toUpperCase();
+  const canonicalId = canonicalizeProductIdV449(rawId, context.aliases);
+  const name = String(adjustment?.productName || adjustment?.name || "").trim();
+  const nameKey = name.toLowerCase();
+  const product = context.byCanonicalId.get(canonicalId) ||
+    context.lookup.byId.get(rawId) ||
+    context.lookup.byName.get(nameKey);
+  if (product) return product;
+  return {
+    id: canonicalId || rawId,
+    name,
+    category: normalizeHistorySoldCategoryV451(adjustment?.category, name)
+  };
+}
+
+function getHistorySoldCategoryLabelV451(product, adjustment) {
+  const name = String(product?.name || adjustment?.productName || adjustment?.name || "").trim();
+  const sourceCategory = String(product?.category || adjustment?.category || "").trim();
+  const category = normalizeHistorySoldCategoryV451(sourceCategory, name);
+
+  // Non-bonsai products use the same primary category result as Product Import.
+  if (category !== "盆栽") return category || "其他";
+
+  const productLike = { ...(product || {}), name, category: "盆栽" };
+  const canonicalRule = resolveProductTreeRuleV343(productLike);
+  if (canonicalRule?.cn) return canonicalRule.cn;
+
+  // Reuse the shared species resolver used by Product Import language metadata.
+  const speciesRule = speciesRuleV262(name);
+  if (speciesRule?.cn) return speciesRule.cn;
+
+  // Reuse the configured Product Import prefix resolver, including user rules.
+  const prefixRule = findNamePrefixRuleV231(name);
+  if (prefixRule) {
+    const keyword = String(prefixRule[0] || "").trim();
+    const normalizedKeyword = normalizeProductPrefixKeywordV181(keyword);
+    const canonical = PRODUCT_PREFIX_CANONICAL_V333.find(rule =>
+      normalizeProductPrefixKeywordV181(rule.cn) === normalizedKeyword ||
+      rule.aliases.some(alias => normalizeProductPrefixKeywordV181(alias) === normalizedKeyword)
+    );
+    if (canonical?.cn) return canonical.cn;
+    if (keyword) return keyword;
+  }
+
+  return "其他";
+}
+
+function getHistorySoldCategoryBreakdownV451(options = {}) {
+  const lots = getHistorySoldLotsV451(options);
+  if (!lots.length) return [];
+  const context = getHistorySoldClassificationContextV451();
+  const totals = new Map();
+
+  lots.forEach(lot => {
+    const quantity = Math.max(0, Number(lot?.remainingQuantity) || 0);
+    if (!(quantity > 0)) return;
+    const adjustment = lot?.adjustment || {};
+    let label = "其他";
+    try {
+      const product = getHistorySoldProductForClassificationV451(adjustment, context);
+      label = getHistorySoldCategoryLabelV451(product, adjustment) || "其他";
+    } catch (error) {
+      console.warn("V45.1 history sold category resolution failed", error);
+    }
+    totals.set(label, (Number(totals.get(label)) || 0) + quantity);
+  });
+
+  return Array.from(totals, ([label, quantity]) => ({ label, quantity }))
+    .sort((left, right) =>
+      right.quantity - left.quantity ||
+      String(left.label).localeCompare(String(right.label), "zh-Hans-CN")
+    );
+}
+
+function buildHistorySoldCategoryBreakdownHTMLV451(rows) {
+  if (!Array.isArray(rows) || !rows.length) return "";
+  return `<div class="history-sold-category-breakdown-v451" aria-label="卖出产品分类数量">${rows.map(row =>
+    `<small><strong>${escapeHTML(row.label || "其他")}</strong><b>${formatNumber(row.quantity)}</b></small>`
+  ).join('<i aria-hidden="true">·</i>')}</div>`;
 }
 
 function getHistorySalesLinkForAdjustmentV137(adjustment, allAdjustments) {
@@ -11896,7 +12010,7 @@ function getHistorySalesLinkForAdjustmentV137(adjustment, allAdjustments) {
 // net-sold lots selected by the current product/import/date filters. Group by
 // Link ID so FIFO batch splits do not count the same Sales line more than once.
 function getHistorySoldProfitTotalV137(options = {}) {
-  const lots = getHistoryNetSoldLots(options);
+  const lots = getHistorySoldLotsV451(options);
   const allAdjustments = getAllHistoryStockAdjustments();
   const grouped = new Map();
   lots.forEach(lot => {
@@ -11937,7 +12051,7 @@ function getHistoryPendingLegacySalesSummary(options = {}) {
 }
 
 function getHistorySalesFinancialStateV430(options = {}) {
-  const lots = getHistoryNetSoldLots(options);
+  const lots = getHistorySoldLotsV451(options);
   const allAdjustments = getAllHistoryStockAdjustments();
   const ids = new Set();
   lots.forEach(lot => {
@@ -11966,10 +12080,13 @@ function buildHistorySoldCostSummary(options = {}) {
         : `所选期间：${escapeHTML(range.startDate)} 至 ${escapeHTML(range.endDate)}`)
     : "全部历史";
   const pending = forceZero ? {count:0, quantity:0} : (options?.source ? {count:0, quantity:0} : getHistoryPendingLegacySalesSummary(options));
-  const profitSummary = forceZero ? { totalSalesCost:0, totalProfit:0 } : getHistorySoldProfitTotalV137(options);
-  const soldQuantity = forceZero ? 0 : getHistorySoldQuantityTotal(options);
+  const soldLotsV451 = forceZero ? [] : getHistoryNetSoldLots(options);
+  const soldOptionsV451 = { ...options, precomputedLotsV451: soldLotsV451 };
+  const profitSummary = forceZero ? { totalSalesCost:0, totalProfit:0 } : getHistorySoldProfitTotalV137(soldOptionsV451);
+  const soldQuantity = forceZero ? 0 : getHistorySoldQuantityTotal(soldOptionsV451);
+  const soldCategoryBreakdownV451 = forceZero ? [] : getHistorySoldCategoryBreakdownV451(soldOptionsV451);
   const totalSalesAmount = forceZero ? 0 : Number(profitSummary.totalSalesCost || 0) + Number(profitSummary.totalProfit || 0);
-  const financialStateV430 = forceZero ? {ready:true, failed:0} : getHistorySalesFinancialStateV430(options);
+  const financialStateV430 = forceZero ? {ready:true, failed:0} : getHistorySalesFinancialStateV430(soldOptionsV451);
   const salesFinancialReady = forceZero || soldQuantity <= 0 || financialStateV430.ready;
   const salesFinancialStatusV430 = financialStateV430.failed > 0 ? "读取失败" : "读取中…";
   const salesTotalText = salesFinancialReady ? formatMoney(totalSalesAmount, "RM ") : salesFinancialStatusV430;
@@ -11981,6 +12098,7 @@ function buildHistorySoldCostSummary(options = {}) {
     <div class="history-selected-period ${periodLayoutClass}">
       <strong>${periodLabel}</strong>
       <span>卖出所有产品总数量 <b>${formatNumber(soldQuantity, 0)}</b></span>
+      ${buildHistorySoldCategoryBreakdownHTMLV451(soldCategoryBreakdownV451)}
     </div>
     <div class="history-cost-profit-summary-v137">
       <div class="history-total-sales-amount-summary-v142">
@@ -11989,7 +12107,7 @@ function buildHistorySoldCostSummary(options = {}) {
       </div>
       <div class="history-sold-cost-summary">
         <span>卖出成本总值</span>
-        <strong>${formatMoney(forceZero ? 0 : getHistorySoldCostTotal(options), "RM ")}</strong>
+        <strong>${formatMoney(forceZero ? 0 : getHistorySoldCostTotal(soldOptionsV451), "RM ")}</strong>
       </div>
     </div>
     <div class="history-cost-profit-summary-v137">
@@ -20591,6 +20709,7 @@ const PRODUCT_SPECIES_ALIASES_V262 = Object.freeze([
   {cn:"真柏", en:"Juniperus", keys:["真柏","juniperus"], prefix:"JU"},
   {cn:"系鱼川", en:"Itoigawa Shimpaku", keys:["系鱼川","itoigawa","itoigawa shimpaku"], prefix:"JU"},
   {cn:"福建茶", en:"Ho Kian Tea / Fujian Tea", keys:["福建茶","ho kian tea","fujian tea","fukien tea"], prefix:"HK"},
+  {cn:"桑葚", en:"Mulberry", keys:["桑葚","桑椹","mulberry"]},
   {cn:"绿萝", en:"Epipremnum Aureum", keys:["绿萝","epipremnum aureum","epipremnum"]},
   {cn:"龟背竹", en:"Monstera", keys:["龟背竹","monstera","monstera deliciosa"], prefix:"MO"},
   {cn:"榕属", en:"Ficus", keys:["榕属","ficus"], prefix:"FI"}
