@@ -3315,7 +3315,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.3 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.4 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3418,7 +3418,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.3 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.4 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -3900,12 +3900,30 @@ function averageCostAuditDisplayDateV359(entry) {
   if (!Number.isNaN(date.getTime())) return normalizeDateToDDMMYYYY(date);
   return normalizeDateToDDMMYYYY(raw) || "";
 }
-function averageCostAuditMatchesV359(entry, keyword, startDate, endDate) {
-  const q = String(keyword || "").trim().toLowerCase();
+function averageCostAuditMatchesV359(entry, keyword, startDate, endDate, searchIndexV454 = null) {
+  const q = String(keyword || "").trim();
   if (q) {
-    const haystack = [entry?.productId, entry?.productName, entry?.reason, entry?.beforeAverageCost, entry?.afterAverageCost, "平均成本手动修改"]
-      .map(value => String(value ?? "").toLowerCase()).join(" ");
-    if (!smartSearchMatches(haystack, q) && !haystack.includes(q)) return false;
+    const queryInfoV454 = parseUnifiedProductSearchQueryV454(q);
+    const productMatchV454 = unifiedProductSearchMatchesV454({
+      id:entry?.productId,
+      name:entry?.productName,
+      productId:entry?.productId,
+      productName:entry?.productName,
+      category:"盆栽"
+    }, q, {
+      index:searchIndexV454 || undefined,
+      includeIndexedLogistics:false
+    });
+    if (queryInfoV454.strictPrefix) {
+      if (!productMatchV454) return false;
+    } else {
+      const haystack = [entry?.reason, entry?.beforeAverageCost, entry?.afterAverageCost, "平均成本手动修改"]
+        .map(value => String(value ?? "")).join(" ");
+      if (!productMatchV454 && !unifiedSearchTextMatchesV454(
+        [normalizeUnifiedSearchFieldV454(haystack)],
+        queryInfoV454
+      )) return false;
+    }
   }
   const dateText = averageCostAuditDisplayDateV359(entry);
   if (startDate || endDate) {
@@ -3920,8 +3938,9 @@ function buildAverageCostAuditHistoryHtmlV359() {
   const keyword = String(document.getElementById("historyLookupInput")?.value || "").trim();
   const startDate = String(document.getElementById("historyStartDateInput")?.value || "").trim();
   const endDate = String(document.getElementById("historyEndDateInput")?.value || "").trim();
+  const searchIndexV454 = keyword ? getUnifiedProductSearchIndexV454() : null;
   const entries = getAverageCostAuditCacheV359().entries
-    .filter(entry => averageCostAuditMatchesV359(entry, keyword, startDate, endDate))
+    .filter(entry => averageCostAuditMatchesV359(entry, keyword, startDate, endDate, searchIndexV454))
     .sort((a,b) => String(b.updatedAt || b.timestamp || "").localeCompare(String(a.updatedAt || a.timestamp || "")));
   if (!entries.length) return "";
   return `<section class="average-cost-audit-history-v359">
@@ -6983,79 +7002,376 @@ function isProductFuzzySearchReadyV238(queryValue) {
   return latinCount >= 3;
 }
 
-function getProductSearchPrefixAliasesV238(product) {
-  const aliases = new Set();
+// V45.4: one shared product-search resolver for every product search surface.
+// Two Latin letters are a strict Product Prefix query. They never fall through
+// to arbitrary English-name substrings (AS must not match Bebuas / Itoigawa
+// Shimpaku). Three or more Latin letters may use English fuzzy matching.
+let unifiedProductSearchIndexCacheV454 = null;
+
+function parseUnifiedProductSearchQueryV454(queryValue) {
+  const raw = String(queryValue || "").normalize("NFKC").trim();
+  const normalized = normalizeSmartSearchText(raw);
+  const exactNameKey = raw.toLocaleLowerCase();
+  const numericOriginalCost = parseOriginalCostSearchQueryV216(raw);
+  const latinLetters = (raw.match(/[A-Za-z]/g) || []).join("");
+  const strictPrefix = Boolean(
+    normalized &&
+    /^[a-z]{2}$/i.test(normalized) &&
+    /^[A-Za-z][\s\u3000._\-/]*[A-Za-z]$/.test(raw)
+  );
+  const hasChinese = /[\u3400-\u9fff]/.test(raw);
+  const hasDigit = /\d/.test(raw);
+  const hasLatin = /[A-Za-z]/.test(raw);
+  return {
+    raw,
+    normalized,
+    exactNameKey,
+    numericOriginalCost,
+    strictPrefix,
+    prefix: strictPrefix ? normalized.toUpperCase() : "",
+    hasChinese,
+    hasDigit,
+    hasLatin,
+    latinCount: latinLetters.length,
+    codeQuery: hasLatin && hasDigit && normalized.length >= 3,
+    englishFuzzy: !hasChinese && latinLetters.length >= 3
+  };
+}
+
+function normalizeUnifiedSearchFieldV454(value) {
+  return normalizeSmartSearchText(String(value || ""));
+}
+
+function unifiedSearchTextMatchesV454(normalizedFields, queryInfo) {
+  const fields = Array.isArray(normalizedFields)
+    ? normalizedFields.filter(Boolean)
+    : [];
+  const query = String(queryInfo?.normalized || "");
+  if (!query) return true;
+  if (fields.some(field => field.includes(query))) return true;
+
+  const tokens = String(queryInfo?.raw || "")
+    .toLocaleLowerCase()
+    .split(/[\s\u3000\-_./\\,，、:：;；()（）[\]【】{}"'`~!！?？@#$%^&*+=|<>]+/)
+    .map(normalizeUnifiedSearchFieldV454)
+    .filter(Boolean);
+  if (tokens.length > 1 && tokens.every(token => fields.some(field => field.includes(token)))) {
+    return true;
+  }
+
+  if (queryInfo?.hasChinese) {
+    const sourceCounts = new Map();
+    Array.from(fields.join("")).forEach(character => {
+      sourceCounts.set(character, (sourceCounts.get(character) || 0) + 1);
+    });
+    return Array.from(query).every(character => {
+      const count = sourceCounts.get(character) || 0;
+      if (count < 1) return false;
+      sourceCounts.set(character, count - 1);
+      return true;
+    });
+  }
+  return false;
+}
+
+function getUnifiedProductPrefixDataV454(product, prefixRules, categoryRules) {
+  const prefixes = new Set();
+  const keywords = new Set();
   const id = String(product?.id || product?.productId || "").trim().toUpperCase();
   const idPrefix = id.match(/^([A-Z]{2})/);
-  if (idPrefix) aliases.add(idPrefix[1]);
+  if (idPrefix) prefixes.add(idPrefix[1]);
 
   const name = String(product?.name || product?.productName || "").trim();
   const category = normalizeProductCategoryNameV227(product?.category || "盆栽");
+  let treeRule = null;
   if (category === "盆栽") {
-    const rule = findNamePrefixRuleV231(name);
-    if (rule?.[1]) aliases.add(String(rule[1]).trim().toUpperCase());
+    const compactName = normalizeProductPrefixKeywordV181(name);
+    const direct = (Array.isArray(prefixRules) ? prefixRules : []).find(([keyword]) =>
+      compactName.includes(normalizeProductPrefixKeywordV181(keyword)) &&
+      canAutoApplyBonsaiPrefixRuleV239(name, keyword)
+    );
+    if (direct?.[1]) {
+      prefixes.add(String(direct[1]).trim().toUpperCase());
+      if (direct[0]) keywords.add(String(direct[0]).trim());
+    }
+    try { treeRule = resolveProductTreeRuleV343(product); } catch (_) { treeRule = null; }
+    if (treeRule?.prefix) prefixes.add(String(treeRule.prefix).trim().toUpperCase());
+    if (treeRule?.cn) keywords.add(String(treeRule.cn).trim());
+    if (treeRule?.en) keywords.add(String(treeRule.en).trim());
+    (Array.isArray(treeRule?.aliases) ? treeRule.aliases : []).forEach(alias => keywords.add(String(alias || "").trim()));
   } else {
-    const categoryRule = getProductCategoryRulesV228().find(rule =>
+    const categoryRule = (Array.isArray(categoryRules) ? categoryRules : []).find(rule =>
       rule?.mode === "category" &&
       normalizeProductCategoryNameV227(rule?.name) === category
     );
-    if (categoryRule?.prefix) aliases.add(String(categoryRule.prefix).trim().toUpperCase());
+    if (categoryRule?.prefix) prefixes.add(String(categoryRule.prefix).trim().toUpperCase());
+    if (categoryRule?.name) keywords.add(String(categoryRule.name).trim());
+    if (categoryRule?.english) keywords.add(String(categoryRule.english).trim());
   }
-  return [...aliases].filter(Boolean);
+  return { prefixes, keywords, treeRule };
+}
+
+function finalizeUnifiedProductSearchEntryV454(entry) {
+  const normalizeSet = values => [...values]
+    .map(normalizeUnifiedSearchFieldV454)
+    .filter(Boolean);
+  entry.normalizedIds = normalizeSet(entry.ids);
+  entry.normalizedNames = normalizeSet(entry.names);
+  entry.normalizedText = normalizeSet(entry.textFields);
+  entry.normalizedLogistics = normalizeSet(new Set([
+    ...entry.importNumbers,
+    ...entry.shipmentNumbers
+  ]));
+  return entry;
+}
+
+function createUnifiedProductSearchEntryV454(product, context) {
+  const aliases = context?.aliases || {};
+  const reverseAliases = context?.reverseAliases || new Map();
+  const actualId = String(product?.id || product?.productId || "").trim().toUpperCase();
+  const canonicalId = canonicalizeProductIdV449(actualId, aliases) || actualId;
+  const aliasIds = new Set(reverseAliases.get(canonicalId) || []);
+  if (actualId) aliasIds.add(actualId);
+  if (canonicalId) aliasIds.add(canonicalId);
+
+  const prefixData = getUnifiedProductPrefixDataV454(
+    product,
+    context?.prefixRules || [],
+    context?.categoryRules || []
+  );
+  const prefixes = new Set(prefixData.prefixes);
+  // If a Bonsai product has no specific tree rule, use the current Bonsai
+  // category fallback prefix (normally BS), exactly like Product Import.
+  if (normalizeProductCategoryNameV227(product?.category || "盆栽") === "盆栽" &&
+      !prefixData.treeRule && prefixData.keywords.size === 0) {
+    const bonsaiCategoryRule = (context?.categoryRules || []).find(rule =>
+      normalizeProductCategoryNameV227(rule?.name) === "盆栽"
+    );
+    if (bonsaiCategoryRule?.prefix) prefixes.add(String(bonsaiCategoryRule.prefix).trim().toUpperCase());
+  }
+  // Historical product-ID aliases are first-class search prefixes too. Searching
+  // PZ/PS/PX must find products that still carry those legacy IDs in history.
+  aliasIds.forEach(aliasId => {
+    const prefix = String(aliasId || "").match(/^([A-Z]{2})/)?.[1] || "";
+    if (prefix) prefixes.add(prefix);
+  });
+
+  const suffix = (canonicalId || actualId).match(/(\d{4})$/)?.[1] || "";
+  const virtualIds = new Set();
+  if (suffix) prefixes.forEach(prefix => virtualIds.add(`${prefix}${suffix}`));
+
+  const name = String(product?.name || product?.productName || "").trim();
+  let englishName = "";
+  try { englishName = productEnglishNameV262(product) || ""; } catch (_) {}
+  let supplier = null;
+  try { supplier = inferSupplierFromProductV261(product); } catch (_) { supplier = null; }
+  const category = String(product?.category || "").trim();
+
+  const names = new Set([name, englishName].filter(Boolean));
+  const ids = new Set([...aliasIds, ...virtualIds].filter(Boolean));
+  const textFields = new Set([
+    ...ids,
+    name,
+    englishName,
+    category,
+    supplier?.name,
+    supplier?.prefix,
+    ...(Array.isArray(supplier?.aliases) ? supplier.aliases : []),
+    ...prefixData.keywords,
+    ...prefixes
+  ].filter(Boolean));
+
+  return finalizeUnifiedProductSearchEntryV454({
+    product,
+    actualId,
+    canonicalId,
+    ids,
+    names,
+    prefixes,
+    textFields,
+    importNumbers:new Set(),
+    shipmentNumbers:new Set(),
+    originalCosts:new Set()
+  });
+}
+
+function getUnifiedProductSearchIndexV454() {
+  const productsRaw = localStorage.getItem("importSystemProducts") || "[]";
+  const settingsRaw = localStorage.getItem("importSystemSettings") || "{}";
+  const importsRaw = localStorage.getItem("importSystemImports") || "[]";
+  const batchesRaw = localStorage.getItem("importSystemBatches") || "[]";
+  const cache = unifiedProductSearchIndexCacheV454;
+  if (cache && cache.productsRaw === productsRaw && cache.settingsRaw === settingsRaw &&
+      cache.importsRaw === importsRaw && cache.batchesRaw === batchesRaw) {
+    return cache;
+  }
+
+  const products = getOperationalProductsV256(loadJSONReadOnlyV317("importSystemProducts", []));
+  const settings = loadJSONReadOnlyV317("importSystemSettings", {});
+  const imports = loadJSONReadOnlyV317("importSystemImports", []);
+  const batches = loadJSONReadOnlyV317("importSystemBatches", []);
+  const aliases = getProductIdAliasesV449(settings);
+  const reverseAliases = new Map();
+  Object.entries(aliases).forEach(([source, target]) => {
+    const canonical = canonicalizeProductIdV449(target, aliases);
+    if (!canonical) return;
+    if (!reverseAliases.has(canonical)) reverseAliases.set(canonical, new Set());
+    reverseAliases.get(canonical).add(String(source || "").trim().toUpperCase());
+  });
+  const prefixRules = getProductPrefixRulesV181();
+  const categoryRules = getProductCategoryRulesV228();
+  const context = { aliases, reverseAliases, prefixRules, categoryRules };
+  const entries = [];
+  const byCanonicalId = new Map();
+  const byExactName = new Map();
+  const exactNameIds = new Map();
+
+  products.forEach(product => {
+    const entry = createUnifiedProductSearchEntryV454(product, context);
+    entries.push(entry);
+    if (entry.canonicalId) byCanonicalId.set(entry.canonicalId, entry);
+    entry.names.forEach(value => {
+      const key = String(value || "").normalize("NFKC").trim().toLocaleLowerCase();
+      if (!key) return;
+      if (!byExactName.has(key)) byExactName.set(key, entry);
+      if (!exactNameIds.has(key)) exactNameIds.set(key, new Set());
+      if (entry.canonicalId) exactNameIds.get(key).add(entry.canonicalId);
+    });
+  });
+
+  const batchByNumber = new Map((Array.isArray(batches) ? batches : []).map(batch => [
+    String(batch?.importNumber || "").trim().toLowerCase(), batch
+  ]));
+  const findEntryForRecord = record => {
+    const canonicalId = canonicalizeProductIdV449(record?.productId, aliases);
+    if (canonicalId && byCanonicalId.has(canonicalId)) return byCanonicalId.get(canonicalId);
+    const nameKey = String(record?.productName || record?.name || "").normalize("NFKC").trim().toLocaleLowerCase();
+    return nameKey ? byExactName.get(nameKey) || null : null;
+  };
+  const addRecordData = (entry, record, batch = null) => {
+    if (!entry) return;
+    const importNumber = String(record?.importNumber || batch?.importNumber || "").trim();
+    if (importNumber) entry.importNumbers.add(importNumber);
+    [record?.overseasTrackingNumber, record?.trackingNumber, batch?.overseasTrackingNumber, batch?.trackingNumber]
+      .map(value => String(value || "").trim())
+      .filter(Boolean)
+      .forEach(value => entry.shipmentNumbers.add(value));
+    const unitPrice = Number(record?.unitPrice);
+    if (Number.isFinite(unitPrice) && unitPrice >= 0) entry.originalCosts.add(unitPrice);
+  };
+
+  (Array.isArray(imports) ? imports : []).forEach(record => {
+    const batch = batchByNumber.get(String(record?.importNumber || "").trim().toLowerCase()) || null;
+    addRecordData(findEntryForRecord(record), record, batch);
+  });
+  (Array.isArray(batches) ? batches : []).forEach(batch => {
+    const rows = Array.isArray(batch?.items) ? batch.items : [];
+    rows.forEach(item => addRecordData(findEntryForRecord(item), item, batch));
+  });
+  entries.forEach(finalizeUnifiedProductSearchEntryV454);
+
+  unifiedProductSearchIndexCacheV454 = {
+    productsRaw, settingsRaw, importsRaw, batchesRaw,
+    products, imports, batches, aliases, reverseAliases, prefixRules, categoryRules,
+    entries, byCanonicalId, byExactName, exactNameIds, context
+  };
+  return unifiedProductSearchIndexCacheV454;
+}
+
+function resolveUnifiedProductSearchEntryV454(productLike, indexOverride = null) {
+  const index = indexOverride || getUnifiedProductSearchIndexV454();
+  const canonicalId = canonicalizeProductIdV449(productLike?.id || productLike?.productId, index.aliases);
+  if (canonicalId && index.byCanonicalId.has(canonicalId)) return index.byCanonicalId.get(canonicalId);
+  const nameKey = String(productLike?.name || productLike?.productName || "")
+    .normalize("NFKC").trim().toLocaleLowerCase();
+  if (nameKey && index.byExactName.has(nameKey)) return index.byExactName.get(nameKey);
+  return createUnifiedProductSearchEntryV454(productLike || {}, index.context);
+}
+
+function unifiedProductSearchMatchesV454(productLike, queryValue, options = {}) {
+  const queryInfo = parseUnifiedProductSearchQueryV454(queryValue);
+  if (!queryInfo.raw) return true;
+  const index = options.index || getUnifiedProductSearchIndexV454();
+  const entry = resolveUnifiedProductSearchEntryV454(productLike, index);
+
+  const exactIds = index.exactNameIds.get(queryInfo.exactNameKey);
+  if (exactIds?.size && entry.canonicalId) return exactIds.has(entry.canonicalId);
+
+  const providedCosts = Array.isArray(options.originalCostValues)
+    ? options.originalCostValues
+    : (options.originalCostValues === undefined ? [] : [options.originalCostValues]);
+  if (queryInfo.numericOriginalCost !== null) {
+    const values = options.originalCostScope === "provided"
+      ? providedCosts
+      : [...entry.originalCosts, ...providedCosts];
+    return values.some(value => originalCostNumberMatchesV216(value, queryValue));
+  }
+
+  if (queryInfo.strictPrefix) {
+    return entry.prefixes.has(queryInfo.prefix);
+  }
+
+  const extraValues = Array.isArray(options.extraText)
+    ? options.extraText
+    : [options.extraText];
+  const extraFields = extraValues.map(normalizeUnifiedSearchFieldV454).filter(Boolean);
+  const textFields = [...entry.normalizedText, ...extraFields];
+  const idFields = [...entry.normalizedIds];
+  const logisticsFields = options.includeIndexedLogistics === false
+    ? []
+    : entry.normalizedLogistics;
+
+  if (queryInfo.codeQuery) {
+    return idFields.some(field => field.includes(queryInfo.normalized)) ||
+      entry.normalizedNames.some(field => field.includes(queryInfo.normalized)) ||
+      extraFields.some(field => field.includes(queryInfo.normalized)) ||
+      logisticsFields.some(field => field.includes(queryInfo.normalized));
+  }
+
+  if (queryInfo.hasChinese) {
+    return unifiedSearchTextMatchesV454([...textFields, ...logisticsFields], queryInfo);
+  }
+
+  if (queryInfo.englishFuzzy) {
+    return unifiedSearchTextMatchesV454([...textFields, ...logisticsFields], queryInfo);
+  }
+
+  // One Latin letter is intentionally not a product fuzzy search. This keeps
+  // large product lists responsive and prevents accidental broad matches.
+  return false;
+}
+
+function getProductSearchPrefixAliasesV238(product) {
+  return [...resolveUnifiedProductSearchEntryV454(product).prefixes];
 }
 
 function productExactOrPrefixSearchMatchesV238(product, queryValue) {
-  const raw = String(queryValue || "").normalize("NFKC").trim();
-  // V35.2: migrated legacy Product IDs (notably PZxxxx / PSxxxx aliases) are
-  // internal compatibility only and must not produce front-end search hits.
-  if (/^(?:PZ|PS)(?:\d{0,4})?$/i.test(raw)) {
-    const formalId=String(product?.id||product?.productId||"").trim().toUpperCase();
-    if(!formalId.startsWith(raw.toUpperCase())) return false;
-  }
-  if (!raw) return true;
-  const query = normalizeSmartSearchText(raw);
-  if (!query) return true;
-
-  const id = normalizeSmartSearchText(product?.id || product?.productId || "");
-  const name = normalizeSmartSearchText(product?.name || product?.productName || "");
-  const category = normalizeSmartSearchText(product?.category || "");
-  if (name === query || category === query) return true;
-
-  // Product-number searches stay responsive even below the general fuzzy threshold.
-  if (id && query.length >= 2 && id.includes(query)) return true;
-
-  const prefixes = getProductSearchPrefixAliasesV238(product)
-    .map(normalizeSmartSearchText)
-    .filter(Boolean);
-  return prefixes.some(prefix => prefix === query);
+  const info = parseUnifiedProductSearchQueryV454(queryValue);
+  if (!info.raw) return true;
+  if (!info.strictPrefix && !info.codeQuery) return false;
+  return unifiedProductSearchMatchesV454(product, queryValue, {
+    includeIndexedLogistics:false,
+    originalCostScope:"provided",
+    originalCostValues:[]
+  });
 }
 
-function productSearchMatchesV218(searchableValue, product, queryValue, imports = null) {
-  if (!String(queryValue || '').trim()) return true;
-  if (isOriginalCostOnlySearchV218(queryValue)) {
-    return originalCostMatchesProductV216(product, queryValue, imports);
-  }
-  if (productExactOrPrefixSearchMatchesV238(product, queryValue)) return true;
-  // V24.6 regression fix: real inventory must keep accepting embedded code-like
-  // fragments such as BX680 / bx680 / Bx680 even though they contain only two
-  // Latin letters. This runs before ordinary product matching and never broadens
-  // single-letter queries.
-  const compactCodeQueryV241 = normalizeSmartSearchText(queryValue);
-  if (/[a-z]/i.test(compactCodeQueryV241) && /\d/.test(compactCodeQueryV241) && compactCodeQueryV241.length >= 3) {
-    const codeTargetV241 = `${product?.name || ""} ${product?.id || product?.productId || ""}`;
-    if (smartSearchMatches(codeTargetV241, queryValue) || sequentialSearchMatches(codeTargetV241, queryValue)) return true;
-  }
-  if (!isProductFuzzySearchReadyV238(queryValue)) return false;
-  const aliases = getProductSearchPrefixAliasesV238(product).join(" ");
-  return smartSearchMatches(`${searchableValue || ""} ${aliases}`.trim(), queryValue);
+function productSearchMatchesV218(searchableValue, product, queryValue, imports = null, searchIndexV454 = null) {
+  return unifiedProductSearchMatchesV454(product, queryValue, {
+    index:searchIndexV454 || undefined,
+    extraText:searchableValue,
+    includeIndexedLogistics:true
+  });
 }
 
-function batchItemSearchMatchesV218(searchableValue, item, queryValue) {
-  if (!String(queryValue || '').trim()) return true;
-  if (isOriginalCostOnlySearchV218(queryValue)) {
-    return originalCostMatchesBatchItemV216(item, queryValue);
-  }
-  return smartSearchMatches(searchableValue, queryValue);
+function batchItemSearchMatchesV218(searchableValue, item, queryValue, searchIndexV454 = null) {
+  return unifiedProductSearchMatchesV454(item, queryValue, {
+    index:searchIndexV454 || undefined,
+    extraText:searchableValue,
+    includeIndexedLogistics:false,
+    originalCostScope:"provided",
+    originalCostValues:[item?.unitPrice]
+  });
 }
 
 // V24.6: shared read-only shipment/local-number search helper.
@@ -7073,32 +7389,15 @@ function shipmentLocalNumberMatchesV235(value, queryValue) {
 }
 
 function getProductShipmentLocalNumbersV235(product, imports = null, batches = null) {
-  const rows = Array.isArray(imports) ? imports : getImports();
-  const batchRows = Array.isArray(batches) ? batches : getBatches();
-  const batchByImportNumber = new Map(batchRows.map(batch => [
-    String(batch?.importNumber || "").trim().toLowerCase(), batch
-  ]));
-  const productId = String(product?.id || product?.productId || "").trim();
-  const productName = String(product?.name || product?.productName || "").trim().toLowerCase();
-  const values = new Set();
-  rows.forEach(row => {
-    const sameId = productId && String(row?.productId || "").trim() === productId;
-    const sameName = productName && String(row?.productName || "").trim().toLowerCase() === productName;
-    if (!sameId && !sameName) return;
-    const batch = batchByImportNumber.get(String(row?.importNumber || "").trim().toLowerCase());
-    [row?.overseasTrackingNumber, row?.trackingNumber, batch?.overseasTrackingNumber, batch?.trackingNumber]
-      .map(value => String(value || "").trim()).filter(Boolean).forEach(value => values.add(value));
-  });
-  return [...values].join(" ");
+  const entry = resolveUnifiedProductSearchEntryV454(product);
+  return [...entry.shipmentNumbers].join(" ");
 }
 
 function productSearchMatchesWithShipmentV235(searchableValue, product, queryValue, imports = null, batches = null) {
-  if (productSearchMatchesV218(searchableValue, product, queryValue, imports)) return true;
-  if (isOriginalCostOnlySearchV218(queryValue)) return false;
-  return shipmentLocalNumberMatchesV235(
-    getProductShipmentLocalNumbersV235(product, imports, batches),
-    queryValue
-  );
+  return unifiedProductSearchMatchesV454(product, queryValue, {
+    extraText:searchableValue,
+    includeIndexedLogistics:true
+  });
 }
 
 function renderProductList() {
@@ -7110,10 +7409,15 @@ function renderProductList() {
   if (!searchNode || !list || !count) return;
   const products = getProducts();
   const keyword = String(searchNode.value || "").trim().toLowerCase();
+  const searchIndexV454 = keyword ? getUnifiedProductSearchIndexV454() : null;
   const filtered = products.filter(product => {
     const target =
       `${product.id} ${product.name} ${productEnglishNameV262(product)} ${product.category}`;
-    return productSearchMatchesWithShipmentV235(target, product, keyword);
+    return unifiedProductSearchMatchesV454(product, keyword, {
+      index:searchIndexV454 || undefined,
+      extraText:target,
+      includeIndexedLogistics:true
+    });
   });
 
   count.textContent = `${filtered.length} 项`;
@@ -11043,39 +11347,24 @@ function buildImportHistoryCard(batch, items, options = {}) {
 }
 
 
-function historyProductMatchesKeyword(product, keyword) {
-  if (!keyword) return true;
-
-  const productId = String(product?.id || product?.productId || "").trim();
-  const productName = String(product?.name || product?.productName || "").trim();
-  const canonical = getProducts().find(candidate => {
-    const candidateId = String(candidate?.id || "").trim();
-    const candidateName = String(candidate?.name || "").trim();
-    return (productId && candidateId === productId) ||
-      (!productId && productName && candidateName === productName);
+function historyProductMatchesKeyword(product, keyword, searchIndexV454 = null) {
+  if (!String(keyword || "").trim()) return true;
+  const indexV454 = searchIndexV454 || getUnifiedProductSearchIndexV454();
+  const entry = resolveUnifiedProductSearchEntryV454(product, indexV454);
+  const productLike = entry?.product || product || {};
+  return unifiedProductSearchMatchesV454(productLike, keyword, {
+    index:indexV454,
+    extraText:[product?.productName, product?.name, product?.productId, product?.id, product?.category],
+    includeIndexedLogistics:false,
+    originalCostScope: product?.unitPrice !== undefined ? "provided" : undefined,
+    originalCostValues: product?.unitPrice !== undefined ? [product.unitPrice] : []
   });
-  const englishName = canonical ? productEnglishNameV262(canonical) : "";
-
-  const searchable = [
-    productName,
-    englishName,
-    productId,
-    product?.category
-  ].map(value => String(value || "")).join(" ");
-
-  if (isOriginalCostOnlySearchV218(keyword) && product && product.unitPrice !== undefined) {
-    return originalCostMatchesBatchItemV216(product, keyword);
-  }
-
-  return productSearchMatchesV218(searchable, {
-    id: productId,
-    name: productName
-  }, keyword);
 }
 
 function getDailyStockAdjustments(selectedDate, keyword = "") {
   const normalizedDate =
     normalizeDateToDDMMYYYY(selectedDate);
+  const searchIndexV454 = String(keyword || "").trim() ? getUnifiedProductSearchIndexV454() : null;
 
   // V19.8: restore the proven V15.0 date-query return contract.
   return getProducts()
@@ -11098,7 +11387,7 @@ function getDailyStockAdjustments(selectedDate, keyword = "") {
         })
     )
     .filter(adjustment =>
-      historyProductMatchesKeyword(adjustment, keyword)
+      historyProductMatchesKeyword(adjustment, keyword, searchIndexV454)
     )
     .sort((a, b) =>
       String(a.createdAt || "").localeCompare(
@@ -11780,6 +12069,7 @@ function getHistoryRelevantAdjustments(options = {}) {
     String(exactProduct || "").trim().toLowerCase();
   const normalizedImportNumber =
     String(importNumber || "").trim().toLowerCase();
+  const searchIndexV454 = normalizedKeyword ? getUnifiedProductSearchIndexV454() : null;
 
   return getAllHistoryStockAdjustments().filter(adjustment => {
     if (
@@ -11811,12 +12101,12 @@ function getHistoryRelevantAdjustments(options = {}) {
     if (normalizedKeyword) {
       const productMatch = historyProductMatchesKeyword(
         adjustment,
-        normalizedKeyword
+        normalizedKeyword,
+        searchIndexV454
       );
-      const importMatch = !isOriginalCostOnlySearchV218(normalizedKeyword) && sequentialSearchMatches(
-        adjustment.importNumber,
-        normalizedKeyword
-      );
+      const importMatch = !isOriginalCostOnlySearchV218(normalizedKeyword) &&
+        !parseUnifiedProductSearchQueryV454(normalizedKeyword).strictPrefix &&
+        sequentialSearchMatches(adjustment.importNumber, normalizedKeyword);
       return productMatch || importMatch;
     }
 
@@ -12412,10 +12702,9 @@ function getHistorySingleDateEventCount(
     }
 
     const importNumberMatch =
-      !isOriginalCostOnlySearchV218(normalizedKeyword) && sequentialSearchMatches(
-        batch.importNumber,
-        normalizedKeyword
-      );
+      !isOriginalCostOnlySearchV218(normalizedKeyword) &&
+      !parseUnifiedProductSearchQueryV454(normalizedKeyword).strictPrefix &&
+      sequentialSearchMatches(batch.importNumber, normalizedKeyword);
 
     const productMatch = allItems.some(item =>
       historyProductMatchesKeyword(
@@ -12467,10 +12756,9 @@ function renderHistorySingleDateSection(
       }
 
       const importNumberMatch =
-        !isOriginalCostOnlySearchV218(normalizedKeyword) && sequentialSearchMatches(
-          batch.importNumber,
-          normalizedKeyword
-        );
+        !isOriginalCostOnlySearchV218(normalizedKeyword) &&
+        !parseUnifiedProductSearchQueryV454(normalizedKeyword).strictPrefix &&
+        sequentialSearchMatches(batch.importNumber, normalizedKeyword);
 
       const matchingItems = allItems.filter(item =>
         historyProductMatchesKeyword(
@@ -12613,6 +12901,7 @@ function renderCompactProductHistoryByRange(
 
   if (!normalizedKeyword) return false;
 
+  const searchIndexV454 = getUnifiedProductSearchIndexV454();
   const allProducts = getProducts();
 
   const allMatchingEntries = getBatches()
@@ -12645,7 +12934,8 @@ function renderCompactProductHistoryByRange(
           return batchItemSearchMatchesV218(
             searchable,
             item,
-            normalizedKeyword
+            normalizedKeyword,
+            searchIndexV454
           );
         })
         .map(item => ({
@@ -12673,7 +12963,8 @@ function renderCompactProductHistoryByRange(
           return batchItemSearchMatchesV218(
             searchable,
             item,
-            normalizedKeyword
+            normalizedKeyword,
+            searchIndexV454
           );
         });
 
@@ -12689,19 +12980,13 @@ function renderCompactProductHistoryByRange(
             ""
           ).trim().toLowerCase();
 
+        const aliasesV454 = getProductIdAliasesV449();
+        const canonicalProductIdV454 = canonicalizeProductIdV449(productId, aliasesV454);
         const product = allProducts.find(candidate => {
-          const sameId =
-            productId &&
-            candidate.id &&
-            String(candidate.id).trim() === productId;
-
-          const sameName =
-            !sameId &&
-            productName &&
-            String(candidate.name || "")
-              .trim()
-              .toLowerCase() === productName;
-
+          const sameId = canonicalProductIdV454 &&
+            canonicalizeProductIdV449(candidate?.id, aliasesV454) === canonicalProductIdV454;
+          const sameName = !sameId && productName &&
+            String(candidate?.name || "").trim().toLowerCase() === productName;
           return sameId || sameName;
         });
 
@@ -13036,7 +13321,7 @@ function renderCompactProductHistoryByRange(
 // sales are excluded from both the displayed records and the totals.
 function renderHistorySalesSourceLookupV149(keyword, range, output) {
   const sourceKeyword = String(keyword || "").trim();
-  if (!sourceKeyword) return false;
+  if (!sourceKeyword || parseUnifiedProductSearchQueryV454(sourceKeyword).strictPrefix) return false;
   const allSourceLots = getHistoryNetSoldLots({ source: sourceKeyword });
   if (!allSourceLots.length) return false;
   const sourceName = getHistorySalesSourceV149(allSourceLots[0]?.adjustment) || sourceKeyword;
@@ -13228,14 +13513,16 @@ function renderImportHistoryNowV134() {
   }
 
   const numericOriginalCostOnlyV218 = isOriginalCostOnlySearchV218(keyword);
+  const strictProductPrefixV454 = parseUnifiedProductSearchQueryV454(keyword).strictPrefix;
 
-  if (!numericOriginalCostOnlyV218 && renderHistorySalesSourceLookupV149(keyword, null, output)) {
+  if (!numericOriginalCostOnlyV218 && !strictProductPrefixV454 && renderHistorySalesSourceLookupV149(keyword, null, output)) {
     return;
   }
 
   const normalizedKeyword = keyword.toLowerCase();
+  const searchIndexV454 = getUnifiedProductSearchIndexV454();
   const batches = getBatches();
-  const exactBatch = numericOriginalCostOnlyV218 ? null : batches.find(item =>
+  const exactBatch = (numericOriginalCostOnlyV218 || strictProductPrefixV454) ? null : batches.find(item =>
     String(item.importNumber || "").trim().toLowerCase() === normalizedKeyword
   );
 
@@ -13252,7 +13539,7 @@ function renderImportHistoryNowV134() {
     return;
   }
 
-  const shipmentBatchMatchesV235 = numericOriginalCostOnlyV218 ? [] : batches.filter(batch =>
+  const shipmentBatchMatchesV235 = (numericOriginalCostOnlyV218 || strictProductPrefixV454) ? [] : batches.filter(batch =>
     shipmentLocalNumberMatchesV235(getBatchShipmentLocalNumberV235(batch), keyword)
   );
 
@@ -13277,7 +13564,7 @@ function renderImportHistoryNowV134() {
     return;
   }
 
-  const partialBatchMatches = numericOriginalCostOnlyV218 ? [] : batches.filter(batch =>
+  const partialBatchMatches = (numericOriginalCostOnlyV218 || strictProductPrefixV454) ? [] : batches.filter(batch =>
     sequentialSearchMatches(batch.importNumber, keyword)
   );
 
@@ -13315,11 +13602,12 @@ function renderImportHistoryNowV134() {
     getProducts().filter(product => {
       if (numericOriginalCostOnlyV218) return false;
       const name = String(product.name || "").trim().toLowerCase();
-      const id = String(product.id || "").trim().toLowerCase();
-      const category = String(product.category || "").trim().toLowerCase();
       if (exactHistoryProduct) return name === exactHistoryProduct;
-      return smartSearchMatches([name, id, category].join(" "), normalizedKeyword);
-    }).map(product => String(product.id || "").trim()).filter(Boolean)
+      return unifiedProductSearchMatchesV454(product, normalizedKeyword, {
+        index:searchIndexV454,
+        includeIndexedLogistics:false
+      });
+    }).map(product => canonicalizeProductIdV449(product.id)).filter(Boolean)
   );
 
   const productMatches = batches.map(batch => {
@@ -13328,7 +13616,8 @@ function renderImportHistoryNowV134() {
       const itemProductId = String(item.productId || "").trim();
 
       // Prefer stable productId linkage whenever the current Products record matched.
-      if (matchedProductIds.size && itemProductId && matchedProductIds.has(itemProductId)) {
+      const canonicalItemProductIdV454 = canonicalizeProductIdV449(itemProductId);
+      if (matchedProductIds.size && canonicalItemProductIdV454 && matchedProductIds.has(canonicalItemProductIdV454)) {
         return true;
       }
 
@@ -13342,7 +13631,7 @@ function renderImportHistoryNowV134() {
         item.category
       ].map(value => String(value || "").toLowerCase()).join(" ");
 
-      return batchItemSearchMatchesV218(searchable, item, keyword);
+      return batchItemSearchMatchesV218(searchable, item, keyword, searchIndexV454);
     });
 
     return { batch, matchingItems };
@@ -14452,14 +14741,10 @@ function getBatchRowSearchBaseV246() {
     return cache;
   }
 
-  let products = [], imports = [], batches = [];
-  try { products = JSON.parse(productsRaw); } catch (_) {}
-  try { imports = JSON.parse(importsRaw); } catch (_) {}
-  try { batches = JSON.parse(batchesRaw); } catch (_) {}
-  if (!Array.isArray(products)) products = [];
-  if (!Array.isArray(imports)) imports = [];
-  if (!Array.isArray(batches)) batches = [];
-  products = products.filter(product => !isHiddenLegacyProductIdV256(product?.id));
+  const unifiedIndexV454 = getUnifiedProductSearchIndexV454();
+  const products = unifiedIndexV454.products;
+  const imports = unifiedIndexV454.imports;
+  const batches = unifiedIndexV454.batches;
 
   const batchByNumber = new Map(batches.map(batch => [String(batch?.importNumber || "").trim().toLowerCase(), batch]));
   const shipmentByKey = new Map();
@@ -14487,20 +14772,12 @@ function getBatchRowSearchBaseV246() {
     });
   });
 
-  batchRowSearchBaseCacheV246 = { productsRaw, importsRaw, batchesRaw, products, imports, batches, batchByNumber, shipmentByKey, preferredByKey, recordsByKey };
+  batchRowSearchBaseCacheV246 = { productsRaw, importsRaw, batchesRaw, products, imports, batches, unifiedIndexV454, batchByNumber, shipmentByKey, preferredByKey, recordsByKey };
   return batchRowSearchBaseCacheV246;
 }
 
-function getBatchRowSearchContextV246(value) {
-  const base = getBatchRowSearchBaseV246();
-  const originalCostQuery = parseOriginalCostSearchQueryV216(value);
-  const costKeys = new Set();
-  if (originalCostQuery !== null) {
-    for (const [key, records] of base.recordsByKey.entries()) {
-      if (records.some(record => originalCostNumberMatchesV216(record?.unitPrice, value))) costKeys.add(key);
-    }
-  }
-  return { ...base, originalCostQuery, costKeys };
+function getBatchRowSearchContextV246() {
+  return getBatchRowSearchBaseV246();
 }
 
 function renderBatchRowSuggestionBox(id) {
@@ -14511,34 +14788,20 @@ function renderBatchRowSuggestionBox(id) {
   if (!value) { hideBatchRowSuggestionBox(id); return; }
 
   const context = getBatchRowSearchContextV246(value);
-  const normalizedQuery = normalizeSmartSearchText(value);
-  const fuzzyReady = isProductFuzzySearchReadyV238(value);
-  const codeQuery = /[a-z]/i.test(normalizedQuery) && /\d/.test(normalizedQuery) && normalizedQuery.length >= 3;
-  const prefixQuery = /^[a-z]{2}$/i.test(String(value || "").trim());
+  const queryInfoV454 = parseUnifiedProductSearchQueryV454(value);
+  const normalizedQuery = queryInfoV454.normalized;
+  const fuzzyReady = queryInfoV454.hasChinese || queryInfoV454.englishFuzzy;
+  const prefixQuery = queryInfoV454.strictPrefix;
 
   const matchedReal = [];
   for (const product of context.products) {
+    if (!unifiedProductSearchMatchesV454(product, value, {
+      index:context.unifiedIndexV454,
+      includeIndexedLogistics:true
+    })) continue;
     const idRaw = String(product?.id || "").trim();
     const nameRaw = String(product?.name || "").trim();
-    const categoryRaw = String(product?.category || "").trim();
-    const englishRaw = productEnglishNameV262(product);
-    const idNorm = normalizeSmartSearchText(idRaw);
-    const nameNorm = normalizeSmartSearchText(nameRaw);
-    const englishNorm = normalizeSmartSearchText(englishRaw);
-    const categoryNorm = normalizeSmartSearchText(categoryRaw);
     const keys = [idRaw ? `id:${idRaw.toLowerCase()}` : "", nameRaw ? `name:${nameRaw.toLowerCase()}` : ""].filter(Boolean);
-    let match = false;
-    if (context.originalCostQuery !== null) match = keys.some(key => context.costKeys.has(key));
-    else {
-      if (idNorm && normalizedQuery.length >= 2 && idNorm.includes(normalizedQuery)) match = true;
-      if (!match && nameNorm && nameNorm.includes(normalizedQuery)) match = true;
-      if (!match && englishNorm && englishNorm.includes(normalizedQuery)) match = true;
-      if (!match && prefixQuery && idNorm.slice(0, 2) === normalizedQuery) match = true;
-      if (!match && codeQuery && (smartSearchMatches(`${nameRaw} ${englishRaw} ${idRaw}`, value) || sequentialSearchMatches(`${nameRaw} ${englishRaw} ${idRaw}`, value))) match = true;
-      if (!match && fuzzyReady && (smartSearchMatches(`${nameRaw} ${englishRaw} ${idRaw} ${categoryRaw}`, value) || categoryNorm.includes(normalizedQuery))) match = true;
-      if (!match && (fuzzyReady || codeQuery) && keys.some(key => shipmentLocalNumberMatchesV235(context.shipmentByKey.get(key) || "", value))) match = true;
-    }
-    if (!match) continue;
     let preferred = null;
     for (const key of keys) {
       const candidate = context.preferredByKey.get(key);
@@ -15725,6 +15988,7 @@ function renderBatchList() {
   const toggleButton = document.getElementById("toggleBatchListBtn");
   const listElement = document.getElementById("batchList");
   const keyword = String(searchInput?.value || "").trim().toLowerCase();
+  const searchIndexV454 = keyword ? getUnifiedProductSearchIndexV454() : null;
   const recentStartDateV345 = String(document.getElementById("recentBatchStartDateV345")?.value || "").trim();
   const recentEndDateV345 = String(document.getElementById("recentBatchEndDateV345")?.value || "").trim();
 
@@ -15776,12 +16040,6 @@ function renderBatchList() {
     if (!keyword) return true;
 
     const items = getBatchItemsForDisplay(batch);
-    const productText = items
-      .map(item =>
-        `${item?.productName || item?.name || ""} ` +
-        `${item?.productId || ""} ${item?.category || ""}`
-      )
-      .join(" ");
 
     const originalCostMatchV216 =
       items.some(item => originalCostMatchesBatchItemV216(item, keyword));
@@ -15790,13 +16048,21 @@ function renderBatchList() {
       return originalCostMatchV216;
     }
 
-    const numberOrTransportMatch =
+    const strictPrefixQueryV454 = parseUnifiedProductSearchQueryV454(keyword).strictPrefix;
+    const numberOrTransportMatch = !strictPrefixQueryV454 && (
       sequentialSearchMatches(batch.importNumber, keyword) ||
       shipmentLocalNumberMatchesV235(batch.trackingNumber, keyword) ||
-      shipmentLocalNumberMatchesV235(batch.overseasTrackingNumber, keyword);
+      shipmentLocalNumberMatchesV235(batch.overseasTrackingNumber, keyword)
+    );
 
-    const productMatch =
-      smartSearchMatches(productText, keyword);
+    const productMatch = items.some(item =>
+      batchItemSearchMatchesV218(
+        `${item?.productName || item?.name || ""} ${item?.productId || ""} ${item?.category || ""}`,
+        item,
+        keyword,
+        searchIndexV454
+      )
+    );
 
     return numberOrTransportMatch || productMatch;
   });
@@ -18859,19 +19125,16 @@ function formatProfitTargetV303(value) {
 function filterSortInventoryProductsV324(query = "", sortMode = "latest", sourceRows = null) {
   const keyword = String(query || "").trim().toLowerCase();
   const rows = Array.isArray(sourceRows) ? sourceRows : getInventoryPreparedRowsV321();
+  const searchIndexV454 = keyword ? getUnifiedProductSearchIndexV454() : null;
   const products = rows.filter(product => {
     if (sortMode === "price-control" && !isMinimumPriceManualV160(product)) return false;
     if (!keyword) return true;
-    const productTarget = `${product.id || ""} ${product.name || ""} ${productEnglishNameV262(product)} ${product.category || ""}`;
-    const productMatch = smartSearchMatches(productTarget, keyword);
-    const importNumberMatch = sequentialSearchMatches(product.importNumbers, keyword);
-    const overseasTrackingMatch = sequentialSearchMatches(product.overseasTrackingNumbers, keyword);
-    const q = keyword.normalize("NFKC").replace(/[,，\s]/g, "");
-    const numeric = /^\d+(?:\.\d+)?$/.test(q) ? Number(q) : null;
-    const originalCostValues = Array.isArray(product.originalCostValuesV216) ? product.originalCostValuesV216 : [];
-    const originalCostMatch = numeric !== null && originalCostValues.some(value => Math.abs(Number(value) - numeric) < 0.000001);
-    if (isOriginalCostOnlySearchV218(keyword)) return originalCostMatch;
-    return productMatch || importNumberMatch || overseasTrackingMatch;
+    return unifiedProductSearchMatchesV454(product, keyword, {
+      index:searchIndexV454 || undefined,
+      extraText:[product.importNumbers, product.overseasTrackingNumbers],
+      includeIndexedLogistics:true,
+      originalCostValues:Array.isArray(product.originalCostValuesV216) ? product.originalCostValuesV216 : []
+    });
   }).slice();
 
   products.sort((a, b) => {
