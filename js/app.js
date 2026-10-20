@@ -3315,7 +3315,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.5 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.6 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3418,7 +3418,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.5 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.6 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -4790,9 +4790,9 @@ function getAverageCostLabelV205(product, originIndex = null) {
   return isVndProductV205(product, originIndex) ? "平均成本（VND不含盆）" : "平均成本";
 }
 
-// V45.5: a pending Current Minimum Price write is an input state, not always the
-// final displayed price. Keep both the base price and manual/automatic mode so an
-// automatic-price restore can still pass through the active-promotion resolver.
+// V45.6: a pending Current Minimum Price write is one atomic display state:
+// Current price + manual/automatic mode + the exact active-promotion override.
+// This keeps the user's input visible through credential refreshes/conflict Pulls.
 function getPendingMinimumPriceStateV455(productId) {
   const id = String(productId || "").trim().toUpperCase();
   if (!id) return null;
@@ -4804,7 +4804,8 @@ function getPendingMinimumPriceStateV455(productId) {
     return {
       minimumPrice,
       minimumPriceManual: raw?.minimumPriceManual === true,
-      updatedAt: String(raw?.updatedAt || "")
+      updatedAt: String(raw?.updatedAt || ""),
+      promotionV183: raw?.promotionV183 && raw.promotionV183.active === true ? raw.promotionV183 : null
     };
   } catch (_) { return null; }
 }
@@ -4815,9 +4816,10 @@ function getPendingMinimumPriceValueV411(productId) {
 }
 
 function getEffectiveProductMinimumPriceV333(product, configuredRules = null, originIndex = null) {
-  const promotion = getPromotionSettingsV183();
   const productId = String(product?.id || "").trim().toUpperCase();
   const pendingStateV455 = getPendingMinimumPriceStateV455(productId);
+  const promotion = pendingStateV455?.promotionV183?.active === true
+    ? pendingStateV455.promotionV183 : getPromotionSettingsV183();
   const storedPrice = pendingStateV455
     ? Math.max(0, Number(pendingStateV455.minimumPrice) || 0)
     : Math.max(0, Number(product?.minimumPrice) || 0);
@@ -4845,9 +4847,10 @@ function getEffectiveProductMinimumPriceV333(product, configuredRules = null, or
 function getProductMinimumProfitV205(product, rules = null, originIndex = null) {
   const configuredRules = rules || getMinimumPriceRulesV160();
   const index = originIndex || getMinimumPriceOriginIndexV160();
-  const promotion = getPromotionSettingsV183();
   const productId = String(product?.id || "").trim().toUpperCase();
   const pendingStateV455 = getPendingMinimumPriceStateV455(productId);
+  const promotion = pendingStateV455?.promotionV183?.active === true
+    ? pendingStateV455.promotionV183 : getPromotionSettingsV183();
   const manual = pendingStateV455
     ? pendingStateV455.minimumPriceManual === true
     : isMinimumPriceManualV160(product);
@@ -6716,7 +6719,7 @@ function removeWhiteWaxTestPrefixV182() {
   if(filtered.length!==additional.length){saveJSON("importSystemSettings",{...settings,productPrefixAdditionalRules:filtered});if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved()}
 }
 
-// V45.5: one configured tree-rule resolver feeds product IDs, automatic English
+// V45.6: one configured tree-rule resolver feeds product IDs, automatic English
 // names and search. It includes built-in, edited and user-added prefix rules.
 let configuredProductPrefixRuleCacheV455 = { settings:null, rows:[] };
 function getConfiguredProductPrefixRuleRowsV455() {
@@ -18211,7 +18214,18 @@ async function editProductMinimumPrice(productId) {
       previousState: previousHistoryMetaV374.state,
       previousProfit: previousHistoryMetaV374.profit
     };
-    const minimumPriceResultV380 = await updateProductMinimumPriceFast(id, nextMinimumPrice, updatedAt, nextMinimumPriceManual, 0, historyMetaV374, preserveInitialMinimumPriceV409);
+    const pendingRollbackV456 = {
+      minimumPrice: storedMinimumPriceV351,
+      minimumPriceManual: currentMinimumPriceManual,
+      updatedAt: String(product.updatedAt || ""),
+      promotionV183: promotionCurrentPriceSnapshotV409?.previous?.active === true ? promotionCurrentPriceSnapshotV409.previous : null
+    };
+    const minimumPriceResultV380 = await updateProductMinimumPriceFast(
+      id, nextMinimumPrice, updatedAt, nextMinimumPriceManual, 0, historyMetaV374,
+      preserveInitialMinimumPriceV409,
+      promotionCurrentPriceSnapshotV409?.payload?.active === true ? promotionCurrentPriceSnapshotV409.payload : null,
+      pendingRollbackV456
+    );
     const rawConfirmedInitialV382 = minimumPriceResultV380?.initialMinimumPrice;
     const confirmedInitialV380 = rawConfirmedInitialV382!==null && rawConfirmedInitialV382!==undefined && String(rawConfirmedInitialV382).trim()!==""
       ? Number(rawConfirmedInitialV382) : NaN;
@@ -18240,8 +18254,9 @@ async function editProductMinimumPrice(productId) {
     const confirmedDisplayStateV455 = getMinimumPriceDisplayStateV315(confirmedProductV455);
     if (status) status.textContent = `已更新：${product.name} ${confirmedDisplayStateV455.label} ${formatMoney(confirmedDisplayStateV455.price, "RM ")}`;
   } catch (error) {
-    const pendingSameProductV351 = typeof hasPendingMinimumPriceV345 === "function" && hasPendingMinimumPriceV345();
+    const pendingSameProductV351 = error?.minimumPricePending === true && typeof hasPendingMinimumPriceV345 === "function" && hasPendingMinimumPriceV345();
     if (pendingSameProductV351) {
+      try { if (typeof reapplyPendingMinimumPriceLocalV345 === "function") reapplyPendingMinimumPriceLocalV345(); } catch (_) {}
       // V35.2: a revision conflict is not a user cancellation. Keep the user's
       // optimistic manual price visible and let the existing pending retry finish.
       // This prevents the card from flickering 11,800 -> promotion price -> 11,800.
