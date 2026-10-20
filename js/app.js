@@ -3315,7 +3315,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.4 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.5 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3418,7 +3418,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.4 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.5 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -4790,30 +4790,50 @@ function getAverageCostLabelV205(product, originIndex = null) {
   return isVndProductV205(product, originIndex) ? "平均成本（VND不含盆）" : "平均成本";
 }
 
-// V42.8: while a Current Minimum Price write is pending, every renderer must
-// use the locally-entered price. This prevents promotion auto-price / stale cloud
-// snapshots from flashing intermediate prices before the confirmed value arrives.
-function getPendingMinimumPriceValueV411(productId) {
+// V45.5: a pending Current Minimum Price write is an input state, not always the
+// final displayed price. Keep both the base price and manual/automatic mode so an
+// automatic-price restore can still pass through the active-promotion resolver.
+function getPendingMinimumPriceStateV455(productId) {
   const id = String(productId || "").trim().toUpperCase();
-  if (!id) return 0;
+  if (!id) return null;
   try {
     const raw = JSON.parse(localStorage.getItem("minimumPricePendingV345") || "null");
-    if (String(raw?.productId || "").trim().toUpperCase() !== id) return 0;
-    const value = Number(raw?.minimumPrice);
-    return Number.isFinite(value) && value >= 0 ? value : 0;
-  } catch (_) { return 0; }
+    if (String(raw?.productId || "").trim().toUpperCase() !== id) return null;
+    const minimumPrice = Number(raw?.minimumPrice);
+    if (!Number.isFinite(minimumPrice) || minimumPrice < 0) return null;
+    return {
+      minimumPrice,
+      minimumPriceManual: raw?.minimumPriceManual === true,
+      updatedAt: String(raw?.updatedAt || "")
+    };
+  } catch (_) { return null; }
+}
+
+// Backward-compatible numeric accessor for older callers/debug tools.
+function getPendingMinimumPriceValueV411(productId) {
+  return getPendingMinimumPriceStateV455(productId)?.minimumPrice ?? 0;
 }
 
 function getEffectiveProductMinimumPriceV333(product, configuredRules = null, originIndex = null) {
-  const storedPrice = Math.max(0, Number(product?.minimumPrice) || 0);
-  const manual = isMinimumPriceManualV160(product);
   const promotion = getPromotionSettingsV183();
   const productId = String(product?.id || "").trim().toUpperCase();
-  const pendingPriceV411 = getPendingMinimumPriceValueV411(productId);
-  if (pendingPriceV411 > 0) return pendingPriceV411;
+  const pendingStateV455 = getPendingMinimumPriceStateV455(productId);
+  const storedPrice = pendingStateV455
+    ? Math.max(0, Number(pendingStateV455.minimumPrice) || 0)
+    : Math.max(0, Number(product?.minimumPrice) || 0);
+  const manual = pendingStateV455
+    ? pendingStateV455.minimumPriceManual === true
+    : isMinimumPriceManualV160(product);
   const includeManual = Boolean(promotion?.includeManualPriceProducts);
   if (manual && !includeManual) return storedPrice;
-  const basePrice = manual ? storedPrice : getAutomaticMinimumPriceV160(product?.averageCost, configuredRules, product, originIndex);
+  // A pending automatic restore already contains the newly calculated ordinary
+  // automatic base price. Use it as the promotion input instead of returning it
+  // directly; this prevents RM5,900/45% from flashing before RM4,430/30%.
+  const basePrice = manual
+    ? storedPrice
+    : (pendingStateV455
+      ? storedPrice
+      : getAutomaticMinimumPriceV160(product?.averageCost, configuredRules, product, originIndex));
   if (!promotion || !promotionProductIncludedV388(productId, promotion)) return basePrice;
   const override = Math.max(0, Number(promotion.priceOverrides?.[productId]) || 0);
   if (override > 0) return override;
@@ -4826,8 +4846,11 @@ function getProductMinimumProfitV205(product, rules = null, originIndex = null) 
   const configuredRules = rules || getMinimumPriceRulesV160();
   const index = originIndex || getMinimumPriceOriginIndexV160();
   const promotion = getPromotionSettingsV183();
-  const manual = isMinimumPriceManualV160(product);
   const productId = String(product?.id || "").trim().toUpperCase();
+  const pendingStateV455 = getPendingMinimumPriceStateV455(productId);
+  const manual = pendingStateV455
+    ? pendingStateV455.minimumPriceManual === true
+    : isMinimumPriceManualV160(product);
   const promotionApplies = Boolean(promotion && (!manual || promotion.includeManualPriceProducts === true) && promotionProductIncludedV388(productId, promotion));
   const price = getEffectiveProductMinimumPriceV333(product, configuredRules, index);
   const averageCost = Math.max(0, Number(product?.averageCost) || 0);
@@ -4835,8 +4858,11 @@ function getProductMinimumProfitV205(product, rules = null, originIndex = null) 
   const commissionRate = promotionApplies
     ? Number(promotion.commissionRate) || 0
     : Math.max(0, Number(configuredRules.commissionRate) || 0);
-  const basePriceForFreight = manual ? Math.max(0, Number(product?.minimumPrice) || 0)
-    : getAutomaticMinimumPriceV160(product?.averageCost, configuredRules, product, index);
+  const basePriceForFreight = manual
+    ? Math.max(0, Number(pendingStateV455?.minimumPrice ?? product?.minimumPrice) || 0)
+    : (pendingStateV455
+      ? Math.max(0, Number(pendingStateV455.minimumPrice) || 0)
+      : getAutomaticMinimumPriceV160(product?.averageCost, configuredRules, product, index));
   const freightTier = promotionApplies
     ? getChargeableMinimumFreightTierV439(basePriceForFreight, configuredRules)
     : getChargeableMinimumFreightTierV439(price, configuredRules);
@@ -6398,7 +6424,7 @@ function normalizeProductPrefixKeywordV181(value) {
 }
 
 function getProductPrefixRulesV181() {
-  const settings = loadJSON("importSystemSettings", {});
+  const settings = getCachedSettingsV317();
   const overrides = settings.productPrefixOverridesV231 && typeof settings.productPrefixOverridesV231 === "object"
     ? settings.productPrefixOverridesV231 : {};
   const additional = Array.isArray(settings.productPrefixAdditionalRules) ? settings.productPrefixAdditionalRules : [];
@@ -6690,16 +6716,55 @@ function removeWhiteWaxTestPrefixV182() {
   if(filtered.length!==additional.length){saveJSON("importSystemSettings",{...settings,productPrefixAdditionalRules:filtered});if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved()}
 }
 
+// V45.5: one configured tree-rule resolver feeds product IDs, automatic English
+// names and search. It includes built-in, edited and user-added prefix rules.
+let configuredProductPrefixRuleCacheV455 = { settings:null, rows:[] };
+function getConfiguredProductPrefixRuleRowsV455() {
+  const settings = getCachedSettingsV317();
+  if (configuredProductPrefixRuleCacheV455.settings === settings) {
+    return configuredProductPrefixRuleCacheV455.rows;
+  }
+  const rows = getProductPrefixRulesV181().map((rule, order) => {
+    const keyword = String(rule?.[0] || "").trim();
+    const prefix = String(rule?.[1] || "").trim().toUpperCase();
+    const key = normalizeProductPrefixKeywordV181(keyword);
+    return { keyword, prefix, key, order };
+  }).filter(item => item.keyword && item.key && /^[A-Z]{2}$/.test(item.prefix));
+  configuredProductPrefixRuleCacheV455 = { settings, rows };
+  return rows;
+}
+function resolveConfiguredProductPrefixRuleV455(name = "") {
+  const compact = normalizeProductPrefixKeywordV181(name);
+  if (!compact) return null;
+  const matched = getConfiguredProductPrefixRuleRowsV455().map(item => ({
+    ...item,
+    index: compact.indexOf(item.key)
+  })).filter(item => item.index >= 0);
+  // Keep the established V35.2 rule: first keyword in the product name wins;
+  // same-position ties prefer the longer/more-specific keyword.
+  matched.sort((a,b) => a.index-b.index || b.key.length-a.key.length || a.order-b.order);
+  const hit = matched[0];
+  if (!hit) return null;
+  const normalizedKeyword = normalizeProductPrefixKeywordV181(hit.keyword);
+  const canonical = PRODUCT_PREFIX_CANONICAL_V333.find(row =>
+    normalizeProductPrefixKeywordV181(row.cn) === normalizedKeyword ||
+    row.aliases.some(alias => normalizeProductPrefixKeywordV181(alias) === normalizedKeyword)
+  );
+  const english = getPrefixEnglishMetaV319(hit.keyword).english || canonical?.en || "";
+  return {
+    keyword: hit.keyword,
+    cn: canonical?.cn || hit.keyword,
+    english,
+    en: english,
+    prefix: hit.prefix,
+    ruleId: canonical?.ruleId || `configured:${normalizedKeyword}`,
+    aliases: canonical?.aliases || [hit.keyword]
+  };
+}
+
 function findBestProductPrefixRuleV343(name = "") {
-  const compact=normalizeProductPrefixKeywordV181(name);if(!compact)return null;
-  const matched=getProductPrefixRulesV181().map(rule=>{
-    const key=normalizeProductPrefixKeywordV181(rule[0]);
-    return {rule,key,index:key?compact.indexOf(key):-1};
-  }).filter(x=>x.index>=0);
-  // V35.2: whichever species keyword appears FIRST in the product name wins.
-  // Same-position ties prefer the longer/more-specific keyword.
-  matched.sort((a,b)=>a.index-b.index || b.key.length-a.key.length);
-  return matched[0]?.rule||null;
+  const resolved = resolveConfiguredProductPrefixRuleV455(name);
+  return resolved ? [resolved.keyword, resolved.prefix] : null;
 }
 function getProductPrefix(category, name = "") {
   const normalizedCategory = normalizePrimaryProductCategoryV255(category);
@@ -18135,7 +18200,8 @@ async function editProductMinimumPrice(productId) {
   });
 
   const status = document.getElementById("batchProductStockStatus");
-  if (status) status.textContent = `同步中：${product.name} 最低售价 ${formatMoney(nextMinimumPrice, "RM ")}（未完成前离开会提示）`;
+  const optimisticDisplayStateV455 = getMinimumPriceDisplayStateV315(products[productIndex]);
+  if (status) status.textContent = `同步中：${product.name} ${optimisticDisplayStateV455.label} ${formatMoney(optimisticDisplayStateV455.price, "RM ")}（未完成前离开会提示）`;
 
   try {
     const previousHistoryMetaV374 = minimumPriceHistoryMetaV374(product, storedMinimumPriceV351, currentMinimumPriceManual, currentMinimumPriceManual ? "控制精品售价" : "系统计算");
@@ -18170,7 +18236,9 @@ async function editProductMinimumPrice(productId) {
     }
     try { refreshPromotionUiV183(); } catch (_) {}
     try { refreshPromotionDependentVisibleViewsV375(); } catch (_) {}
-    if (status) status.textContent = `已更新：${product.name} 最低售价 ${formatMoney(nextMinimumPrice, "RM ")}`;
+    const confirmedProductV455 = getProducts().find(item => String(item?.id || "").trim() === id) || products[productIndex];
+    const confirmedDisplayStateV455 = getMinimumPriceDisplayStateV315(confirmedProductV455);
+    if (status) status.textContent = `已更新：${product.name} ${confirmedDisplayStateV455.label} ${formatMoney(confirmedDisplayStateV455.price, "RM ")}`;
   } catch (error) {
     const pendingSameProductV351 = typeof hasPendingMinimumPriceV345 === "function" && hasPendingMinimumPriceV345();
     if (pendingSameProductV351) {
@@ -19993,7 +20061,9 @@ function getOriginalCostSummaryRows() {
 }
 
 function getMinimumPriceDisplayStateV315(product) {
-  const manual = isMinimumPriceManualV160(product);
+  const productId = String(product?.id || "").trim().toUpperCase();
+  const pendingStateV455 = getPendingMinimumPriceStateV455(productId);
+  const manual = pendingStateV455 ? pendingStateV455.minimumPriceManual === true : isMinimumPriceManualV160(product);
   const info = getProductMinimumProfitV205(product);
   const protectedManual = manual && !info.promotionApplies;
   const className = protectedManual
@@ -21219,7 +21289,7 @@ const PRODUCT_SPECIES_ALIASES_V262 = Object.freeze([
   {cn:"桑葚", en:"Mulberry", keys:["桑葚","桑椹","mulberry"]},
   {cn:"绿萝", en:"Epipremnum Aureum", keys:["绿萝","epipremnum aureum","epipremnum"]},
   {cn:"龟背竹", en:"Monstera", keys:["龟背竹","monstera","monstera deliciosa"], prefix:"MO"},
-  {cn:"榕属", en:"Ficus", keys:["榕属","ficus"], prefix:"FI"}
+  {cn:"榕树", en:"Ficus", keys:["榕树","榕属","ficus"], prefix:"FI"}
 ]);
 const PRODUCT_LANGUAGE_META_KEY_V262="productLanguageMetaV262";
 function normalizeSearchTextV262(v){return String(v||"").normalize("NFKC").toLowerCase().replace(/\s+/g," ").trim()}
@@ -21245,12 +21315,12 @@ function getProductTreeRuleIdV343(product){return resolveProductTreeRuleV343(pro
 const PRODUCT_ENGLISH_MANUAL_KEY_V356="productEnglishNameManualOverridesV356";
 function getProductEnglishManualOverridesV356(){const s=getCachedSettingsV317();const raw=s&&s[PRODUCT_ENGLISH_MANUAL_KEY_V356];return raw&&typeof raw==="object"&&!Array.isArray(raw)?raw:{}}
 function saveProductEnglishManualOverridesV356(overrides){const s=loadJSON("importSystemSettings",{});saveJSON("importSystemSettings",{...s,[PRODUCT_ENGLISH_MANUAL_KEY_V356]:overrides||{}});if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved()}
-function getAutomaticProductEnglishNameV356(product){if(!product)return"";const rule=resolveProductTreeRuleV343(product);if(rule)return getPrefixEnglishMetaV319(rule.cn).english||rule.en||"";return speciesRuleV262(product.name)?.en||""}
+function getAutomaticProductEnglishNameV356(product){if(!product)return"";const configured=normalizePrimaryProductCategoryV255(product.category||"盆栽")==="盆栽"?resolveConfiguredProductPrefixRuleV455(product.name):null;if(configured?.english)return configured.english;const rule=resolveProductTreeRuleV343(product);if(rule)return getPrefixEnglishMetaV319(rule.cn).english||rule.en||"";return speciesRuleV262(product.name)?.en||""}
 function productEnglishNameV262(product){if(!product)return"";const id=String(product.id||"").trim().toUpperCase();const overrides=getProductEnglishManualOverridesV356();if(id&&Object.prototype.hasOwnProperty.call(overrides,id))return String(overrides[id]||"").trim();return getAutomaticProductEnglishNameV356(product)}
 function productSearchTextV262(product){const sup=typeof inferSupplierFromProductV261==="function"?inferSupplierFromProductV261(product):null;return [product?.id,product?.name,productEnglishNameV262(product),sup?.name,sup?.prefix,...(sup?.aliases||[])].filter(Boolean).join(" ")}
 function productNameWithEnglishV262(product){const en=productEnglishNameV262(product);return `${escapeHTML(product?.name||"未命名产品")}${en?`<small class="product-english-name-v262">${escapeHTML(en)}</small>`:""}`}
 function rememberProductLanguageV262(productId, chineseName, englishName){const id=String(productId||"").toUpperCase();if(!id)return;const meta=getProductLanguageMetaV262();meta[id]={chineseName:String(chineseName||"").trim(),englishName:String(englishName||"").trim()};saveProductLanguageMetaV262(meta)}
-function inferSimpleBilingualV262(text){const raw=String(text||"").trim();const rule=speciesRuleV262(raw);return{chineseName:rule?.cn||(/[\u3400-\u9fff]/.test(raw)?raw:""),englishName:rule?.en||(!/[\u3400-\u9fff]/.test(raw)?raw.replace(/\b(?:P?\d{2,4}|\d+(?:\.\d+)?C|\d+[xX]\d+)\b.*$/i,"").trim():""),prefix:rule?.prefix||""}}
+function inferSimpleBilingualV262(text){const raw=String(text||"").trim();const configured=resolveConfiguredProductPrefixRuleV455(raw);const rule=speciesRuleV262(raw);return{chineseName:configured?.cn||rule?.cn||(/[\u3400-\u9fff]/.test(raw)?raw:""),englishName:configured?.english||rule?.en||(!/[\u3400-\u9fff]/.test(raw)?raw.replace(/\b(?:P?\d{2,4}|\d+(?:\.\d+)?C|\d+[xX]\d+)\b.*$/i,"").trim():""),prefix:configured?.prefix||rule?.prefix||""}}
 
 
 // ================= V34.3 Product Inventory Master =================
