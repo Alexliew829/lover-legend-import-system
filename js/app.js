@@ -3319,7 +3319,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.7 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.8 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3422,7 +3422,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.7 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.8 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -4796,7 +4796,7 @@ function getAverageCostLabelV205(product, originIndex = null) {
   return isVndProductV205(product, originIndex) ? "平均成本（VND不含盆）" : "平均成本";
 }
 
-// V45.7: a pending Current Minimum Price write is one atomic display state:
+// V45.8: a pending Current Minimum Price write is one atomic display state:
 // Current price + manual/automatic mode + the exact active-promotion override.
 // This keeps the user's input visible through credential refreshes/conflict Pulls.
 function getPendingMinimumPriceStateV455(productId) {
@@ -6725,7 +6725,7 @@ function removeWhiteWaxTestPrefixV182() {
   if(filtered.length!==additional.length){saveJSON("importSystemSettings",{...settings,productPrefixAdditionalRules:filtered});if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved()}
 }
 
-// V45.7: one configured tree-rule resolver feeds product IDs, automatic English
+// V45.8: one configured tree-rule resolver feeds product IDs, automatic English
 // names and search. It includes built-in, edited and user-added prefix rules.
 let configuredProductPrefixRuleCacheV455 = { settings:null, rows:[] };
 function getConfiguredProductPrefixRuleRowsV455() {
@@ -7957,10 +7957,12 @@ function setImportDraftCollapsedV457(collapsed) {
   const form = document.getElementById("batchImportForm");
   if (form) form.hidden = importDraftCollapsedV457;
   const lookup = document.querySelector("#importPage .batch-lookup-group");
-  if (lookup) lookup.hidden = importDraftCollapsedV457;
+  if (lookup) lookup.hidden = false;
+  const addRow = document.getElementById("addBatchRowBtn");
+  if (addRow) addRow.hidden = importDraftCollapsedV457;
   const toggle = document.getElementById("toggleImportDraftV457");
   if (toggle) {
-    toggle.textContent = importDraftCollapsedV457 ? "打开草稿" : "收起草稿";
+    toggle.textContent = importDraftCollapsedV457 ? "打开" : "收起";
     toggle.setAttribute("aria-expanded", String(!importDraftCollapsedV457));
   }
 }
@@ -8422,17 +8424,21 @@ function renderImportDraftsV242() {
       label.textContent = "已正式保存 · 已锁定";
       label.dataset.draftStateV249 = "formal";
     } else if (active && dirty) {
-      label.textContent = "🟡 有修改 · 请到下方更新草稿";
+      label.textContent = "草稿已修改";
+      label.title = "有未保存修改，请到下方更新草稿。";
       label.dataset.draftStateV249 = "dirty";
     } else if (active) {
-      label.textContent = "✓ 草稿已保存 · 尚未正式确认";
+      label.textContent = `未确认草稿 ${drafts.length} 份`;
+      label.title = "当前草稿已保存，尚未正式确认。";
       label.dataset.draftStateV249 = "saved";
     } else if (hasData) {
-      label.textContent = "未保存 · 当前资料尚未保存为草稿";
+      label.textContent = "未保存";
+      label.title = "当前资料尚未保存为草稿。";
       label.dataset.draftStateV249 = "unsaved";
     } else {
       // V35.2: a completely empty editor should not show a residual "未保存" bar.
-      label.textContent = drafts.length ? `有 ${drafts.length} 份未确认草稿` : "";
+      label.textContent = drafts.length ? `未确认草稿 ${drafts.length} 份` : "";
+      label.title = "点击打开，继续处理已保存的进口草稿。";
       label.dataset.draftStateV249 = "empty";
     }
     label.hidden = !String(label.textContent || "").trim();
@@ -8447,20 +8453,12 @@ function renderImportDraftsV242() {
     status.hidden = Boolean(currentEditingImportNumber) || (!active && !hasData && !drafts.length);
     status.dataset.state = dirty ? "dirty" : "saved";
   }
-  const summary = document.getElementById("importDraftSummaryV457");
-  if (summary) {
-    const rows = state.rows.filter(row => row.name || row.quantity || row.unitPrice);
-    const quantity = rows.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0);
-    summary.textContent = active
-      ? `${rows.length} 个产品 · 总数量 ${formatNumber(quantity)} · 保存于 ${formatDraftTimeV242(active.updatedAt)}`
-      : (hasData ? "请先到下方保存草稿。" : "点击打开，继续处理进口资料。");
-  }
   const toggle = document.getElementById("toggleImportDraftV457");
   if (toggle) toggle.hidden = !active || Boolean(currentEditingImportNumber);
   const topOpen = document.getElementById("openImportDraftsTopV457");
   if (topOpen) {
     topOpen.hidden = !drafts.length || Boolean(currentEditingImportNumber) || (Boolean(active) && drafts.length === 1);
-    topOpen.textContent = active ? `查看草稿 (${drafts.length})` : `打开草稿 (${drafts.length})`;
+    topOpen.textContent = active ? "列表" : "打开";
   }
   setImportDraftCollapsedV457(importDraftCollapsedV457);
   updateImportDraftSaveButtonV323();
@@ -10269,6 +10267,7 @@ function loadBatchByNumber() {
     return;
   }
 
+  if (!confirmDiscardImportDraftChangesV243("载入进口记录")) return;
   resetBatchForm(true);
 
   const batchItems = getBatchItemsForDisplay(batch);
