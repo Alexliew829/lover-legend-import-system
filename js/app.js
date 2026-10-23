@@ -2910,7 +2910,7 @@ function setupNavigation() {
       if(target!==current&&restoreLeaveProtectionActiveV133()&&!confirmRestoreNavigationV133())return;
 
       if (target !== current && current === "importPage" && getActiveImportDraftV243() && !hasUnsavedImportDraftChangesV243()) {
-        setImportDraftCollapsedV457(true);
+        closeImportDraftEditorV459();
       }
 
       buttons.forEach(item => item.classList.remove("active"));
@@ -3319,7 +3319,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.8 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.9 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3422,7 +3422,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.8 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.9 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -4796,7 +4796,7 @@ function getAverageCostLabelV205(product, originIndex = null) {
   return isVndProductV205(product, originIndex) ? "平均成本（VND不含盆）" : "平均成本";
 }
 
-// V45.8: a pending Current Minimum Price write is one atomic display state:
+// V45.9: a pending Current Minimum Price write is one atomic display state:
 // Current price + manual/automatic mode + the exact active-promotion override.
 // This keeps the user's input visible through credential refreshes/conflict Pulls.
 function getPendingMinimumPriceStateV455(productId) {
@@ -6725,7 +6725,7 @@ function removeWhiteWaxTestPrefixV182() {
   if(filtered.length!==additional.length){saveJSON("importSystemSettings",{...settings,productPrefixAdditionalRules:filtered});if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved()}
 }
 
-// V45.8: one configured tree-rule resolver feeds product IDs, automatic English
+// V45.9: one configured tree-rule resolver feeds product IDs, automatic English
 // names and search. It includes built-in, edited and user-added prefix rules.
 let configuredProductPrefixRuleCacheV455 = { settings:null, rows:[] };
 function getConfiguredProductPrefixRuleRowsV455() {
@@ -7590,7 +7590,7 @@ let currentEditingImportNumber = "";
 
 function setBatchEditMode(importNumber = "") {
   currentEditingImportNumber = importNumber;
-  setImportDraftCollapsedV457(false);
+  showImportDraftEditorV459();
 
   const modeBox = document.getElementById("batchEditMode");
   const label = document.getElementById("currentImportNumberLabel");
@@ -7948,23 +7948,33 @@ const IMPORT_DRAFTS_KEY_V242 = "importDraftsV242";
 const IMPORT_DRAFT_DELETED_IDS_KEY_V250 = "importDraftDeletedIdsV250";
 let activeImportDraftIdV242 = "";
 let importDraftCleanFingerprintV244 = "";
-let importDraftCollapsedV457 = false;
 let importDraftStatusFrameV457 = 0;
 
-function setImportDraftCollapsedV457(collapsed) {
-  // Presentation only: never clear/reload the editor or enqueue a cloud write.
-  importDraftCollapsedV457 = Boolean(collapsed) && !currentEditingImportNumber && Boolean(getActiveImportDraftV243());
+function showImportDraftEditorV459() {
+  // A closed saved draft is detached; the editor stays available for a new import.
   const form = document.getElementById("batchImportForm");
-  if (form) form.hidden = importDraftCollapsedV457;
+  if (form) form.hidden = false;
   const lookup = document.querySelector("#importPage .batch-lookup-group");
   if (lookup) lookup.hidden = false;
   const addRow = document.getElementById("addBatchRowBtn");
-  if (addRow) addRow.hidden = importDraftCollapsedV457;
+  if (addRow) addRow.hidden = false;
   const toggle = document.getElementById("toggleImportDraftV457");
   if (toggle) {
-    toggle.textContent = importDraftCollapsedV457 ? "打开" : "收起";
-    toggle.setAttribute("aria-expanded", String(!importDraftCollapsedV457));
+    toggle.textContent = "收起";
+    toggle.setAttribute("aria-expanded", String(Boolean(getActiveImportDraftV243())));
   }
+}
+
+function closeImportDraftEditorV459() {
+  if (currentEditingImportNumber || !getActiveImportDraftV243()) return false;
+  if (!confirmDiscardImportDraftChangesV243("收起草稿")) return false;
+  // Detach before resetting: the saved-draft recovery timers must not reopen it.
+  // The stored draft and its cloud state are left untouched.
+  activeImportDraftIdV242 = "";
+  resetBatchForm({ clearLookup:true, clearStatus:true });
+  document.getElementById("batchStatusText")?.classList.remove("draft-saved-status-v322");
+  renderImportDraftsV242();
+  return true;
 }
 
 function refreshImportDraftStatusV457() {
@@ -8460,7 +8470,7 @@ function renderImportDraftsV242() {
     topOpen.hidden = !drafts.length || Boolean(currentEditingImportNumber) || (Boolean(active) && drafts.length === 1);
     topOpen.textContent = active ? "列表" : "打开";
   }
-  setImportDraftCollapsedV457(importDraftCollapsedV457);
+  showImportDraftEditorV459();
   updateImportDraftSaveButtonV323();
 }
 window.renderImportDraftsV242 = renderImportDraftsV242;
@@ -8533,7 +8543,7 @@ function deleteCurrentImportDraftV247() {
 }
 
 function setupImportDraftV247() {
-  document.getElementById("toggleImportDraftV457")?.addEventListener("click", () => setImportDraftCollapsedV457(!importDraftCollapsedV457));
+  document.getElementById("toggleImportDraftV457")?.addEventListener("click", closeImportDraftEditorV459);
   document.getElementById("openImportDraftsTopV457")?.addEventListener("click", openImportDraftPickerV248);
   document.getElementById("confirmFormalImportBtnV247")?.addEventListener("click", confirmFormalImportV247);
   document.getElementById("deleteCurrentImportDraftBtnV247")?.addEventListener("click", deleteCurrentImportDraftV247);

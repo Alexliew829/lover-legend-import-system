@@ -7234,9 +7234,9 @@ body.system-media-preview-open-v305{overflow:hidden}
     max-width:100%;
   }
 }
-/* V45.8: compact red draft status shares the import lookup row. */
+/* V45.9: compact red draft status shares the import lookup row. */
 .import-entry-toolbar-v458 { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
-.import-draft-status-v458 { display:flex; align-items:center; flex-wrap:wrap; gap:6px; color:#bd2026; font-size:14px; line-height:1.5; }
+.import-draft-status-v458 { display:flex; align-items:center; flex-wrap:wrap; gap:6px; color:#bd2026; font-size:18px; line-height:1.5; }
 .import-draft-status-v458 strong { font-weight:700; }
 .import-draft-link-v458 { border:0; background:transparent; padding:6px 2px; min-height:36px; color:#bd2026; font:inherit; font-weight:700; text-decoration:underline; cursor:pointer; }
 .import-draft-link-v458:focus-visible { outline:2px solid #bd2026; outline-offset:2px; border-radius:3px; }
@@ -7245,7 +7245,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 .import-entry-toolbar-v458 > .batch-lookup-group { min-width:0; flex:1; }
 @media (max-width:720px) {
   .import-entry-toolbar-v458 { align-items:flex-start; gap:8px; }
-  .import-draft-status-v458 { flex:0 1 110px; gap:2px 5px; font-size:13px; padding-top:4px; }
+  .import-draft-status-v458 { flex:0 1 150px; gap:2px 5px; font-size:18px; padding-top:4px; }
   .import-entry-toolbar-v458 .batch-inline-lookup { display:flex; flex-wrap:wrap; min-width:0; width:100%; gap:4px; }
   .import-entry-toolbar-v458 .batch-inline-lookup label { font-size:13px; }
   .import-entry-toolbar-v458 .batch-lookup-input { min-width:0; width:100%; flex:1 1 100%; }
