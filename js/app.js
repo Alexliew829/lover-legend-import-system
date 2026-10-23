@@ -2909,6 +2909,10 @@ function setupNavigation() {
       }
       if(target!==current&&restoreLeaveProtectionActiveV133()&&!confirmRestoreNavigationV133())return;
 
+      if (target !== current && current === "importPage" && getActiveImportDraftV243() && !hasUnsavedImportDraftChangesV243()) {
+        setImportDraftCollapsedV457(true);
+      }
+
       buttons.forEach(item => item.classList.remove("active"));
       pages.forEach(page => page.classList.remove("active"));
 
@@ -3315,7 +3319,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.6 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.7 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3418,7 +3422,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.6 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.7 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -3747,13 +3751,15 @@ function updateImportDraftSaveButtonV323() {
   const button = document.getElementById("saveBatchBtn");
   if (!button || currentEditingImportNumber) return;
   const active = getActiveImportDraftV243();
-  if (!active) { button.textContent = "保存草稿"; button.classList.remove("draft-saved-button-v323","draft-dirty-button-v323"); return; }
+  if (!active) { button.disabled = false; button.textContent = "保存草稿"; button.classList.remove("draft-saved-button-v323","draft-dirty-button-v323"); return; }
   if (hasUnsavedImportDraftChangesV243()) {
-    button.textContent = "资料已修改 · 重新保存草稿";
+    button.disabled = false;
+    button.textContent = "更新草稿";
     button.classList.remove("draft-saved-button-v323");
     button.classList.add("draft-dirty-button-v323");
   } else {
-    button.textContent = "保存草稿";
+    button.disabled = true;
+    button.textContent = "草稿已保存";
     button.classList.remove("draft-dirty-button-v323");
     button.classList.add("draft-saved-button-v323");
   }
@@ -4790,7 +4796,7 @@ function getAverageCostLabelV205(product, originIndex = null) {
   return isVndProductV205(product, originIndex) ? "平均成本（VND不含盆）" : "平均成本";
 }
 
-// V45.6: a pending Current Minimum Price write is one atomic display state:
+// V45.7: a pending Current Minimum Price write is one atomic display state:
 // Current price + manual/automatic mode + the exact active-promotion override.
 // This keeps the user's input visible through credential refreshes/conflict Pulls.
 function getPendingMinimumPriceStateV455(productId) {
@@ -6719,7 +6725,7 @@ function removeWhiteWaxTestPrefixV182() {
   if(filtered.length!==additional.length){saveJSON("importSystemSettings",{...settings,productPrefixAdditionalRules:filtered});if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved()}
 }
 
-// V45.6: one configured tree-rule resolver feeds product IDs, automatic English
+// V45.7: one configured tree-rule resolver feeds product IDs, automatic English
 // names and search. It includes built-in, edited and user-added prefix rules.
 let configuredProductPrefixRuleCacheV455 = { settings:null, rows:[] };
 function getConfiguredProductPrefixRuleRowsV455() {
@@ -7584,6 +7590,7 @@ let currentEditingImportNumber = "";
 
 function setBatchEditMode(importNumber = "") {
   currentEditingImportNumber = importNumber;
+  setImportDraftCollapsedV457(false);
 
   const modeBox = document.getElementById("batchEditMode");
   const label = document.getElementById("currentImportNumberLabel");
@@ -7941,6 +7948,35 @@ const IMPORT_DRAFTS_KEY_V242 = "importDraftsV242";
 const IMPORT_DRAFT_DELETED_IDS_KEY_V250 = "importDraftDeletedIdsV250";
 let activeImportDraftIdV242 = "";
 let importDraftCleanFingerprintV244 = "";
+let importDraftCollapsedV457 = false;
+let importDraftStatusFrameV457 = 0;
+
+function setImportDraftCollapsedV457(collapsed) {
+  // Presentation only: never clear/reload the editor or enqueue a cloud write.
+  importDraftCollapsedV457 = Boolean(collapsed) && !currentEditingImportNumber && Boolean(getActiveImportDraftV243());
+  const form = document.getElementById("batchImportForm");
+  if (form) form.hidden = importDraftCollapsedV457;
+  const lookup = document.querySelector("#importPage .batch-lookup-group");
+  if (lookup) lookup.hidden = importDraftCollapsedV457;
+  const toggle = document.getElementById("toggleImportDraftV457");
+  if (toggle) {
+    toggle.textContent = importDraftCollapsedV457 ? "打开草稿" : "收起草稿";
+    toggle.setAttribute("aria-expanded", String(!importDraftCollapsedV457));
+  }
+}
+
+function refreshImportDraftStatusV457() {
+  if (importDraftStatusFrameV457) return;
+  importDraftStatusFrameV457 = window.requestAnimationFrame(() => {
+    importDraftStatusFrameV457 = 0;
+    renderImportDraftsV242();
+    const status = document.getElementById("batchStatusText");
+    if (status?.classList.contains("draft-saved-status-v322") && hasUnsavedImportDraftChangesV243()) {
+      status.classList.remove("draft-saved-status-v322");
+      status.textContent = "草稿已有修改 · 请更新草稿后再确认正式保存。";
+    }
+  });
+}
 
 function getImportDraftsV242() {
   const settings = loadJSON("importSystemSettings", {});
@@ -8213,6 +8249,7 @@ function validateNoDuplicateImportProductsV345(rows) {
 }
 
 function saveImportDraftV242() {
+  if (getActiveImportDraftV243() && !currentEditingImportNumber && !hasUnsavedImportDraftChangesV243()) return;
   const saveButtonV340 = document.getElementById("saveBatchBtn");
   if (saveButtonV340) { saveButtonV340.disabled = true; saveButtonV340.textContent = "保存中..."; }
   if (currentEditingImportNumber) {
@@ -8377,24 +8414,25 @@ function renderImportDraftsV242() {
   const openButton = document.getElementById("openImportDraftsBtnV248");
   const active = getActiveImportDraftV243();
   const drafts = getImportDraftsV242().filter(item => item?.status === "draft");
+  const state = collectImportDraftStateV242();
+  const hasData = importDraftStateHasUserDataV246(state);
+  const dirty = active ? importDraftFingerprintV243(state) !== importDraftFingerprintV243(active) : hasData;
   if (label) {
-    const hasData = importDraftStateHasUserDataV246(collectImportDraftStateV242());
-    const dirty = active ? hasUnsavedImportDraftChangesV243() : hasData;
     if (currentEditingImportNumber) {
       label.textContent = "已正式保存 · 已锁定";
       label.dataset.draftStateV249 = "formal";
     } else if (active && dirty) {
-      label.textContent = `草稿已修改 · 尚未重新保存 · 原草稿 ${formatDraftTimeV242(active.updatedAt)}`;
+      label.textContent = "🟡 有修改 · 请到下方更新草稿";
       label.dataset.draftStateV249 = "dirty";
     } else if (active) {
-      label.textContent = `草稿已保存 · 尚未正式确认 · ${formatDraftTimeV242(active.updatedAt)}`;
+      label.textContent = "✓ 草稿已保存 · 尚未正式确认";
       label.dataset.draftStateV249 = "saved";
     } else if (hasData) {
       label.textContent = "未保存 · 当前资料尚未保存为草稿";
       label.dataset.draftStateV249 = "unsaved";
     } else {
       // V35.2: a completely empty editor should not show a residual "未保存" bar.
-      label.textContent = "";
+      label.textContent = drafts.length ? `有 ${drafts.length} 份未确认草稿` : "";
       label.dataset.draftStateV249 = "empty";
     }
     label.hidden = !String(label.textContent || "").trim();
@@ -8404,6 +8442,28 @@ function renderImportDraftsV242() {
     openButton.hidden = drafts.length === 0;
     openButton.textContent = drafts.length > 1 ? `查看未确认草稿 (${drafts.length})` : "查看未确认草稿";
   }
+  const status = document.getElementById("importDraftStatusV457");
+  if (status) {
+    status.hidden = Boolean(currentEditingImportNumber) || (!active && !hasData && !drafts.length);
+    status.dataset.state = dirty ? "dirty" : "saved";
+  }
+  const summary = document.getElementById("importDraftSummaryV457");
+  if (summary) {
+    const rows = state.rows.filter(row => row.name || row.quantity || row.unitPrice);
+    const quantity = rows.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0);
+    summary.textContent = active
+      ? `${rows.length} 个产品 · 总数量 ${formatNumber(quantity)} · 保存于 ${formatDraftTimeV242(active.updatedAt)}`
+      : (hasData ? "请先到下方保存草稿。" : "点击打开，继续处理进口资料。");
+  }
+  const toggle = document.getElementById("toggleImportDraftV457");
+  if (toggle) toggle.hidden = !active || Boolean(currentEditingImportNumber);
+  const topOpen = document.getElementById("openImportDraftsTopV457");
+  if (topOpen) {
+    topOpen.hidden = !drafts.length || Boolean(currentEditingImportNumber) || (Boolean(active) && drafts.length === 1);
+    topOpen.textContent = active ? `查看草稿 (${drafts.length})` : `打开草稿 (${drafts.length})`;
+  }
+  setImportDraftCollapsedV457(importDraftCollapsedV457);
+  updateImportDraftSaveButtonV323();
 }
 window.renderImportDraftsV242 = renderImportDraftsV242;
 
@@ -8475,22 +8535,15 @@ function deleteCurrentImportDraftV247() {
 }
 
 function setupImportDraftV247() {
+  document.getElementById("toggleImportDraftV457")?.addEventListener("click", () => setImportDraftCollapsedV457(!importDraftCollapsedV457));
+  document.getElementById("openImportDraftsTopV457")?.addEventListener("click", openImportDraftPickerV248);
   document.getElementById("confirmFormalImportBtnV247")?.addEventListener("click", confirmFormalImportV247);
   document.getElementById("deleteCurrentImportDraftBtnV247")?.addEventListener("click", deleteCurrentImportDraftV247);
   document.getElementById("openImportDraftsBtnV248")?.addEventListener("click", openImportDraftPickerV248);
   // V26.6: status follows every edit in the original import form.
   const draftFormV249 = document.getElementById("batchImportForm");
-  const refreshDraftStateV249 = () => window.requestAnimationFrame(() => {
-    renderImportDraftsV242();
-    const statusV322 = document.getElementById("batchStatusText");
-    if (statusV322?.classList.contains("draft-saved-status-v322") && hasUnsavedImportDraftChangesV243()) {
-      statusV322.classList.remove("draft-saved-status-v322");
-      statusV322.textContent = "草稿保存后资料已有修改 · 请重新保存草稿后再确认正式保存。";
-    }
-    updateImportDraftSaveButtonV323();
-  });
-  draftFormV249?.addEventListener("input", refreshDraftStateV249);
-  draftFormV249?.addEventListener("change", refreshDraftStateV249);
+  draftFormV249?.addEventListener("input", refreshImportDraftStatusV457);
+  draftFormV249?.addEventListener("change", refreshImportDraftStatusV457);
   window.addEventListener("beforeunload", event => {
     if (!hasUnsavedImportDraftChangesV243()) return;
     event.preventDefault();
@@ -15070,6 +15123,8 @@ function attachBatchRowEvents(id){
     calculateBatch();
   });
   document.getElementById(`batchQty-${id}`).addEventListener("input", () => {
+    const tr = document.querySelector(`#batchRows tr[data-row-id="${id}"]`);
+    if (!tr) return;
     // V20.6 R2: while editing an existing import, this field is the ORIGINAL
     // import quantity. Never mirror it into current stock/remaining quantity.
     if (currentEditingImportNumber || tr.dataset.remainingQuantity !== undefined) {
@@ -15122,6 +15177,7 @@ function collectBatchRows(){
   return Array.from(document.querySelectorAll("#batchRows tr")).map(tr=>{const id=Number(tr.dataset.rowId),name=document.getElementById(`batchName-${id}`).value.trim(),quantity=Math.max(0,Math.floor(parseAmount(document.getElementById(`batchQty-${id}`).value))),unitPrice=parseAmount(document.getElementById(`batchPrice-${id}`).value),stockAdded=quantity,foreignTotal=quantity*unitPrice,purchaseRM=rate>0?foreignTotal/rate:0,productId=document.getElementById(`batchProductId-${id}`).value,existing=getProducts().find(x=>x.id===productId),category=normalizePrimaryProductCategoryV255(document.getElementById(`batchCategory-${id}`).value||"盆栽"),preferredPrefixV240=getProductPrefix(category,name);return{id,name,englishName:String(tr.dataset.englishNameV262||productEnglishNameV262(existing)||inferSimpleBilingualV262(name).englishName||""),category,productId,preferredPrefixV240,quantity,unitPrice,stockAdded,currency,rate,foreignTotal,purchaseRM,oldStock:Number(existing?.stock)||0,oldAverage:Number(existing?.averageCost)||0};});
 }
 function calculateBatch() {
+  refreshImportDraftStatusV457();
   updateTransitDays();
 
   const rows = collectBatchRows();

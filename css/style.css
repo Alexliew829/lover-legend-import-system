@@ -5181,10 +5181,6 @@ body.sales-inventory-operation-locked-v117 .bottom-nav,body.sales-inventory-oper
 .import-draft-main-v242{flex:1;border:0;background:transparent;text-align:left;padding:5px;cursor:pointer;display:flex;flex-direction:column;gap:3px}
 .import-draft-main-v242 strong{font-size:.95rem}.import-draft-main-v242 span{font-size:.78rem;opacity:.72}
 .import-draft-delete-v242{flex:0 0 auto}
-#activeDraftLabelV242{font-size:.9rem;font-weight:700;opacity:1;min-height:1.4em;padding:.35rem .55rem;border-radius:9px;background:rgba(0,0,0,.035)}
-#activeDraftLabelV242[data-draft-state-v249="saved"]{outline:1px solid rgba(34,120,76,.22)}
-#activeDraftLabelV242[data-draft-state-v249="dirty"],#activeDraftLabelV242[data-draft-state-v249="unsaved"]{outline:1px solid rgba(180,120,0,.22)}
-#activeDraftLabelV242[data-draft-state-v249="formal"]{outline:1px solid rgba(30,100,70,.25)}
 
 /* V24.6 Supplier reference entry follows the user's left-aligned typing habit. */
 .supplier-prefix-add-v241 input{text-align:left!important;direction:ltr}
@@ -7237,4 +7233,24 @@ body.system-media-preview-open-v305{overflow:hidden}
     width:100%;
     max-width:100%;
   }
+}
+/* V45.7: the saved draft stays visible above the collapsible import editor. */
+.import-draft-status-v457 {
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between;
+  gap:12px; margin:0 0 20px; padding:16px;
+  border:2px solid #8fbea3; border-radius:14px; background:#eaf5ee; color:#1f5d3a;
+}
+.import-draft-status-v457[hidden],
+#batchImportForm[hidden], #importPage .batch-lookup-group[hidden],
+.import-draft-status-actions-v457 button[hidden] { display:none!important; }
+.import-draft-status-v457[data-state="dirty"] { border-color:#d5a83b; background:#fff6db; color:#795700; }
+.import-draft-status-copy-v457 { display:grid; gap:6px; min-width:0; flex:1 1 260px; overflow-wrap:anywhere; }
+.import-draft-status-copy-v457 strong { font-size:18px; line-height:1.5; }
+.import-draft-status-copy-v457 span { font-size:14px; line-height:1.5; }
+.import-draft-status-actions-v457 { display:flex; flex-wrap:wrap; gap:8px; }
+.import-draft-status-actions-v457 button { min-height:44px; margin:0; }
+#importPage > .panel:first-child > .batch-lookup-group { margin-bottom:20px; }
+@media (max-width:600px) {
+  .import-draft-status-actions-v457 { width:100%; }
+  .import-draft-status-actions-v457 button { flex:1 1 auto; }
 }
