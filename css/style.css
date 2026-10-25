@@ -7234,7 +7234,7 @@ body.system-media-preview-open-v305{overflow:hidden}
     max-width:100%;
   }
 }
-/* V45.9: compact red draft status shares the import lookup row. */
+/* V46.0: compact red draft status shares the import lookup row. */
 .import-entry-toolbar-v458 { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
 .import-draft-status-v458 { display:flex; align-items:center; flex-wrap:wrap; gap:6px; color:#bd2026; font-size:18px; line-height:1.5; }
 .import-draft-status-v458 strong { font-weight:700; }

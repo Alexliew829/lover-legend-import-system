@@ -3319,7 +3319,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.9 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.0 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3422,7 +3422,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V45.9 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.0 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -4796,7 +4796,7 @@ function getAverageCostLabelV205(product, originIndex = null) {
   return isVndProductV205(product, originIndex) ? "平均成本（VND不含盆）" : "平均成本";
 }
 
-// V45.9: a pending Current Minimum Price write is one atomic display state:
+// V46.0: a pending Current Minimum Price write is one atomic display state:
 // Current price + manual/automatic mode + the exact active-promotion override.
 // This keeps the user's input visible through credential refreshes/conflict Pulls.
 function getPendingMinimumPriceStateV455(productId) {
@@ -6725,7 +6725,7 @@ function removeWhiteWaxTestPrefixV182() {
   if(filtered.length!==additional.length){saveJSON("importSystemSettings",{...settings,productPrefixAdditionalRules:filtered});if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved()}
 }
 
-// V45.9: one configured tree-rule resolver feeds product IDs, automatic English
+// V46.0: one configured tree-rule resolver feeds product IDs, automatic English
 // names and search. It includes built-in, edited and user-added prefix rules.
 let configuredProductPrefixRuleCacheV455 = { settings:null, rows:[] };
 function getConfiguredProductPrefixRuleRowsV455() {
@@ -8149,7 +8149,7 @@ function showImportDraftReminderGuideV246(overdue) {
         <strong>进口草稿未确认</strong>
         <button type="button" class="ghost-btn" data-close-draft-reminder-v246>关闭</button>
       </div>
-      <p>以下草稿已保存超过24小时。每天提醒一次，正式保存或删除后停止提醒。</p>
+      <p>未确认草稿每18天提醒一次；首次从保存草稿起计算，之后从上次提醒起计算。正式保存或删除后停止提醒。</p>
       <div class="import-draft-reminder-list-v246">
         ${overdue.map(draft => {
           const rows = Array.isArray(draft.rows) ? draft.rows : [];
@@ -8202,12 +8202,18 @@ function checkImportDraftRemindersV243() {
   const now = Date.now(), todayKey = localDateKeyV243();
   const overdue = drafts.filter(draft => {
     const created = Date.parse(draft?.createdAt || "");
-    return draft?.status === "draft" && Number.isFinite(created) && now-created >= 86400000 && draft?.lastReminderDateV243 !== todayKey;
+    const preciseReminder = Date.parse(draft?.lastReminderAtV460 || "");
+    const legacyDate = String(draft?.lastReminderDateV243 || "");
+    const legacyReminder = /^\d{4}-\d{2}-\d{2}$/.test(legacyDate)
+      ? Date.parse(`${legacyDate}T00:00:00`) : NaN;
+    const lastReminder = Number.isFinite(preciseReminder) ? preciseReminder : legacyReminder;
+    const anchor = Number.isFinite(lastReminder) ? Math.max(created, lastReminder) : created;
+    return draft?.status === "draft" && Number.isFinite(anchor) && now-anchor >= 18 * 86400000;
   });
   if (!overdue.length) return;
   showImportDraftReminderGuideV246(overdue);
   const ids = new Set(overdue.map(d => String(d.id || "")));
-  writeImportDraftsV242(drafts.map(d => ids.has(String(d.id || "")) ? {...d,lastReminderDateV243:todayKey} : d));
+  writeImportDraftsV242(drafts.map(d => ids.has(String(d.id || "")) ? {...d,lastReminderDateV243:todayKey,lastReminderAtV460:new Date(now).toISOString()} : d));
 }
 
 function collectImportDraftStateV242() {
@@ -8293,6 +8299,7 @@ function saveImportDraftV242() {
     createdAt: previousDraft?.createdAt || now,
     updatedAt: now,
     lastReminderDateV243: previousDraft?.lastReminderDateV243 || "",
+    lastReminderAtV460: previousDraft?.lastReminderAtV460 || "",
     ...state
   };
   const next = [entry, ...drafts.filter(item => item.id !== id)].slice(0, 30);
