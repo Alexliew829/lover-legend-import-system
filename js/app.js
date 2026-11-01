@@ -215,6 +215,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupDashboard();
   setupImportModule();
   setupImportDraftV247();
+  setupProductNameLimitV461();
   setupImportHistory();
   setupInventoryModule();
   setupGlobalMobilePullDownClear();
@@ -3319,7 +3320,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.0 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.1 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3422,7 +3423,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.0 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.1 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -4610,12 +4611,6 @@ function setupProductModule() {
   const searchInput = document.getElementById("productSearch");
 
   nameInput.addEventListener("input", () => {
-    const chars = Array.from(nameInput.value);
-
-    if (chars.length > 15) {
-      nameInput.value = chars.slice(0, 15).join("");
-    }
-
     document.getElementById("nameCounter").textContent =
       `${Array.from(nameInput.value).length} / 15`;
   });
@@ -4633,9 +4628,7 @@ function setupProductModule() {
     const before = nameInput.value.slice(0, selectionStart);
     const after = nameInput.value.slice(selectionEnd);
 
-    nameInput.value = Array.from(before + pastedText + after)
-      .slice(0, 15)
-      .join("");
+    nameInput.value = before + pastedText + after;
 
     nameInput.dispatchEvent(new Event("input", { bubbles: true }));
 
@@ -4796,7 +4789,7 @@ function getAverageCostLabelV205(product, originIndex = null) {
   return isVndProductV205(product, originIndex) ? "平均成本（VND不含盆）" : "平均成本";
 }
 
-// V46.0: a pending Current Minimum Price write is one atomic display state:
+// V46.1: a pending Current Minimum Price write is one atomic display state:
 // Current price + manual/automatic mode + the exact active-promotion override.
 // This keeps the user's input visible through credential refreshes/conflict Pulls.
 function getPendingMinimumPriceStateV455(productId) {
@@ -6126,6 +6119,7 @@ function getProducts() {
 }
 function saveProducts(products) {
   const previous = getProducts();
+  assertProductNameChangesV461(previous, products);
   const rules = getMinimumPriceRulesV160();
   const overrides = { ...getMinimumPriceManualOverridesV160() };
   const originIndex = getMinimumPriceOriginIndexV160();
@@ -6725,7 +6719,7 @@ function removeWhiteWaxTestPrefixV182() {
   if(filtered.length!==additional.length){saveJSON("importSystemSettings",{...settings,productPrefixAdditionalRules:filtered});if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved()}
 }
 
-// V46.0: one configured tree-rule resolver feeds product IDs, automatic English
+// V46.1: one configured tree-rule resolver feeds product IDs, automatic English
 // names and search. It includes built-in, edited and user-added prefix rules.
 let configuredProductPrefixRuleCacheV455 = { settings:null, rows:[] };
 function getConfiguredProductPrefixRuleRowsV455() {
@@ -6815,6 +6809,58 @@ function replaceProductIdDeepV163(value, oldId, nextId) {
   return value;
 }
 
+const PRODUCT_NAME_LIMIT_V461 = 15;
+function productNameLimitMessageV461(value) {
+  const length = Array.from(String(value || "").trim()).length;
+  return length > PRODUCT_NAME_LIMIT_V461
+    ? `产品名称最多15个字符（目前${length}个），请缩短后再保存。` : "";
+}
+function updateProductNameLimitHintV461(input) {
+  if (!input || !input.matches('#productName, input[id^="batchName-"]')) return;
+  const message = input.readOnly || input.disabled ? "" : productNameLimitMessageV461(input.value);
+  input.setCustomValidity(message);
+  let hint = document.getElementById(`${input.id}-nameLimitV461`);
+  if (!hint && message) {
+    hint = document.createElement("small");
+    hint.id = `${input.id}-nameLimitV461`;
+    hint.className = "product-name-limit-v461";
+    hint.setAttribute("role", "status");
+    input.insertAdjacentElement("afterend", hint);
+    const descriptions = new Set(String(input.getAttribute("aria-describedby") || "").split(/\s+/).filter(Boolean));
+    descriptions.add(hint.id);
+    input.setAttribute("aria-describedby", [...descriptions].join(" "));
+  }
+  if (hint) { hint.textContent = message; hint.hidden = !message; }
+}
+function setupProductNameLimitV461() {
+  const validate = event => {
+    if (!event.isComposing) updateProductNameLimitHintV461(event.target);
+  };
+  document.addEventListener("input", validate);
+  document.addEventListener("change", validate);
+  document.addEventListener("compositionend", validate);
+}
+function validateImportProductNamesV461(state, status = null) {
+  const rows = Array.isArray(state?.rows) ? state.rows : [];
+  const invalid = rows.find(row => productNameLimitMessageV461(row?.name));
+  if (!invalid) return true;
+  const message = productNameLimitMessageV461(invalid.name);
+  if (status) status.textContent = message;
+  window.alert(`${message}\n\n${invalid.name}`);
+  const input = [...document.querySelectorAll('#batchRows input[id^="batchName-"]')]
+    .find(field => String(field.value || "").trim() === String(invalid.name || "").trim());
+  if (input) { updateProductNameLimitHintV461(input); input.focus(); }
+  return false;
+}
+function assertProductNameChangesV461(previous, next) {
+  const oldNames = new Map((Array.isArray(previous) ? previous : []).map(item => [String(item?.id || ""), String(item?.name || "").trim()]));
+  for (const item of (Array.isArray(next) ? next : [])) {
+    const name = String(item?.name || "").trim();
+    const message = productNameLimitMessageV461(name);
+    if (message && oldNames.get(String(item?.id || "")) !== name) throw new Error(message);
+  }
+}
+
 function saveProduct() {
   const products = getProducts();
   const editingId = document.getElementById("editingProductId").value;
@@ -6829,8 +6875,8 @@ function saveProduct() {
     return;
   }
 
-  if (Array.from(name).length > 15) {
-    statusText.textContent = "产品名称最多15个字";
+  if (productNameLimitMessageV461(name)) {
+    statusText.textContent = productNameLimitMessageV461(name);
     return;
   }
 
@@ -7077,7 +7123,8 @@ function isProductFuzzySearchReadyV238(queryValue) {
 }
 
 // V45.4: one shared product-search resolver for every product search surface.
-// Two Latin letters are a strict Product Prefix query. They never fall through
+// Two Latin letters match product-ID prefixes or a distinct leading supplier code.
+// They never fall through
 // to arbitrary English-name substrings (AS must not match Bebuas / Itoigawa
 // Shimpaku). Three or more Latin letters may use English fuzzy matching.
 let unifiedProductSearchIndexCacheV454 = null;
@@ -7240,6 +7287,21 @@ function createUnifiedProductSearchEntryV454(product, context) {
   let supplier = null;
   try { supplier = inferSupplierFromProductV261(product); } catch (_) { supplier = null; }
   const category = String(product?.category || "").trim();
+  // Keep supplier codes separate: they must not generate virtual product IDs.
+  const supplierPrefixesV461 = new Set();
+  const leadingSupplierV461 = name.normalize("NFKC").match(/^([A-Za-z]{2})(?![A-Za-z])/);
+  if (leadingSupplierV461) supplierPrefixesV461.add(leadingSupplierV461[1].toUpperCase());
+  const knownSupplierV461 = String(supplier?.prefix || "").normalize("NFKC").trim().toUpperCase();
+  if (/^[A-Z]{2}$/.test(knownSupplierV461)) {
+    const normalizedNameV461 = name.normalize("NFKC").toLowerCase();
+    const hasSupplierAliasV461 = [supplier?.name, ...(Array.isArray(supplier?.aliases) ? supplier.aliases : [])]
+      .filter(Boolean).some(value => {
+        const label = String(value).normalize("NFKC").trim().toLowerCase();
+        return label && normalizedNameV461.startsWith(label) &&
+          (!/[a-z]$/.test(label) || !/[a-z]/.test(normalizedNameV461.charAt(label.length)));
+      });
+    if (hasSupplierAliasV461) supplierPrefixesV461.add(knownSupplierV461);
+  }
 
   const names = new Set([name, englishName].filter(Boolean));
   const ids = new Set([...aliasIds, ...virtualIds].filter(Boolean));
@@ -7262,6 +7324,7 @@ function createUnifiedProductSearchEntryV454(product, context) {
     ids,
     names,
     prefixes,
+    supplierPrefixesV461,
     textFields,
     importNumbers:new Set(),
     shipmentNumbers:new Set(),
@@ -7382,7 +7445,7 @@ function unifiedProductSearchMatchesV454(productLike, queryValue, options = {}) 
   }
 
   if (queryInfo.strictPrefix) {
-    return entry.prefixes.has(queryInfo.prefix);
+    return entry.prefixes.has(queryInfo.prefix) || entry.supplierPrefixesV461?.has(queryInfo.prefix) === true;
   }
 
   const extraValues = Array.isArray(options.extraText)
@@ -7529,6 +7592,7 @@ function editProduct(id) {
   document.getElementById("editingProductId").value = product.id;
   document.getElementById("productId").value = product.id;
   document.getElementById("productName").value = product.name;
+  updateProductNameLimitHintV461(document.getElementById("productName"));
   document.getElementById("nameCounter").textContent = `${Array.from(product.name).length} / 15`;
   document.getElementById("productCategory").value = normalizePrimaryProductCategoryV255(product.category);
   document.getElementById("productRemark").value = product.remark || "";
@@ -7561,6 +7625,7 @@ function resetProductForm(clearStatus = true) {
   document.getElementById("editingProductId").value = "";
   document.getElementById("productId").value = "自动生成";
   document.getElementById("productName").value = "";
+  updateProductNameLimitHintV461(document.getElementById("productName"));
   document.getElementById("nameCounter").textContent = "0 / 15";
   document.getElementById("productCategory").value = "盆栽";
   document.getElementById("productRemark").value = "";
@@ -8112,6 +8177,7 @@ function confirmDiscardImportDraftChangesV243(actionLabel = "离开") {
 window.confirmDiscardImportDraftChangesV243 = confirmDiscardImportDraftChangesV243;
 function ensureDraftReadyForFormalSaveV243(status) {
   if (currentEditingImportNumber) return true;
+  if (!validateImportProductNamesV461(collectImportDraftStateV242(), status)) return false;
   const active = getActiveImportDraftV243();
   if (!active) {
     if (status) status.textContent = "请先保存草稿，再确认正式进口。";
@@ -8276,6 +8342,10 @@ function saveImportDraftV242() {
     return;
   }
   const state = collectImportDraftStateV242();
+  if (!validateImportProductNamesV461(state, document.getElementById("batchStatusText"))) {
+    if (saveButtonV340) { saveButtonV340.disabled = false; updateImportDraftSaveButtonV323(); }
+    return;
+  }
   if (!state.rows.length) {
     alert("请先输入至少一个产品，再保存草稿。");
     if (saveButtonV340) { saveButtonV340.disabled = false; saveButtonV340.textContent = "保存草稿"; }
@@ -14843,6 +14913,7 @@ function addBatchRow(prefill = {}){
   }
   attachBatchRowEvents(id);
   applyBatchCostEditability();
+  updateProductNameLimitHintV461(document.getElementById(`batchName-${id}`));
   calculateBatch();
 
   if (Number.isFinite(Number(prefill.unitCost))) {
@@ -15037,8 +15108,6 @@ function attachBatchRowEvents(id){
   n.addEventListener("compositionend", () => { batchNameComposingV246 = false; scheduleBatchNameSearchV246(20); });
 
   n.addEventListener("input", () => {
-    let chars = Array.from(n.value);
-    if (chars.length > 15) n.value = chars.slice(0, 15).join("");
 
     // V24.6: the keystroke path does no product/import/batch scans. Only clear
     // stale identity metadata synchronously, then search after the user pauses.
@@ -15125,7 +15194,7 @@ function attachBatchRowEvents(id){
       }
     }, 320);
   });
-  n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();const start=n.selectionStart??n.value.length,end=n.selectionEnd??start;const combined=n.value.slice(0,start)+t+n.value.slice(end);n.value=Array.from(combined).slice(0,15).join("");n.dispatchEvent(new Event("input",{bubbles:true}));const caret=Math.min(start+Array.from(t).length,n.value.length);try{n.setSelectionRange(caret,caret)}catch(_){}});
+  n.addEventListener("paste",e=>{e.preventDefault();const t=(e.clipboardData||window.clipboardData).getData("text").replace(/[\r\n\t]+/g," ").trim();const start=n.selectionStart??n.value.length,end=n.selectionEnd??start;const combined=n.value.slice(0,start)+t+n.value.slice(end);n.value=combined;n.dispatchEvent(new Event("input",{bubbles:true}));const caret=Math.min(start+Array.from(t).length,n.value.length);try{n.setSelectionRange(caret,caret)}catch(_){}});
   [`batchQty-${id}`,`batchPrice-${id}`].forEach(k=>{const x=document.getElementById(k);x.addEventListener("focus",()=>x.select());x.addEventListener("input",calculateBatch);x.addEventListener("blur",()=>{if(!k.includes("Qty")&&!k.includes("Stock"))formatInputAmount(x);calculateBatch();});});
   document.getElementById(`batchPrice-${id}`).addEventListener("input", () => {
     const row = document.querySelector(`#batchRows tr[data-row-id="${id}"]`);
@@ -17289,7 +17358,7 @@ function editProductNameFromImportPage(productId) {
   if (productIndex === -1) { alert("找不到这个产品。"); return; }
   const product = products[productIndex];
   const oldName = String(product.name || "").trim();
-  const entered = window.prompt(`修改产品名称\n\n目前名称：${oldName}\n请输入新的产品名称`, oldName);
+  const entered = window.prompt(`修改产品名称\n\n目前名称：${oldName}\n请输入新的产品名称（最多15个字符）`, oldName);
   if (entered === null) return;
   const nextName = String(entered).trim();
   if (!nextName) { alert("产品名称不能为空。"); return; }
@@ -17298,6 +17367,8 @@ function editProductNameFromImportPage(productId) {
     if (status) status.textContent = "产品名称没有改变";
     return;
   }
+  const nameLimitMessageV461 = productNameLimitMessageV461(nextName);
+  if (nameLimitMessageV461) { alert(nameLimitMessageV461); return; }
   const duplicate = products.some((item, index) => index !== productIndex && String(item.name || "").trim().toLowerCase() === nextName.toLowerCase() && String(item.category || "") === String(product.category || ""));
   if (duplicate) { alert("同一类别已经有相同产品名称，不能修改。"); return; }
   if (!window.confirm(`确认修改产品名称？\n\n${oldName}\n→ ${nextName}\n\n只修改产品名称；进口编号、原成本、平均成本、最低售价及库存数量不会改变。`)) return;
@@ -17717,6 +17788,7 @@ function allocateProductRemainingFIFO(productId, productName, targetStock, adjus
 }
 
 function saveInventoryConsistencySnapshot(previousProducts, nextProducts, previousImports, nextImports, previousBatches, nextBatches) {
+  assertProductNameChangesV461(previousProducts, nextProducts);
   // V6.8: write the three related collections to localStorage first, then mark one sync snapshot.
   // This prevents the sync timer from observing a half-updated Products / Imports / Batches state.
   localStorage.setItem("importSystemProducts", JSON.stringify(nextProducts));
