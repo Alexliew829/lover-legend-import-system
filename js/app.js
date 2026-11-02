@@ -3320,7 +3320,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.2 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.3 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3423,7 +3423,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.2 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.3 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -9861,37 +9861,27 @@ function reverseBatchInventoryImpact(products, batchItems, remainingImports) {
   const aliasesV449 = getProductIdAliasesV449();
 
   (batchItems || []).forEach(record => {
-    const recordName = String(record.productName || "").trim().toLowerCase();
-    const recordCategory = String(record.category || "盆栽");
-    const recordProductIdV449 = canonicalizeProductIdV449(record.productId, aliasesV449);
-    const productIndex = products.findIndex(product => {
-      const sameProductId =
-        product.id && recordProductIdV449 &&
-        canonicalizeProductIdV449(product.id, aliasesV449) === recordProductIdV449;
-      const sameProductIdentity =
-        recordName &&
-        String(product.name || "").trim().toLowerCase() === recordName &&
-        String(product.category || "盆栽") === recordCategory;
-
-      return sameProductId || sameProductIdentity;
-    });
-
-    if (productIndex === -1) return;
+    const productIndex = findBatchDeleteProductIndexV463(products, record, aliasesV449);
+    if (productIndex === -1) {
+      throw new Error(`找不到产品主档，不能安全扣回库存：${String(record?.productName || record?.productId || "未命名产品")}`);
+    }
 
     const product = products[productIndex];
     const currentStock = Math.max(0, Number(product.stock) || 0);
     const currentAverage = Math.max(0, Number(product.averageCost) || 0);
-    const originalQuantity = Math.max(
-      0,
-      Number(record.originalQuantity ?? record.quantity ?? record.stockAdded) || 0
-    );
-    const remainingRaw = Number(record.remainingQuantity);
-    const remainingQuantity = Number.isFinite(remainingRaw)
-      ? Math.min(originalQuantity, Math.max(0, Math.floor(remainingRaw)))
-      : originalQuantity;
+    const quantitiesV463 = getBatchDeleteItemQuantitiesV463(record);
+    const remainingQuantity = quantitiesV463.remainingQuantity;
     const unitCost = Math.max(0, Number(record.unitCost) || 0);
 
-    const newStock = Math.max(0, currentStock - remainingQuantity);
+    // V46.3: never clamp a shortage to zero. A shortage means the target batch
+    // cannot be safely reversed and the whole delete must stop before any save.
+    if (currentStock + 0.000001 < remainingQuantity) {
+      throw new Error(
+        `库存不足，不能安全删除：${product.name || product.id} 当前 ${formatNumber(currentStock)}，需要扣回 ${formatNumber(remainingQuantity)}`
+      );
+    }
+
+    const newStock = currentStock - remainingQuantity;
     const currentTotalCost = currentStock * currentAverage;
     const newTotalCost = Math.max(
       0,
@@ -9901,6 +9891,9 @@ function reverseBatchInventoryImpact(products, batchItems, remainingImports) {
     products[productIndex] = {
       ...product,
       stock: newStock,
+      // Preserve the existing audited inventory value while removing only this
+      // target batch's remaining cost. This avoids erasing legitimate manual
+      // average-cost corrections on older stock.
       averageCost: newStock > 0 ? newTotalCost / newStock : 0,
       lastImport: recalculateProductLastImport(
         product.id,
@@ -9985,31 +9978,176 @@ function purgeDeletedProductMetadataV249(productIds) {
   return changed;
 }
 
-function getBatchDeleteExpectedStockV249(products, batchItems) {
-  const beforeById = new Map((products || []).map(product => [String(product?.id || ""), Math.max(0, Number(product?.stock) || 0)]));
-  const removeById = new Map();
-  (batchItems || []).forEach(record => {
-    const product = (products || []).find(item =>
-      (record?.productId && String(item?.id || "") === String(record.productId)) ||
-      (!record?.productId && String(item?.name || "").trim().toLowerCase() === String(record?.productName || "").trim().toLowerCase() &&
-       String(item?.category || "盆栽") === String(record?.category || "盆栽"))
+function normalizeBatchDeleteTokenV463(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function getBatchDeleteItemQuantitiesV463(record) {
+  const originalQuantity = getLockedBatchOriginalQuantity(record);
+  const rawRemaining = record?.remainingQuantity;
+  const hasExplicitRemaining =
+    rawRemaining !== undefined &&
+    rawRemaining !== null &&
+    String(rawRemaining).trim() !== "" &&
+    Number.isFinite(Number(rawRemaining));
+  const remainingQuantity = hasExplicitRemaining
+    ? Math.max(0, Math.floor(Number(rawRemaining)))
+    : originalQuantity;
+  return { originalQuantity, remainingQuantity };
+}
+
+function findBatchDeleteProductIndexV463(products, record, aliasesV449 = getProductIdAliasesV449()) {
+  const recordProductId = canonicalizeProductIdV449(record?.productId, aliasesV449);
+  const recordName = String(record?.productName || record?.name || "").trim().toLowerCase();
+  const recordCategory = normalizeProductCategoryNameV227(record?.category || "盆栽");
+  return (products || []).findIndex(product => {
+    const productId = canonicalizeProductIdV449(product?.id, aliasesV449);
+    if (recordProductId && productId && recordProductId === productId) return true;
+    return Boolean(
+      recordName &&
+      String(product?.name || "").trim().toLowerCase() === recordName &&
+      normalizeProductCategoryNameV227(product?.category || "盆栽") === recordCategory
     );
-    if (!product?.id) return;
-    const original = Math.max(0, Number(record?.originalQuantity ?? record?.quantity ?? record?.stockAdded) || 0);
-    const remainingRaw = Number(record?.remainingQuantity);
-    const remaining = Number.isFinite(remainingRaw) ? Math.min(original, Math.max(0, Math.floor(remainingRaw))) : original;
-    removeById.set(String(product.id), (removeById.get(String(product.id)) || 0) + remaining);
   });
+}
+
+function stockAdjustmentTargetsBatchV463(adjustment, batch, normalizedImportNumber) {
+  const targetBatchId = String(batch?.id || "").trim();
+  if (
+    normalizedImportNumber &&
+    normalizeBatchDeleteTokenV463(adjustment?.importNumber) === normalizedImportNumber
+  ) return true;
+  if (targetBatchId && String(adjustment?.batchId || "").trim() === targetBatchId) return true;
+  const links = Array.isArray(adjustment?.salesLinks) ? adjustment.salesLinks : [];
+  return links.some(link =>
+    (normalizedImportNumber && normalizeBatchDeleteTokenV463(link?.importNumber) === normalizedImportNumber) ||
+    (targetBatchId && String(link?.batchId || "").trim() === targetBatchId)
+  );
+}
+
+function getTargetBatchDeleteProtectionV463(batch, effectiveItems, products = getProducts()) {
+  const aliasesV449 = getProductIdAliasesV449();
+  const normalizedImportNumber = normalizeBatchDeleteTokenV463(batch?.importNumber);
+  const conflictsByProduct = new Map();
+  const removalByProduct = new Map();
+
+  const addConflict = (productId, productName, reason) => {
+    const key = String(productId || productName || "unknown");
+    const current = conflictsByProduct.get(key) || {
+      productId: String(productId || ""),
+      productName: String(productName || productId || "未命名产品"),
+      reasons: []
+    };
+    if (reason && !current.reasons.includes(reason)) current.reasons.push(reason);
+    conflictsByProduct.set(key, current);
+  };
+
+  for (const item of (Array.isArray(effectiveItems) ? effectiveItems : [])) {
+    const quantities = getBatchDeleteItemQuantitiesV463(item);
+    const productIndex = findBatchDeleteProductIndexV463(products, item, aliasesV449);
+    const fallbackId = canonicalizeProductIdV449(item?.productId, aliasesV449) || String(item?.productId || "");
+    const fallbackName = String(item?.productName || item?.name || fallbackId || "未命名产品");
+
+    if (quantities.remainingQuantity > quantities.originalQuantity) {
+      addConflict(
+        fallbackId,
+        fallbackName,
+        `批次数量异常：原进口 ${formatNumber(quantities.originalQuantity)}，当前剩余 ${formatNumber(quantities.remainingQuantity)}`
+      );
+    }
+
+    if (quantities.remainingQuantity < quantities.originalQuantity) {
+      addConflict(
+        fallbackId,
+        fallbackName,
+        `目标进口编号已使用 ${formatNumber(quantities.originalQuantity - quantities.remainingQuantity)} 棵（原进口 ${formatNumber(quantities.originalQuantity)}，当前剩余 ${formatNumber(quantities.remainingQuantity)}）`
+      );
+    }
+
+    if (productIndex === -1) {
+      addConflict(fallbackId, fallbackName, "找不到产品主档，无法安全扣回这批库存");
+      continue;
+    }
+
+    const product = products[productIndex];
+    const canonicalProductId = canonicalizeProductIdV449(product?.id, aliasesV449) || String(product?.id || "");
+    const currentRemoval = removalByProduct.get(canonicalProductId) || {
+      product,
+      quantity: 0
+    };
+    currentRemoval.quantity += quantities.remainingQuantity;
+    removalByProduct.set(canonicalProductId, currentRemoval);
+
+    const targetAdjustments = (typeof getProductStockAdjustments === "function"
+      ? getProductStockAdjustments(product)
+      : []
+    ).filter(adjustment => stockAdjustmentTargetsBatchV463(adjustment, batch, normalizedImportNumber));
+
+    if (targetAdjustments.length) {
+      const types = [...new Set(targetAdjustments.map(adjustment =>
+        String(adjustment?.adjustmentType || adjustment?.reason || "库存动作").trim() || "库存动作"
+      ))].slice(0, 4).join("、");
+      addConflict(
+        product?.id,
+        product?.name,
+        `目标进口编号已有 ${targetAdjustments.length} 笔库存动作${types ? `（${types}）` : ""}`
+      );
+    }
+  }
+
+  for (const { product, quantity } of removalByProduct.values()) {
+    const currentStock = Math.max(0, Number(product?.stock) || 0);
+    if (currentStock + 0.000001 < quantity) {
+      addConflict(
+        product?.id,
+        product?.name,
+        `当前库存 ${formatNumber(currentStock)}，不足以扣回目标批次 ${formatNumber(quantity)}`
+      );
+    }
+  }
+
+  return {
+    conflicts: [...conflictsByProduct.values()],
+    removalByProduct
+  };
+}
+
+function getBatchDeleteExpectedStockV463(products, batchItems) {
+  const aliasesV449 = getProductIdAliasesV449();
+  const beforeById = new Map();
+  const removeById = new Map();
+
+  (batchItems || []).forEach(record => {
+    const productIndex = findBatchDeleteProductIndexV463(products, record, aliasesV449);
+    if (productIndex === -1) {
+      throw new Error(`找不到产品主档，不能安全删除：${String(record?.productName || record?.productId || "未命名产品")}`);
+    }
+    const product = products[productIndex];
+    const id = String(product?.id || "");
+    const currentStock = Math.max(0, Number(product?.stock) || 0);
+    const remaining = getBatchDeleteItemQuantitiesV463(record).remainingQuantity;
+    beforeById.set(id, currentStock);
+    removeById.set(id, (removeById.get(id) || 0) + remaining);
+  });
+
   const expectedById = new Map();
-  beforeById.forEach((before, id) => expectedById.set(id, Math.max(0, before - (removeById.get(id) || 0))));
+  for (const [id, remove] of removeById.entries()) {
+    const before = beforeById.get(id) || 0;
+    if (before + 0.000001 < remove) {
+      throw new Error(`库存不足，不能安全删除：${id} 当前 ${formatNumber(before)}，需要扣回 ${formatNumber(remove)}`);
+    }
+    expectedById.set(id, before - remove);
+  }
   return { beforeById, removeById, expectedById };
 }
 
-function assertBatchDeleteStockSafetyV249(products, expected) {
+function assertBatchDeleteStockSafetyV463(products, expected) {
   const afterById = new Map((products || []).map(product => [String(product?.id || ""), Math.max(0, Number(product?.stock) || 0)]));
   for (const [id, expectedStock] of expected.expectedById.entries()) {
     const actual = afterById.get(id);
-    if (actual === undefined) continue;
+    if (actual === undefined) {
+      throw new Error(`删除库存安全检查失败：找不到产品 ${id}`);
+    }
     if (Math.abs(actual - expectedStock) > 0.000001) {
       throw new Error(`删除库存安全检查失败：${id} 应为 ${formatNumber(expectedStock)}，实际 ${formatNumber(actual)}`);
     }
@@ -10116,24 +10254,6 @@ function copyBatchAsNewDraftV221(importNumber) {
   return true;
 }
 
-function getBatchSalesProtectionV345(effectiveItems) {
-  const products = getProducts();
-  const protectedRows = [];
-  for (const item of (Array.isArray(effectiveItems) ? effectiveItems : [])) {
-    const pid = String(item?.productId || "").trim();
-    const pname = String(item?.productName || item?.name || "").trim().toLowerCase();
-    const product = products.find(p => (pid && String(p?.id || "").trim() === pid) || (!pid && pname && String(p?.name || "").trim().toLowerCase() === pname));
-    if (!product) continue;
-    const adjustments = typeof getProductStockAdjustments === "function" ? getProductStockAdjustments(product) : [];
-    const hasSales = (adjustments || []).some(adj => {
-      const links = Array.isArray(adj?.salesLinks) ? adj.salesLinks : [];
-      return links.length > 0 || String(adj?.adjustmentType || "").toLowerCase() === "sale";
-    });
-    if (hasSales) protectedRows.push(product);
-  }
-  return protectedRows;
-}
-
 async function deleteBatchByNumber(importNumber) {
 
   const batches = getBatches();
@@ -10157,11 +10277,33 @@ async function deleteBatchByNumber(importNumber) {
   );
   const effectiveItems =
     batchItems.length ? batchItems : (batch.items || []);
+  const products = getProducts();
 
-  const protectedSalesV345 = getBatchSalesProtectionV345(effectiveItems);
-  if (protectedSalesV345.length) {
-    const namesV345 = protectedSalesV345.slice(0, 5).map(p => p?.name || p?.id || "产品").join("、");
-    alert(`不能删除进口编号 ${batch.importNumber}。\n\n此进口编号内已有产品产生买卖记录，因此整张进口记录必须保留。\n\n已有买卖记录：${namesV345}${protectedSalesV345.length > 5 ? "…" : ""}`);
+  // V46.3: protect only the target import number. Sales/repairs belonging to an
+  // older batch of the same product must not block deletion of a brand-new,
+  // untouched import entered by mistake.
+  const targetProtectionV463 = getTargetBatchDeleteProtectionV463(
+    batch,
+    effectiveItems,
+    products
+  );
+  if (targetProtectionV463.conflicts.length) {
+    const detailsV463 = targetProtectionV463.conflicts.slice(0, 8).map(row =>
+      `• ${row.productName || row.productId || "产品"}：${row.reasons.join("；")}`
+    ).join("\n");
+    alert(
+      `不能删除进口编号 ${batch.importNumber}。\n\n` +
+      `只有目标进口编号本身尚未被使用时才允许删除。产品在其他旧进口编号的销售历史不会阻止本次删除。\n\n` +
+      `${detailsV463}${targetProtectionV463.conflicts.length > 8 ? "\n• 还有其他异常…" : ""}`
+    );
+    return;
+  }
+
+  let deleteStockSafetyV463;
+  try {
+    deleteStockSafetyV463 = getBatchDeleteExpectedStockV463(products, effectiveItems);
+  } catch (safetyError) {
+    alert(`不能删除进口编号 ${batch.importNumber}。\n\n${safetyError?.message || safetyError}`);
     return;
   }
 
@@ -10173,7 +10315,7 @@ async function deleteBatchByNumber(importNumber) {
     `产品种类：${Number(batch.itemCount) || effectiveItems.length}\n` +
     `总数量：${Number(batch.totalQuantity) || 0}\n` +
     `整批总成本：${formatMoney(Number(batch.grandTotal) || 0, "RM ")}\n\n` +
-    `删除会完整清除这张进口记录，并按现有删除逻辑扣回该批库存影响、重算相关平均成本。\n` +
+    `删除会完整清除这张进口记录，只扣回这张批次尚未使用的库存，并重算相关平均成本。其他旧进口、旧销售与库存历史全部保留。\n` +
     `删除后不能撤销；如需保留副本，请先取消并使用旁边的「复制」按钮。\n\n` +
     `按【确定】＝永久删除\n按【取消】＝不做任何更改`
   );
@@ -10201,16 +10343,13 @@ async function deleteBatchByNumber(importNumber) {
       String(record?.importNumber || "").trim().toLowerCase() === normalizedImportNumber;
     return !sameBatchId && !sameImportNumber;
   });
-  const products = getProducts();
-  const deleteStockSafetyV249 = getBatchDeleteExpectedStockV249(products, effectiveItems);
-
-  reverseBatchInventoryImpact(
-    products,
-    effectiveItems,
-    remainingImports
-  );
   try {
-    assertBatchDeleteStockSafetyV249(products, deleteStockSafetyV249);
+    reverseBatchInventoryImpact(
+      products,
+      effectiveItems,
+      remainingImports
+    );
+    assertBatchDeleteStockSafetyV463(products, deleteStockSafetyV463);
   } catch (safetyError) {
     if (deleteButtonV251) { deleteButtonV251.disabled = false; deleteButtonV251.textContent = deleteButtonV251.dataset.originalTextV251 || "删除"; }
     if (deleteStatusV251) deleteStatusV251.textContent = `删除已停止：${safetyError?.message || safetyError}`;
