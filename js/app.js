@@ -3320,7 +3320,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.1 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.2 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3423,7 +3423,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.1 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.2 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -4789,7 +4789,98 @@ function getAverageCostLabelV205(product, originIndex = null) {
   return isVndProductV205(product, originIndex) ? "平均成本（VND不含盆）" : "平均成本";
 }
 
-// V46.1: a pending Current Minimum Price write is one atomic display state:
+
+// V46.2: read-only suggested shop/Fair prices for Product Query & Modify.
+// This is deliberately isolated from Current / Initial / Promotion Minimum Price.
+// Non-boxwood: VND uses Average Cost + configured VND pot; other currencies use Average Cost.
+// Boxwood (BX): Average Cost + the current chargeable freight/rack tier, with Current Minimum Price protection.
+const SUGGESTED_CHANNEL_PRICE_RULES_V462 = Object.freeze({
+  retailMultiplier: 2,
+  pricingFactor: 1.12,
+  fairNetFactor: 0.90
+});
+
+function roundSuggestedPriceToEnding80V462(value) {
+  const amount = Math.max(0, Number(value) || 0);
+  if (!(amount > 0)) return 0;
+  return Math.floor((amount + 1e-9) / 100) * 100 + 80;
+}
+
+function roundSuggestedPriceUpToEnding80V462(value) {
+  const amount = Math.max(0, Number(value) || 0);
+  if (!(amount > 0)) return 0;
+  const lower = roundSuggestedPriceToEnding80V462(amount);
+  return lower + 1e-9 >= amount ? lower : lower + 100;
+}
+
+function isBoxwoodProductV462(product) {
+  const id = String(product?.id || "").trim().toUpperCase();
+  if (/^BX\d{4}$/.test(id)) return true;
+  const resolved = typeof resolveConfiguredProductPrefixRuleV455 === "function"
+    ? resolveConfiguredProductPrefixRuleV455(product?.name || "")
+    : null;
+  if (String(resolved?.prefix || "").trim().toUpperCase() === "BX") return true;
+  const searchable = `${String(product?.name || "")} ${String(productEnglishNameV262(product) || "")}`.toLowerCase();
+  return searchable.includes("黄杨") || searchable.includes("buxus") || searchable.includes("boxwood");
+}
+
+function getOrdinaryCurrentMinimumPriceV462(product, rules = null, originIndex = null) {
+  const configuredRules = rules || getMinimumPriceRulesV160();
+  const index = originIndex || getMinimumPriceOriginIndexV160();
+  const pending = getPendingMinimumPriceStateV455(product?.id);
+  if (pending) return Math.max(0, Number(pending.minimumPrice) || 0);
+  if (isMinimumPriceManualV160(product)) return Math.max(0, Number(product?.minimumPrice) || 0);
+  return getAutomaticMinimumPriceV160(product?.averageCost, configuredRules, product, index);
+}
+
+function getSuggestedRetailFairPricesV462(product, rules = null, originIndex = null) {
+  const configuredRules = rules || getMinimumPriceRulesV160();
+  const index = originIndex || getMinimumPriceOriginIndexV160();
+  const averageCost = Math.max(0, Number(product?.averageCost) || 0);
+  const boxwood = isBoxwoodProductV462(product);
+  const currentMinimumPrice = getOrdinaryCurrentMinimumPriceV462(product, configuredRules, index);
+
+  let potCost = 0;
+  let freight = 0;
+  let pricingBaseCost = averageCost;
+
+  if (boxwood) {
+    freight = getChargeableMinimumFreightTierV439(currentMinimumPrice, configuredRules).amount;
+    pricingBaseCost += freight;
+  } else if (isVndProductV205(product, index)) {
+    potCost = getVndPotCostV160(product, configuredRules, index);
+    pricingBaseCost += potCost;
+  }
+
+  const calculatedRetail = roundSuggestedPriceToEnding80V462(
+    pricingBaseCost * SUGGESTED_CHANNEL_PRICE_RULES_V462.retailMultiplier *
+      SUGGESTED_CHANNEL_PRICE_RULES_V462.pricingFactor
+  );
+  const protectedRetail = boxwood
+    ? roundSuggestedPriceUpToEnding80V462(currentMinimumPrice)
+    : 0;
+  const retailPrice = boxwood
+    ? Math.max(calculatedRetail, protectedRetail)
+    : calculatedRetail;
+  const fairPrice = roundSuggestedPriceToEnding80V462(
+    retailPrice / SUGGESTED_CHANNEL_PRICE_RULES_V462.fairNetFactor
+  );
+
+  return {
+    pricingBaseCost,
+    averageCost,
+    potCost,
+    freight,
+    currentMinimumPrice,
+    calculatedRetail,
+    protectedRetail,
+    retailPrice,
+    fairPrice,
+    boxwood
+  };
+}
+
+// V46.2: a pending Current Minimum Price write is one atomic display state:
 // Current price + manual/automatic mode + the exact active-promotion override.
 // This keeps the user's input visible through credential refreshes/conflict Pulls.
 function getPendingMinimumPriceStateV455(productId) {
@@ -6719,7 +6810,7 @@ function removeWhiteWaxTestPrefixV182() {
   if(filtered.length!==additional.length){saveJSON("importSystemSettings",{...settings,productPrefixAdditionalRules:filtered});if(typeof markCloudSettingsSaved==="function")markCloudSettingsSaved()}
 }
 
-// V46.1: one configured tree-rule resolver feeds product IDs, automatic English
+// V46.2: one configured tree-rule resolver feeds product IDs, automatic English
 // names and search. It includes built-in, edited and user-added prefix rules.
 let configuredProductPrefixRuleCacheV455 = { settings:null, rows:[] };
 function getConfiguredProductPrefixRuleRowsV455() {
@@ -16895,6 +16986,8 @@ function renderBatchProductStockResults() {
     sortModeV421,
     preparedRowsV422
   );
+  const suggestedPriceRulesV462 = getMinimumPriceRulesV160();
+  const suggestedPriceOriginIndexV462 = getMinimumPriceOriginIndexV160();
   updateBatchProductQuerySummaryV422(products);
 
   if (!keyword && sortModeV421 === "latest") {
@@ -16933,6 +17026,11 @@ function renderBatchProductStockResults() {
     // This remains display-only: no pricing, promotion, inventory, FIFO or sync logic is changed.
     const profitInfoV387 = getProductMinimumProfitV205(product);
     const profitToneV387 = profitInfoV387.profit < 0 ? "loss" : profitInfoV387.profit > 0 ? "gain" : "neutral";
+    const suggestedPricesV462 = getSuggestedRetailFairPricesV462(
+      product,
+      suggestedPriceRulesV462,
+      suggestedPriceOriginIndexV462
+    );
 
     return `
     <div class="product-stock-result-row product-stock-card-v256">
@@ -16964,6 +17062,8 @@ function renderBatchProductStockResults() {
           <button class="product-stock-cost-btn product-stock-metric-v256 product-stock-value-black-v421" type="button" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="averageCost" aria-label="长按修改平均成本" title="长按修改平均成本；VND 为不含盆成本"><span>${getAverageCostLabelV205(product)}</span><strong>${formatMoney(Number(product.averageCost) || 0, "RM ")}</strong></button>
           <div class="product-stock-profit-metric-v387 product-stock-metric-v256 inventory-profit-value-v207 ${profitToneV387}"><span>利润</span><strong>${formatSignedProfitMoneyV387(profitInfoV387.profit)}</strong></div>
           <div class="product-stock-profit-metric-v387 product-stock-metric-v256 inventory-profit-value-v207 ${profitToneV387}"><span>利润率</span><strong>${escapeHTML(formatProfitTargetV303(profitInfoV387.profitRate))}</strong></div>
+          <div class="product-stock-channel-price-v462 product-stock-metric-v256"><span>门市售价</span><strong>${formatMoney(suggestedPricesV462.retailPrice, "RM ")}</strong></div>
+          <div class="product-stock-channel-price-v462 product-stock-metric-v256"><span>Fair 售价</span><strong>${formatMoney(suggestedPricesV462.fairPrice, "RM ")}</strong></div>
         </div>
       </div>
 

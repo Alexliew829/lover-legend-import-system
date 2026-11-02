@@ -6625,6 +6625,11 @@ body.system-media-preview-open-v305{overflow:hidden}
 .product-stock-profit-metric-v387.inventory-profit-value-v207.loss > strong{color:#c62828!important}
 .product-stock-profit-metric-v387.inventory-profit-value-v207.neutral > strong{color:#111!important}
 
+/* V46.2 — read-only shop/Fair suggestions below current profit metrics. */
+.product-stock-channel-price-v462{background:#fff8f5!important;color:#111827!important}
+.product-stock-channel-price-v462>span{color:#5f514b!important}
+.product-stock-channel-price-v462>strong{color:#c62828!important;-webkit-text-fill-color:#c62828!important}
+
 
 /* V39.9 — Promotion scope switch reuses the proven exclusion search/list UI. */
 .promotion-scope-switch-v388{display:flex;align-items:center;gap:8px;min-width:0;}
