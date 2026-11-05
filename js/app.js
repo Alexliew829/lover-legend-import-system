@@ -1208,9 +1208,7 @@ async function executeSalesInventoryDeductionV81(item) {
   renderDashboard();
   renderInventoryManagementList();
   renderBatchList();
-  if (document.getElementById("batchProductStockSearch")?.value?.trim()) {
-    renderBatchProductStockResults();
-  }
+  refreshInventorySummaryViewsV464({ renderVisibleResults: true, renderMaster: true });
 
   return {
     ok: true,
@@ -1524,9 +1522,7 @@ async function executeSalesInventoryDeductionV104NoPrompt(item) {
   renderDashboard();
   renderInventoryManagementList();
   renderBatchList();
-  if (document.getElementById("batchProductStockSearch")?.value?.trim()) {
-    renderBatchProductStockResults();
-  }
+  refreshInventorySummaryViewsV464({ renderVisibleResults: true, renderMaster: true });
 
   return {
     ok: true,
@@ -2960,7 +2956,9 @@ function setupNavigation() {
       }
 
       if (target === "supplierPage") {
-        schedulePageRenderV442("supplierPage", () => renderProductList());
+        schedulePageRenderV442("supplierPage", () => {
+          refreshInventorySummaryViewsV464({ renderVisibleResults: true, renderMaster: true });
+        });
       }
 
       if (target === "settingsPage") {
@@ -3320,7 +3318,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.3 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.4 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3423,7 +3421,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.3 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.4 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -7048,6 +7046,7 @@ function saveProduct() {
   renderProductList();
   renderInventoryManagementList();
   renderDashboard();
+  refreshInventorySummaryViewsV464({ renderVisibleResults: true, renderMaster: true });
   resetProductForm(false);
 
   setTimeout(() => {
@@ -7709,6 +7708,7 @@ function deleteProduct(id) {
   saveProducts(products.filter(item => item.id !== id));
   renderProductList();
   renderDashboard();
+  refreshInventorySummaryViewsV464({ renderVisibleResults: true, renderMaster: true });
   resetProductForm();
 }
 
@@ -9873,7 +9873,7 @@ function reverseBatchInventoryImpact(products, batchItems, remainingImports) {
     const remainingQuantity = quantitiesV463.remainingQuantity;
     const unitCost = Math.max(0, Number(record.unitCost) || 0);
 
-    // V46.3: never clamp a shortage to zero. A shortage means the target batch
+    // V46.4: never clamp a shortage to zero. A shortage means the target batch
     // cannot be safely reversed and the whole delete must stop before any save.
     if (currentStock + 0.000001 < remainingQuantity) {
       throw new Error(
@@ -10279,7 +10279,7 @@ async function deleteBatchByNumber(importNumber) {
     batchItems.length ? batchItems : (batch.items || []);
   const products = getProducts();
 
-  // V46.3: protect only the target import number. Sales/repairs belonging to an
+  // V46.4: protect only the target import number. Sales/repairs belonging to an
   // older batch of the same product must not block deletion of a brand-new,
   // untouched import entered by mistake.
   const targetProtectionV463 = getTargetBatchDeleteProtectionV463(
@@ -10445,6 +10445,7 @@ async function deleteBatchByNumber(importNumber) {
     renderBatchList();
     renderInventoryManagementList();
     renderDashboard();
+    refreshInventorySummaryViewsV464({ renderVisibleResults: true, renderMaster: true });
     return;
   }
 
@@ -10459,6 +10460,7 @@ async function deleteBatchByNumber(importNumber) {
   clearRecentImportDeleteViewV234(batch.importNumber);
   renderInventoryManagementList();
   renderDashboard();
+  refreshInventorySummaryViewsV464({ renderVisibleResults: true, renderMaster: true });
   renderProductPrefixRulesV181();
 
   const successStatusV234 = document.getElementById("batchStatusText");
@@ -16197,6 +16199,7 @@ function saveBatchImport() {
     renderBatchList();
     renderInventoryManagementList();
     renderDashboard();
+    refreshInventorySummaryViewsV464({ renderVisibleResults: true, renderMaster: true });
     renderImportHistory();
 
     clearBatchAfterSuccessfulAction();
@@ -16322,6 +16325,7 @@ function saveBatchImport() {
   renderBatchList();
   renderInventoryManagementList();
   renderDashboard();
+  refreshInventorySummaryViewsV464({ renderVisibleResults: true, renderMaster: true });
   consumeActiveImportDraftV242();
   clearBatchAfterSuccessfulAction();
   const formalStateLabelV249 = document.getElementById("activeDraftLabelV242");
@@ -17102,6 +17106,51 @@ function updateBatchProductQuerySummaryV422(products) {
   if (valueField) valueField.textContent = formatMoney(totalValue, "RM ");
   if (countField) countField.textContent = `${rows.length} 项`;
 }
+
+// V46.4: one lightweight inventory-summary refresh path for every page.
+// It always refreshes the Product Management totals, but redraws product cards
+// only when that page is visible and a filtered result list is actually open.
+// The Inventory Master table is also redrawn only when visible and expanded.
+function refreshInventorySummaryViewsV464(options = {}) {
+  const supplierPage = document.getElementById("supplierPage");
+  const supplierVisible = supplierPage?.classList.contains("active") === true;
+  const searchField = document.getElementById("batchProductStockSearch");
+  const sortField = document.getElementById("batchProductStockSortV421");
+  const resultArea = document.getElementById("batchProductStockResults");
+  const keyword = String(searchField?.value || "").trim().toLowerCase();
+  const sortMode = String(sortField?.value || "latest");
+  const renderVisibleResults = options?.renderVisibleResults !== false;
+  const renderMaster = options?.renderMaster !== false;
+
+  const shouldRenderProductCards = Boolean(
+    supplierVisible &&
+    renderVisibleResults &&
+    (
+      keyword ||
+      sortMode !== "latest" ||
+      (resultArea && resultArea.hidden === false && resultArea.childElementCount > 0)
+    )
+  );
+
+  if (shouldRenderProductCards && typeof renderBatchProductStockResults === "function") {
+    renderBatchProductStockResults();
+  } else {
+    const preparedRows = getInventoryPreparedRowsV321();
+    const rows = filterSortInventoryProductsV324(keyword, sortMode, preparedRows);
+    updateBatchProductQuerySummaryV422(rows);
+  }
+
+  const masterPanel = document.getElementById("inventoryMasterPanelV264");
+  if (
+    supplierVisible &&
+    renderMaster &&
+    masterPanel?.open &&
+    typeof renderInventoryMasterV261 === "function"
+  ) {
+    renderInventoryMasterV261();
+  }
+}
+window.refreshInventorySummaryViewsV464 = refreshInventorySummaryViewsV464;
 
 function renderBatchProductStockResults() {
   const input = document.getElementById("batchProductStockSearch");
