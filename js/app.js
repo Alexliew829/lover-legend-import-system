@@ -569,7 +569,11 @@ function sanitizeSalesManualChangesV121(item, processed) {
   return kept;
 }
 
+let salesInventoryAckPendingV465 = [];
+let salesInventoryAckBusyV465 = false;
+
 function recomputeSalesInventoryPendingV77() {
+  salesInventoryAckPendingV465 = [];
   const processed = getProcessedSalesInventoryQuantitiesV77();
   const pending = [];
   salesInventoryFeedV77.forEach(item => {
@@ -595,7 +599,7 @@ function recomputeSalesInventoryPendingV77() {
     if(!remainingQty){
       const locallyCommitted=salesItemAlreadyProcessedLocallyV104({...item,key:baseKey},product);
       if(!locallyCommitted)return;
-      pending.push({...item,key:baseKey,importProductId:String(product.id||""),importProductName:String(product.name||""),processedQty,remainingQty:0,legacyAckOnlyV105:true});
+      salesInventoryAckPendingV465.push({...item,key:baseKey,importProductId:String(product.id||""),importProductName:String(product.name||""),processedQty,remainingQty:0,legacyAckOnlyV105:true});
       return;
     }
     pending.push({...item,key:baseKey,importProductId:String(product.id||""),importProductName:String(product.name||""),processedQty,remainingQty});
@@ -665,6 +669,59 @@ function recomputeSalesInventoryPendingV77() {
   return salesInventoryPendingV77;
 }
 
+// ACK-only work never enters the operator deduction queue. Cloud History must
+// prove the exact net quantity before an automatic completion acknowledgement.
+function refreshSalesInventoryModalV465() {
+  if (salesInventoryOperationActiveV115) return;
+  if (!document.getElementById("salesInventoryStartupOverlayV81")) return;
+  salesStartupSessionItemsV82 = salesInventoryPendingV77.map(item => ({...item, v82Processed:false}));
+  if (!salesStartupSessionItemsV82.length) closeStartupSalesInventoryReminderV81(true);
+  else renderStartupSalesInventoryReminderV81();
+}
+
+async function retryCompletedSalesAcksV465() {
+  if (salesInventoryAckBusyV465 || salesInventoryOperationActiveV115 || !navigator.onLine || !salesInventoryAckPendingV465.length) return;
+  salesInventoryAckBusyV465 = true;
+  try {
+    const candidates = salesInventoryAckPendingV465.slice(0, 100);
+    const proof = await callGoogleApi({action:"verifySalesInventoryAckV465", clientVersion:APP_VERSION,
+      schemaVersion:CLOUD_SCHEMA_VERSION, items:candidates.map(item => ({key:item.key,
+        productId:item.importProductId, quantity:item.quantity}))});
+    if (!proof?.ok || !Array.isArray(proof.keys)) throw new Error("无法核对云端库存处理记录");
+    const verified = new Set(proof.keys);
+    if (!verified.size || salesInventoryOperationActiveV115) return;
+    let generation = await getSalesRestoreGenerationV116(true);
+    for (const item of candidates) {
+      if (salesInventoryOperationActiveV115 || !navigator.onLine) break;
+      if (!verified.has(item.key)) continue;
+      // Recheck the live Feed: a newer quantity/product must not inherit this ACK.
+      const current = salesInventoryFeedV77.find(row => getSalesInventoryItemKeyV77(row) === item.key);
+      if (!current || Number(current.quantity) !== Number(item.quantity) ||
+          String(current.importSyncStatus||"").toUpperCase() === "INVENTORY_CONFIRMED") continue;
+      try {
+        try { await sendSalesInventoryAckV116(item, generation, false); }
+        catch (error) {
+          if (!error?.salesResponse?.staleRestore) throw error;
+          generation = await getSalesRestoreGenerationV116(true);
+          await sendSalesInventoryAckV116(item, generation, false);
+        }
+        if (salesInventoryFeedV77.includes(current)) current.importSyncStatus = "INVENTORY_CONFIRMED";
+      } catch (error) {
+        // No inventory write or local success flag on failure. The existing Feed
+        // refresh/resume cadence retries; reload reconstructs this queue from History.
+        console.warn("V46.5 Sales completion acknowledgement deferred", error);
+        break;
+      }
+    }
+  } catch (error) {
+    console.warn("V46.5 Sales completion verification deferred", error);
+  } finally {
+    salesInventoryAckBusyV465 = false;
+    recomputeSalesInventoryPendingV77();
+    refreshSalesInventoryModalV465();
+  }
+}
+
 function callSalesInventoryFeedV77(attempt = 0) {
   return new Promise((resolve, reject) => {
     const callbackName = `loverLegendSalesFeedV77_${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -699,6 +756,8 @@ async function refreshSalesInventoryFeedV77({ silent = true } = {}) {
     salesInventoryFeedFailureCountV226 = 0;
     recomputeSalesInventoryPendingV77();
     renderSalesInventoryReminderV77();
+    refreshSalesInventoryModalV465();
+    void retryCompletedSalesAcksV465();
     // V43.6: the 60-second Sales Feed refresh must surface newly arrived
     // pending inventory work without requiring a page reload. Keep the existing
     // feed cadence; only open the existing modal when pending rows exist and no
@@ -3318,7 +3377,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.4 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.5 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3421,7 +3480,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.4 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.5 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -9873,7 +9932,7 @@ function reverseBatchInventoryImpact(products, batchItems, remainingImports) {
     const remainingQuantity = quantitiesV463.remainingQuantity;
     const unitCost = Math.max(0, Number(record.unitCost) || 0);
 
-    // V46.4: never clamp a shortage to zero. A shortage means the target batch
+    // V46.5: never clamp a shortage to zero. A shortage means the target batch
     // cannot be safely reversed and the whole delete must stop before any save.
     if (currentStock + 0.000001 < remainingQuantity) {
       throw new Error(
@@ -10279,7 +10338,7 @@ async function deleteBatchByNumber(importNumber) {
     batchItems.length ? batchItems : (batch.items || []);
   const products = getProducts();
 
-  // V46.4: protect only the target import number. Sales/repairs belonging to an
+  // V46.5: protect only the target import number. Sales/repairs belonging to an
   // older batch of the same product must not block deletion of a brand-new,
   // untouched import entered by mistake.
   const targetProtectionV463 = getTargetBatchDeleteProtectionV463(
@@ -17107,7 +17166,7 @@ function updateBatchProductQuerySummaryV422(products) {
   if (countField) countField.textContent = `${rows.length} 项`;
 }
 
-// V46.4: one lightweight inventory-summary refresh path for every page.
+// V46.5: one lightweight inventory-summary refresh path for every page.
 // It always refreshes the Product Management totals, but redraws product cards
 // only when that page is visible and a filtered result list is actually open.
 // The Inventory Master table is also redrawn only when visible and expanded.
