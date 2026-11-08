@@ -696,12 +696,12 @@ async function retryCompletedSalesAcksV465() {
       } catch (error) {
         // No inventory write or local success flag on failure. The existing Feed
         // refresh/resume cadence retries; reload reconstructs this queue from History.
-        console.warn("V46.6 Sales completion acknowledgement deferred", error);
+        console.warn("V46.7 Sales completion acknowledgement deferred", error);
         break;
       }
     }
   } catch (error) {
-    console.warn("V46.6 Sales completion verification deferred", error);
+    console.warn("V46.7 Sales completion verification deferred", error);
   } finally {
     salesInventoryAckBusyV465 = false;
     recomputeSalesInventoryPendingV77();
@@ -3364,7 +3364,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.6 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.7 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3467,7 +3467,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.6 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.7 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -8390,12 +8390,8 @@ function showImportDraftReminderGuideV246(overdue) {
 }
 
 
-function cleanupKnownLegacyDraftResidueV322() {
-  // V46.6: user drafts are never residue; removal requires explicit action.
-}
 
 function checkImportDraftRemindersV243() {
-  cleanupKnownLegacyDraftResidueV322();
   const drafts = getImportDraftsV242(); if (!drafts.length) return;
   const now = Date.now(), todayKey = localDateKeyV243();
   const overdue = drafts.filter(draft => {
@@ -8720,8 +8716,6 @@ function renderImportDraftsV242() {
   updateImportDraftSaveButtonV323();
   const saveV466 = document.getElementById("saveBatchBtn");
   if (saveV466 && active && !importDraftSaveBusyV466 && !saveV466.disabled) saveV466.textContent = cloudPendingV466 ? "重试保存草稿" : "更新当前草稿";
-  const recoveryButtonV466 = document.getElementById("recoverKnownImportDraftV466");
-  if (recoveryButtonV466) recoveryButtonV466.hidden = Boolean(loadJSON("importSystemSettings", {}).importDraftRecoveryReceiptsV466?.["australian-pine-20261103-4475"]) || drafts.some(d => d.recoveredFromV466 === "australian-pine-20261103-4475");
 }
 window.renderImportDraftsV242 = renderImportDraftsV242;
 
@@ -8793,7 +8787,7 @@ function deleteCurrentImportDraftV247() {
 }
 
 function setupImportDraftV247() {
-  setupDraftRecoveryV466();
+  setupImportDraftHistoryV467();
   document.getElementById("toggleImportDraftV457")?.addEventListener("click", closeImportDraftEditorV459);
   document.getElementById("openImportDraftsTopV457")?.addEventListener("click", openImportDraftPickerV248);
   document.getElementById("confirmFormalImportBtnV247")?.addEventListener("click", confirmFormalImportV247);
@@ -9956,7 +9950,7 @@ function reverseBatchInventoryImpact(products, batchItems, remainingImports) {
     const remainingQuantity = quantitiesV463.remainingQuantity;
     const unitCost = Math.max(0, Number(record.unitCost) || 0);
 
-    // V46.6: never clamp a shortage to zero. A shortage means the target batch
+    // V46.7: never clamp a shortage to zero. A shortage means the target batch
     // cannot be safely reversed and the whole delete must stop before any save.
     if (currentStock + 0.000001 < remainingQuantity) {
       throw new Error(
@@ -10362,7 +10356,7 @@ async function deleteBatchByNumber(importNumber) {
     batchItems.length ? batchItems : (batch.items || []);
   const products = getProducts();
 
-  // V46.6: protect only the target import number. Sales/repairs belonging to an
+  // V46.7: protect only the target import number. Sales/repairs belonging to an
   // older batch of the same product must not block deletion of a brand-new,
   // untouched import entered by mistake.
   const targetProtectionV463 = getTargetBatchDeleteProtectionV463(
@@ -17190,7 +17184,7 @@ function updateBatchProductQuerySummaryV422(products) {
   if (countField) countField.textContent = `${rows.length} 项`;
 }
 
-// V46.6: one lightweight inventory-summary refresh path for every page.
+// V46.7: one lightweight inventory-summary refresh path for every page.
 // It always refreshes the Product Management totals, but redraws product cards
 // only when that page is visible and a filtered result list is actually open.
 // The Inventory Master table is also redrawn only when visible and expanded.
@@ -21558,7 +21552,7 @@ function setDataOperationFinal(type, success, titleText, detail) {
 }
 
 function setDataToolButtonsBusy(busy) {
-  ["backupDataBtn", "restoreDataBtn"].forEach(id => {
+  ["backupDataBtn", "restoreDataBtn", "openImportDraftHistoryV466"].forEach(id => {
     const button = document.getElementById(id);
     if (button) button.disabled = Boolean(busy);
   });
@@ -22152,7 +22146,7 @@ async function openImportDraftHistoryV466() {
     const unique = new Map();
     rows.forEach(row => { if(row?.draft?.id) unique.set(JSON.stringify(row.draft),row); });
     const history = [...unique.values()].sort((a,b)=>String(b.at).localeCompare(String(a.at)));
-    if (!history.length) { alert("目前没有可恢复副本。V46.6 开始记录历史；本机保留最近50个副本，云端窗口显示最近100个版本。"); return; }
+    if (!history.length) { alert("目前没有可恢复副本。V46.7 开始记录历史；本机保留最近50个副本，云端窗口显示最近100个版本。"); return; }
     document.getElementById("importDraftHistoryPanelV466")?.remove();
     const panel = document.createElement("section");
     panel.id = "importDraftHistoryPanelV466";
@@ -22174,12 +22168,6 @@ async function openImportDraftHistoryV466() {
     });
   } catch (error) { alert("读取恢复记录失败：" + String(error.message || error)); }
 }
-function setupDraftRecoveryV466() {
-  document.getElementById("recoverKnownImportDraftV466")?.addEventListener("click", async () => {
-    if (!confirm("恢复澳洲杉及大厚黄杨：5项、107棵，海外运费RM4,475，单号XX-A355 / XX-B356？现有草稿保留，不增加库存。")) return;
-    await restoreImportDraftCopyV466(RECOVERED_IMPORT_DRAFT_V466, "australian-pine-20261103-4475");
-  });
+function setupImportDraftHistoryV467() {
   document.getElementById("openImportDraftHistoryV466")?.addEventListener("click", openImportDraftHistoryV466);
 }
-
-const RECOVERED_IMPORT_DRAFT_V466 = Object.freeze({"id": "DRF1792735116249", "status": "draft", "createdAt": "2026-11-03T07:40:53.931Z", "updatedAt": "2026-11-03T07:40:53.931Z", "lastReminderDateV243": "", "lastReminderAtV460": "", "rows": [{"name": "顺祥澳洲杉60", "productId": "", "category": "盆栽", "quantity": 20, "unitPrice": 59.8, "autoOriginalCostV249": "0", "autoOriginalCostSourceValueV249": "", "autoOriginalCostSourceCurrencyV249": "", "priceManuallyEditedV249": "1", "recognitionNewV265": "", "englishNameV262": ""}, {"name": "顺祥澳洲杉98", "productId": "", "category": "盆栽", "quantity": 20, "unitPrice": 98, "autoOriginalCostV249": "0", "autoOriginalCostSourceValueV249": "", "autoOriginalCostSourceCurrencyV249": "", "priceManuallyEditedV249": "1", "recognitionNewV265": "", "englishNameV262": ""}, {"name": "顺祥澳洲杉168", "productId": "", "category": "盆栽", "quantity": 5, "unitPrice": 168, "autoOriginalCostV249": "0", "autoOriginalCostSourceValueV249": "", "autoOriginalCostSourceCurrencyV249": "", "priceManuallyEditedV249": "1", "recognitionNewV265": "", "englishNameV262": ""}, {"name": "大厚黄杨高提根1200", "productId": "BX0061", "category": "盆栽", "quantity": 10, "unitPrice": 1300, "autoOriginalCostV249": "0", "autoOriginalCostSourceValueV249": "1200", "autoOriginalCostSourceCurrencyV249": "CNY", "priceManuallyEditedV249": "1", "recognitionNewV265": "", "englishNameV262": ""}, {"name": "大厚黄杨游龙小桩BX581", "productId": "", "category": "盆栽", "quantity": 52, "unitPrice": 290, "autoOriginalCostV249": "0", "autoOriginalCostSourceValueV249": "", "autoOriginalCostSourceCurrencyV249": "", "priceManuallyEditedV249": "1", "recognitionNewV265": "", "englishNameV262": ""}], "meta": {"currencyConflictAcknowledgedV249": false}, "common": {"trackingNumber": "", "rackQuantity": "11", "chinaTransportCost": "4,180.00", "potCost": "0.00", "currency": "CNY", "rate": "1.60", "overseasTrackingNumber": "XX-A355 / XX-B356", "containerDate": "03-11-2026", "arrivalDate": "", "shippingMY": "4,475.00"}});
