@@ -165,19 +165,6 @@ function cleanupLegacySettingsResidueV323() {
     pruneByLiveProductId("productMediaLinksV229");
   }
 
-  const isLegacyDraft = draft => {
-    const rows = Array.isArray(draft?.rows) ? draft.rows : [];
-    return rows.some(row => {
-      const id = String(row?.productId || "").trim().toUpperCase();
-      const category = String(row?.category || "").trim();
-      const warehouse = String(row?.warehouseV270 || row?.warehouse || "").trim().toLowerCase();
-      return category === "杂花杂木" || /^ZZ\d+$/i.test(id) || warehouse === "wood";
-    }) || /^AIR|invoice/i.test(String(draft?.source || draft?.type || ""));
-  };
-  if (Array.isArray(next.importDraftsV242)) {
-    const cleanDrafts = next.importDraftsV242.filter(draft => !isLegacyDraft(draft));
-    if (cleanDrafts.length !== next.importDraftsV242.length) { next.importDraftsV242 = cleanDrafts; changed = true; }
-  }
 
   if (changed) {
     // V34.3: startup residue cleanup is local-only. Never create a cloud dirty
@@ -709,12 +696,12 @@ async function retryCompletedSalesAcksV465() {
       } catch (error) {
         // No inventory write or local success flag on failure. The existing Feed
         // refresh/resume cadence retries; reload reconstructs this queue from History.
-        console.warn("V46.5 Sales completion acknowledgement deferred", error);
+        console.warn("V46.6 Sales completion acknowledgement deferred", error);
         break;
       }
     }
   } catch (error) {
-    console.warn("V46.5 Sales completion verification deferred", error);
+    console.warn("V46.6 Sales completion verification deferred", error);
   } finally {
     salesInventoryAckBusyV465 = false;
     recomputeSalesInventoryPendingV77();
@@ -3377,7 +3364,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.5 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.6 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3480,7 +3467,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.5 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.6 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -3809,6 +3796,10 @@ function updateImportDraftSaveButtonV323() {
   const button = document.getElementById("saveBatchBtn");
   if (!button || currentEditingImportNumber) return;
   const active = getActiveImportDraftV243();
+  if (importDraftSaveBusyV466) { button.disabled = true; button.textContent = "正在核对云端…"; return; }
+  if (active && loadJSON("importDraftPendingV466", {})[active.id]) {
+    button.disabled = false; button.textContent = "重试保存草稿"; return;
+  }
   if (!active) { button.disabled = false; button.textContent = "保存草稿"; button.classList.remove("draft-saved-button-v323","draft-dirty-button-v323"); return; }
   if (hasUnsavedImportDraftChangesV243()) {
     button.disabled = false;
@@ -8207,7 +8198,11 @@ function refreshImportDraftStatusV457() {
 
 function getImportDraftsV242() {
   const settings = loadJSON("importSystemSettings", {});
-  return Array.isArray(settings[IMPORT_DRAFTS_KEY_V242]) ? settings[IMPORT_DRAFTS_KEY_V242] : [];
+  const stored = Array.isArray(settings[IMPORT_DRAFTS_KEY_V242]) ? settings[IMPORT_DRAFTS_KEY_V242] : [];
+  const pending = loadJSON("importDraftPendingV466", {});
+  const byId = new Map(stored.map(d => [String(d.id), d]));
+  Object.values(pending).forEach(d => { if (d?.id) byId.set(String(d.id), d); });
+  return [...byId.values()];
 }
 
 function getImportDraftDeletedIdsV250() {
@@ -8222,7 +8217,7 @@ function markImportDraftDeletedV250(draftId) {
   if (!id) return;
   const settings = loadJSON("importSystemSettings", {});
   const current = getImportDraftDeletedIdsV250();
-  const ids = [id, ...current.filter(value => value !== id)].slice(0, 100);
+  const ids = [id, ...current.filter(value => value !== id)];
   saveJSON("importSystemSettings", { ...settings, [IMPORT_DRAFT_DELETED_IDS_KEY_V250]: ids });
 }
 
@@ -8238,7 +8233,7 @@ function clearImportDraftDeletedV250(draftId) {
 
 function writeImportDraftsV242(drafts) {
   const settings = loadJSON("importSystemSettings", {});
-  saveJSON("importSystemSettings", { ...settings, [IMPORT_DRAFTS_KEY_V242]: drafts.slice(0, 30) });
+  saveJSON("importSystemSettings", { ...settings, [IMPORT_DRAFTS_KEY_V242]: drafts });
   if (typeof markCloudSettingsSaved === "function") markCloudSettingsSaved();
   renderImportDraftsV242();
 }
@@ -8321,6 +8316,10 @@ function hasUnsavedImportDraftChangesV243() {
   return importDraftFingerprintV243(current) !== importDraftFingerprintV243(active);
 }
 function confirmDiscardImportDraftChangesV243(actionLabel = "离开") {
+  if (importDraftSaveBusyV466) { alert("草稿正在核对云端，请稍候。"); return false; }
+  if (activeImportDraftIdV242 && loadJSON("importDraftPendingV466", {})[activeImportDraftIdV242]) {
+    return window.confirm("草稿仅保存在本机，云端尚未确认。继续离开？本机恢复副本会保留。");
+  }
   if (!hasUnsavedImportDraftChangesV243()) return true;
   return window.confirm(`⚠️ 当前进口资料有尚未保存到草稿的修改。\n\n${actionLabel}可能造成资料遗失。\n\n按「确定」继续；按「取消」返回先保存草稿。`);
 }
@@ -8329,6 +8328,10 @@ function ensureDraftReadyForFormalSaveV243(status) {
   if (currentEditingImportNumber) return true;
   if (!validateImportProductNamesV461(collectImportDraftStateV242(), status)) return false;
   const active = getActiveImportDraftV243();
+  if (active && loadJSON("importDraftPendingV466", {})[active.id]) {
+    alert("这份草稿云端尚未确认，请先重试保存草稿。");
+    return false;
+  }
   if (!active) {
     if (status) status.textContent = "请先保存草稿，再确认正式进口。";
     alert("请先保存草稿，检查所有数据正确才确认保存。\n\n确认正式保存后，所有数据无法修改。");
@@ -8388,28 +8391,7 @@ function showImportDraftReminderGuideV246(overdue) {
 
 
 function cleanupKnownLegacyDraftResidueV322() {
-  const drafts = getImportDraftsV242();
-  if (!drafts.length) return;
-  const products = getProducts();
-  const imports = getImports();
-  const now = Date.now();
-  const keep = drafts.filter(draft => {
-    const rows = Array.isArray(draft?.rows) ? draft.rows : [];
-    const names = rows.map(row => String(row?.name || "").trim()).filter(Boolean);
-    const created = Date.parse(draft?.createdAt || "");
-    const isOld = Number.isFinite(created) && now - created >= 7 * 86400000;
-    const knownResidue = names.length && names.every(name => /^OLN\s*绿萝/i.test(name));
-    if (!isOld || !knownResidue) return true;
-    const hasRealLink = rows.some(row => {
-      const id = String(row?.productId || "").trim();
-      const name = String(row?.name || "").trim().toLowerCase();
-      return products.some(p => (id && String(p?.id || "").trim() === id) || (name && String(p?.name || "").trim().toLowerCase() === name)) ||
-        imports.some(i => (id && String(i?.productId || "").trim() === id) || (name && String(i?.productName || "").trim().toLowerCase() === name));
-    });
-    if (!hasRealLink) { markImportDraftDeletedV250(draft.id); return false; }
-    return true;
-  });
-  if (keep.length !== drafts.length) writeImportDraftsV242(keep);
+  // V46.6: user drafts are never residue; removal requires explicit action.
 }
 
 function checkImportDraftRemindersV243() {
@@ -8482,8 +8464,9 @@ function validateNoDuplicateImportProductsV345(rows) {
   return { ok:true };
 }
 
-function saveImportDraftV242() {
-  if (getActiveImportDraftV243() && !currentEditingImportNumber && !hasUnsavedImportDraftChangesV243()) return;
+async function saveImportDraftInternalV466() {
+  if (importDraftSaveBusyV466) return;
+  if (getActiveImportDraftV243() && !currentEditingImportNumber && !hasUnsavedImportDraftChangesV243() && !loadJSON("importDraftPendingV466", {})[activeImportDraftIdV242]) return;
   const saveButtonV340 = document.getElementById("saveBatchBtn");
   if (saveButtonV340) { saveButtonV340.disabled = true; saveButtonV340.textContent = "保存中..."; }
   if (currentEditingImportNumber) {
@@ -8511,9 +8494,15 @@ function saveImportDraftV242() {
   }
   const drafts = getImportDraftsV242();
   const now = new Date().toISOString();
-  const id = activeImportDraftIdV242 || `DRF${Date.now()}`;
+  // A remote deletion or a missing active row must not reuse a tombstoned ID.
+  const reusable = drafts.find(d => d.id === activeImportDraftIdV242);
+  const id = reusable && !getImportDraftDeletedIdsV250().includes(reusable.id)
+    ? reusable.id : newImportDraftIdV466();
   const previousDraft = drafts.find(item => item.id === id);
   const entry = {
+    ...(previousDraft || {}),
+    expectedUpdatedAtV466: loadJSON("importDraftPendingV466", {})[id]?.expectedUpdatedAtV466 ?? previousDraft?.updatedAt ?? "",
+    saveTokenV466: newImportDraftIdV466(),
     id,
     status: "draft",
     createdAt: previousDraft?.createdAt || now,
@@ -8522,7 +8511,22 @@ function saveImportDraftV242() {
     lastReminderAtV460: previousDraft?.lastReminderAtV460 || "",
     ...state
   };
-  const next = [entry, ...drafts.filter(item => item.id !== id)].slice(0, 30);
+  if (!previousDraft && drafts.length >= 30) {
+    alert("已有30份草稿，请先处理草稿；系统不会自动丢弃旧草稿。");
+    if (saveButtonV340) saveButtonV340.disabled = false;
+    return;
+  }
+  if (previousDraft && previousDraft.rows?.length && !state.rows.some(row => previousDraft.rows.some(old => old.name === row.name || (old.productId && old.productId === row.productId)))) {
+    if (!confirm("当前正在更新已有草稿，但产品已全部更换。确定覆盖更新这份草稿？如需另一份，请取消后先收起旧草稿。旧版本会保留在恢复记录。")) {
+      if (saveButtonV340) saveButtonV340.disabled = false;
+      return;
+    }
+  }
+  if (previousDraft) archiveImportDraftLocalV466(previousDraft, "before-update");
+  savePendingImportDraftV466(entry);
+  const oldActiveV466 = activeImportDraftIdV242;
+  if (oldActiveV466 && oldActiveV466 !== id) removePendingImportDraftV466(oldActiveV466);
+  const next = [entry, ...drafts.filter(item => item.id !== id && item.id !== oldActiveV466)];
   activeImportDraftIdV242 = id;
   writeImportDraftsV242(next);
 
@@ -8544,16 +8548,21 @@ function saveImportDraftV242() {
 
   const status = document.getElementById("batchStatusText");
   if (status) {
-    status.textContent = "✓ 草稿已保存 · 尚未正式确认。当前资料继续保留在原输入区；尚未写入库存、平均成本、最低售价或正式 Import / Batch。";
+    status.textContent = "草稿已保存到本机 · 正在核对云端保存…";
     status.classList.add("draft-saved-status-v322");
   }
+  importDraftSaveBusyV466 = true;
   renderImportDraftsV242();
-  if (saveButtonV340) {
-    saveButtonV340.disabled = true;
-    saveButtonV340.textContent = "保存成功";
-    window.setTimeout(() => { saveButtonV340.disabled = false; updateImportDraftSaveButtonV323(); }, 900);
-  } else {
-    updateImportDraftSaveButtonV323();
+  try {
+    await confirmImportDraftCloudV466(entry);
+    if (status) status.textContent = "✓ 草稿已保存 · 云端已确认 · 尚未正式进口。";
+  } catch (error) {
+    if (status) status.textContent = "草稿仅本机保存 · 云端未确认，请重试保存。";
+    alert("草稿已保留在本机恢复副本，云端尚未确认：" + String(error.message || error));
+  } finally {
+    importDraftSaveBusyV466 = false;
+    if (saveButtonV340) saveButtonV340.disabled = false;
+    renderImportDraftsV242();
   }
 }
 
@@ -8609,11 +8618,13 @@ function applyImportDraftV242(draftId) {
 function deleteImportDraftV242(draftId) {
   const draft = getImportDraftsV242().find(item => String(item?.id || "") === String(draftId || ""));
   if (!draft) return;
-  if (!confirm("⚠️ 确认删除这份草稿？\n\n这会永久删除尚未正式保存的进口草稿资料，删除后无法恢复。\n\n已正式保存的库存资料不会受到影响。")) return;
+  if (!confirm("⚠️ 确认删除这份草稿？\n\n这会移除尚未正式保存的草稿，删除前副本保留在草稿恢复记录。\n\n已正式保存的库存资料不会受到影响。")) return;
   const wasActiveV252 = String(activeImportDraftIdV242 || "") === String(draftId || "");
   // V26.6 Local-First: clear active state and persist the tombstone immediately,
   // then clear the editor only when the deleted draft is the one currently open.
   if (wasActiveV252) activeImportDraftIdV242 = "";
+  archiveImportDraftLocalV466(draft, "deleted");
+  removePendingImportDraftV466(draftId);
   markImportDraftDeletedV250(draftId);
   const next = getImportDraftsV242().filter(item => String(item?.id || "") !== String(draftId || ""));
   writeImportDraftsV242(next);
@@ -8633,6 +8644,9 @@ function consumeActiveImportDraftV242() {
   activeImportDraftIdV242 = "";
   // V26.6: formal save is also a terminal removal of the draft. Without a
   // tombstone, a stale cloud copy can merge back and trigger the 24-hour reminder.
+  const consumed = getImportDraftsV242().find(d => d.id === id);
+  if (consumed) archiveImportDraftLocalV466(consumed, "formally-saved");
+  removePendingImportDraftV466(id);
   markImportDraftDeletedV250(id);
   writeImportDraftsV242(getImportDraftsV242().filter(item => item.id !== id));
   document.getElementById("importDraftReminderGuideV246")?.remove();
@@ -8655,6 +8669,7 @@ function renderImportDraftsV242() {
   const drafts = getImportDraftsV242().filter(item => item?.status === "draft");
   const state = collectImportDraftStateV242();
   const hasData = importDraftStateHasUserDataV246(state);
+  const cloudPendingV466 = active && Boolean(loadJSON("importDraftPendingV466", {})[active.id]);
   const dirty = active ? importDraftFingerprintV243(state) !== importDraftFingerprintV243(active) : hasData;
   if (label) {
     if (currentEditingImportNumber) {
@@ -8664,6 +8679,10 @@ function renderImportDraftsV242() {
       label.textContent = "草稿已修改";
       label.title = "有未保存修改，请到下方更新草稿。";
       label.dataset.draftStateV249 = "dirty";
+    } else if (cloudPendingV466) {
+      label.textContent = `未确认草稿 ${drafts.length} 份 · 仅本机保存`;
+      label.title = "云端尚未确认，请到下方重试保存草稿。";
+      label.dataset.draftStateV249 = "pending";
     } else if (active) {
       label.textContent = `未确认草稿 ${drafts.length} 份`;
       label.title = "当前草稿已保存，尚未正式确认。";
@@ -8699,6 +8718,10 @@ function renderImportDraftsV242() {
   }
   showImportDraftEditorV459();
   updateImportDraftSaveButtonV323();
+  const saveV466 = document.getElementById("saveBatchBtn");
+  if (saveV466 && active && !importDraftSaveBusyV466 && !saveV466.disabled) saveV466.textContent = cloudPendingV466 ? "重试保存草稿" : "更新当前草稿";
+  const recoveryButtonV466 = document.getElementById("recoverKnownImportDraftV466");
+  if (recoveryButtonV466) recoveryButtonV466.hidden = Boolean(loadJSON("importSystemSettings", {}).importDraftRecoveryReceiptsV466?.["australian-pine-20261103-4475"]) || drafts.some(d => d.recoveredFromV466 === "australian-pine-20261103-4475");
 }
 window.renderImportDraftsV242 = renderImportDraftsV242;
 
@@ -8770,6 +8793,7 @@ function deleteCurrentImportDraftV247() {
 }
 
 function setupImportDraftV247() {
+  setupDraftRecoveryV466();
   document.getElementById("toggleImportDraftV457")?.addEventListener("click", closeImportDraftEditorV459);
   document.getElementById("openImportDraftsTopV457")?.addEventListener("click", openImportDraftPickerV248);
   document.getElementById("confirmFormalImportBtnV247")?.addEventListener("click", confirmFormalImportV247);
@@ -8780,7 +8804,7 @@ function setupImportDraftV247() {
   draftFormV249?.addEventListener("input", refreshImportDraftStatusV457);
   draftFormV249?.addEventListener("change", refreshImportDraftStatusV457);
   window.addEventListener("beforeunload", event => {
-    if (!hasUnsavedImportDraftChangesV243()) return;
+    if (!hasUnsavedImportDraftChangesV243() && !Object.keys(loadJSON("importDraftPendingV466", {})).length) return;
     event.preventDefault();
     event.returnValue = "";
   });
@@ -9932,7 +9956,7 @@ function reverseBatchInventoryImpact(products, batchItems, remainingImports) {
     const remainingQuantity = quantitiesV463.remainingQuantity;
     const unitCost = Math.max(0, Number(record.unitCost) || 0);
 
-    // V46.5: never clamp a shortage to zero. A shortage means the target batch
+    // V46.6: never clamp a shortage to zero. A shortage means the target batch
     // cannot be safely reversed and the whole delete must stop before any save.
     if (currentStock + 0.000001 < remainingQuantity) {
       throw new Error(
@@ -10338,7 +10362,7 @@ async function deleteBatchByNumber(importNumber) {
     batchItems.length ? batchItems : (batch.items || []);
   const products = getProducts();
 
-  // V46.5: protect only the target import number. Sales/repairs belonging to an
+  // V46.6: protect only the target import number. Sales/repairs belonging to an
   // older batch of the same product must not block deletion of a brand-new,
   // untouched import entered by mistake.
   const targetProtectionV463 = getTargetBatchDeleteProtectionV463(
@@ -17166,7 +17190,7 @@ function updateBatchProductQuerySummaryV422(products) {
   if (countField) countField.textContent = `${rows.length} 项`;
 }
 
-// V46.5: one lightweight inventory-summary refresh path for every page.
+// V46.6: one lightweight inventory-summary refresh path for every page.
 // It always refreshes the Product Management totals, but redraws product cards
 // only when that page is visible and a filtered result list is actually open.
 // The Inventory Master table is also redrawn only when visible and expanded.
@@ -21263,7 +21287,9 @@ async function backupSystemData() {
   try {
     const backup = {
       app: "Lover Legend Import Cost & Inventory System",
-      version: "42.8",
+      version: APP_VERSION,
+      importDraftHistoryLocalV466: loadJSON("importDraftHistoryV466", []),
+      importDraftPendingLocalV466: loadJSON("importDraftPendingV466", {}),
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -22027,3 +22053,133 @@ document.addEventListener("click",event=>{
     return;
   }
 },true);
+
+// Local pending copies live outside the cloud-replaced Settings snapshot.
+let importDraftSaveBusyV466 = false;
+function newImportDraftIdV466() {
+  return `DRF${Date.now()}-${crypto.randomUUID()}`;
+}
+function archiveImportDraftLocalV466(draft, reason) {
+  if (!draft?.id) return;
+  const history = loadJSON("importDraftHistoryV466", []);
+  const signature = JSON.stringify(draft);
+  if (history.some(row => JSON.stringify(row.draft) === signature)) return;
+  saveJSON("importDraftHistoryV466", [{at:new Date().toISOString(),reason,draft},...history].slice(0,50));
+}
+function savePendingImportDraftV466(draft) {
+  archiveImportDraftLocalV466(draft, "pending-save");
+  saveJSON("importDraftPendingV466", {...loadJSON("importDraftPendingV466", {}),[draft.id]:draft});
+}
+function removePendingImportDraftV466(id) {
+  const pending = loadJSON("importDraftPendingV466", {});
+  delete pending[id];
+  saveJSON("importDraftPendingV466", pending);
+}
+async function readImportDraftStateV466(includeHistory = false) {
+  if (!navigator.onLine) throw new Error("目前离线，请联网后重试。");
+  const data = await callGoogleApi({action:"getImportDraftStateV466",clientVersion:APP_VERSION,
+    schemaVersion:CLOUD_SCHEMA_VERSION,includeHistory});
+  if (!data?.ok || !Array.isArray(data.drafts)) throw new Error(data?.error || "无法读取云端草稿");
+  return data;
+}
+async function confirmImportDraftCloudV466(entry) {
+  // Use the existing revision/credential/conflict path, never overwrite unrelated
+  // Settings or advance local revision from a draft-only response.
+  if (!navigator.onLine) throw new Error("目前离线");
+  await flushCloudQueueStrictV83();
+  const data = await readImportDraftStateV466();
+  const exact = data.drafts.find(d => (d.id === entry.id || (entry.recoveredFromV466 && d.recoveredFromV466 === entry.recoveredFromV466)) &&
+    importDraftFingerprintV243(d) === importDraftFingerprintV243(entry));
+  if (!exact || data.deletedIds.includes(entry.id)) throw new Error("云端未保留同一份完整草稿，可能已被其他设备修改或删除。本机副本已保留，请从恢复记录另存。");
+  const pending = loadJSON("importDraftPendingV466", {});
+  if (pending[entry.id] && importDraftFingerprintV243(pending[entry.id]) === importDraftFingerprintV243(entry)) removePendingImportDraftV466(entry.id);
+  if (activeImportDraftIdV242 === entry.id && exact.id !== entry.id) activeImportDraftIdV242 = exact.id;
+  const st = loadJSON("importSystemSettings", {});
+  const local = st.importDraftsV242 || [];
+  const merged = mergeImportDraftsV242(data.drafts,local.filter(d => d.id !== entry.id),data.deletedIds);
+  saveJSON("importSystemSettings", {...st,
+    importDraftsV242:merged,
+    importDraftDeletedIdsV250:data.deletedIds,
+    importDraftRecoveryReceiptsV466:data.recoveryReceipts});
+}
+async function saveImportDraftV242() {
+  try { await saveImportDraftInternalV466(); }
+  catch (error) {
+    importDraftSaveBusyV466 = false;
+    const button = document.getElementById("saveBatchBtn");
+    if (button) button.disabled = false;
+    alert("草稿保存未完成，请保留当前输入后重试：" + String(error.message || error));
+  }
+}
+async function restoreImportDraftCopyV466(source, recoveryKey = "") {
+  if (importDraftSaveBusyV466) return;
+  if (!confirmDiscardImportDraftChangesV243("恢复草稿")) return;
+  importDraftSaveBusyV466 = true;
+  try {
+    const remote = await readImportDraftStateV466();
+    const known = recoveryKey && (loadJSON("importSystemSettings", {}).importDraftRecoveryReceiptsV466?.[recoveryKey] || getImportDraftsV242().find(d => d.recoveredFromV466 === recoveryKey)?.id || remote.recoveryReceipts[recoveryKey] ||
+      remote.drafts.find(d => d.recoveredFromV466 === recoveryKey)?.id);
+    if (known) {
+      alert("这份历史草稿已经恢复过，不会重复新增。请查看草稿列表或恢复记录。");
+      return;
+    }
+    const current = getImportDraftsV242();
+    const all = mergeImportDraftsV242(remote.drafts,current,remote.deletedIds);
+    if (all.length >= 30) throw new Error("已有30份草稿，请先处理现有草稿。");
+    const now = new Date().toISOString();
+    const entry = {...JSON.parse(JSON.stringify(source)),id:newImportDraftIdV466(),status:"draft",
+      createdAt:now,updatedAt:now,expectedUpdatedAtV466:"",saveTokenV466:newImportDraftIdV466(),
+      recoveredFromV466:recoveryKey || `${source.id}|${source.updatedAt || ""}`,
+      lastReminderDateV243:"",lastReminderAtV460:""};
+    archiveImportDraftLocalV466(source, "recovery-source");
+    savePendingImportDraftV466(entry);
+    writeImportDraftsV242([entry,...all]);
+    activeImportDraftIdV242 = entry.id;
+    applyImportDraftV242(entry.id);
+    await confirmImportDraftCloudV466(entry);
+    alert(`恢复已保存并经云端确认。目前共有 ${getImportDraftsV242().filter(d => d.status === "draft").length} 份草稿，未增加正式库存。`);
+  } catch (error) {
+    alert("恢复尚未获云端确认；如已建立本机副本，请使用重试保存，避免重复恢复：" + String(error.message || error));
+  } finally {
+    importDraftSaveBusyV466 = false;
+    renderImportDraftsV242();
+  }
+}
+async function openImportDraftHistoryV466() {
+  try {
+    const data = await readImportDraftStateV466(true);
+    const rows = [...loadJSON("importDraftHistoryV466", []),...data.history];
+    const unique = new Map();
+    rows.forEach(row => { if(row?.draft?.id) unique.set(JSON.stringify(row.draft),row); });
+    const history = [...unique.values()].sort((a,b)=>String(b.at).localeCompare(String(a.at)));
+    if (!history.length) { alert("目前没有可恢复副本。V46.6 开始记录历史；本机保留最近50个副本，云端窗口显示最近100个版本。"); return; }
+    document.getElementById("importDraftHistoryPanelV466")?.remove();
+    const panel = document.createElement("section");
+    panel.id = "importDraftHistoryPanelV466";
+    panel.className = "import-draft-reminder-guide-v246";
+    panel.innerHTML = `<div class="import-draft-reminder-card-v246"><strong>草稿恢复记录</strong>
+      <p>恢复为独立草稿，不直接增加库存。正式进口过的记录请勿再次确认进口。</p>
+      <button type="button" data-close-history-v466>关闭</button><div class="import-draft-reminder-list-v246">${history.map((r,i)=>
+        `<button type="button" class="secondary-btn" data-restore-history-v466="${i}">${escapeHTML(r.draft.rows?.[0]?.name || "草稿")} · ${r.draft.rows?.length||0}项 · ${escapeHTML(formatDraftTimeV242(r.draft.updatedAt))} · 恢复副本</button>`).join("")}</div></div>`;
+    document.body.appendChild(panel);
+    panel.addEventListener("click", async event => {
+      if (event.target.closest("[data-close-history-v466]")) { panel.remove(); return; }
+      const btn = event.target.closest("[data-restore-history-v466]");
+      if (!btn || btn.disabled) return;
+      const row = history[Number(btn.dataset.restoreHistoryV466)];
+      if (!row || !confirm("将这份历史记录恢复为新的独立草稿？不会修改现有草稿或库存。")) return;
+      btn.disabled = true;
+      await restoreImportDraftCopyV466(row.draft);
+      panel.remove();
+    });
+  } catch (error) { alert("读取恢复记录失败：" + String(error.message || error)); }
+}
+function setupDraftRecoveryV466() {
+  document.getElementById("recoverKnownImportDraftV466")?.addEventListener("click", async () => {
+    if (!confirm("恢复澳洲杉及大厚黄杨：5项、107棵，海外运费RM4,475，单号XX-A355 / XX-B356？现有草稿保留，不增加库存。")) return;
+    await restoreImportDraftCopyV466(RECOVERED_IMPORT_DRAFT_V466, "australian-pine-20261103-4475");
+  });
+  document.getElementById("openImportDraftHistoryV466")?.addEventListener("click", openImportDraftHistoryV466);
+}
+
+const RECOVERED_IMPORT_DRAFT_V466 = Object.freeze({"id": "DRF1792735116249", "status": "draft", "createdAt": "2026-11-03T07:40:53.931Z", "updatedAt": "2026-11-03T07:40:53.931Z", "lastReminderDateV243": "", "lastReminderAtV460": "", "rows": [{"name": "顺祥澳洲杉60", "productId": "", "category": "盆栽", "quantity": 20, "unitPrice": 59.8, "autoOriginalCostV249": "0", "autoOriginalCostSourceValueV249": "", "autoOriginalCostSourceCurrencyV249": "", "priceManuallyEditedV249": "1", "recognitionNewV265": "", "englishNameV262": ""}, {"name": "顺祥澳洲杉98", "productId": "", "category": "盆栽", "quantity": 20, "unitPrice": 98, "autoOriginalCostV249": "0", "autoOriginalCostSourceValueV249": "", "autoOriginalCostSourceCurrencyV249": "", "priceManuallyEditedV249": "1", "recognitionNewV265": "", "englishNameV262": ""}, {"name": "顺祥澳洲杉168", "productId": "", "category": "盆栽", "quantity": 5, "unitPrice": 168, "autoOriginalCostV249": "0", "autoOriginalCostSourceValueV249": "", "autoOriginalCostSourceCurrencyV249": "", "priceManuallyEditedV249": "1", "recognitionNewV265": "", "englishNameV262": ""}, {"name": "大厚黄杨高提根1200", "productId": "BX0061", "category": "盆栽", "quantity": 10, "unitPrice": 1300, "autoOriginalCostV249": "0", "autoOriginalCostSourceValueV249": "1200", "autoOriginalCostSourceCurrencyV249": "CNY", "priceManuallyEditedV249": "1", "recognitionNewV265": "", "englishNameV262": ""}, {"name": "大厚黄杨游龙小桩BX581", "productId": "", "category": "盆栽", "quantity": 52, "unitPrice": 290, "autoOriginalCostV249": "0", "autoOriginalCostSourceValueV249": "", "autoOriginalCostSourceCurrencyV249": "", "priceManuallyEditedV249": "1", "recognitionNewV265": "", "englishNameV262": ""}], "meta": {"currencyConflictAcknowledgedV249": false}, "common": {"trackingNumber": "", "rackQuantity": "11", "chinaTransportCost": "4,180.00", "potCost": "0.00", "currency": "CNY", "rate": "1.60", "overseasTrackingNumber": "XX-A355 / XX-B356", "containerDate": "03-11-2026", "arrivalDate": "", "shippingMY": "4,475.00"}});
