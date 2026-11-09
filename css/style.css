@@ -7259,3 +7259,17 @@ body.system-media-preview-open-v305{overflow:hidden}
 /* Name validation stays beside the edited name; search queries are unrestricted. */
 .product-name-limit-v461 { display:block; color:#bd2026; font-size:13px; line-height:1.5; margin-top:4px; white-space:normal; }
 .product-name-limit-v461[hidden] { display:none!important; }
+
+/* V46.8: compact monthly inventory history; all entries share full-stock data. */
+.monthly-inventory-toggle-v468{cursor:pointer;text-underline-offset:3px}
+.monthly-inventory-toggle-v468:hover,.monthly-inventory-toggle-v468:focus-visible{text-decoration:underline}
+.monthly-inventory-history-v468{width:100%;max-width:460px;margin:10px 0 12px;color:var(--text,#17231b);text-align:left}
+.monthly-inventory-scroll-v468{max-height:278px;overflow:auto;border:1px solid var(--border,#dce5df);border-radius:8px}
+.monthly-inventory-history-v468 table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:14px;line-height:1.4}
+.monthly-inventory-history-v468 th,.monthly-inventory-history-v468 td{padding:6px 10px;white-space:nowrap;border-bottom:1px solid var(--border,#dce5df);text-align:right}
+.monthly-inventory-history-v468 th:first-child,.monthly-inventory-history-v468 td:first-child{text-align:left}
+.monthly-inventory-history-v468 th{position:sticky;top:0;background:var(--green-soft,#edf5ef);font-weight:600}
+.monthly-inventory-history-v468 tr:last-child td{border-bottom:0}
+.monthly-inventory-history-v468 .monthly-inventory-highest-v468 td{color:#c62828;font-weight:700}
+.monthly-inventory-note-v468{display:block;margin-top:5px;font-size:12px;color:var(--muted,#68746b);line-height:1.5}
+@media(max-width:620px){.monthly-inventory-history-v468 table{font-size:15px}.monthly-inventory-history-v468 th,.monthly-inventory-history-v468 td{padding:6px 7px}}

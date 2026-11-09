@@ -182,6 +182,8 @@ document.addEventListener("DOMContentLoaded", () => {
   cleanupLegacySettingsResidueV323();
   repairLegacyImportDates();
   setupNavigation();
+  setupMonthlyInventoryHistoryV468();
+  warmMonthlyInventoryHistoryV468();
   setupSettings();
   setupInventoryMasterV299();
   const requestedPageV210 = String(new URLSearchParams(window.location.search).get("page") || "").trim().toLowerCase();
@@ -696,12 +698,12 @@ async function retryCompletedSalesAcksV465() {
       } catch (error) {
         // No inventory write or local success flag on failure. The existing Feed
         // refresh/resume cadence retries; reload reconstructs this queue from History.
-        console.warn("V46.7 Sales completion acknowledgement deferred", error);
+        console.warn("V46.8 Sales completion acknowledgement deferred", error);
         break;
       }
     }
   } catch (error) {
-    console.warn("V46.7 Sales completion verification deferred", error);
+    console.warn("V46.8 Sales completion verification deferred", error);
   } finally {
     salesInventoryAckBusyV465 = false;
     recomputeSalesInventoryPendingV77();
@@ -2956,6 +2958,7 @@ function setupNavigation() {
         closeImportDraftEditorV459();
       }
 
+      if (target !== current) closeMonthlyInventoryHistoryV468();
       buttons.forEach(item => item.classList.remove("active"));
       pages.forEach(page => page.classList.remove("active"));
 
@@ -3364,7 +3367,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.7 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.8 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3467,7 +3470,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.7 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.8 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -9950,7 +9953,7 @@ function reverseBatchInventoryImpact(products, batchItems, remainingImports) {
     const remainingQuantity = quantitiesV463.remainingQuantity;
     const unitCost = Math.max(0, Number(record.unitCost) || 0);
 
-    // V46.7: never clamp a shortage to zero. A shortage means the target batch
+    // V46.8: never clamp a shortage to zero. A shortage means the target batch
     // cannot be safely reversed and the whole delete must stop before any save.
     if (currentStock + 0.000001 < remainingQuantity) {
       throw new Error(
@@ -10356,7 +10359,7 @@ async function deleteBatchByNumber(importNumber) {
     batchItems.length ? batchItems : (batch.items || []);
   const products = getProducts();
 
-  // V46.7: protect only the target import number. Sales/repairs belonging to an
+  // V46.8: protect only the target import number. Sales/repairs belonging to an
   // older batch of the same product must not block deletion of a brand-new,
   // untouched import entered by mistake.
   const targetProtectionV463 = getTargetBatchDeleteProtectionV463(
@@ -17184,7 +17187,7 @@ function updateBatchProductQuerySummaryV422(products) {
   if (countField) countField.textContent = `${rows.length} 项`;
 }
 
-// V46.7: one lightweight inventory-summary refresh path for every page.
+// V46.8: one lightweight inventory-summary refresh path for every page.
 // It always refreshes the Product Management totals, but redraws product cards
 // only when that page is visible and a filtered result list is actually open.
 // The Inventory Master table is also redrawn only when visible and expanded.
@@ -21284,6 +21287,7 @@ async function backupSystemData() {
       version: APP_VERSION,
       importDraftHistoryLocalV466: loadJSON("importDraftHistoryV466", []),
       importDraftPendingLocalV466: loadJSON("importDraftPendingV466", {}),
+      monthlyInventorySnapshotsV468: loadJSON(MONTHLY_INVENTORY_CACHE_KEY_V468, {}),
       exportedAt: new Date().toISOString(),
       settings: loadJSON("importSystemSettings", {}),
       products: getProducts(),
@@ -22146,7 +22150,7 @@ async function openImportDraftHistoryV466() {
     const unique = new Map();
     rows.forEach(row => { if(row?.draft?.id) unique.set(JSON.stringify(row.draft),row); });
     const history = [...unique.values()].sort((a,b)=>String(b.at).localeCompare(String(a.at)));
-    if (!history.length) { alert("目前没有可恢复副本。V46.7 开始记录历史；本机保留最近50个副本，云端窗口显示最近100个版本。"); return; }
+    if (!history.length) { alert("目前没有可恢复副本。V46.8 开始记录历史；本机保留最近50个副本，云端窗口显示最近100个版本。"); return; }
     document.getElementById("importDraftHistoryPanelV466")?.remove();
     const panel = document.createElement("section");
     panel.id = "importDraftHistoryPanelV466";
@@ -22170,4 +22174,114 @@ async function openImportDraftHistoryV466() {
 }
 function setupImportDraftHistoryV467() {
   document.getElementById("openImportDraftHistoryV466")?.addEventListener("click", openImportDraftHistoryV466);
+}
+
+// One shared history/cache for all three cost entry points; only expansion is
+// transient. History always represents full inventory, regardless of searches.
+const MONTHLY_INVENTORY_CACHE_KEY_V468 = "monthlyInventorySnapshotsV468";
+const MONTHLY_INVENTORY_TARGET_IDS_V468 = ["inventoryValue","inventoryFilteredValue","batchProductFilteredValueV422"];
+let monthlyInventoryOpenIdV468 = "";
+let monthlyInventoryRequestV468 = null;
+let monthlyInventoryWarmupTimerV468 = null;
+function monthlyInventoryClientMonthV468() {
+  const parts = new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Kuala_Lumpur",year:"numeric",month:"2-digit"}).formatToParts(new Date());
+  return parts.find(part=>part.type==="year").value+"-"+parts.find(part=>part.type==="month").value;
+}
+function monthlyInventoryTableRowsV468(records, month) {
+  const parts=month.split("-").map(Number), byMonth=new Map();
+  (Array.isArray(records)?records:[]).forEach(row=>{
+    if (/^\d{4}-\d{2}$/.test(row?.month||"") && Number.isFinite(Number(row.quantity)) && Number.isFinite(Number(row.cost))) byMonth.set(row.month,row);
+  });
+  const rows=Array.from({length:12},(_,index)=>{
+    const date=new Date(Date.UTC(parts[0],parts[1]-1-index,1));
+    const key=date.toISOString().slice(0,7), record=byMonth.get(key);
+    return {month:key,date:`01-${key.slice(5)}-${key.slice(0,4)}`,record};
+  });
+  const costs=rows.filter(row=>row.record).map(row=>Number(row.record.cost));
+  const highest=costs.length?Math.max(...costs):null;
+  return rows.map(row=>({...row,highest:Boolean(row.record && Number(row.record.cost)===highest)}));
+}
+function closeMonthlyInventoryHistoryV468() {
+  document.getElementById("monthlyInventoryHistoryV468")?.remove();
+  MONTHLY_INVENTORY_TARGET_IDS_V468.forEach(id=>document.getElementById(id)?.setAttribute("aria-expanded","false"));
+  monthlyInventoryOpenIdV468="";
+}
+function renderMonthlyInventoryHistoryV468() {
+  const panel=document.getElementById("monthlyInventoryHistoryV468");
+  if (!panel || !monthlyInventoryOpenIdV468) return;
+  const cache=loadJSON(MONTHLY_INVENTORY_CACHE_KEY_V468,{});
+  const month=monthlyInventoryClientMonthV468();
+  const rows=monthlyInventoryTableRowsV468(cache.rows,month);
+  panel.innerHTML=`<div class="monthly-inventory-scroll-v468"><table><thead><tr><th>日期</th><th>库存数量</th><th>库存成本</th></tr></thead><tbody>${rows.map(row=>
+    `<tr${row.highest?' class="monthly-inventory-highest-v468"':''}><td>${row.date}</td><td>${row.record?escapeHTML(formatNumber(Number(row.record.quantity))):"无记录"}</td><td>${row.record?escapeHTML(formatMoney(Number(row.record.cost),"RM ")):"无记录"}</td></tr>`).join("")}</tbody></table></div>
+    <small class="monthly-inventory-note-v468">${escapeHTML(cache.warning || (cache.fetchedAt ? "全库存月初记录 · 最近12个月" : "正在读取月初记录…"))}</small>`;
+}
+async function fetchMonthlyInventoryHistoryV468(force=false) {
+  const cache=loadJSON(MONTHLY_INVENTORY_CACHE_KEY_V468,{});
+  if (!force && cache.enabled && cache.fetchedAt && cache.serverDate?.slice(0,7)===monthlyInventoryClientMonthV468() && Date.now()-Number(cache.fetchedAt)<3600000) return cache;
+  if (monthlyInventoryRequestV468) return monthlyInventoryRequestV468;
+  monthlyInventoryRequestV468=(async()=>{
+    if (!navigator.onLine) throw new Error("目前离线，显示最近读取的月初记录。");
+    const data=await callGoogleApi({action:"getMonthlyInventorySnapshotsV468",clientVersion:APP_VERSION,schemaVersion:CLOUD_SCHEMA_VERSION});
+    if (!data?.ok || !Array.isArray(data.rows)) throw new Error(data?.error||"月初记录读取失败");
+    const kept=monthlyInventoryTableRowsV468(data.rows,data.serverDate.slice(0,7)).filter(row=>row.record).map(row=>row.record);
+    const next={...data,rows:kept,fetchedAt:Date.now()};
+    saveJSON(MONTHLY_INVENTORY_CACHE_KEY_V468,next);
+    return next;
+  })();
+  try {return await monthlyInventoryRequestV468;}
+  finally {monthlyInventoryRequestV468=null;}
+}
+async function toggleMonthlyInventoryHistoryV468(id) {
+  if (monthlyInventoryOpenIdV468===id) {closeMonthlyInventoryHistoryV468();return;}
+  closeMonthlyInventoryHistoryV468();
+  const trigger=document.getElementById(id);
+  if (!trigger) return;
+  monthlyInventoryOpenIdV468=id;
+  trigger.setAttribute("aria-expanded","true");
+  const panel=document.createElement("div");
+  panel.id="monthlyInventoryHistoryV468";
+  panel.className="monthly-inventory-history-v468";
+  panel.setAttribute("role","region");
+  panel.setAttribute("aria-label","最近12个月月初库存");
+  const heading=trigger.closest(".section-title-row");
+  if (heading) heading.insertAdjacentElement("afterend",panel);
+  else trigger.closest(".stat-card")?.appendChild(panel);
+  renderMonthlyInventoryHistoryV468();
+  try {await fetchMonthlyInventoryHistoryV468();}
+  catch(error) {
+    const note=document.querySelector("#monthlyInventoryHistoryV468 .monthly-inventory-note-v468");
+    if (monthlyInventoryOpenIdV468===id && note) note.textContent=String(error.message||error);
+    return;
+  }
+  // A late response may update cached data, but never reopens a closed panel.
+  if (monthlyInventoryOpenIdV468===id) renderMonthlyInventoryHistoryV468();
+}
+function warmMonthlyInventoryHistoryV468() {
+  if (monthlyInventoryWarmupTimerV468 || monthlyInventoryRequestV468 || !navigator.onLine) return;
+  const cache=loadJSON(MONTHLY_INVENTORY_CACHE_KEY_V468,{});
+  if (cache.enabled && cache.serverDate?.slice(0,7)===monthlyInventoryClientMonthV468()) return;
+  monthlyInventoryWarmupTimerV468=window.setTimeout(()=>{
+    monthlyInventoryWarmupTimerV468=null;
+    fetchMonthlyInventoryHistoryV468().catch(error=>console.warn("月初库存记录稍后重试",error));
+  },3000);
+}
+window.warmMonthlyInventoryHistoryV468=warmMonthlyInventoryHistoryV468;
+function setupMonthlyInventoryHistoryV468() {
+  MONTHLY_INVENTORY_TARGET_IDS_V468.forEach(id=>{
+    const target=document.getElementById(id);
+    if (!target || target.dataset.monthlyHistoryV468) return;
+    target.dataset.monthlyHistoryV468="1";
+    target.classList.add("monthly-inventory-toggle-v468");
+    target.setAttribute("role","button");
+    target.setAttribute("tabindex","0");
+    target.setAttribute("aria-expanded","false");
+    target.setAttribute("aria-controls","monthlyInventoryHistoryV468");
+    target.title="点击展开 / 收起月初库存记录（全库存）";
+    target.addEventListener("click",()=>toggleMonthlyInventoryHistoryV468(id));
+    target.addEventListener("keydown",event=>{
+      if(event.key!=="Enter" && event.key!==" ") return;
+      event.preventDefault();toggleMonthlyInventoryHistoryV468(id);
+    });
+  });
 }
