@@ -7273,3 +7273,11 @@ body.system-media-preview-open-v305{overflow:hidden}
 .monthly-inventory-history-v468 .monthly-inventory-highest-v468 td{color:#c62828;font-weight:700}
 .monthly-inventory-note-v468{display:block;margin-top:5px;font-size:12px;color:var(--muted,#68746b);line-height:1.5}
 @media(max-width:620px){.monthly-inventory-history-v468 table{font-size:15px}.monthly-inventory-history-v468 th,.monthly-inventory-history-v468 td{padding:6px 7px}}
+
+/* V46.9: two VND cost values inside the existing one-of-ten metric cell. */
+.product-stock-cost-btn .average-cost-split-v469{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px 8px;width:100%;margin-top:3px;text-align:left}
+.product-stock-cost-btn .average-cost-part-v469{display:flex;flex-direction:column;min-width:0;gap:2px}
+.product-stock-cost-btn .average-cost-part-v469+ .average-cost-part-v469{border-left:1px solid var(--border,#dce5df);padding-left:8px}
+.product-stock-cost-btn .average-cost-part-v469 small{font-size:11px;line-height:1.25;color:var(--muted,#68746b);font-weight:400}
+.product-stock-cost-btn .average-cost-part-v469 strong{font-size:clamp(12px,1.1vw,16px);line-height:1.3;white-space:nowrap;color:#111!important;font-variant-numeric:tabular-nums}
+@media(max-width:620px){.product-stock-cost-btn .average-cost-split-v469{grid-template-columns:1fr;gap:3px}.product-stock-cost-btn .average-cost-part-v469{flex-direction:row;align-items:baseline;justify-content:space-between;gap:4px}.product-stock-cost-btn .average-cost-part-v469+ .average-cost-part-v469{border-left:0;padding-left:0}.product-stock-cost-btn .average-cost-part-v469 small{font-size:12px;white-space:nowrap}.product-stock-cost-btn .average-cost-part-v469 strong{font-size:14px}}
