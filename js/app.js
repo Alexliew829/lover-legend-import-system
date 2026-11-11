@@ -183,6 +183,7 @@ document.addEventListener("DOMContentLoaded", () => {
   repairLegacyImportDates();
   setupNavigation();
   setupMonthlyInventoryHistoryV468();
+  setupHistorySpeciesProfitV470();
   warmMonthlyInventoryHistoryV468();
   setupSettings();
   setupInventoryMasterV299();
@@ -698,12 +699,12 @@ async function retryCompletedSalesAcksV465() {
       } catch (error) {
         // No inventory write or local success flag on failure. The existing Feed
         // refresh/resume cadence retries; reload reconstructs this queue from History.
-        console.warn("V46.9 Sales completion acknowledgement deferred", error);
+        console.warn("V47.0 Sales completion acknowledgement deferred", error);
         break;
       }
     }
   } catch (error) {
-    console.warn("V46.9 Sales completion verification deferred", error);
+    console.warn("V47.0 Sales completion verification deferred", error);
   } finally {
     salesInventoryAckBusyV465 = false;
     recomputeSalesInventoryPendingV77();
@@ -2958,7 +2959,10 @@ function setupNavigation() {
         closeImportDraftEditorV459();
       }
 
-      if (target !== current) closeMonthlyInventoryHistoryV468();
+      if (target !== current) {
+        closeMonthlyInventoryHistoryV468();
+        closeHistorySpeciesProfitV470();
+      }
       buttons.forEach(item => item.classList.remove("active"));
       pages.forEach(page => page.classList.remove("active"));
 
@@ -3367,7 +3371,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.9 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V47.0 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3470,7 +3474,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V46.9 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V47.0 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -9953,7 +9957,7 @@ function reverseBatchInventoryImpact(products, batchItems, remainingImports) {
     const remainingQuantity = quantitiesV463.remainingQuantity;
     const unitCost = Math.max(0, Number(record.unitCost) || 0);
 
-    // V46.9: never clamp a shortage to zero. A shortage means the target batch
+    // V47.0: never clamp a shortage to zero. A shortage means the target batch
     // cannot be safely reversed and the whole delete must stop before any save.
     if (currentStock + 0.000001 < remainingQuantity) {
       throw new Error(
@@ -10359,7 +10363,7 @@ async function deleteBatchByNumber(importNumber) {
     batchItems.length ? batchItems : (batch.items || []);
   const products = getProducts();
 
-  // V46.9: protect only the target import number. Sales/repairs belonging to an
+  // V47.0: protect only the target import number. Sales/repairs belonging to an
   // older batch of the same product must not block deletion of a brand-new,
   // untouched import entered by mistake.
   const targetProtectionV463 = getTargetBatchDeleteProtectionV463(
@@ -12923,11 +12927,13 @@ function getHistorySoldCategoryBreakdownV451(options = {}) {
     );
 }
 
-function buildHistorySoldCategoryBreakdownHTMLV451(rows) {
+function buildHistorySoldCategoryBreakdownHTMLV451(rows, toggleV470 = false) {
   if (!Array.isArray(rows) || !rows.length) return "";
-  return `<div class="history-sold-category-breakdown-v451" aria-label="卖出产品分类数量">${rows.map(row =>
+  const content = rows.map(row =>
     `<small><strong>${escapeHTML(row.label || "其他")}</strong><b>${formatNumber(row.quantity)}</b></small>`
-  ).join('<i aria-hidden="true">·</i>')}</div>`;
+  ).join('<i aria-hidden="true">·</i>');
+  if (!toggleV470) return `<div class="history-sold-category-breakdown-v451" aria-label="卖出产品分类数量">${content}</div>`;
+  return `<button type="button" class="history-sold-category-breakdown-v451 history-species-toggle-v470" data-species-profit-v470="${historySpeciesProfitContextV470.token}" aria-expanded="${historySpeciesProfitOpenV470}" aria-controls="historySpeciesProfitPanelV470">${content}<em>${historySpeciesProfitOpenV470 ? "点击收起" : "点击查看树种利润"}</em></button>`;
 }
 
 function getHistorySalesLinkForAdjustmentV137(adjustment, allAdjustments) {
@@ -12952,6 +12958,7 @@ function getHistorySalesFinancialSnapshotV452(options = {}) {
   const lots = getHistorySoldLotsV451(options);
   const allAdjustments = getAllHistoryStockAdjustments();
   const grouped = new Map();
+  const speciesEntriesV470 = options.collectSpeciesV470 ? new Map() : null;
   let soldQuantity = 0;
   let noLinkQuantity = 0;
 
@@ -12969,6 +12976,7 @@ function getHistorySalesFinancialSnapshotV452(options = {}) {
     entry.quantity += quantity;
     if (!entry.fallbackLink) entry.fallbackLink = link;
     grouped.set(linkId, entry);
+    if (speciesEntriesV470) speciesEntriesV470.set(lot, entry);
   });
 
   let totalProfit = 0;
@@ -13002,6 +13010,10 @@ function getHistorySalesFinancialSnapshotV452(options = {}) {
       const commission = Number(detail.commissionAmount);
       const profit = Number(detail.profit);
       const totalCost = averageCost * originalQuantity + delivery + extra + commission;
+      if (speciesEntriesV470) entry.financialV470 = {
+        matchedQuantity, profitPerUnit: profit / originalQuantity,
+        salesAmountPerUnit: (totalCost + profit) / originalQuantity
+      };
       totalProfit += profit * ratio;
       totalSalesCost += totalCost * ratio;
       completeQuantity += matchedQuantity;
@@ -13023,6 +13035,7 @@ function getHistorySalesFinancialSnapshotV452(options = {}) {
   });
 
   return {
+    speciesEntriesV470,
     soldQuantity,
     linkedQuantity: Math.max(0, soldQuantity - noLinkQuantity),
     noLinkQuantity,
@@ -13137,7 +13150,7 @@ function buildHistorySoldCostSummary(options = {}) {
         failedQuantity:0, loadingQuantity:0, totalSalesAmount:0,
         totalSalesCost:0, totalProfit:0, ready:true
       }
-    : getHistorySalesFinancialSnapshotV452(soldOptionsV451);
+    : getHistorySalesFinancialSnapshotV452({ ...soldOptionsV451, collectSpeciesV470:true });
   const soldQuantity = forceZero ? 0 : financialSnapshotV452.soldQuantity;
   const soldCategoryBreakdownV451 = forceZero ? [] : getHistorySoldCategoryBreakdownV451(soldOptionsV451);
   const salesTotalText = getHistoryFinancialValueHTMLV452(financialSnapshotV452.totalSalesAmount, financialSnapshotV452);
@@ -13145,12 +13158,14 @@ function buildHistorySoldCostSummary(options = {}) {
   const salesProfitText = getHistoryFinancialValueHTMLV452(financialSnapshotV452.totalProfit, financialSnapshotV452);
   const hasFinancialValuesV452 = financialSnapshotV452.completeQuantity > 0;
   const periodLayoutClass = "history-selected-period-range-v143";
+  prepareHistorySpeciesProfitV470(options, soldLotsV451, financialSnapshotV452);
 
   return `
     <div class="history-selected-period ${periodLayoutClass}">
       <strong>${periodLabel}</strong>
       <span>卖出所有产品总数量 <b>${formatNumber(soldQuantity, 0)}</b></span>
-      ${buildHistorySoldCategoryBreakdownHTMLV451(soldCategoryBreakdownV451)}
+      ${buildHistorySoldCategoryBreakdownHTMLV451(soldCategoryBreakdownV451, true)}
+      ${soldCategoryBreakdownV451.length ? `<div id="historySpeciesProfitPanelV470" class="history-species-panel-v470" ${historySpeciesProfitOpenV470 ? "" : "hidden"}>${historySpeciesProfitOpenV470 ? buildHistorySpeciesProfitTableV470() : ""}</div>` : ""}
     </div>
     <div class="history-cost-profit-summary-v137">
       <div class="history-total-sales-amount-summary-v142">
@@ -17187,7 +17202,7 @@ function updateBatchProductQuerySummaryV422(products) {
   if (countField) countField.textContent = `${rows.length} 项`;
 }
 
-// V46.9: one lightweight inventory-summary refresh path for every page.
+// V47.0: one lightweight inventory-summary refresh path for every page.
 // It always refreshes the Product Management totals, but redraws product cards
 // only when that page is visible and a filtered result list is actually open.
 // The Inventory Master table is also redrawn only when visible and expanded.
@@ -22150,7 +22165,7 @@ async function openImportDraftHistoryV466() {
     const unique = new Map();
     rows.forEach(row => { if(row?.draft?.id) unique.set(JSON.stringify(row.draft),row); });
     const history = [...unique.values()].sort((a,b)=>String(b.at).localeCompare(String(a.at)));
-    if (!history.length) { alert("目前没有可恢复副本。V46.9 开始记录历史；本机保留最近50个副本，云端窗口显示最近100个版本。"); return; }
+    if (!history.length) { alert("目前没有可恢复副本。V47.0 开始记录历史；本机保留最近50个副本，云端窗口显示最近100个版本。"); return; }
     document.getElementById("importDraftHistoryPanelV466")?.remove();
     const panel = document.createElement("section");
     panel.id = "importDraftHistoryPanelV466";
@@ -22298,4 +22313,99 @@ function renderProductAverageCostV469(product, rules, originIndex) {
     <span class="average-cost-part-v469"><small>不含盆</small><strong>${formatMoney(cost, "RM ")}</strong></span>
     <span class="average-cost-part-v469"><small>含盆</small><strong>${formatMoney(cost + potCost, "RM ")}</strong></span>
   </span>`;
+}
+
+// V47.0: transient History-only view; no storage, inventory writes or extra API calls.
+let historySpeciesProfitOpenV470 = false;
+let historySpeciesProfitContextV470 = null;
+let historySpeciesProfitTokenV470 = 0;
+
+function prepareHistorySpeciesProfitV470(options, lots, snapshot) {
+  const signature = JSON.stringify([
+    options.range || null, options.keyword || "", options.exactProduct || "",
+    options.source || "", options.importNumber || "", !!options.forceZero
+  ]);
+  if (historySpeciesProfitContextV470?.signature !== signature) historySpeciesProfitOpenV470 = false;
+  historySpeciesProfitContextV470 = {
+    signature, token:++historySpeciesProfitTokenV470, lots, snapshot, rows:null
+  };
+}
+
+function getHistorySpeciesProfitRowsV470(lots, snapshot) {
+  const classification = getHistorySoldClassificationContextV451();
+  const totals = new Map();
+  const allocated = new Map();
+  lots.forEach(lot => {
+    const quantity = Math.max(0, Number(lot?.remainingQuantity) || 0);
+    if (!(quantity > 0)) return;
+    let label = "其他";
+    try {
+      const product = getHistorySoldProductForClassificationV451(lot.adjustment, classification);
+      label = getHistorySoldCategoryLabelV451(product, lot.adjustment) || "其他";
+    } catch (_) { /* Match the existing quantity breakdown fallback. */ }
+    const row = totals.get(label) || {label, quantity:0, completeQuantity:0, profit:0, salesAmount:0};
+    row.quantity += quantity;
+    const entry = snapshot.speciesEntriesV470?.get(lot);
+    const financial = entry?.financialV470;
+    if (financial) {
+      // One shared cap per Sales link, including FIFO batch splits and overflow.
+      const used = allocated.get(entry) || 0;
+      const matched = Math.min(quantity, Math.max(0, financial.matchedQuantity - used));
+      allocated.set(entry, used + matched);
+      row.completeQuantity += matched;
+      row.profit += matched * financial.profitPerUnit;
+      row.salesAmount += matched * financial.salesAmountPerUnit;
+    }
+    totals.set(label, row);
+  });
+  return Array.from(totals.values()).sort((a, b) =>
+    Number(b.completeQuantity > 0) - Number(a.completeQuantity > 0) ||
+    b.profit - a.profit || a.label.localeCompare(b.label, "zh-Hans-CN")
+  );
+}
+
+function buildHistorySpeciesProfitTableV470() {
+  const context = historySpeciesProfitContextV470;
+  if (!context) return "";
+  if (!context.rows) context.rows = getHistorySpeciesProfitRowsV470(context.lots, context.snapshot);
+  let hasMissing = false;
+  const body = context.rows.map(row => {
+    const missing = Math.max(0, row.quantity - row.completeQuantity);
+    if (missing > 0) hasMissing = true;
+    const known = row.completeQuantity > 0;
+    const mark = known && missing > 0 ? "*" : "";
+    const tone = !known || row.profit === 0 ? "" : row.profit > 0 ? "gain" : "loss";
+    const profit = known ? `${formatMoney(row.profit, "RM ")}${mark}` : "—";
+    const average = known ? `${formatMoney(row.profit / row.completeQuantity, "RM ")}${mark}` : "—";
+    const margin = known && row.salesAmount > 0 ? `${(row.profit / row.salesAmount * 100).toFixed(2)}%${mark}` : "—";
+    return `<tr><th scope="row">${escapeHTML(row.label)}${missing > 0 ? `<small>待核对 ${formatNumber(missing, 0)} 棵</small>` : ""}</th><td>${formatNumber(row.quantity, 0)}</td><td class="${tone}">${profit}</td><td class="${tone}">${average}</td><td class="${tone}">${margin}</td></tr>`;
+  }).join("");
+  return `<div class="history-species-scroll-v470"><table aria-label="按总利润由高到低的树种销售统计"><thead><tr><th scope="col">树种</th><th scope="col">销量</th><th scope="col">总利润</th><th scope="col">平均每棵利润</th><th scope="col">利润率</th></tr></thead><tbody>${body}</tbody></table></div><p>按总利润由高到低 · 沿用当前筛选及历史销售财务资料${hasMissing ? "。* 仅含财务完整部分；平均利润及利润率按该部分计算，待核对数量不作零利润。" : "。"}</p>`;
+}
+
+function closeHistorySpeciesProfitV470() {
+  historySpeciesProfitOpenV470 = false;
+  const panel = document.getElementById("historySpeciesProfitPanelV470");
+  if (panel) panel.hidden = true;
+  const button = document.querySelector("[data-species-profit-v470]");
+  if (button) {
+    button.setAttribute("aria-expanded", "false");
+    const hint = button.querySelector("em");
+    if (hint) hint.textContent = "点击查看树种利润";
+  }
+}
+
+function setupHistorySpeciesProfitV470() {
+  document.addEventListener("click", event => {
+    const button = event.target.closest?.("[data-species-profit-v470]");
+    if (!button || button.dataset.speciesProfitV470 !== String(historySpeciesProfitContextV470?.token)) return;
+    if (historySpeciesProfitOpenV470) { closeHistorySpeciesProfitV470(); return; }
+    const panel = document.getElementById("historySpeciesProfitPanelV470");
+    if (!panel) return;
+    panel.innerHTML = buildHistorySpeciesProfitTableV470();
+    panel.hidden = false;
+    historySpeciesProfitOpenV470 = true;
+    button.setAttribute("aria-expanded", "true");
+    button.querySelector("em").textContent = "点击收起";
+  });
 }

@@ -7274,10 +7274,32 @@ body.system-media-preview-open-v305{overflow:hidden}
 .monthly-inventory-note-v468{display:block;margin-top:5px;font-size:12px;color:var(--muted,#68746b);line-height:1.5}
 @media(max-width:620px){.monthly-inventory-history-v468 table{font-size:15px}.monthly-inventory-history-v468 th,.monthly-inventory-history-v468 td{padding:6px 7px}}
 
-/* V46.9: two VND cost values inside the existing one-of-ten metric cell. */
+/* V47.0: two VND cost values inside the existing one-of-ten metric cell. */
 .product-stock-cost-btn .average-cost-split-v469{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px 8px;width:100%;margin-top:3px;text-align:left}
 .product-stock-cost-btn .average-cost-part-v469{display:flex;flex-direction:column;min-width:0;gap:2px}
 .product-stock-cost-btn .average-cost-part-v469+ .average-cost-part-v469{border-left:1px solid var(--border,#dce5df);padding-left:8px}
 .product-stock-cost-btn .average-cost-part-v469 small{font-size:11px;line-height:1.25;color:var(--muted,#68746b);font-weight:400}
 .product-stock-cost-btn .average-cost-part-v469 strong{font-size:clamp(12px,1.1vw,16px);line-height:1.3;white-space:nowrap;color:#111!important;font-variant-numeric:tabular-nums}
 @media(max-width:620px){.product-stock-cost-btn .average-cost-split-v469{grid-template-columns:1fr;gap:3px}.product-stock-cost-btn .average-cost-part-v469{flex-direction:row;align-items:baseline;justify-content:space-between;gap:4px}.product-stock-cost-btn .average-cost-part-v469+ .average-cost-part-v469{border-left:0;padding-left:0}.product-stock-cost-btn .average-cost-part-v469 small{font-size:12px;white-space:nowrap}.product-stock-cost-btn .average-cost-part-v469 strong{font-size:14px}}
+
+/* V47.0 History species profit: compact, keyboard-accessible disclosure. */
+button.history-species-toggle-v470{
+  margin:0;border:0;border-top:1px dashed rgba(180,35,24,.25);
+  border-radius:0;background:transparent;box-shadow:none;
+  padding:8px 0 0;min-height:0;text-align:left;cursor:pointer;
+}
+.history-species-toggle-v470 em{font-size:12px;font-style:normal;text-decoration:underline;font-weight:600}
+.history-species-toggle-v470:focus-visible{outline:2px solid #187443;outline-offset:3px}
+.history-species-panel-v470{width:100%;min-width:0;color:#263b30}
+.history-species-panel-v470[hidden]{display:none}
+.history-species-scroll-v470{max-width:100%;overflow-x:auto}
+.history-species-panel-v470 table{width:100%;border-collapse:collapse;font-size:13px;line-height:1.4}
+.history-species-panel-v470 th,.history-species-panel-v470 td{
+  padding:7px 8px;border-bottom:1px solid #dce5df;text-align:right;white-space:nowrap;
+}
+.history-species-panel-v470 th:first-child{text-align:left}
+.history-species-panel-v470 thead{background:#e8f3ed}
+.history-species-panel-v470 th small{display:block;font-size:11px;color:#9a5800;font-weight:400}
+.history-species-panel-v470 .gain{color:#087c3b}
+.history-species-panel-v470 .loss{color:#b42318}
+.history-species-panel-v470 p{margin:6px 0 0;font-size:12px;color:#65756a;line-height:1.5}
