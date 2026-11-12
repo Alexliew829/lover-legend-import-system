@@ -699,12 +699,12 @@ async function retryCompletedSalesAcksV465() {
       } catch (error) {
         // No inventory write or local success flag on failure. The existing Feed
         // refresh/resume cadence retries; reload reconstructs this queue from History.
-        console.warn("V47.0 Sales completion acknowledgement deferred", error);
+        console.warn("V47.1 Sales completion acknowledgement deferred", error);
         break;
       }
     }
   } catch (error) {
-    console.warn("V47.0 Sales completion verification deferred", error);
+    console.warn("V47.1 Sales completion verification deferred", error);
   } finally {
     salesInventoryAckBusyV465 = false;
     recomputeSalesInventoryPendingV77();
@@ -3371,7 +3371,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V47.0 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V47.1 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3474,7 +3474,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V47.0 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V47.1 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -9957,7 +9957,7 @@ function reverseBatchInventoryImpact(products, batchItems, remainingImports) {
     const remainingQuantity = quantitiesV463.remainingQuantity;
     const unitCost = Math.max(0, Number(record.unitCost) || 0);
 
-    // V47.0: never clamp a shortage to zero. A shortage means the target batch
+    // V47.1: never clamp a shortage to zero. A shortage means the target batch
     // cannot be safely reversed and the whole delete must stop before any save.
     if (currentStock + 0.000001 < remainingQuantity) {
       throw new Error(
@@ -10363,7 +10363,7 @@ async function deleteBatchByNumber(importNumber) {
     batchItems.length ? batchItems : (batch.items || []);
   const products = getProducts();
 
-  // V47.0: protect only the target import number. Sales/repairs belonging to an
+  // V47.1: protect only the target import number. Sales/repairs belonging to an
   // older batch of the same product must not block deletion of a brand-new,
   // untouched import entered by mistake.
   const targetProtectionV463 = getTargetBatchDeleteProtectionV463(
@@ -17202,7 +17202,7 @@ function updateBatchProductQuerySummaryV422(products) {
   if (countField) countField.textContent = `${rows.length} 项`;
 }
 
-// V47.0: one lightweight inventory-summary refresh path for every page.
+// V47.1: one lightweight inventory-summary refresh path for every page.
 // It always refreshes the Product Management totals, but redraws product cards
 // only when that page is visible and a filtered result list is actually open.
 // The Inventory Master table is also redrawn only when visible and expanded.
@@ -17314,6 +17314,9 @@ function renderBatchProductStockResults() {
       suggestedPriceRulesV462,
       suggestedPriceOriginIndexV462
     );
+    const channelMarginsV471 = getSuggestedChannelMarginsV471(
+      product, suggestedPricesV462, suggestedPriceRulesV462, suggestedPriceOriginIndexV462
+    );
 
     return `
     <div class="product-stock-result-row product-stock-card-v256">
@@ -17342,11 +17345,11 @@ function renderBatchProductStockResults() {
           ${(()=>{const state=getMinimumPriceDisplayStateV315(product);const tone=state.state;return `<button class="product-stock-minimum-price-btn product-stock-metric-v256 product-stock-minimum-price-${tone}-v268 ${state.className}" type="button" data-minimum-price-state-v324="${state.state}" style="color:${getMinimumPriceColorV340(state.state) || 'inherit'} !important" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="minimumPrice" aria-label="长按修改最低售价" title="长按修改最低售价"><span>${state.label}</span><strong>${formatMoney(state.price, "RM ")}</strong></button>`})()}
           <button class="product-stock-initial-price-btn-v376 product-stock-metric-v256" type="button" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="initialMinimumPrice" aria-label="长按修改初始最低售价" title="长按修改初始最低售价"><span>初始最低售价</span><strong>${formatMoney(getInitialMinimumPriceV376(product), "RM ")}</strong></button>
           <div class="product-stock-import-metric-v376 product-stock-metric-v256"><span>进口编号</span>${importNumberV256 ? `<button type="button" class="product-stock-import-copy-v256 product-stock-value-black-v421" data-copy-value="${escapeHTML(importNumberV256)}" onclick="copyRecentBatchValue(this, '进口编号')" title="点击复制进口编号">${escapeHTML(importNumberV256)}</button>` : `<strong>-</strong>`}</div>
-          <button class="product-stock-cost-btn product-stock-metric-v256 product-stock-value-black-v421" type="button" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="averageCost" aria-label="长按修改平均成本" title="长按修改不含盆的平均成本；含盆金额按现有盆费规则显示">${renderProductAverageCostV469(product, suggestedPriceRulesV462, suggestedPriceOriginIndexV462)}</button>
+          <button class="product-stock-cost-btn product-stock-metric-v256 product-stock-value-black-v421" type="button" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="averageCost" aria-label="长按修改平均原成本" title="长按只修改平均原成本；含盆／含运费金额只作显示">${renderProductAverageCostV469(product, suggestedPriceRulesV462, suggestedPriceOriginIndexV462, suggestedPricesV462.currentMinimumPrice)}</button>
           <div class="product-stock-profit-metric-v387 product-stock-metric-v256 inventory-profit-value-v207 ${profitToneV387}"><span>利润</span><strong>${formatSignedProfitMoneyV387(profitInfoV387.profit)}</strong></div>
           <div class="product-stock-profit-metric-v387 product-stock-metric-v256 inventory-profit-value-v207 ${profitToneV387}"><span>利润率</span><strong>${escapeHTML(formatProfitTargetV303(profitInfoV387.profitRate))}</strong></div>
-          <div class="product-stock-channel-price-v462 product-stock-metric-v256"><span>门市售价</span><strong>${formatMoney(suggestedPricesV462.retailPrice, "RM ")}</strong></div>
-          <div class="product-stock-channel-price-v462 product-stock-metric-v256"><span>Fair 售价</span><strong>${formatMoney(suggestedPricesV462.fairPrice, "RM ")}</strong></div>
+          ${renderSuggestedChannelPriceV471("门市售价", suggestedPricesV462.retailPrice, channelMarginsV471.retail)}
+          ${renderSuggestedChannelPriceV471("Fair 售价", suggestedPricesV462.fairPrice, channelMarginsV471.fair)}
         </div>
       </div>
 
@@ -22165,7 +22168,7 @@ async function openImportDraftHistoryV466() {
     const unique = new Map();
     rows.forEach(row => { if(row?.draft?.id) unique.set(JSON.stringify(row.draft),row); });
     const history = [...unique.values()].sort((a,b)=>String(b.at).localeCompare(String(a.at)));
-    if (!history.length) { alert("目前没有可恢复副本。V47.0 开始记录历史；本机保留最近50个副本，云端窗口显示最近100个版本。"); return; }
+    if (!history.length) { alert("目前没有可恢复副本。V47.1 开始记录历史；本机保留最近50个副本，云端窗口显示最近100个版本。"); return; }
     document.getElementById("importDraftHistoryPanelV466")?.remove();
     const panel = document.createElement("section");
     panel.id = "importDraftHistoryPanelV466";
@@ -22303,19 +22306,24 @@ function setupMonthlyInventoryHistoryV468() {
 
 // Display only: underlying averageCost and its existing long-press edit target
 // remain the unpotted import cost. Reuse the existing VND pot tier resolver.
-function renderProductAverageCostV469(product, rules, originIndex) {
+function renderProductAverageCostV469(product, rules, originIndex, currentMinimumPrice = null) {
   const cost = Number(product?.averageCost) || 0;
   if (!isVndProductV205(product, originIndex)) {
-    return `<span>平均成本</span><strong>${formatMoney(cost, "RM ")}</strong>`;
+    const price = currentMinimumPrice ?? getOrdinaryCurrentMinimumPriceV462(product, rules, originIndex);
+    const freight = getChargeableMinimumFreightTierV439(price, rules).amount;
+    return `<span>平均原成本</span><span class="average-cost-split-v469">
+      <span class="average-cost-part-v469"><small>不含运费</small><strong>${formatMoney(cost, "RM ")}</strong></span>
+      <span class="average-cost-part-v469"><small>含运费</small><strong>${formatMoney(cost + freight, "RM ")}</strong></span>
+    </span>`;
   }
   const potCost = Number(getVndPotCostV160(product, rules, originIndex)) || 0;
-  return `<span>平均成本（VND）</span><span class="average-cost-split-v469">
+  return `<span>平均原成本（VND）</span><span class="average-cost-split-v469">
     <span class="average-cost-part-v469"><small>不含盆</small><strong>${formatMoney(cost, "RM ")}</strong></span>
     <span class="average-cost-part-v469"><small>含盆</small><strong>${formatMoney(cost + potCost, "RM ")}</strong></span>
   </span>`;
 }
 
-// V47.0: transient History-only view; no storage, inventory writes or extra API calls.
+// V47.1: transient History-only view; no storage, inventory writes or extra API calls.
 let historySpeciesProfitOpenV470 = false;
 let historySpeciesProfitContextV470 = null;
 let historySpeciesProfitTokenV470 = 0;
@@ -22408,4 +22416,28 @@ function setupHistorySpeciesProfitV470() {
     button.setAttribute("aria-expanded", "true");
     button.querySelector("em").textContent = "点击收起";
   });
+}
+
+
+// V47.1: display-only channel estimates, independent of online/promotion commission.
+// Keep the existing channel prices and the stored average cost untouched.
+function getSuggestedChannelMarginsV471(product, prices, rules, originIndex) {
+  const cost = Math.max(0, Number(product?.averageCost) || 0) +
+    (Number(getVndPotCostV160(product, rules, originIndex)) || 0);
+  const calculate = (price, commissionRate) => {
+    const freight = getChargeableMinimumFreightTierV439(price, rules).amount;
+    const commission = price * commissionRate / 100;
+    const profit = price - cost - freight - commission;
+    return { freight, commissionRate, profit, profitRate:price > 0 ? profit / price * 100 : null };
+  };
+  return {
+    retail:calculate(prices.retailPrice, 0),
+    fair:calculate(prices.fairPrice, (1 - SUGGESTED_CHANNEL_PRICE_RULES_V462.fairNetFactor) * 100)
+  };
+}
+
+function renderSuggestedChannelPriceV471(label, price, margin) {
+  const rate = Number.isFinite(margin.profitRate) ? `${margin.profitRate.toFixed(2)}%` : "—";
+  const hint = `预估利润率：扣平均成本、适用盆费、对应售价运费及佣金 ${Math.round(margin.commissionRate)}%；运费 RM ${Number(margin.freight).toFixed(2)}`;
+  return `<div class="product-stock-channel-price-v462 product-stock-metric-v256"><span>${escapeHTML(label)}</span><div class="channel-price-values-v471"><strong>${formatMoney(price, "RM ")}</strong><span class="channel-margin-v471" title="${escapeHTML(hint)}">利润率 <b>${rate}</b></span></div></div>`;
 }
