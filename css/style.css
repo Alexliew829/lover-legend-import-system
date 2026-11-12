@@ -7274,7 +7274,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 .monthly-inventory-note-v468{display:block;margin-top:5px;font-size:12px;color:var(--muted,#68746b);line-height:1.5}
 @media(max-width:620px){.monthly-inventory-history-v468 table{font-size:15px}.monthly-inventory-history-v468 th,.monthly-inventory-history-v468 td{padding:6px 7px}}
 
-/* V47.1: two VND cost values inside the existing one-of-ten metric cell. */
+/* V47.3: two VND cost values inside the existing one-of-ten metric cell. */
 .product-stock-cost-btn .average-cost-split-v469{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px 8px;width:100%;margin-top:3px;text-align:left}
 .product-stock-cost-btn .average-cost-part-v469{display:flex;flex-direction:column;min-width:0;gap:2px}
 .product-stock-cost-btn .average-cost-part-v469+ .average-cost-part-v469{border-left:1px solid var(--border,#dce5df);padding-left:8px}
@@ -7282,7 +7282,7 @@ body.system-media-preview-open-v305{overflow:hidden}
 .product-stock-cost-btn .average-cost-part-v469 strong{font-size:clamp(12px,1.1vw,16px);line-height:1.3;white-space:nowrap;color:#111!important;font-variant-numeric:tabular-nums}
 @media(max-width:620px){.product-stock-cost-btn .average-cost-split-v469{grid-template-columns:1fr;gap:3px}.product-stock-cost-btn .average-cost-part-v469{flex-direction:row;align-items:baseline;justify-content:space-between;gap:4px}.product-stock-cost-btn .average-cost-part-v469+ .average-cost-part-v469{border-left:0;padding-left:0}.product-stock-cost-btn .average-cost-part-v469 small{font-size:12px;white-space:nowrap}.product-stock-cost-btn .average-cost-part-v469 strong{font-size:14px}}
 
-/* V47.1 History species profit: compact, keyboard-accessible disclosure. */
+/* V47.3 History species profit: compact, keyboard-accessible disclosure. */
 button.history-species-toggle-v470{
   margin:0;border:0;border-top:1px dashed rgba(180,35,24,.25);
   border-radius:0;background:transparent;box-shadow:none;
@@ -7304,7 +7304,7 @@ button.history-species-toggle-v470{
 .history-species-panel-v470 .loss{color:#b42318}
 .history-species-panel-v470 p{margin:6px 0 0;font-size:12px;color:#65756a;line-height:1.5}
 
-/* V47.1 Keep all ten cells; channel margin shares the price's red color. */
+/* V47.3 Keep all ten cells; channel margin shares the price's red color. */
 .product-stock-channel-price-v462 .channel-price-values-v471{
   display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;
   gap:3px 10px;width:100%;min-width:0;
@@ -7320,4 +7320,23 @@ button.history-species-toggle-v470{
 @media(max-width:620px){
   .product-stock-channel-price-v462 .channel-price-values-v471>strong{font-size:14px}
   .product-stock-channel-price-v462 .channel-margin-v471{font-size:13px}
+}
+
+/* V47.3 Desktop: labels above values, matching the split average-cost cell. */
+@media(min-width:621px){
+  .product-stock-modify-grid-v376 .product-stock-channel-price-v462{
+    display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    grid-template-areas:"label margin" "price margin";
+    align-content:center;align-items:center;column-gap:8px;row-gap:3px;
+  }
+  .product-stock-channel-price-v462>span{grid-area:label}
+  .product-stock-channel-price-v462 .channel-price-values-v471{display:contents}
+  .product-stock-channel-price-v462 .channel-price-values-v471>strong{grid-area:price}
+  .product-stock-channel-price-v462 .channel-margin-v471{
+    grid-area:margin;display:flex;flex-direction:column;align-items:flex-start;
+    justify-content:center;gap:3px;min-width:0;
+    border-left:1px solid var(--border,#dce5df);padding-left:8px;
+  }
+  .product-stock-channel-price-v462 .channel-margin-label-v473{font-size:11px;line-height:1.25;font-weight:400}
+  .product-stock-channel-price-v462 .channel-margin-v471 b{font-size:16px;line-height:1.3}
 }
