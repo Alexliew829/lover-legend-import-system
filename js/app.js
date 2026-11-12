@@ -699,12 +699,12 @@ async function retryCompletedSalesAcksV465() {
       } catch (error) {
         // No inventory write or local success flag on failure. The existing Feed
         // refresh/resume cadence retries; reload reconstructs this queue from History.
-        console.warn("V47.3 Sales completion acknowledgement deferred", error);
+        console.warn("V47.4 Sales completion acknowledgement deferred", error);
         break;
       }
     }
   } catch (error) {
-    console.warn("V47.3 Sales completion verification deferred", error);
+    console.warn("V47.4 Sales completion verification deferred", error);
   } finally {
     salesInventoryAckBusyV465 = false;
     recomputeSalesInventoryPendingV77();
@@ -3371,7 +3371,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V47.3 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V47.4 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3474,7 +3474,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V47.3 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V47.4 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -9957,7 +9957,7 @@ function reverseBatchInventoryImpact(products, batchItems, remainingImports) {
     const remainingQuantity = quantitiesV463.remainingQuantity;
     const unitCost = Math.max(0, Number(record.unitCost) || 0);
 
-    // V47.3: never clamp a shortage to zero. A shortage means the target batch
+    // V47.4: never clamp a shortage to zero. A shortage means the target batch
     // cannot be safely reversed and the whole delete must stop before any save.
     if (currentStock + 0.000001 < remainingQuantity) {
       throw new Error(
@@ -10363,7 +10363,7 @@ async function deleteBatchByNumber(importNumber) {
     batchItems.length ? batchItems : (batch.items || []);
   const products = getProducts();
 
-  // V47.3: protect only the target import number. Sales/repairs belonging to an
+  // V47.4: protect only the target import number. Sales/repairs belonging to an
   // older batch of the same product must not block deletion of a brand-new,
   // untouched import entered by mistake.
   const targetProtectionV463 = getTargetBatchDeleteProtectionV463(
@@ -17202,7 +17202,7 @@ function updateBatchProductQuerySummaryV422(products) {
   if (countField) countField.textContent = `${rows.length} 项`;
 }
 
-// V47.3: one lightweight inventory-summary refresh path for every page.
+// V47.4: one lightweight inventory-summary refresh path for every page.
 // It always refreshes the Product Management totals, but redraws product cards
 // only when that page is visible and a filtered result list is actually open.
 // The Inventory Master table is also redrawn only when visible and expanded.
@@ -22168,7 +22168,7 @@ async function openImportDraftHistoryV466() {
     const unique = new Map();
     rows.forEach(row => { if(row?.draft?.id) unique.set(JSON.stringify(row.draft),row); });
     const history = [...unique.values()].sort((a,b)=>String(b.at).localeCompare(String(a.at)));
-    if (!history.length) { alert("目前没有可恢复副本。V47.3 开始记录历史；本机保留最近50个副本，云端窗口显示最近100个版本。"); return; }
+    if (!history.length) { alert("目前没有可恢复副本。V47.4 开始记录历史；本机保留最近50个副本，云端窗口显示最近100个版本。"); return; }
     document.getElementById("importDraftHistoryPanelV466")?.remove();
     const panel = document.createElement("section");
     panel.id = "importDraftHistoryPanelV466";
@@ -22323,7 +22323,7 @@ function renderProductAverageCostV469(product, rules, originIndex, currentMinimu
   </span>`;
 }
 
-// V47.3: transient History-only view; no storage, inventory writes or extra API calls.
+// V47.4: transient History-only view; no storage, inventory writes or extra API calls.
 let historySpeciesProfitOpenV470 = false;
 let historySpeciesProfitContextV470 = null;
 let historySpeciesProfitTokenV470 = 0;
@@ -22419,7 +22419,7 @@ function setupHistorySpeciesProfitV470() {
 }
 
 
-// V47.3: display-only channel estimates, independent of online/promotion commission.
+// V47.4: display-only channel estimates, independent of online/promotion commission.
 // Keep the existing channel prices and the stored average cost untouched.
 function getSuggestedChannelMarginsV471(product, prices, rules, originIndex) {
   const cost = Math.max(0, Number(product?.averageCost) || 0) +
