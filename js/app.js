@@ -699,12 +699,12 @@ async function retryCompletedSalesAcksV465() {
       } catch (error) {
         // No inventory write or local success flag on failure. The existing Feed
         // refresh/resume cadence retries; reload reconstructs this queue from History.
-        console.warn("V47.6 Sales completion acknowledgement deferred", error);
+        console.warn("V47.7 Sales completion acknowledgement deferred", error);
         break;
       }
     }
   } catch (error) {
-    console.warn("V47.6 Sales completion verification deferred", error);
+    console.warn("V47.7 Sales completion verification deferred", error);
   } finally {
     salesInventoryAckBusyV465 = false;
     recomputeSalesInventoryPendingV77();
@@ -3371,7 +3371,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V47.6 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V47.7 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3474,7 +3474,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V47.6 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V47.7 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -9957,7 +9957,7 @@ function reverseBatchInventoryImpact(products, batchItems, remainingImports) {
     const remainingQuantity = quantitiesV463.remainingQuantity;
     const unitCost = Math.max(0, Number(record.unitCost) || 0);
 
-    // V47.6: never clamp a shortage to zero. A shortage means the target batch
+    // V47.7: never clamp a shortage to zero. A shortage means the target batch
     // cannot be safely reversed and the whole delete must stop before any save.
     if (currentStock + 0.000001 < remainingQuantity) {
       throw new Error(
@@ -10363,7 +10363,7 @@ async function deleteBatchByNumber(importNumber) {
     batchItems.length ? batchItems : (batch.items || []);
   const products = getProducts();
 
-  // V47.6: protect only the target import number. Sales/repairs belonging to an
+  // V47.7: protect only the target import number. Sales/repairs belonging to an
   // older batch of the same product must not block deletion of a brand-new,
   // untouched import entered by mistake.
   const targetProtectionV463 = getTargetBatchDeleteProtectionV463(
@@ -17205,7 +17205,7 @@ function updateBatchProductQuerySummaryV422(products) {
   if (countField) countField.textContent = `${rows.length} 项`;
 }
 
-// V47.6: one lightweight inventory-summary refresh path for every page.
+// V47.7: one lightweight inventory-summary refresh path for every page.
 // It always refreshes the Product Management totals, but redraws product cards
 // only when that page is visible and a filtered result list is actually open.
 // The Inventory Master table is also redrawn only when visible and expanded.
@@ -17345,10 +17345,10 @@ function renderBatchProductStockResults() {
         <div class="product-stock-modify-grid-v376">
           <button class="product-stock-qty-btn product-stock-metric-v256" type="button" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="stock" aria-label="长按修改当前库存" title="长按修改当前库存"><span>当前库存</span><strong>${formatNumber(Number(product.stock) || 0)}</strong></button>
           ${originalRecordV219 ? `<button class="product-stock-original-cost-btn-v219 product-stock-metric-v256" type="button" data-product-id="${escapeHTML(productIdV256)}" data-import-record-id="${escapeHTML(originalRecordV219.id || "")}" data-edit-type="originalCost" aria-label="长按修改原成本" title="长按修改原成本；只重算该产品，不改变原进口数量或同批其他产品"><span>原成本</span><strong>${currencyV219 ? `${escapeHTML(currencyV219)} ` : ""}${formatMoney(Number(originalRecordV219.unitPrice) || 0)}</strong></button>` : `<div class="product-stock-original-cost-empty-v219 product-stock-metric-v256"><span>原成本</span><strong>-</strong></div>`}
-          ${(()=>{const state=getMinimumPriceDisplayStateV315(product);const tone=state.state;return `<button class="product-stock-minimum-price-btn product-stock-metric-v256 product-stock-minimum-price-${tone}-v268 ${state.className}" type="button" data-minimum-price-state-v324="${state.state}" style="color:${getMinimumPriceColorV340(state.state) || 'inherit'} !important" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="minimumPrice" aria-label="长按修改最低售价" title="长按修改最低售价"><span>${state.label}</span><strong>${formatMoney(state.price, "RM ")}</strong></button>`})()}
-          <button class="product-stock-initial-price-btn-v376 product-stock-metric-v256" type="button" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="initialMinimumPrice" aria-label="长按修改初始最低售价" title="长按修改初始最低售价"><span>初始最低售价</span><strong>${formatMoney(getInitialMinimumPriceV376(product), "RM ")}</strong></button>
           <div class="product-stock-import-metric-v376 product-stock-metric-v256"><span>进口编号</span>${importNumberV256 ? `<button type="button" class="product-stock-import-copy-v256 product-stock-value-black-v421" data-copy-value="${escapeHTML(importNumberV256)}" onclick="copyRecentBatchValue(this, '进口编号')" title="点击复制进口编号">${escapeHTML(importNumberV256)}</button>` : `<strong>-</strong>`}</div>
           <button class="product-stock-cost-btn product-stock-metric-v256 product-stock-value-black-v421" type="button" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="averageCost" aria-label="长按修改平均原成本" title="长按只修改平均原成本；含盆／含运费金额只作显示">${renderProductAverageCostV469(product, suggestedPriceRulesV462, suggestedPriceOriginIndexV462, suggestedPricesV462.currentMinimumPrice)}</button>
+          ${(()=>{const state=getMinimumPriceDisplayStateV315(product);const tone=state.state;return `<button class="product-stock-minimum-price-btn product-stock-metric-v256 product-stock-minimum-price-${tone}-v268 ${state.className}" type="button" data-minimum-price-state-v324="${state.state}" style="color:${getMinimumPriceColorV340(state.state) || 'inherit'} !important" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="minimumPrice" aria-label="长按修改最低售价" title="长按修改最低售价"><span>${state.label}</span><strong>${formatMoney(state.price, "RM ")}</strong></button>`})()}
+          <button class="product-stock-initial-price-btn-v376 product-stock-metric-v256" type="button" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="initialMinimumPrice" aria-label="长按修改初始最低售价" title="长按修改初始最低售价"><span>初始最低售价</span><strong>${formatMoney(getInitialMinimumPriceV376(product), "RM ")}</strong></button>
           <div class="product-stock-profit-metric-v387 product-stock-metric-v256 inventory-profit-value-v207 ${profitToneV387}"><span>利润</span><strong>${formatSignedProfitMoneyV387(profitInfoV387.profit)}</strong></div>
           <div class="product-stock-profit-metric-v387 product-stock-metric-v256 inventory-profit-value-v207 ${profitToneV387}"><span>利润率</span><strong>${escapeHTML(formatProfitTargetV303(profitInfoV387.profitRate))}</strong></div>
           ${renderSuggestedChannelPriceV471("门市售价", suggestedPricesV462.retailPrice, channelMarginsV471.retail)}
@@ -22171,7 +22171,7 @@ async function openImportDraftHistoryV466() {
     const unique = new Map();
     rows.forEach(row => { if(row?.draft?.id) unique.set(JSON.stringify(row.draft),row); });
     const history = [...unique.values()].sort((a,b)=>String(b.at).localeCompare(String(a.at)));
-    if (!history.length) { alert("目前没有可恢复副本。V47.6 开始记录历史；本机保留最近50个副本，云端窗口显示最近100个版本。"); return; }
+    if (!history.length) { alert("目前没有可恢复副本。V47.7 开始记录历史；本机保留最近50个副本，云端窗口显示最近100个版本。"); return; }
     document.getElementById("importDraftHistoryPanelV466")?.remove();
     const panel = document.createElement("section");
     panel.id = "importDraftHistoryPanelV466";
@@ -22326,7 +22326,7 @@ function renderProductAverageCostV469(product, rules, originIndex, currentMinimu
   </span>`;
 }
 
-// V47.6: transient History-only view; no storage, inventory writes or extra API calls.
+// V47.7: transient History-only view; no storage, inventory writes or extra API calls.
 let historySpeciesProfitOpenV470 = false;
 let historySpeciesProfitContextV470 = null;
 let historySpeciesProfitTokenV470 = 0;
@@ -22424,7 +22424,7 @@ function setupHistorySpeciesProfitV470() {
 }
 
 
-// V47.6: display-only channel estimates, independent of online/promotion commission.
+// V47.7: display-only channel estimates, independent of online/promotion commission.
 // Keep the existing channel prices and the stored average cost untouched.
 function getSuggestedChannelMarginsV471(product, prices, rules, originIndex) {
   const cost = Math.max(0, Number(product?.averageCost) || 0) +
