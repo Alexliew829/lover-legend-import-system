@@ -22317,14 +22317,14 @@ function renderProductAverageCostV469(product, rules, originIndex, currentMinimu
   if (!isVndProductV205(product, originIndex)) {
     const price = currentMinimumPrice ?? getOrdinaryCurrentMinimumPriceV462(product, rules, originIndex);
     const freight = getChargeableMinimumFreightTierV439(price, rules).amount;
-    return `<span class="average-cost-split-v469">
-      <span class="average-cost-part-v469"><small>平均原成本（不含运费）</small><strong>${formatMoney(cost, "RM ")}</strong></span>
+    return `<span class="average-cost-mobile-heading-v478">平均原成本</span><span class="average-cost-split-v469">
+      <span class="average-cost-part-v469"><small><span class="cost-label-desktop-v478">平均原成本（不含运费）</span><span class="cost-label-mobile-v478">不含运费</span></small><strong>${formatMoney(cost, "RM ")}</strong></span>
       <span class="average-cost-part-v469"><small>含本地运费</small><strong>${formatMoney(cost + freight, "RM ")}</strong></span>
     </span>`;
   }
   const potCost = Number(getVndPotCostV160(product, rules, originIndex)) || 0;
-  return `<span class="average-cost-split-v469">
-    <span class="average-cost-part-v469"><small>平均原成本（VND不含盆）</small><strong>${formatMoney(cost, "RM ")}</strong></span>
+  return `<span class="average-cost-mobile-heading-v478">平均原成本（VND）</span><span class="average-cost-split-v469">
+    <span class="average-cost-part-v469"><small><span class="cost-label-desktop-v478">平均原成本（VND不含盆）</span><span class="cost-label-mobile-v478">不含盆</span></small><strong>${formatMoney(cost, "RM ")}</strong></span>
     <span class="average-cost-part-v469"><small>含盆</small><strong>${formatMoney(cost + potCost, "RM ")}</strong></span>
   </span>`;
 }
