@@ -3371,7 +3371,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V47.8 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V47.9 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3474,7 +3474,7 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V47.8 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V47.9 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -22319,7 +22319,7 @@ function renderProductAverageCostV469(product, rules, originIndex, currentMinimu
     const freight = getChargeableMinimumFreightTierV439(price, rules).amount;
     return `<span class="average-cost-mobile-heading-v478">平均原成本</span><span class="average-cost-split-v469">
       <span class="average-cost-part-v469"><small><span class="cost-label-desktop-v478">平均原成本（不含运费）</span><span class="cost-label-mobile-v478">不含运费</span></small><strong>${formatMoney(cost, "RM ")}</strong></span>
-      <span class="average-cost-part-v469"><small>含本地运费</small><strong>${formatMoney(cost + freight, "RM ")}</strong></span>
+      <span class="average-cost-part-v469"><small>含本地<span class="cost-label-desktop-v478">运费</span></small><strong>${formatMoney(cost + freight, "RM ")}</strong></span>
     </span>`;
   }
   const potCost = Number(getVndPotCostV160(product, rules, originIndex)) || 0;
