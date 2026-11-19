@@ -7460,3 +7460,18 @@ button.history-species-toggle-v470{
     grid-area: margin;
   }
 }
+
+/* V48.0 — keep the original details and add a separate, read-only batch column. */
+.product-cost-breakdown-columns-v480{display:grid;align-items:start;gap:18px;min-width:0}
+.latest-import-cost-v480{min-width:0;background:#f0f7f2;border:1px solid #d9e8dc;border-radius:12px;padding:12px}
+.latest-import-cost-v480 h4{margin:0 0 8px}
+.latest-import-meta-v480{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px}
+.latest-import-copy-v480{border:1px solid #9bbba4;border-radius:7px;background:#fff;color:#215d3d;font:inherit;font-weight:700;padding:4px 7px;max-width:100%;overflow-wrap:anywhere;cursor:pointer}
+.latest-import-context-v480,.latest-import-copy-status-v480{margin:7px 0 0;color:#52645a;font-size:.85rem;overflow-wrap:anywhere}
+.latest-import-copy-status-v480:empty{display:none}
+.latest-import-cost-v480 .product-cost-breakdown-lines-v421>div{gap:8px}
+.latest-import-cost-v480 .cost-total-v421{font-size:1rem}
+@media(min-width:720px){
+  .product-cost-breakdown-dialog-v421:has(.latest-import-cost-v480){width:min(820px,calc(100vw - 36px))}
+  .product-cost-breakdown-columns-v480{grid-template-columns:minmax(0,396px) minmax(0,1fr)}
+}
