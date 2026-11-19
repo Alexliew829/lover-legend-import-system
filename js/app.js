@@ -16988,16 +16988,21 @@ function getLatestImportCostV480(product) {
     if (!matches) continue;
     const batch = byId.get(clean(record.batchId)) || byNumber.get(clean(record.importNumber).toUpperCase());
     const arrival = getImportDisplayDate(record, batch);
-    if (!arrival) continue;
-    const time = parseDDMMYYYY(arrival);
+    const recorded = normalizeDateToDDMMYYYY(record.date) || normalizeDateToDDMMYYYY(batch?.date);
+    const displayDate = arrival || recorded;
+    if (!displayDate) continue;
+    const time = parseDDMMYYYY(displayDate);
     const created = Date.parse(record.createdAt || batch?.createdAt || "") || 0;
-    if (latest && (time < latest.time || (time === latest.time && created <= latest.created))) continue;
-    latest = { record, batch, arrival, time, created };
+    const priority = arrival ? 1 : 0;
+    if (latest && (priority < latest.priority || (priority === latest.priority &&
+        (time < latest.time || (time === latest.time && created <= latest.created))))) continue;
+    latest = { record, batch, arrival, displayDate, time, created, priority };
   }
   if (!latest) return null;
   const { record, batch } = latest;
   return {
     arrival: latest.arrival,
+    displayDate: latest.displayDate,
     number: clean(record.importNumber || batch?.importNumber),
     unitCost: resolveImportUnitCost(record, batch),
     currency: clean(record.currency || batch?.currency).toUpperCase(),
@@ -17009,9 +17014,9 @@ function renderLatestImportCostV480(product, freight) {
   const latest = getLatestImportCostV480(product);
   const heading = "<h4>最近进口成本／棵</h4>";
   if (!latest) {
-    return `<section class="latest-import-cost-v480">${heading}<p>没有可按到货日期核对的进口记录。</p></section>`;
+    return `<section class="latest-import-cost-v480">${heading}<p>没有可按日期核对的进口记录。</p></section>`;
   }
-  const { number, arrival, currency, unitPrice, unitCost } = latest;
+  const { number, arrival, displayDate, currency, unitPrice, unitCost } = latest;
   const pot = currency === "VND" && unitPrice > 0
     ? Math.max(0, Number(getImportOriginPotCostV480(latest, getMinimumPriceRulesV160())) || 0)
     : 0;
@@ -17024,7 +17029,7 @@ function renderLatestImportCostV480(product, freight) {
     <div class="latest-import-meta-v480"><span>进口编号</span>
       ${number ? `<button type="button" class="latest-import-copy-v480" data-copy-value="${escapeHTML(number)}" title="点击复制进口编号">${escapeHTML(number)} · 复制</button>` : "<strong>—</strong>"}
     </div>
-    <p class="latest-import-context-v480">${escapeHTML(arrival)} 到货${currency && unitPrice > 0 ? ` · 原单价 ${escapeHTML(currency)} ${formatMoney(unitPrice)}` : ""}</p>
+    <p class="latest-import-context-v480">${escapeHTML(displayDate)} ${arrival ? "到货" : "记录日期（未填到货日期）"}${currency && unitPrice > 0 ? ` · 原单价 ${escapeHTML(currency)} ${formatMoney(unitPrice)}` : ""}</p>
     <div class="product-cost-breakdown-lines-v421">
       <div><span>入库成本</span><strong>${money(unitCost)}</strong></div>
       <div><span>含盆成本</span><strong>${hasPot ? money(unitCost + pot) : "—"}</strong></div>
