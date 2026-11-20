@@ -3015,6 +3015,7 @@ function setupNavigation() {
       }
 
       if (target === "settingsPage") {
+        if (target !== current) populateCommissionRateV441();
         collapseStaleZeroStockPanelV227();
       }
 
@@ -3079,11 +3080,19 @@ function hasUnsavedSettingsChangesV160() {
   const selectedShippingV439 = document.querySelector('input[name="shippingResponsibilityV439"]:checked')?.value === "buyer" ? "buyer" : "seller";
   if (selectedShippingV439 !== getShippingResponsibilityV439()) return true;
 
-  const commissionInputV441 = document.getElementById("commissionRateV441");
-  if (commissionInputV441) {
-    const commissionDraftV441 = parseAmount(commissionInputV441.value);
-    const storedCommissionV441 = Number(getMinimumPriceRulesV160().commissionRate);
-    if (!Number.isFinite(commissionDraftV441) || Math.abs(commissionDraftV441 - storedCommissionV441) >= 0.005) return true;
+  const commissionMode = document.querySelector('input[name="hostCommissionModeV481"]:checked');
+  const commissionInput = document.getElementById("commissionRateV441");
+  if (commissionMode || commissionInput) {
+    const preference = getHostCommissionPreferenceV481();
+    const enabled = commissionMode ? commissionMode.value === "on" : preference.enabled;
+    if (enabled !== preference.enabled) return true;
+
+    // Disabled commission remembers the draft's saved rate, but the effective rate is zero.
+    if (enabled && commissionInput) {
+      const rawRate = commissionInput.value.trim();
+      const draftRate = Number(rawRate);
+      if (!rawRate || !Number.isFinite(draftRate) || draftRate !== parseAmount(formatMoney(preference.rate))) return true;
+    }
   }
 
   const storedRules = getMinimumPriceRulesV160();
@@ -3371,7 +3380,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.3 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.5 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3496,7 +3505,7 @@ async function saveCommissionRateV441(value, { enabled = true, skipConfirm = fal
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.3 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.5 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate, hostCommissionV481:{enabled, rate:rememberedRate} });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -10932,11 +10941,11 @@ async function copyHistoryText(text, successMessage) {
       }
     }
 
-    showHistoryCopyToast(successMessage);
+    if (successMessage !== null) showHistoryCopyToast(successMessage);
     return true;
   } catch (error) {
     console.error("History copy failed:", error);
-    showHistoryCopyToast("复制失败，请再试一次");
+    if (successMessage !== null) showHistoryCopyToast("复制失败，请再试一次");
     return false;
   }
 }
@@ -17064,7 +17073,7 @@ function renderImportCostContextV482(batchCost) {
 
 function renderImportCostNumberV483(number) {
   return `<div class="latest-import-meta-v480"><span>进口编号</span>
-      ${number ? `<button type="button" class="latest-import-copy-v480" data-copy-value="${escapeHTML(number)}" title="点击复制进口编号">${escapeHTML(number)} · 复制</button>` : "<strong>—</strong>"}
+      ${number ? `<button type="button" class="latest-import-copy-v480" data-copy-value="${escapeHTML(number)}" title="点击复制进口编号"><span class="import-copy-number-v485">${escapeHTML(number)}</span><span class="import-copy-feedback-v485" role="status"></span></button>` : "<strong>—</strong>"}
     </div>`;
 }
 
@@ -17077,7 +17086,6 @@ function renderPreviousImportCostV483(previous) {
       <div class="product-cost-breakdown-lines-v421">
         <div><span>上批入库成本／棵</span><strong>${Number.isFinite(previous.unitCost) && previous.unitCost > 0 ? formatMoney(previous.unitCost, "RM ") : "—"}</strong></div>
       </div>
-      <p class="latest-import-copy-status-v480" role="status"></p>
     ` : '<p class="latest-import-context-v480">没有可核对的上一批进口记录。</p>'}
   </section>`;
 }
@@ -17105,7 +17113,6 @@ function renderLatestImportCostV480(latest, freight) {
       <div class="cost-total-v421"><span>${hasPot ? "含盆＋本地运费成本" : "含本地运费成本"}</span><strong>${money(unitCost + pot + localFreight)}</strong></div>
     </div>
     <p class="latest-import-context-v480">${hasCost ? "不含主播佣金" : "此批入库成本缺失"}</p>
-    <p class="latest-import-copy-status-v480" role="status"></p>
   </section>`;
 }
 
@@ -17217,13 +17224,25 @@ function openProductCostBreakdownV421(productId) {
     dragHandle.addEventListener("pointercancel", stopDragV424);
   }
 
-  for (const panel of overlay.querySelectorAll(".previous-import-cost-v483, .latest-import-cost-v480")) {
-    const copy = panel.querySelector(".latest-import-copy-v480");
-    const copyStatus = panel.querySelector(".latest-import-copy-status-v480");
-    copy?.addEventListener("click", async () => {
-      const number = copy.dataset.copyValue;
-      const copied = await copyHistoryText(number, `✓ 已复制：${number}`);
-      if (copyStatus) copyStatus.textContent = copied ? "✓ 已复制进口编号" : "复制失败，请再试一次";
+  for (const button of overlay.querySelectorAll(".latest-import-copy-v480")) {
+    const feedback = button.querySelector(".import-copy-feedback-v485");
+    let copying = false;
+    let resetTimer;
+    button.addEventListener("click", async () => {
+      if (copying) return;
+      copying = true;
+      try {
+        const copied = await copyHistoryText(button.dataset.copyValue, null);
+        window.clearTimeout(resetTimer);
+        button.dataset.copyState = copied ? "copied" : "failed";
+        feedback.textContent = copied ? "已复制" : "复制失败";
+        resetTimer = window.setTimeout(() => {
+          delete button.dataset.copyState;
+          feedback.textContent = "";
+        }, 1500);
+      } finally {
+        copying = false;
+      }
     });
   }
   const close = () => overlay.remove();

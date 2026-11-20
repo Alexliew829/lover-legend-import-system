@@ -7467,13 +7467,18 @@ button.history-species-toggle-v470{
 .latest-import-cost-v480 h4{margin:0 0 8px}
 .latest-import-meta-v480{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px}
 .latest-import-copy-v480{border:1px solid #9bbba4;border-radius:7px;background:#fff;color:#215d3d;font:inherit;font-weight:700;padding:4px 7px;max-width:100%;overflow-wrap:anywhere;cursor:pointer}
-.latest-import-context-v480,.latest-import-copy-status-v480{margin:7px 0 0;color:#52645a;font-size:.85rem;overflow-wrap:anywhere}
-.latest-import-copy-status-v480:empty{display:none}
+.latest-import-context-v480{margin:7px 0 0;color:#52645a;font-size:.85rem;overflow-wrap:anywhere}
+/* Keep the number in the layout while feedback occupies the same button. */
+.latest-import-copy-v480{position:relative;min-inline-size:5em;line-height:1.25}
+.import-copy-feedback-v485{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none}
+.latest-import-copy-v480[data-copy-state] .import-copy-number-v485{opacity:0}
+.latest-import-copy-v480[data-copy-state="copied"]{background:#e5f4e9;color:#17472d}
+.latest-import-copy-v480[data-copy-state="failed"]{color:#a72720}
 .latest-import-cost-v480 .product-cost-breakdown-lines-v421>div{gap:8px}
 .latest-import-cost-v480 .cost-total-v421{font-size:1rem}
 @media(min-width:720px){
   .product-cost-breakdown-dialog-v421:has(.latest-import-cost-v480){width:min(820px,calc(100vw - 36px))}
-  .product-cost-breakdown-columns-v480{grid-template-columns:minmax(0,396px) minmax(0,1fr)}
+  .product-cost-breakdown-columns-v480{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 
 .commission-settings-v441 #commissionRateRowV481[hidden]{display:none!important}
@@ -7483,3 +7488,10 @@ button.history-species-toggle-v470{
 .previous-import-cost-v483{margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #d7e1da}
 .previous-import-cost-v483 h4{margin:0 0 8px}
 .current-cost-title-v483{margin:0;color:#52645a;font-size:.9rem}
+
+@media(min-width:720px){
+  .product-cost-breakdown-columns-v480 .previous-import-cost-v483{
+    background:#f0f7f2;border:1px solid #d9e8dc;border-radius:12px;padding:12px
+  }
+  .previous-import-cost-v483 .product-cost-breakdown-lines-v421>div{gap:8px}
+}
