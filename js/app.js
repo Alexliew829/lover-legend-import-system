@@ -3380,7 +3380,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.5 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.6 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3505,7 +3505,7 @@ async function saveCommissionRateV441(value, { enabled = true, skipConfirm = fal
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.5 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.6 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate, hostCommissionV481:{enabled, rate:rememberedRate} });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -17102,6 +17102,9 @@ function renderLatestImportCostV480(latest, freight) {
   const hasCost = Number.isFinite(unitCost) && unitCost > 0;
   const hasPot = currency === "VND" && pot > 0;
   const localFreight = Math.max(0, Number(freight) || 0);
+  const totalLabel = localFreight > 0
+    ? (hasPot ? "含盆＋本地运费成本" : "含本地运费成本")
+    : (hasPot ? "含盆成本（不含本地运费）" : "合计（不含盆及本地运费）");
   const money = value => hasCost ? formatMoney(value, "RM ") : "—";
   return `<section class="latest-import-cost-v480">
     ${heading}
@@ -17110,7 +17113,7 @@ function renderLatestImportCostV480(latest, freight) {
     <div class="product-cost-breakdown-lines-v421">
       <div><span>入库成本</span><strong>${money(unitCost)}</strong></div>
       <div><span>含盆成本</span><strong>${hasPot ? money(unitCost + pot) : "—"}</strong></div>
-      <div class="cost-total-v421"><span>${hasPot ? "含盆＋本地运费成本" : "含本地运费成本"}</span><strong>${money(unitCost + pot + localFreight)}</strong></div>
+      <div class="cost-total-v421"><span>${totalLabel}</span><strong>${money(unitCost + pot + localFreight)}</strong></div>
     </div>
     <p class="latest-import-context-v480">${hasCost ? "不含主播佣金" : "此批入库成本缺失"}</p>
   </section>`;
