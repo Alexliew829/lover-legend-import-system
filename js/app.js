@@ -3371,7 +3371,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.0 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.1 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3419,9 +3419,29 @@ function setCommissionRateStatusV441(message, state = "success") {
   else if (state === "neutral") status.classList.add("is-neutral-v441");
 }
 
+function getHostCommissionPreferenceV481() {
+  const saved = getCachedSettingsV317().hostCommissionV481;
+  const effective = getMinimumPriceRulesV160().commissionRate;
+  const rate = Number(saved?.rate);
+  return {
+    enabled: typeof saved?.enabled === "boolean" ? saved.enabled : effective > 0,
+    rate: saved?.rate != null && Number.isFinite(rate) && rate >= 0 && rate < 100 ? rate : effective > 0 ? effective : 10
+  };
+}
+
+function updateHostCommissionRowV481(enabled) {
+  const row = document.getElementById("commissionRateRowV481");
+  if (row) row.hidden = !enabled;
+}
+
 function populateCommissionRateV441() {
+  const preference = getHostCommissionPreferenceV481();
   const input = document.getElementById("commissionRateV441");
-  if (input) input.value = formatMoney(getMinimumPriceRulesV160().commissionRate);
+  if (input) input.value = formatMoney(preference.rate);
+  document.querySelectorAll('input[name="hostCommissionModeV481"]').forEach(radio => {
+    radio.checked = radio.value === (preference.enabled ? "on" : "off");
+  });
+  updateHostCommissionRowV481(preference.enabled);
   const panel = document.querySelector(".commission-settings-v441");
   if (panel) panel.dataset.dirtyV441 = "0";
 }
@@ -3454,15 +3474,17 @@ function validateCommissionRateAgainstMarginsV441(rate) {
   return "";
 }
 
-async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
-  const nextRate = Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+async function saveCommissionRateV441(value, { enabled = true, skipConfirm = false } = {}) {
+  const currentPreference = getHostCommissionPreferenceV481();
+  const rememberedRate = enabled ? Math.round((Number(value) + Number.EPSILON) * 100) / 100 : currentPreference.rate;
+  const nextRate = enabled ? rememberedRate : 0;
   const error = validateCommissionRateAgainstMarginsV441(nextRate);
   const input = document.getElementById("commissionRateV441");
   const panel = document.querySelector(".commission-settings-v441");
   const button = document.getElementById("saveCommissionRateV441");
   if (error) { setCommissionRateStatusV441(error, "error"); input?.focus(); return false; }
   const currentRate = Number(getMinimumPriceRulesV160().commissionRate);
-  if (Math.abs(nextRate - currentRate) < 0.005) {
+  if (enabled === currentPreference.enabled && Math.abs(rememberedRate - currentPreference.rate) < 0.005 && Math.abs(nextRate - currentRate) < 0.005) {
     if (panel) panel.dataset.dirtyV441 = "0";
     setCommissionRateStatusV441(`设置没有改变 · 当前 ${formatMoney(currentRate)}%`, "neutral");
     return true;
@@ -3474,14 +3496,15 @@ async function saveCommissionRateV441(value, { skipConfirm = false } = {}) {
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.0 成本设置原子同步模块未载入，请强制刷新。");
-    await updatePricingSettingsFastV446({ commissionRate:nextRate });
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.1 成本设置原子同步模块未载入，请强制刷新。");
+    await updatePricingSettingsFastV446({ commissionRate:nextRate, hostCommissionV481:{enabled, rate:rememberedRate} });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
     const activePromotionV442 = getPromotionSettingsV183();
+    const modeLabel = enabled ? "有主播" : "没有主播";
     setCommissionRateStatusV441(activePromotionV442
-      ? `✓ 保存成功 · 当前 ${formatMoney(nextRate)}% · 进行中的促销已自动重算`
-      : `✓ 保存成功 · 当前 ${formatMoney(nextRate)}%`);
+      ? `✓ 保存成功 · ${modeLabel} · ${formatMoney(nextRate)}% · 进行中的促销已自动重算`
+      : `✓ 保存成功 · ${modeLabel} · ${formatMoney(nextRate)}%`);
     return true;
   } catch (error) {
     console.error("save commission rate failed", error);
@@ -3510,7 +3533,22 @@ function setupCommissionRateV441() {
   const saveButton = document.getElementById("saveCommissionRateV441");
   if (saveButton && saveButton.dataset.boundV441 !== "1") {
     saveButton.dataset.boundV441 = "1";
-    saveButton.addEventListener("click", () => saveCommissionRateV441(parseAmount(input?.value || "")));
+    saveButton.addEventListener("click", () => {
+      const enabled = document.querySelector('input[name="hostCommissionModeV481"]:checked')?.value !== "off";
+      const value = String(input?.value || "").trim();
+      if (enabled && !/^\d+(?:\.\d+)?$/.test(value)) {
+        setCommissionRateStatusV441("请输入有效的主播佣金率。", "error");
+        input?.focus();
+        return;
+      }
+      void saveCommissionRateV441(Number(value), { enabled });
+    });
+    panel?.addEventListener("change", event => {
+      if (event.target.name !== "hostCommissionModeV481") return;
+      updateHostCommissionRowV481(event.target.value === "on");
+      panel.dataset.dirtyV441 = "1";
+      setCommissionRateStatusV441("尚未保存", "neutral");
+    });
   }
   const resetButton = document.getElementById("resetCommissionRateV441");
   if (resetButton && resetButton.dataset.boundV441 !== "1") {
@@ -4744,6 +4782,7 @@ function getMinimumPriceRulesV160() {
     const value = Number(rawValue);
     normalized[key] = Number.isFinite(value) && value >= 0 ? value : fallback;
   });
+  if (saved.hostCommissionV481?.enabled === false) normalized.commissionRate = 0;
   return normalized;
 }
 
