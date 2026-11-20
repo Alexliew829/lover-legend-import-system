@@ -3371,7 +3371,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.2 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.3 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3496,7 +3496,7 @@ async function saveCommissionRateV441(value, { enabled = true, skipConfirm = fal
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.2 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.3 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate, hostCommissionV481:{enabled, rate:rememberedRate} });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -17009,7 +17009,7 @@ async function promptProductOriginalCostEditorV257(productId, importRecordId = "
 
 
 // Batch display only: select by arrival, without prioritizing remaining stock.
-function getLatestImportCostV480(product) {
+function getImportCostComparisonV483(product) {
   const clean = value => String(value ?? "").trim();
   const aliases = getProductIdAliasesV449();
   const productId = canonicalizeProductIdV449(product.id, aliases);
@@ -17017,7 +17017,7 @@ function getLatestImportCostV480(product) {
   const batches = getBatches();
   const byId = new Map(batches.filter(batch => clean(batch?.id)).map(batch => [clean(batch.id), batch]));
   const byNumber = new Map(batches.filter(batch => clean(batch?.importNumber)).map(batch => [clean(batch.importNumber).toUpperCase(), batch]));
-  let latest = null;
+  const candidates = [];
   for (const record of getImports()) {
     if (!record) continue;
     const recordId = canonicalizeProductIdV449(record.productId, aliases);
@@ -17033,26 +17033,53 @@ function getLatestImportCostV480(product) {
     const time = parseDDMMYYYY(displayDate);
     const created = Date.parse(record.createdAt || batch?.createdAt || "") || 0;
     const priority = arrival ? 1 : 0;
-    if (latest && (priority < latest.priority || (priority === latest.priority &&
-        (time < latest.time || (time === latest.time && created <= latest.created))))) continue;
-    latest = { record, batch, arrival, displayDate, time, created, priority };
+    const number = clean(record.importNumber || batch?.importNumber);
+    const batchId = clean(batch?.id || record.batchId);
+    candidates.push({ record, batch, number, batchId, arrival, displayDate, time, created, priority });
   }
-  if (!latest) return null;
-  const { record, batch } = latest;
-  return {
-    arrival: latest.arrival,
-    displayDate: latest.displayDate,
-    number: clean(record.importNumber || batch?.importNumber),
-    unitCost: resolveImportUnitCost(record, batch),
-    currency: clean(record.currency || batch?.currency).toUpperCase(),
-    unitPrice: Number(record.unitPrice)
-  };
+
+  // Preserve the existing latest-batch order: arrival dates first, then record dates.
+  candidates.sort((a, b) => b.priority - a.priority || b.time - a.time || b.created - a.created);
+  const newest = candidates[0];
+  const previous = newest && candidates.slice(1).find(item =>
+    item.time <= newest.time &&
+    !(item.batchId && item.batchId === newest.batchId) &&
+    !(item.number && item.number.toUpperCase() === newest.number.toUpperCase())
+  );
+  const toCost = item => item ? {
+    arrival: item.arrival,
+    displayDate: item.displayDate,
+    number: item.number,
+    unitCost: resolveImportUnitCost(item.record, item.batch),
+    currency: clean(item.record.currency || item.batch?.currency).toUpperCase(),
+    unitPrice: Number(item.record.unitPrice)
+  } : null;
+  return { latest: toCost(newest), previous: toCost(previous) };
 }
 
-function renderImportCostContextV482(latest) {
-  if (!latest) return "";
-  const { arrival, displayDate, currency, unitPrice } = latest;
+function renderImportCostContextV482(batchCost) {
+  const { arrival, displayDate, currency, unitPrice } = batchCost;
   return `<p class="latest-import-context-v480">${escapeHTML(displayDate)} ${arrival ? "到货" : "记录日期（未填到货日期）"}${currency && unitPrice > 0 ? ` · 原单价 ${escapeHTML(currency)} ${formatMoney(unitPrice)}` : ""}</p>`;
+}
+
+function renderImportCostNumberV483(number) {
+  return `<div class="latest-import-meta-v480"><span>进口编号</span>
+      ${number ? `<button type="button" class="latest-import-copy-v480" data-copy-value="${escapeHTML(number)}" title="点击复制进口编号">${escapeHTML(number)} · 复制</button>` : "<strong>—</strong>"}
+    </div>`;
+}
+
+function renderPreviousImportCostV483(previous) {
+  return `<section class="previous-import-cost-v483">
+    <h4>上一批进口</h4>
+    ${previous ? `
+      ${renderImportCostNumberV483(previous.number)}
+      ${renderImportCostContextV482(previous)}
+      <div class="product-cost-breakdown-lines-v421">
+        <div><span>上批入库成本／棵</span><strong>${Number.isFinite(previous.unitCost) && previous.unitCost > 0 ? formatMoney(previous.unitCost, "RM ") : "—"}</strong></div>
+      </div>
+      <p class="latest-import-copy-status-v480" role="status"></p>
+    ` : '<p class="latest-import-context-v480">没有可核对的上一批进口记录。</p>'}
+  </section>`;
 }
 
 function renderLatestImportCostV480(latest, freight) {
@@ -17060,7 +17087,7 @@ function renderLatestImportCostV480(latest, freight) {
   if (!latest) {
     return `<section class="latest-import-cost-v480">${heading}<p>没有可按日期核对的进口记录。</p></section>`;
   }
-  const { number, currency, unitPrice, unitCost } = latest;
+  const { currency, unitPrice, unitCost } = latest;
   const pot = currency === "VND" && unitPrice > 0
     ? Math.max(0, Number(getImportOriginPotCostV480(latest, getMinimumPriceRulesV160())) || 0)
     : 0;
@@ -17070,9 +17097,7 @@ function renderLatestImportCostV480(latest, freight) {
   const money = value => hasCost ? formatMoney(value, "RM ") : "—";
   return `<section class="latest-import-cost-v480">
     ${heading}
-    <div class="latest-import-meta-v480"><span>进口编号</span>
-      ${number ? `<button type="button" class="latest-import-copy-v480" data-copy-value="${escapeHTML(number)}" title="点击复制进口编号">${escapeHTML(number)} · 复制</button>` : "<strong>—</strong>"}
-    </div>
+    ${renderImportCostNumberV483(latest.number)}
     ${renderImportCostContextV482(latest)}
     <div class="product-cost-breakdown-lines-v421">
       <div><span>入库成本</span><strong>${money(unitCost)}</strong></div>
@@ -17094,7 +17119,7 @@ function openProductCostBreakdownV421(productId) {
   const includeFreightV439 = isSellerShippingResponsibilityV439();
   const extras = Math.max(0, Number(info.potCost) || 0) + Math.max(0, Number(info.freight) || 0) + Math.max(0, Number(info.commission) || 0);
   const total = Math.max(0, Number(info.averageCost) || 0) + extras;
-  const latest = getLatestImportCostV480(product);
+  const { latest, previous } = getImportCostComparisonV483(product);
   document.getElementById("productCostBreakdownOverlayV421")?.remove();
   const overlay = document.createElement("div");
   overlay.id = "productCostBreakdownOverlayV421";
@@ -17105,7 +17130,8 @@ function openProductCostBreakdownV421(productId) {
       <div class="product-cost-breakdown-name-v421">${escapeHTML(product.name || "未命名产品")} · ${escapeHTML(product.id || "")}</div>
       <div class="product-cost-breakdown-columns-v480">
         <div class="product-cost-breakdown-current-v482">
-          ${renderImportCostContextV482(latest)}
+          ${renderPreviousImportCostV483(previous)}
+          <h4 class="current-cost-title-v483">当前附加成本</h4>
           <div class="product-cost-breakdown-lines-v421">
             ${Number(info.potCost) > 0 ? `<div><span>花盆成本</span><strong>${formatMoney(info.potCost, "RM ")}</strong></div>` : ""}
             ${includeFreightV439 ? `<div><span>运费木架</span><strong>${formatMoney(info.freight, "RM ")}</strong></div>` : ""}
@@ -17191,13 +17217,15 @@ function openProductCostBreakdownV421(productId) {
     dragHandle.addEventListener("pointercancel", stopDragV424);
   }
 
-  const copy = overlay.querySelector(".latest-import-copy-v480");
-  const copyStatus = overlay.querySelector(".latest-import-copy-status-v480");
-  copy?.addEventListener("click", async () => {
-    const number = copy.dataset.copyValue;
-    const copied = await copyHistoryText(number, `✓ 已复制：${number}`);
-    if (copyStatus) copyStatus.textContent = copied ? "✓ 已复制进口编号" : "复制失败，请再试一次";
-  });
+  for (const panel of overlay.querySelectorAll(".previous-import-cost-v483, .latest-import-cost-v480")) {
+    const copy = panel.querySelector(".latest-import-copy-v480");
+    const copyStatus = panel.querySelector(".latest-import-copy-status-v480");
+    copy?.addEventListener("click", async () => {
+      const number = copy.dataset.copyValue;
+      const copied = await copyHistoryText(number, `✓ 已复制：${number}`);
+      if (copyStatus) copyStatus.textContent = copied ? "✓ 已复制进口编号" : "复制失败，请再试一次";
+    });
+  }
   const close = () => overlay.remove();
   overlay.querySelector(".product-cost-breakdown-close-v421")?.addEventListener("click", close);
   overlay.addEventListener("click", event => { if (event.target === overlay) close(); });

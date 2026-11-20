@@ -7480,4 +7480,6 @@ button.history-species-toggle-v470{
 .commission-settings-v441 [role="radiogroup"]{margin-bottom:12px}
 
 .product-cost-breakdown-current-v482{min-width:0}
-.product-cost-breakdown-current-v482>.latest-import-context-v480{margin:0 0 4px}
+.previous-import-cost-v483{margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #d7e1da}
+.previous-import-cost-v483 h4{margin:0 0 8px}
+.current-cost-title-v483{margin:0;color:#52645a;font-size:.9rem}
