@@ -3371,7 +3371,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.1 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.2 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3496,7 +3496,7 @@ async function saveCommissionRateV441(value, { enabled = true, skipConfirm = fal
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.1 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.2 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate, hostCommissionV481:{enabled, rate:rememberedRate} });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -17049,13 +17049,18 @@ function getLatestImportCostV480(product) {
   };
 }
 
-function renderLatestImportCostV480(product, freight) {
-  const latest = getLatestImportCostV480(product);
+function renderImportCostContextV482(latest) {
+  if (!latest) return "";
+  const { arrival, displayDate, currency, unitPrice } = latest;
+  return `<p class="latest-import-context-v480">${escapeHTML(displayDate)} ${arrival ? "到货" : "记录日期（未填到货日期）"}${currency && unitPrice > 0 ? ` · 原单价 ${escapeHTML(currency)} ${formatMoney(unitPrice)}` : ""}</p>`;
+}
+
+function renderLatestImportCostV480(latest, freight) {
   const heading = "<h4>最近进口成本／棵</h4>";
   if (!latest) {
     return `<section class="latest-import-cost-v480">${heading}<p>没有可按日期核对的进口记录。</p></section>`;
   }
-  const { number, arrival, displayDate, currency, unitPrice, unitCost } = latest;
+  const { number, currency, unitPrice, unitCost } = latest;
   const pot = currency === "VND" && unitPrice > 0
     ? Math.max(0, Number(getImportOriginPotCostV480(latest, getMinimumPriceRulesV160())) || 0)
     : 0;
@@ -17068,7 +17073,7 @@ function renderLatestImportCostV480(product, freight) {
     <div class="latest-import-meta-v480"><span>进口编号</span>
       ${number ? `<button type="button" class="latest-import-copy-v480" data-copy-value="${escapeHTML(number)}" title="点击复制进口编号">${escapeHTML(number)} · 复制</button>` : "<strong>—</strong>"}
     </div>
-    <p class="latest-import-context-v480">${escapeHTML(displayDate)} ${arrival ? "到货" : "记录日期（未填到货日期）"}${currency && unitPrice > 0 ? ` · 原单价 ${escapeHTML(currency)} ${formatMoney(unitPrice)}` : ""}</p>
+    ${renderImportCostContextV482(latest)}
     <div class="product-cost-breakdown-lines-v421">
       <div><span>入库成本</span><strong>${money(unitCost)}</strong></div>
       <div><span>含盆成本</span><strong>${hasPot ? money(unitCost + pot) : "—"}</strong></div>
@@ -17089,6 +17094,7 @@ function openProductCostBreakdownV421(productId) {
   const includeFreightV439 = isSellerShippingResponsibilityV439();
   const extras = Math.max(0, Number(info.potCost) || 0) + Math.max(0, Number(info.freight) || 0) + Math.max(0, Number(info.commission) || 0);
   const total = Math.max(0, Number(info.averageCost) || 0) + extras;
+  const latest = getLatestImportCostV480(product);
   document.getElementById("productCostBreakdownOverlayV421")?.remove();
   const overlay = document.createElement("div");
   overlay.id = "productCostBreakdownOverlayV421";
@@ -17098,15 +17104,18 @@ function openProductCostBreakdownV421(productId) {
       <h3 id="productCostBreakdownTitleV421">附加成本明细</h3>
       <div class="product-cost-breakdown-name-v421">${escapeHTML(product.name || "未命名产品")} · ${escapeHTML(product.id || "")}</div>
       <div class="product-cost-breakdown-columns-v480">
-      <div class="product-cost-breakdown-lines-v421">
-        ${Number(info.potCost) > 0 ? `<div><span>花盆成本</span><strong>${formatMoney(info.potCost, "RM ")}</strong></div>` : ""}
-        ${includeFreightV439 ? `<div><span>运费木架</span><strong>${formatMoney(info.freight, "RM ")}</strong></div>` : ""}
-        ${Number(info.commission) > 0.0001 ? `<div><span>主播佣金</span><strong>${formatMoney(info.commission, "RM ")}</strong></div>` : ""}
-        <div class="cost-subtotal-v421"><span>共</span><strong>${formatMoney(extras, "RM ")}</strong></div>
-        <div><span>${escapeHTML(getAverageCostLabelV205(product))}</span><strong>${formatMoney(info.averageCost, "RM ")}</strong></div>
-        <div class="cost-total-v421"><span>总成本</span><strong>${formatMoney(total, "RM ")}</strong></div>
-      </div>
-        ${renderLatestImportCostV480(product, info.freight)}
+        <div class="product-cost-breakdown-current-v482">
+          ${renderImportCostContextV482(latest)}
+          <div class="product-cost-breakdown-lines-v421">
+            ${Number(info.potCost) > 0 ? `<div><span>花盆成本</span><strong>${formatMoney(info.potCost, "RM ")}</strong></div>` : ""}
+            ${includeFreightV439 ? `<div><span>运费木架</span><strong>${formatMoney(info.freight, "RM ")}</strong></div>` : ""}
+            ${Number(info.commission) > 0.0001 ? `<div><span>主播佣金</span><strong>${formatMoney(info.commission, "RM ")}</strong></div>` : ""}
+            <div class="cost-subtotal-v421"><span>共</span><strong>${formatMoney(extras, "RM ")}</strong></div>
+            <div><span>${escapeHTML(getAverageCostLabelV205(product))}</span><strong>${formatMoney(info.averageCost, "RM ")}</strong></div>
+            <div class="cost-total-v421"><span>总成本</span><strong>${formatMoney(total, "RM ")}</strong></div>
+          </div>
+        </div>
+        ${renderLatestImportCostV480(latest, info.freight)}
       </div>
       <button class="primary-btn product-cost-breakdown-close-v421" type="button">关闭</button>
     </div>`;

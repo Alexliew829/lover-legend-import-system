@@ -7478,5 +7478,6 @@ button.history-species-toggle-v470{
 
 .commission-settings-v441 #commissionRateRowV481[hidden]{display:none!important}
 .commission-settings-v441 [role="radiogroup"]{margin-bottom:12px}
-.commission-settings-v441 .shipping-mode-card-v440{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #ccdacf;border-radius:12px;cursor:pointer}
-.commission-settings-v441 .shipping-mode-card-v440:has(input:checked){background:#e9f5ee;border-color:#267447}
+
+.product-cost-breakdown-current-v482{min-width:0}
+.product-cost-breakdown-current-v482>.latest-import-context-v480{margin:0 0 4px}
