@@ -3372,7 +3372,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.8 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.9 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3497,7 +3497,7 @@ async function saveCommissionRateV441(value, { enabled = true, skipConfirm = fal
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.8 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.9 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate, hostCommissionV481:{enabled, rate:rememberedRate} });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -17037,6 +17037,7 @@ function getImportCostComparisonV483(product) {
     arrival: item.arrival,
     displayDate: item.displayDate,
     number: item.number,
+    importId: clean(item.record.id),
     unitCost: resolveImportUnitCost(item.record, item.batch),
     currency: clean(item.record.currency || item.batch?.currency).toUpperCase(),
     unitPrice: Number(item.record.unitPrice)
@@ -17068,17 +17069,24 @@ function renderPreviousImportCostV483(previous) {
   </section>`;
 }
 
+function getManualBatchPotV487(batch) {
+  const pots = getCachedSettingsV317().manualBatchPotsV487;
+  return pots && Object.prototype.hasOwnProperty.call(pots, batch.importId) ? pots[batch.importId] : null;
+}
+
 function renderLatestImportCostV480(latest, freight) {
   const heading = "<h4>最近进口成本／棵</h4>";
   if (!latest) {
     return `<section class="latest-import-cost-v480">${heading}<p>没有可按日期核对的进口记录。</p></section>`;
   }
   const { currency, unitPrice, unitCost } = latest;
-  const pot = currency === "VND" && unitPrice > 0
+  const automaticPot = currency === "VND" && unitPrice > 0
     ? Math.max(0, Number(getImportOriginPotCostV480(latest, getMinimumPriceRulesV160())) || 0)
     : 0;
   const hasCost = Number.isFinite(unitCost) && unitCost > 0;
-  const hasPot = currency === "VND" && pot > 0;
+  const canEditPot = Boolean(currency && currency !== "VND" && latest.importId);
+  const pot = canEditPot ? Math.max(0, Number(getManualBatchPotV487(latest)?.amount) || 0) : automaticPot;
+  const hasPot = pot > 0;
   const localFreight = Math.max(0, Number(freight) || 0);
   const totalLabel = localFreight > 0
     ? (hasPot ? "含盆＋本地运费成本" : "含本地运费成本")
@@ -17090,14 +17098,16 @@ function renderLatestImportCostV480(latest, freight) {
     ${renderImportCostContextV482(latest)}
     <div class="product-cost-breakdown-lines-v421">
       <div><span>入库成本</span><strong>${money(unitCost)}</strong></div>
-      <div><span>含盆成本</span><strong>${hasPot ? money(unitCost + pot) : "—"}</strong></div>
+      <div><span>${canEditPot ? "含盆成本（点击可编辑）" : "含盆成本"}</span>${canEditPot
+        ? `<button type="button" class="latest-import-pot-v489" data-pot-import-id="${escapeHTML(latest.importId)}" aria-label="编辑最近进口每棵盆费">${hasPot ? money(unitCost + pot) : "—"}</button>`
+        : `<strong>${hasPot ? money(unitCost + pot) : "—"}</strong>`}</div>
       <div class="cost-total-v421"><span>${totalLabel}</span><strong>${money(unitCost + pot + localFreight)}</strong></div>
     </div>
     <p class="latest-import-context-v480">${hasCost ? "不含主播佣金" : "此批入库成本缺失"}</p>
   </section>`;
 }
 
-// V42.8: read-only cost breakdown. Reuses the exact current minimum-price
+// The left breakdown reuses the exact current minimum-price
 // profit components, so this view can never drift from the pricing/promotion rules.
 function openProductCostBreakdownV421(productId) {
   const id = String(productId || "").trim();
@@ -17226,6 +17236,35 @@ function openProductCostBreakdownV421(productId) {
       }
     });
   }
+  overlay.addEventListener("click", async event => {
+    const button = event.target.closest?.("[data-pot-import-id]");
+    if (!button || overlay.dataset.savingPotV487 === "1") return;
+    const batch = latest;
+    if (!batch?.currency || batch.currency === "VND" || !batch.importId || batch.importId !== button.dataset.potImportId) return;
+    const entry = getManualBatchPotV487(batch);
+    const input = window.prompt(`进口编号：${batch.number || "—"}\n输入每棵本地盆费（RM），最多两位小数；0 表示不加盆费。`, (entry?.amount || 0).toFixed(2));
+    if (input === null) return;
+    const amount = normalizeMinimumPriceInput(input);
+    if (amount === null || !Number.isSafeInteger(Math.round(amount * 100))) {
+      window.alert("盆费必须为 0 或正数，最多两位小数。");
+      return;
+    }
+    if (amount === (entry?.amount || 0)) return;
+    overlay.dataset.savingPotV487 = "1";
+    button.disabled = true;
+    const label = button.textContent;
+    button.textContent = "保存中…";
+    try {
+      await updateManualBatchPotFastV487(batch.importId, amount, entry?.operationId || "");
+      if (overlay.isConnected) openProductCostBreakdownV421(productId);
+    } catch (error) {
+      window.alert(error?.message || "盆费未确认保存，请同步后检查。");
+    } finally {
+      delete overlay.dataset.savingPotV487;
+      button.disabled = false;
+      button.textContent = label;
+    }
+  });
   const close = () => overlay.remove();
   overlay.querySelector(".product-cost-breakdown-close-v421")?.addEventListener("click", close);
   overlay.addEventListener("click", event => { if (event.target === overlay) close(); });

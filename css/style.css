@@ -7495,3 +7495,17 @@ button.history-species-toggle-v470{
   }
   .previous-import-cost-v483 .product-cost-breakdown-lines-v421>div{gap:8px}
 }
+
+.latest-import-pot-v489 {
+  justify-self: end;
+  min-inline-size: 2rem;
+  padding: 2px 0 2px 4px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-align: right;
+  cursor: pointer;
+}
+.latest-import-pot-v489:disabled { cursor: wait; }
