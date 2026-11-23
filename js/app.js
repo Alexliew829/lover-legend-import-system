@@ -2946,7 +2946,7 @@ function setupNavigation() {
         const inventoryQueryV317=String(document.getElementById("inventorySearch")?.value||"").trim();
         if(!inventoryQueryV317) closeOriginalCostPanel();
       }
-      if(target!==current&&current==="supplierPage"){const a=document.getElementById("inventoryMasterPanelV264"),qa=String(document.getElementById("inventoryMasterSearchV261")?.value||"").trim();if(a&&!qa)a.open=false;const p=document.getElementById("productPrefixSettingsV339"),k=String(document.getElementById("newProductPrefixKeyword")?.value||"").trim(),e=String(document.getElementById("newProductPrefixEnglishV319")?.value||"").trim(),c=String(document.getElementById("newProductPrefixCode")?.value||"").trim();if(p&&!k&&!e&&!c)p.open=false;const cp=document.getElementById("productCategorySettingsV343"),ck=String(document.getElementById("productCategoryKeywordV342")?.value||"").trim(),ce=String(document.getElementById("productCategoryEnglishV342")?.value||"").trim(),cc=String(document.getElementById("productCategoryPrefixV342")?.value||"").trim();if(cp&&!ck&&!ce&&!cc)cp.open=false;const pq=String(document.getElementById("batchProductStockSearch")?.value||"").trim();if(!pq){const pr=document.getElementById("batchProductStockResults"),ps=document.getElementById("batchProductStockStatus");if(pr){pr.hidden=true;pr.innerHTML="";}if(ps)ps.textContent="";}}
+      if(target!==current&&current==="supplierPage"){const a=document.getElementById("inventoryMasterPanelV264"),qa=String(document.getElementById("inventoryMasterSearchV261")?.value||"").trim();if(a&&!qa)a.open=false;const p=document.getElementById("productPrefixSettingsV339"),k=String(document.getElementById("newProductPrefixKeyword")?.value||"").trim(),e=String(document.getElementById("newProductPrefixEnglishV319")?.value||"").trim(),c=String(document.getElementById("newProductPrefixCode")?.value||"").trim();if(p&&!k&&!e&&!c)p.open=false;const cp=document.getElementById("productCategorySettingsV343"),ck=String(document.getElementById("productCategoryKeywordV342")?.value||"").trim(),ce=String(document.getElementById("productCategoryEnglishV342")?.value||"").trim(),cc=String(document.getElementById("productCategoryPrefixV342")?.value||"").trim();if(cp&&!ck&&!ce&&!cc)cp.open=false;const pq=String(document.getElementById("batchProductStockSearch")?.value||"").trim();if(!pq) resetUnsearchedProductQueryV488();}
       if(target!==current&&current==="settingsPage"){
         if(!confirmDiscardStaleZeroStockSelectionV227())return;
         if(!confirmLeaveSettingsV160())return;
@@ -2974,10 +2974,6 @@ function setupNavigation() {
         const productSearch =
           document.getElementById("batchProductStockSearch");
         const batchList = document.getElementById("batchList");
-        const productResults =
-          document.getElementById("batchProductStockResults");
-        const productStatus =
-          document.getElementById("batchProductStockStatus");
         const recentBatchArea =
           document.getElementById("recentBatchResultsArea");
         const toggleButton =
@@ -2985,15 +2981,11 @@ function setupNavigation() {
 
         if (batchSearch) batchSearch.value = "";
         if (productSearch) productSearch.value = "";
+        resetUnsearchedProductQueryV488();
 
         batchListExpanded = false;
 
         if (batchList) batchList.innerHTML = "";
-        if (productResults) {
-          productResults.hidden = true;
-          productResults.innerHTML = "";
-        }
-        if (productStatus) productStatus.textContent = "";
         if (recentBatchArea) recentBatchArea.hidden = false;
         if (toggleButton) {
           toggleButton.hidden = false;
@@ -3380,7 +3372,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.6 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.8 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -3505,7 +3497,7 @@ async function saveCommissionRateV441(value, { enabled = true, skipConfirm = fal
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.6 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V48.8 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate, hostCommissionV481:{enabled, rate:rememberedRate} });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -8137,19 +8129,8 @@ function setupImportModule(){
         productStockSearch.value = "";
       }
 
-      const productResults =
-        document.getElementById("batchProductStockResults");
-      const productStatus =
-        document.getElementById("batchProductStockStatus");
-      const recentBatchArea =
-        document.getElementById("recentBatchResultsArea");
-
-      if (productResults) {
-        productResults.hidden = true;
-        productResults.innerHTML = "";
-      }
-
-      if (productStatus) productStatus.textContent = "";
+      resetUnsearchedProductQueryV488();
+      const recentBatchArea = document.getElementById("recentBatchResultsArea");
       if (recentBatchArea) recentBatchArea.hidden = false;
 
       batchListExpanded = false;
@@ -8183,7 +8164,10 @@ function setupImportModule(){
       Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(() => {
         invalidateInventorySalesAnalyticsAfterFullLoadV360();
         if (String(productStockSortV421.value || "") === mode) renderBatchProductStockResults();
-      }).catch(error => { console.warn("Product query sales analytics load failed:", error); renderBatchProductStockResults(); });
+      }).catch(error => {
+        console.warn("Product query sales analytics load failed:", error);
+        if (productStockSortV421.value === mode) renderBatchProductStockResults();
+      });
       return;
     }
     renderBatchProductStockResults();
@@ -10293,15 +10277,9 @@ function assertBatchDeleteStockSafetyV463(products, expected) {
 function clearRecentImportDeleteViewV234(importNumber) {
   const batchSearch = document.getElementById("batchSearch");
   const productSearch = document.getElementById("batchProductStockSearch");
-  const productResults = document.getElementById("batchProductStockResults");
-  const productStatus = document.getElementById("batchProductStockStatus");
   if (batchSearch) batchSearch.value = "";
   if (productSearch) productSearch.value = "";
-  if (productResults) {
-    productResults.innerHTML = "";
-    productResults.hidden = true;
-  }
-  if (productStatus) productStatus.textContent = "";
+  resetUnsearchedProductQueryV488();
   batchListExpanded = false;
   renderBatchList();
   if (typeof showHistoryCopyToast === "function") {
@@ -17403,6 +17381,18 @@ function updateBatchProductQuerySummaryV422(products) {
   if (countField) countField.textContent = `${rows.length} 项`;
 }
 
+function resetUnsearchedProductQueryV488() {
+  const sort = document.getElementById("batchProductStockSortV421");
+  const results = document.getElementById("batchProductStockResults");
+  const status = document.getElementById("batchProductStockStatus");
+  if (sort) sort.value = "";
+  if (results) {
+    results.hidden = true;
+    results.innerHTML = "";
+  }
+  if (status) status.textContent = "";
+}
+
 // V47.8: one lightweight inventory-summary refresh path for every page.
 // It always refreshes the Product Management totals, but redraws product cards
 // only when that page is visible and a filtered result list is actually open.
@@ -17412,20 +17402,16 @@ function refreshInventorySummaryViewsV464(options = {}) {
   const supplierVisible = supplierPage?.classList.contains("active") === true;
   const searchField = document.getElementById("batchProductStockSearch");
   const sortField = document.getElementById("batchProductStockSortV421");
-  const resultArea = document.getElementById("batchProductStockResults");
   const keyword = String(searchField?.value || "").trim().toLowerCase();
-  const sortMode = String(sortField?.value || "latest");
+  const selectedSort = sortField?.value || "";
+  const sortMode = selectedSort || "latest";
   const renderVisibleResults = options?.renderVisibleResults !== false;
   const renderMaster = options?.renderMaster !== false;
 
   const shouldRenderProductCards = Boolean(
     supplierVisible &&
     renderVisibleResults &&
-    (
-      keyword ||
-      sortMode !== "latest" ||
-      (resultArea && resultArea.hidden === false && resultArea.childElementCount > 0)
-    )
+    (keyword || selectedSort)
   );
 
   if (shouldRenderProductCards && typeof renderBatchProductStockResults === "function") {
@@ -17456,7 +17442,8 @@ function renderBatchProductStockResults() {
   if (!input || !output) return;
 
   const keyword = String(input.value || "").trim().toLowerCase();
-  const sortModeV421 = String(document.getElementById("batchProductStockSortV421")?.value || "latest");
+  const selectedSort = document.getElementById("batchProductStockSortV421")?.value || "";
+  const sortModeV421 = selectedSort || "latest";
   const recentBatchArea =
     document.getElementById("recentBatchResultsArea");
   const toggleButton =
@@ -17470,11 +17457,9 @@ function renderBatchProductStockResults() {
     sortModeV421,
     preparedRowsV422
   );
-  const suggestedPriceRulesV462 = getMinimumPriceRulesV160();
-  const suggestedPriceOriginIndexV462 = getMinimumPriceOriginIndexV160();
   updateBatchProductQuerySummaryV422(products);
 
-  if (!keyword && sortModeV421 === "latest") {
+  if (!keyword && !selectedSort) {
     output.hidden = true;
     output.innerHTML = "";
 
@@ -17496,6 +17481,8 @@ function renderBatchProductStockResults() {
     return;
   }
 
+  const suggestedPriceRulesV462 = getMinimumPriceRulesV160();
+  const suggestedPriceOriginIndexV462 = getMinimumPriceOriginIndexV160();
   const clearanceMapV478 = getClearancePriceMapV478();
   output.innerHTML = products.map(product => {
     const originalRecordV219 = getPreferredOriginalCostRecordV219(product, keyword);
