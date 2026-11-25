@@ -2721,7 +2721,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V49.7 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V49.8 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -2846,7 +2846,7 @@ async function saveCommissionRateV441(value, { enabled = true, skipConfirm = fal
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V49.7 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V49.8 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate, hostCommissionV481:{enabled, rate:rememberedRate} });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -5699,12 +5699,12 @@ const DEFAULT_PRODUCT_CATEGORY_RULES_V228 = Object.freeze([
 
 function isPrimaryProductCategoryV255(value) {
   const wanted = normalizeProductCategoryNameV227(value);
-  return getProductCategoryRulesV228().some(rule => normalizeProductCategoryNameV227(rule.name) === wanted);
+  return getProductCategoryDefinitionsV498().some(rule => normalizeProductCategoryNameV227(rule.name) === wanted);
 }
 
 function normalizePrimaryProductCategoryV255(value) {
   const wanted = normalizeProductCategoryNameV227(value);
-  const rules = getProductCategoryRulesV228();
+  const rules = getProductCategoryDefinitionsV498();
   const exact = rules.find(rule => normalizeProductCategoryNameV227(rule.name) === wanted);
   if (exact) return exact.name;
   // V45.0: an unknown/missing category is a bonsai product by default.
@@ -5721,15 +5721,6 @@ function normalizeCategoryPrefixV228(value) {
   return String(value || "").replace(/[^a-z]/gi, "").toUpperCase().slice(0, 2);
 }
 
-function isProductCategoryUsedV229(categoryName) {
-  const wanted = normalizeProductCategoryNameV227(categoryName);
-  if (!wanted) return false;
-  if (getProducts().some(product => normalizeProductCategoryNameV227(product?.category) === wanted)) return true;
-  if (getImports().some(row => normalizeProductCategoryNameV227(row?.category) === wanted)) return true;
-  return getBatches().some(batch => (Array.isArray(batch?.items) ? batch.items : [])
-    .some(item => normalizeProductCategoryNameV227(item?.category) === wanted));
-}
-
 function getProductIdPrefixV229(value) {
   const match = String(value || "").trim().toUpperCase().match(/^([A-Z]{2})/);
   return match ? match[1] : "";
@@ -5742,7 +5733,7 @@ function getCategoryPrefixConflictV229(prefix, excludeCategoryName = "") {
   for (const [keyword, rulePrefix] of getProductPrefixRulesV181()) {
     if (String(rulePrefix || "").toUpperCase() === wanted) return `盆栽前缀规则“${keyword}”`;
   }
-  for (const rule of getProductCategoryRulesV228()) {
+  for (const rule of getProductCategoryDefinitionsV498()) {
     if (normalizeProductCategoryNameV227(rule.name) === excluded) continue;
     if (normalizeCategoryPrefixV228(rule.prefix) === wanted) return `产品类别“${rule.name}”`;
   }
@@ -5758,8 +5749,12 @@ function getCategoryPrefixConflictV229(prefix, excludeCategoryName = "") {
   return conflictingId ? `现有／历史产品编号 ${wanted}xxxx` : "";
 }
 
-function getProductCategoryRulesV228() {
-  const settings = loadJSON("importSystemSettings", {});
+let productCategoryDefinitionCacheV498 = { settings: null, definitions: [] };
+function getProductCategoryDefinitionsV498() {
+  const settings = getCachedSettingsV317();
+  if (productCategoryDefinitionCacheV498.settings === settings) {
+    return productCategoryDefinitionCacheV498.definitions;
+  }
   const v342 = Array.isArray(settings.productCategoryRulesV342) ? settings.productCategoryRulesV342 : [];
   const savedRules = Array.isArray(settings.productCategoryRulesV228) ? settings.productCategoryRulesV228 : [];
   const legacyNames = Array.isArray(settings.productCategoriesV227) ? settings.productCategoriesV227 : [];
@@ -5784,12 +5779,28 @@ function getProductCategoryRulesV228() {
       name,
       english:String(raw?.english ?? preset?.english ?? "").trim(),
       prefix: mode === "name" ? "BS" : prefix,
-      mode,
-      locked:isProductCategoryUsedV229(name)
+      mode
     });
   });
-  if(!result.length) return DEFAULT_PRODUCT_CATEGORY_RULES_V228.map(rule=>({...rule,locked:isProductCategoryUsedV229(rule.name)}));
-  return result;
+  const definitions = result.length ? result : DEFAULT_PRODUCT_CATEGORY_RULES_V228;
+  productCategoryDefinitionCacheV498 = { settings, definitions };
+  return definitions;
+}
+
+function getProductCategoryRulesV228() {
+  const used = new Set();
+  const record = row => used.add(normalizeProductCategoryNameV227(row?.category));
+  // Price normalization never changes a product's stored category.
+  const products = loadJSONReadOnlyV317("importSystemProducts", []);
+  if (Array.isArray(products)) products.forEach(record);
+  getImports().forEach(record);
+  getBatches().forEach(batch => {
+    if (Array.isArray(batch?.items)) batch.items.forEach(record);
+  });
+  return getProductCategoryDefinitionsV498().map(rule => ({
+    ...rule,
+    locked: used.has(rule.name)
+  }));
 }
 
 function saveProductCategoryRulesV342(rules) {
@@ -5805,7 +5816,7 @@ function saveProductCategoryRulesV342(rules) {
 }
 
 function getProductCategoriesV227() {
-  return getProductCategoryRulesV228().map(rule=>rule.name);
+  return getProductCategoryDefinitionsV498().map(rule=>rule.name);
 }
 
 function productCategoryOptionsHTMLV227(selected = "盆栽") {
@@ -6311,7 +6322,7 @@ function findBestProductPrefixRuleV343(name = "") {
 function getProductPrefix(category, name = "") {
   const normalizedCategory = normalizePrimaryProductCategoryV255(category);
   if (normalizedCategory === "盆栽") { const matched=findBestProductPrefixRuleV343(name); return matched?matched[1]:"BS"; }
-  const rule = getProductCategoryRulesV228().find(item => item.name === normalizedCategory);
+  const rule = getProductCategoryDefinitionsV498().find(item => item.name === normalizedCategory);
   return rule?.prefix || "QT";
 }
 
@@ -6896,7 +6907,7 @@ function getUnifiedProductSearchIndexV454() {
     reverseAliases.get(canonical).add(String(source || "").trim().toUpperCase());
   });
   const prefixRules = getProductPrefixRulesV181();
-  const categoryRules = getProductCategoryRulesV228();
+  const categoryRules = getProductCategoryDefinitionsV498();
   const context = { aliases, reverseAliases, prefixRules, categoryRules };
   const entries = [];
   const byCanonicalId = new Map();
@@ -14467,7 +14478,7 @@ function inferProductCategoryFromNameV345(name) {
   // - only a positive non-bonsai match may auto-switch the category;
   // - 其他/QT is manual-only.
   if (!text) return "盆栽";
-  const rules = typeof getProductCategoryRulesV228 === "function" ? getProductCategoryRulesV228() : [];
+  const rules = getProductCategoryDefinitionsV498();
   for (const rule of rules) {
     const category = normalizeProductCategoryNameV227(rule?.name || "");
     if (!category || category === "盆栽" || category === "其他") continue;
@@ -16008,12 +16019,17 @@ function renderBatchList() {
     return;
   }
 
+  const productsById = new Map();
+  for (const product of getProducts()) {
+    const id = String(product.id || "");
+    if (!productsById.has(id)) productsById.set(id, product);
+  }
   listElement.innerHTML = visibleBatches.map(batch => {
     const items = getBatchItemsForDisplay(batch);
     const firstProductName =
       items[0]?.productName || items[0]?.name || "-";
     const firstProductId = String(items[0]?.productId || "").trim();
-    const firstProductObj = getProducts().find(p=>String(p.id||"")===firstProductId);
+    const firstProductObj = productsById.get(firstProductId);
     const firstProductEnglish = productEnglishNameV262(firstProductObj);
 
     return `<article class="import-card">
@@ -19569,6 +19585,7 @@ function renderInventoryManagementList() {
     const averageCostLabelV205 = getAverageCostLabelV205(product);
     const soldQuantity = Number(product.netSoldQuantity) || 0;
     const cumulativeProfit = Number(product.cumulativeSoldProfit) || 0;
+    const englishName = productEnglishNameV262(product);
 
     return `
       <article class="inventory-manage-card"
@@ -19590,7 +19607,7 @@ function renderInventoryManagementList() {
               </span>
             </div>
             <div class="inventory-product-secondary-v314">
-              ${productEnglishNameV262(product)?`<button type="button" class="product-english-name-v262 inventory-english-secondline-v265 inventory-english-copy-v359" data-english-name-v359="${escapeHTML(productEnglishNameV262(product))}" onclick="copyInventoryEnglishNameV359(this)" title="点击复制英文名">${escapeHTML(productEnglishNameV262(product))}</button>`:`<small class="product-english-name-v262 inventory-english-secondline-v265 empty" aria-hidden="true"></small>`}
+              ${englishName?`<button type="button" class="product-english-name-v262 inventory-english-secondline-v265 inventory-english-copy-v359" data-english-name-v359="${escapeHTML(englishName)}" onclick="copyInventoryEnglishNameV359(this)" title="点击复制英文名">${escapeHTML(englishName)}</button>`:`<small class="product-english-name-v262 inventory-english-secondline-v265 empty" aria-hidden="true"></small>`}
             </div>
             ${renderProductMediaButtonsV229(product.id, productMediaLinksV229)}
           </div>
