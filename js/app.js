@@ -23,6 +23,7 @@ function clearTransientSearchInputsOnReloadV304() {
 }
 
 window.addEventListener("pageshow", () => {
+  if (isMobileOrTabletDevice() && !document.documentElement.classList.contains("import-app-ready")) return;
   if (!isPageReloadV304()) return;
   window.setTimeout(() => {
     const ids = ["inventorySearch","batchSearch","batchLookupInput","historyLookupInput","batchProductStockSearch","inventoryMasterSearchV261","costRevisionHistorySearch"];
@@ -212,6 +213,8 @@ function initializeImportApplication() {
   setupCloudSync();
   setupSalesInventoryReminder();
   setupDataOperationSafety();
+  setupHistoryScrollButton();
+  setupMobileBottomNavViewportGuardV427();
 }
 
 
@@ -2718,7 +2721,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V49.6 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V49.7 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -2843,7 +2846,7 @@ async function saveCommissionRateV441(value, { enabled = true, skipConfirm = fal
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V49.6 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V49.7 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate, hostCommissionV481:{enabled, rate:rememberedRate} });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -21334,8 +21337,7 @@ function registerServiceWorker() {
 
 // V19.8 Shared quick navigation.  It deliberately observes only page/result
 // containers; it must never watch or mutate the history filter controls.
-(function(){
-  function setupHistoryScrollButton(){
+function setupHistoryScrollButton(){
     if(document.getElementById("historyScrollToggleV86")) return;
     const btn=document.createElement("button");
     btn.id="historyScrollToggleV86";
@@ -21385,11 +21387,7 @@ function registerServiceWorker() {
     window.addEventListener("scroll",updateLabel,{passive:true});
     window.addEventListener("resize",updateLabel,{passive:true});
     updateVisibility();
-  }
-  if(document.readyState==="loading"){
-    document.addEventListener("DOMContentLoaded",setupHistoryScrollButton);
-  }else setupHistoryScrollButton();
-})();
+}
 
 
 // ================= V26.6 bilingual product master =================
@@ -21623,11 +21621,6 @@ function setupMobileBottomNavViewportGuardV427(){
   window.addEventListener("orientationchange", sync, {passive:true});
   document.addEventListener("focusout", () => window.setTimeout(sync, 120), true);
   sync();
-}
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", setupMobileBottomNavViewportGuardV427, {once:true});
-} else {
-  setupMobileBottomNavViewportGuardV427();
 }
 
 // V40.3 bindings: the summary action must not toggle the Promotion panel.
@@ -22077,18 +22070,25 @@ async function editClearancePriceV478(productId) {
   }
 }
 
-// Defer scripts run in order after the document is parsed.
-// Start after this script has finished defining all application modules.
-window.setTimeout(() => {
-  if (typeof setupCloudSync !== "function") {
-    window.reportImportAssetError("同步脚本");
-    return;
-  }
-  beginImportInitialization();
-  try {
-    initializeImportApplication();
-    finishImportStartup();
-  } catch (error) {
-    finishImportStartup(error);
-  }
-}, 0);
+// Browser loads the scripts normally, but mobile inventory work starts only after access is verified.
+function scheduleImportApplicationStartup() {
+  window.setTimeout(() => {
+    if (typeof setupCloudSync !== "function") {
+      window.reportImportAssetError("同步脚本");
+      return;
+    }
+    beginImportInitialization();
+    try {
+      initializeImportApplication();
+      finishImportStartup();
+    } catch (error) {
+      finishImportStartup(error);
+    }
+  }, 0);
+}
+
+if (isMobileOrTabletDevice() && !document.documentElement.classList.contains("access-lock-ready")) {
+  document.addEventListener("import-access-unlocked", scheduleImportApplicationStartup, { once: true });
+} else {
+  scheduleImportApplicationStartup();
+}
