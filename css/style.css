@@ -7401,3 +7401,14 @@ button.history-species-toggle-v470{
   cursor: pointer;
 }
 .latest-import-pot-v489:disabled { cursor: wait; }
+
+/* Keep the expanded cost label readable on narrow cards. */
+.product-stock-cost-btn .average-cost-part-v469.manual-pot-total-v499 small {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+@media (max-width:620px) {
+  .product-stock-modify-grid-v376 .product-stock-cost-btn .manual-pot-total-v499 {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
