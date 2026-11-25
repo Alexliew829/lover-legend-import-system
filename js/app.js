@@ -2721,7 +2721,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V50.2 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V50.4 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -2846,7 +2846,7 @@ async function saveCommissionRateV441(value, { enabled = true, skipConfirm = fal
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V50.2 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V50.4 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate, hostCommissionV481:{enabled, rate:rememberedRate} });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -16470,7 +16470,12 @@ function getManualBatchPotV487(batch) {
   return pots && Object.prototype.hasOwnProperty.call(pots, batch.importId) ? pots[batch.importId] : null;
 }
 
-function getLatestImportCostDisplayV499(latest, freight) {
+// CNY normally includes the original pot. AR0001 is a confirmed exception.
+function hasIncludedImportPotV503(currency, productId) {
+  return currency === "CNY" && String(productId || "").trim().toUpperCase() !== "AR0001";
+}
+
+function getLatestImportCostDisplayV499(latest, freight, productId) {
   const { currency, unitPrice, unitCost } = latest;
   const automaticPot = currency === "VND" && unitPrice > 0
     ? Math.max(0, Number(getImportOriginPotCostV480(latest, getMinimumPriceRulesV160())) || 0)
@@ -16478,25 +16483,30 @@ function getLatestImportCostDisplayV499(latest, freight) {
   const hasCost = Number.isFinite(unitCost) && unitCost > 0;
   const canEditPot = Boolean(currency && currency !== "VND" && latest.importId);
   const pot = canEditPot ? Math.max(0, Number(getManualBatchPotV487(latest)?.amount) || 0) : automaticPot;
-  return { hasCost, canEditPot, ...getCostTotalDisplayV500(unitCost, pot, freight) };
+  return { hasCost, canEditPot, currency, ...getCostTotalDisplayV500(
+    unitCost, pot, freight, hasIncludedImportPotV503(currency, productId)
+  ) };
 }
 
-function getCostTotalDisplayV500(baseCost, pot, freight) {
+function getCostTotalDisplayV500(baseCost, pot, freight, includedPot = false) {
   const hasPot = pot > 0;
   const localFreight = Math.max(0, Number(freight) || 0);
+  const showIncludedPot = includedPot || hasPot;
   const totalLabel = localFreight > 0
-    ? (hasPot ? "含盆＋本地运费" : "含本地运费")
-    : (hasPot ? "含盆" : "不含盆和本地运费");
+    ? (showIncludedPot ? "含盆＋本地运费" : "含本地运费")
+    : (showIncludedPot
+      ? (isSellerShippingResponsibilityV439() ? "含盆" : "含盆，不含本地运费")
+      : "不含盆和本地运费");
   return { pot, hasPot, totalLabel, total: baseCost + pot + localFreight };
 }
 
-function renderLatestImportCostV480(latest, freight) {
+function renderLatestImportCostV480(latest, freight, productId) {
   const heading = "<h4>最近进口成本／棵</h4>";
   if (!latest) {
     return `<section class="latest-import-cost-v480">${heading}<p>没有可按日期核对的进口记录。</p></section>`;
   }
   const { unitCost } = latest;
-  const { hasCost, canEditPot, pot, hasPot, totalLabel, total } = getLatestImportCostDisplayV499(latest, freight);
+  const { hasCost, canEditPot, pot, hasPot, totalLabel, total } = getLatestImportCostDisplayV499(latest, freight, productId);
   const money = value => hasCost ? formatMoney(value, "RM ") : "—";
   return `<section class="latest-import-cost-v480">
     ${heading}
@@ -16545,7 +16555,7 @@ function openProductCostBreakdownV421(productId) {
             <div class="cost-total-v421"><span>总成本</span><strong>${formatMoney(total, "RM ")}</strong></div>
           </div>
         </div>
-        ${renderLatestImportCostV480(latest, info.freight)}
+        ${renderLatestImportCostV480(latest, info.freight, id)}
       </div>
       <button class="primary-btn product-cost-breakdown-close-v421" type="button">关闭</button>
     </div>`;
@@ -16952,7 +16962,7 @@ function renderBatchProductStockResults() {
     const latestCostV499 = manualPotLookupV499
       ? getImportCostComparisonV483(product, manualPotLookupV499).latest : null;
     const manualPotDisplayV499 = latestCostV499?.currency && latestCostV499.currency !== "VND"
-      ? getLatestImportCostDisplayV499(latestCostV499, profitInfoV387.freight) : null;
+      ? getLatestImportCostDisplayV499(latestCostV499, profitInfoV387.freight, productIdV256) : null;
     const profitToneV387 = profitInfoV387.profit < 0 ? "loss" : profitInfoV387.profit > 0 ? "gain" : "neutral";
     const suggestedPricesV462 = getSuggestedRetailFairPricesV462(
       product,
@@ -16988,7 +16998,7 @@ function renderBatchProductStockResults() {
           <button class="product-stock-qty-btn product-stock-metric-v256" type="button" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="stock" aria-label="长按修改当前库存" title="长按修改当前库存"><span>当前库存</span><strong>${formatNumber(Number(product.stock) || 0)}</strong></button>
           ${originalRecordV219 ? `<button class="product-stock-original-cost-btn-v219 product-stock-metric-v256" type="button" data-product-id="${escapeHTML(productIdV256)}" data-import-record-id="${escapeHTML(originalRecordV219.id || "")}" data-edit-type="originalCost" aria-label="点击查看成本明细；长按修改原成本" title="点击查看成本明细；长按修改原成本"><span>原成本</span><strong>${currencyV219 ? `${escapeHTML(currencyV219)} ` : ""}${formatMoney(Number(originalRecordV219.unitPrice) || 0)}</strong></button>` : `<div class="product-stock-original-cost-empty-v219 product-stock-metric-v256"><span>原成本</span><strong>-</strong></div>`}
           <div class="product-stock-import-metric-v376 product-stock-metric-v256"><span>进口编号</span>${importNumberV256 ? `<button type="button" class="product-stock-import-copy-v256 product-stock-value-black-v421" data-copy-value="${escapeHTML(importNumberV256)}" onclick="copyRecentBatchValue(this, '进口编号')" title="点击复制进口编号">${escapeHTML(importNumberV256)}</button>` : `<strong>-</strong>`}</div>
-          <button class="product-stock-cost-btn product-stock-metric-v256 product-stock-value-black-v421" type="button" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="averageCost" aria-label="长按修改平均原成本" title="长按只修改平均原成本；右侧金额只作显示">${renderProductAverageCostV469(product, suggestedPriceOriginIndexV462, profitInfoV387, manualPotDisplayV499)}</button>
+          <button class="product-stock-cost-btn product-stock-metric-v256 product-stock-value-black-v421" type="button" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="averageCost" aria-label="长按修改平均原成本" title="长按只修改平均原成本；右侧金额只作显示">${renderProductAverageCostV469(product, suggestedPriceOriginIndexV462, profitInfoV387, manualPotDisplayV499, currencyV219)}</button>
           ${(()=>{const state=getMinimumPriceDisplayStateV315(product);const tone=state.state;return `<button class="product-stock-minimum-price-btn product-stock-metric-v256 product-stock-minimum-price-${tone}-v268 ${state.className}" type="button" data-minimum-price-state-v324="${state.state}" style="color:${getMinimumPriceColorV340(state.state) || 'inherit'} !important" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="minimumPrice" aria-label="长按修改最低售价" title="长按修改最低售价"><span>${state.label}</span><strong>${formatMoney(state.price, "RM ")}</strong></button>`})()}
           <button class="product-stock-initial-price-btn-v376 product-stock-metric-v256" type="button" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="initialMinimumPrice" aria-label="长按修改初始最低售价" title="长按修改初始最低售价"><span>初始最低售价</span><strong>${formatMoney(getInitialMinimumPriceV376(product), "RM ")}</strong></button>
           <div class="product-stock-profit-metric-v387 product-stock-metric-v256 inventory-profit-value-v207 ${profitToneV387}"><span class="profit-split-v478"><span><small>利润</small><strong>${formatSignedProfitMoneyV387(profitInfoV387.profit)}</strong></span><span><small>利润率</small><strong>${escapeHTML(formatProfitTargetV303(profitInfoV387.profitRate))}</strong></span></span></div>
@@ -21940,15 +21950,20 @@ function setupMonthlyInventoryHistoryV468() {
   });
 }
 
-// The left side keeps the average import cost. Only a saved manual pot fee
-// switches the right side to the same per-batch total used by the dialog.
-function renderProductAverageCostV469(product, originIndex, profitInfo, manualPotDisplay = null) {
+// For products with the original pot included, add any new pot fee to the
+// same average shown on the card. The dialog still shows the latest batch.
+function renderProductAverageCostV469(product, originIndex, profitInfo, manualPotDisplay = null, originalCurrency = "") {
   const cost = profitInfo.averageCost;
   const vnd = isVndProductV205(product, originIndex);
-  const pot = vnd ? Math.max(0, Number(profitInfo.potCost) || 0) : 0;
-  const display = manualPotDisplay?.canEditPot && manualPotDisplay.hasCost && manualPotDisplay.hasPot
-    ? manualPotDisplay
-    : getCostTotalDisplayV500(cost, pot, profitInfo.freight);
+  const costOrigin = originIndex?.byId.get(String(product?.id || "").trim())
+    || originIndex?.byName.get(String(product?.name || "").trim().toLowerCase());
+  const includedPot = hasIncludedImportPotV503(costOrigin?.currency || originalCurrency, product?.id);
+  const manualPot = manualPotDisplay?.canEditPot && manualPotDisplay.hasCost && manualPotDisplay.hasPot
+    ? manualPotDisplay : null;
+  const autoPot = vnd ? Math.max(0, Number(profitInfo.potCost) || 0) : 0;
+  const display = manualPot && (!includedPot || manualPot.currency !== "CNY")
+    ? manualPot
+    : getCostTotalDisplayV500(cost, manualPot?.pot ?? autoPot, profitInfo.freight, includedPot);
   const baseLabel = vnd ? "平均原成本（VND不含盆）" : "平均原成本（不含运费）";
   return `<span class="average-cost-mobile-heading-v478">${vnd ? "平均原成本（VND）" : "平均原成本"}</span><span class="average-cost-split-v469">
     <span class="average-cost-part-v469"><small><span class="cost-label-desktop-v478">${baseLabel}</span><span class="cost-label-mobile-v478">${vnd ? "不含盆" : "不含运费"}</span></small><strong>${formatMoney(cost, "RM ")}</strong></span>
