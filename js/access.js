@@ -129,17 +129,22 @@ function isBiometricCredentialStored() {
   return Boolean(getStoredBiometricCredentialId());
 }
 
-function isMobileOrTabletDevice() {
+function isAppleMobileDevice() {
   const userAgent = String(navigator.userAgent || "");
+  return /iPhone|iPad|iPod/i.test(userAgent) ||
+    (/Macintosh/i.test(userAgent) && Number(navigator.maxTouchPoints || 0) > 1);
+}
 
-  const mobileUserAgent =
-    /Android|iPhone|iPad|iPod|Mobile/i.test(userAgent);
+function isMobileOrTabletDevice() {
+  return isAppleMobileDevice() || /Android|Mobile/i.test(String(navigator.userAgent || ""));
+}
 
-  const touchAppleDevice =
-    /Macintosh/i.test(userAgent) &&
-    Number(navigator.maxTouchPoints || 0) > 1;
-
-  return mobileUserAgent || touchAppleDevice;
+function canRequestBiometricLogin() {
+  return isMobileOrTabletDevice() && Boolean(
+    window.isSecureContext &&
+    window.PublicKeyCredential &&
+    typeof navigator.credentials?.get === "function"
+  );
 }
 
 async function isPlatformBiometricAvailable() {
@@ -150,13 +155,7 @@ async function isPlatformBiometricAvailable() {
     return false;
   }
 
-  if (
-    !window.PublicKeyCredential ||
-    !navigator.credentials ||
-    !window.isSecureContext
-  ) {
-    return false;
-  }
+  if (!canRequestBiometricLogin()) return false;
 
   try {
     return await PublicKeyCredential
@@ -229,9 +228,8 @@ async function authenticateDeviceBiometric() {
   const credentialId =
     getStoredBiometricCredentialId();
 
-  if (!credentialId) return false;
-
-  if (!(await isPlatformBiometricAvailable())) {
+  if (!credentialId || !canRequestBiometricLogin()) return false;
+  if (!isAppleMobileDevice() && !(await isPlatformBiometricAvailable())) {
     return false;
   }
 
@@ -271,6 +269,12 @@ async function updateDeviceBiometricStatus() {
   const loginButton =
     document.getElementById("biometricLoginBtn");
 
+  const appleMobile = isAppleMobileDevice();
+  if (appleMobile && loginButton) {
+    loginButton.hidden =
+      !(canRequestBiometricLogin() && isBiometricCredentialStored());
+  }
+
   const available =
     await isPlatformBiometricAvailable();
   const registered =
@@ -299,7 +303,7 @@ async function updateDeviceBiometricStatus() {
     removeButton.disabled = !registered;
   }
 
-  if (loginButton) {
+  if (loginButton && !appleMobile) {
     loginButton.hidden =
       !(isMobileDevice && available && registered);
   }
@@ -444,13 +448,14 @@ function setupAccessLock() {
     if (biometricPending) return false;
     biometricPending = true;
     try {
-      if (
-        !isBiometricCredentialStored() ||
-        lock.hidden ||
+      if (!canRequestBiometricLogin() || !isBiometricCredentialStored() || lock.hidden) {
+        return false;
+      }
+      if (!isAppleMobileDevice() && (
         !(await isPlatformBiometricAvailable()) ||
         lock.hidden ||
         (automatic && input.value !== "")
-      ) {
+      )) {
         return false;
       }
 
@@ -460,6 +465,7 @@ function setupAccessLock() {
           "请使用 Face ID / 生物辨识确认...";
       }
 
+      // Apple mobile: call WebAuthn within the button press, before any await.
       const verified =
         await authenticateDeviceBiometric();
 
@@ -560,8 +566,8 @@ function setupAccessLock() {
   if (hintButton) hintButton.disabled = false;
 
   if (!alreadyUnlocked) {
-    if (isMobileOrTabletDevice()) void tryBiometricLogin({ automatic:true });
-    else input.focus();
+    if (!isMobileOrTabletDevice()) input.focus();
+    else if (!isAppleMobileDevice()) void tryBiometricLogin({ automatic:true });
   }
 }
 
