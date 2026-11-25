@@ -5,18 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=49.3" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=49.3" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=49.3" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=49.3" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=49.3" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=49.3" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=49.3" />
+  <link rel="manifest" href="./manifest.json?v=49.4" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=49.4" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=49.4" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=49.4" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=49.4" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=49.4" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=49.4" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=49.3" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=49.4" />
   <style id="access-lock-critical-v299">
     html,body{margin:0;min-height:100%;font-family:Arial,Helvetica,sans-serif}
     .access-lock{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(242,248,244,.96)}
@@ -25,15 +25,15 @@
     .access-lock-logo{font-size:34px}.access-lock-card h1{margin:10px 0 8px;color:#1f5d3a}.access-lock-card p{margin:0 0 16px;color:#66736b;line-height:1.5}
     .access-lock-card form{display:grid;gap:10px}.access-lock-card input,.access-lock-card button{box-sizing:border-box;width:100%;min-height:46px;border-radius:11px;font-size:17px}
     .access-lock-card input{border:1px solid #1f5d3a;padding:0 14px;text-align:center}.app-shell{visibility:hidden}.access-lock-ready .app-shell{visibility:visible}html:not(.access-lock-ready) .app-shell{display:none!important}.access-lock-card .primary-btn{border:0;background:#1f6b40;color:#fff;font-weight:700}
-    .import-startup-cover{display:none}
-    .access-lock-ready:not(.import-app-ready) .import-startup-cover{display:flex}
-    .access-lock-ready:not(.import-app-ready) .app-shell{visibility:hidden!important}
+    .import-startup-notice{display:none}
+    .access-lock-ready:not(.import-app-ready) .import-startup-notice{display:block;margin:12px auto;padding:12px 16px;max-width:540px;border:1px solid #cad8d0;border-radius:12px;background:#fff;color:#1f5d3a}
+    .import-startup-notice p{margin:0}.import-startup-notice button{margin-top:8px}
   </style>
-  <link rel="preload" href="./css/style.css?v=49.3" as="style" />
-  <link rel="stylesheet" href="./css/style.css?v=49.3" media="print" onload="this.media='all'" />
-  <noscript><link rel="stylesheet" href="./css/style.css?v=49.3" /></noscript>
-  <script defer src="./js/sync.js?v=49.3"></script>
-  <script defer src="./js/app.js?v=49.3"></script>
+  <link rel="preload" href="./css/style.css?v=49.4" as="style" />
+  <link rel="stylesheet" href="./css/style.css?v=49.4" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="./css/style.css?v=49.4" /></noscript>
+  <script defer src="./js/sync.js?v=49.4" onerror="window.reportImportAssetError?.('同步脚本')"></script>
+  <script defer src="./js/app.js?v=49.4" onerror="window.reportImportAssetError?.('主程式')"></script>
 </head>
 <body>
   <div id="accessLock"
@@ -97,15 +97,13 @@
       if (saved && input) input.value = saved;
     } catch (_) {}
   </script>
-  <div class="access-lock import-startup-cover">
-    <div class="access-lock-card">
-      <p id="importStartupStatus" role="status">正在打开系统…</p>
-      <button id="importStartupRetry" class="primary-btn" type="button" hidden>重新载入</button>
-    </div>
+  <div class="import-startup-notice">
+    <p id="importStartupStatus" role="status">正在载入主程式…</p>
+    <button id="importStartupRetry" class="primary-btn" type="button" hidden>重新载入</button>
   </div>
   <!-- Common and access scripts are embedded from js/ so login is usable without waiting for extra requests. -->
   <script id="import-early-access">
-const APP_VERSION = "49.3";
+const APP_VERSION = "49.4";
 
 function formatMoney(value, prefix = "") {
   const number = Number(value) || 0;
@@ -937,27 +935,40 @@ window.updatePasswordHintDisplays =
 
 let importStartupTimer;
 let importStartupFailed = false;
+let importStartupStage = "载入主程式";
 
-function finishImportStartup(error) {
+function beginImportInitialization() {
+  importStartupStage = "初始化本机资料";
+  if (importStartupFailed) return;
+  const status = document.getElementById("importStartupStatus");
+  if (status) status.textContent = "正在初始化本机资料…";
+}
+
+function finishImportStartup(error, message = "系统启动失败，请重新载入。") {
   window.clearTimeout(importStartupTimer);
   if (error) {
     console.error("Import startup failed:", error);
     importStartupFailed = true;
     const status = document.getElementById("importStartupStatus");
     const retry = document.getElementById("importStartupRetry");
-    if (status) status.textContent = "系统载入失败，请重新载入。";
+    if (status) status.textContent = message;
     if (retry) retry.hidden = false;
     return;
   }
+  document.getElementById("importAppShell")?.removeAttribute("inert");
   document.documentElement.classList.add("import-app-ready");
 }
+
+window.reportImportAssetError = label => {
+  finishImportStartup(new Error(label + "加载失败"), label + "加载失败，请重新载入。");
+};
 
 function watchImportStartup() {
   if (!document.documentElement.classList.contains("access-lock-ready") ||
       document.documentElement.classList.contains("import-app-ready") ||
       importStartupFailed || importStartupTimer !== undefined) return;
   importStartupTimer = window.setTimeout(() => {
-    finishImportStartup(new Error("Import startup timed out"));
+    finishImportStartup(new Error("Import startup timed out"), importStartupStage + "超时，请重新载入。");
   }, 8000);
 }
 
@@ -966,7 +977,7 @@ document.getElementById("importStartupRetry")?.addEventListener("click", () => w
 setupAccessLock();
 watchImportStartup();
   </script>
-  <div class="app-shell">
+  <div class="app-shell" id="importAppShell" inert>
     <header class="app-header-wrap">
       <div class="app-header-card">
         <img class="app-header-logo app-header-logo-green"
@@ -977,7 +988,7 @@ watchImportStartup();
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 49.3 Stable</div>
+          <div class="app-header-version">正式版 49.4 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -1884,7 +1895,7 @@ watchImportStartup();
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 49.3 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 49.4 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>

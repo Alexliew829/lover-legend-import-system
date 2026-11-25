@@ -214,16 +214,6 @@ function initializeImportApplication() {
   setupDataOperationSafety();
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  try {
-    if (typeof setupCloudSync !== "function") throw new Error("sync.js unavailable");
-    initializeImportApplication();
-    finishImportStartup();
-  } catch (error) {
-    finishImportStartup(error);
-  }
-}, { once: true });
-
 
 
 
@@ -2728,7 +2718,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V49.3 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V49.4 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -2853,7 +2843,7 @@ async function saveCommissionRateV441(value, { enabled = true, skipConfirm = fal
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V49.3 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V49.4 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate, hostCommissionV481:{enabled, rate:rememberedRate} });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -22086,3 +22076,19 @@ async function editClearancePriceV478(productId) {
     clearanceEditCooldownV478 = Date.now() + 1200;
   }
 }
+
+// Defer scripts run in order after the document is parsed.
+// Start after this script has finished defining all application modules.
+window.setTimeout(() => {
+  if (typeof setupCloudSync !== "function") {
+    window.reportImportAssetError("同步脚本");
+    return;
+  }
+  beginImportInitialization();
+  try {
+    initializeImportApplication();
+    finishImportStartup();
+  } catch (error) {
+    finishImportStartup(error);
+  }
+}, 0);

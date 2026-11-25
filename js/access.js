@@ -680,27 +680,40 @@ window.updatePasswordHintDisplays =
 
 let importStartupTimer;
 let importStartupFailed = false;
+let importStartupStage = "载入主程式";
 
-function finishImportStartup(error) {
+function beginImportInitialization() {
+  importStartupStage = "初始化本机资料";
+  if (importStartupFailed) return;
+  const status = document.getElementById("importStartupStatus");
+  if (status) status.textContent = "正在初始化本机资料…";
+}
+
+function finishImportStartup(error, message = "系统启动失败，请重新载入。") {
   window.clearTimeout(importStartupTimer);
   if (error) {
     console.error("Import startup failed:", error);
     importStartupFailed = true;
     const status = document.getElementById("importStartupStatus");
     const retry = document.getElementById("importStartupRetry");
-    if (status) status.textContent = "系统载入失败，请重新载入。";
+    if (status) status.textContent = message;
     if (retry) retry.hidden = false;
     return;
   }
+  document.getElementById("importAppShell")?.removeAttribute("inert");
   document.documentElement.classList.add("import-app-ready");
 }
+
+window.reportImportAssetError = label => {
+  finishImportStartup(new Error(label + "加载失败"), label + "加载失败，请重新载入。");
+};
 
 function watchImportStartup() {
   if (!document.documentElement.classList.contains("access-lock-ready") ||
       document.documentElement.classList.contains("import-app-ready") ||
       importStartupFailed || importStartupTimer !== undefined) return;
   importStartupTimer = window.setTimeout(() => {
-    finishImportStartup(new Error("Import startup timed out"));
+    finishImportStartup(new Error("Import startup timed out"), importStartupStage + "超时，请重新载入。");
   }, 8000);
 }
 
