@@ -2671,7 +2671,7 @@ function applyPricingSettingsCommitV446({ source = "writer" } = {}) {
       if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(renderVisibleInventoryV447, { timeout:450 });
       else window.setTimeout(renderVisibleInventoryV447, 80);
     } else if (pageId === "supplierPage") {
-      try { renderProductList(); } catch (error) { console.warn("V44.7 product pricing repaint skipped", error); }
+      try { refreshInventorySummaryViewsV464(); } catch (error) { console.warn("Product pricing repaint skipped", error); }
     } else if (pageId === "settingsPage") {
       const pricePanel = document.getElementById("promotionPriceListPanelV183");
       if (pricePanel && !pricePanel.hidden && typeof renderPromotionPriceListV183 === "function") {
@@ -2721,7 +2721,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V49.9 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V50.0 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -2846,7 +2846,7 @@ async function saveCommissionRateV441(value, { enabled = true, skipConfirm = fal
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V49.9 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V50.0 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate, hostCommissionV481:{enabled, rate:rememberedRate} });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -16478,12 +16478,16 @@ function getLatestImportCostDisplayV499(latest, freight) {
   const hasCost = Number.isFinite(unitCost) && unitCost > 0;
   const canEditPot = Boolean(currency && currency !== "VND" && latest.importId);
   const pot = canEditPot ? Math.max(0, Number(getManualBatchPotV487(latest)?.amount) || 0) : automaticPot;
+  return { hasCost, canEditPot, ...getCostTotalDisplayV500(unitCost, pot, freight) };
+}
+
+function getCostTotalDisplayV500(baseCost, pot, freight) {
   const hasPot = pot > 0;
   const localFreight = Math.max(0, Number(freight) || 0);
   const totalLabel = localFreight > 0
-    ? (hasPot ? "含盆＋本地运费成本" : "含本地运费成本")
-    : (hasPot ? "含盆成本（不含本地运费）" : "合计（不含盆及本地运费）");
-  return { hasCost, canEditPot, pot, hasPot, totalLabel, localFreight, total: unitCost + pot + localFreight };
+    ? (hasPot ? "含盆＋本地运费" : "含本地运费")
+    : (hasPot ? "含盆" : "不含盆和本地运费");
+  return { pot, hasPot, totalLabel, total: baseCost + pot + localFreight };
 }
 
 function renderLatestImportCostV480(latest, freight) {
@@ -16944,7 +16948,7 @@ function renderBatchProductStockResults() {
     const productIdV256 = String(product?.id || "").trim();
     // V40.3: use the same proven minimum-price profit calculation as the inventory/home cards.
     // This remains display-only: no pricing, promotion, inventory, FIFO or sync logic is changed.
-    const profitInfoV387 = getProductMinimumProfitV205(product);
+    const profitInfoV387 = getProductMinimumProfitV205(product, suggestedPriceRulesV462, suggestedPriceOriginIndexV462);
     const latestCostV499 = manualPotLookupV499
       ? getImportCostComparisonV483(product, manualPotLookupV499).latest : null;
     const manualPotDisplayV499 = latestCostV499?.currency && latestCostV499.currency !== "VND"
@@ -16984,7 +16988,7 @@ function renderBatchProductStockResults() {
           <button class="product-stock-qty-btn product-stock-metric-v256" type="button" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="stock" aria-label="长按修改当前库存" title="长按修改当前库存"><span>当前库存</span><strong>${formatNumber(Number(product.stock) || 0)}</strong></button>
           ${originalRecordV219 ? `<button class="product-stock-original-cost-btn-v219 product-stock-metric-v256" type="button" data-product-id="${escapeHTML(productIdV256)}" data-import-record-id="${escapeHTML(originalRecordV219.id || "")}" data-edit-type="originalCost" aria-label="点击查看成本明细；长按修改原成本" title="点击查看成本明细；长按修改原成本"><span>原成本</span><strong>${currencyV219 ? `${escapeHTML(currencyV219)} ` : ""}${formatMoney(Number(originalRecordV219.unitPrice) || 0)}</strong></button>` : `<div class="product-stock-original-cost-empty-v219 product-stock-metric-v256"><span>原成本</span><strong>-</strong></div>`}
           <div class="product-stock-import-metric-v376 product-stock-metric-v256"><span>进口编号</span>${importNumberV256 ? `<button type="button" class="product-stock-import-copy-v256 product-stock-value-black-v421" data-copy-value="${escapeHTML(importNumberV256)}" onclick="copyRecentBatchValue(this, '进口编号')" title="点击复制进口编号">${escapeHTML(importNumberV256)}</button>` : `<strong>-</strong>`}</div>
-          <button class="product-stock-cost-btn product-stock-metric-v256 product-stock-value-black-v421" type="button" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="averageCost" aria-label="长按修改平均原成本" title="长按只修改平均原成本；含盆／含本地运费金额只作显示">${renderProductAverageCostV469(product, suggestedPriceRulesV462, suggestedPriceOriginIndexV462, suggestedPricesV462.currentMinimumPrice, manualPotDisplayV499)}</button>
+          <button class="product-stock-cost-btn product-stock-metric-v256 product-stock-value-black-v421" type="button" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="averageCost" aria-label="长按修改平均原成本" title="长按只修改平均原成本；右侧金额只作显示">${renderProductAverageCostV469(product, suggestedPriceOriginIndexV462, profitInfoV387, manualPotDisplayV499)}</button>
           ${(()=>{const state=getMinimumPriceDisplayStateV315(product);const tone=state.state;return `<button class="product-stock-minimum-price-btn product-stock-metric-v256 product-stock-minimum-price-${tone}-v268 ${state.className}" type="button" data-minimum-price-state-v324="${state.state}" style="color:${getMinimumPriceColorV340(state.state) || 'inherit'} !important" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="minimumPrice" aria-label="长按修改最低售价" title="长按修改最低售价"><span>${state.label}</span><strong>${formatMoney(state.price, "RM ")}</strong></button>`})()}
           <button class="product-stock-initial-price-btn-v376 product-stock-metric-v256" type="button" data-product-id="${escapeHTML(productIdV256)}" data-edit-type="initialMinimumPrice" aria-label="长按修改初始最低售价" title="长按修改初始最低售价"><span>初始最低售价</span><strong>${formatMoney(getInitialMinimumPriceV376(product), "RM ")}</strong></button>
           <div class="product-stock-profit-metric-v387 product-stock-metric-v256 inventory-profit-value-v207 ${profitToneV387}"><span class="profit-split-v478"><span><small>利润</small><strong>${formatSignedProfitMoneyV387(profitInfoV387.profit)}</strong></span><span><small>利润率</small><strong>${escapeHTML(formatProfitTargetV303(profitInfoV387.profitRate))}</strong></span></span></div>
@@ -21936,25 +21940,19 @@ function setupMonthlyInventoryHistoryV468() {
   });
 }
 
-// Display only: underlying averageCost and its existing long-press edit target
-// remain the unpotted import cost. Reuse the existing VND pot tier resolver.
-function renderProductAverageCostV469(product, rules, originIndex, currentMinimumPrice = null, manualPotDisplay = null) {
-  const cost = Number(product?.averageCost) || 0;
-  const manualCost = manualPotDisplay?.canEditPot && manualPotDisplay.hasCost && manualPotDisplay.hasPot
-    ? `<span class="average-cost-part-v469 manual-pot-total-v499"><small>${manualPotDisplay.totalLabel}</small><strong>${formatMoney(manualPotDisplay.total, "RM ")}</strong></span>`
-    : "";
-  if (!isVndProductV205(product, originIndex)) {
-    const price = currentMinimumPrice ?? getOrdinaryCurrentMinimumPriceV462(product, rules, originIndex);
-    const freight = getChargeableMinimumFreightTierV439(price, rules).amount;
-    return `<span class="average-cost-mobile-heading-v478">平均原成本</span><span class="average-cost-split-v469">
-      <span class="average-cost-part-v469"><small><span class="cost-label-desktop-v478">平均原成本（不含运费）</span><span class="cost-label-mobile-v478">不含运费</span></small><strong>${formatMoney(cost, "RM ")}</strong></span>
-      ${manualCost || `<span class="average-cost-part-v469"><small>含本地<span class="cost-label-desktop-v478">运费</span></small><strong>${formatMoney(cost + freight, "RM ")}</strong></span>`}
-    </span>`;
-  }
-  const potCost = Number(getVndPotCostV160(product, rules, originIndex)) || 0;
-  return `<span class="average-cost-mobile-heading-v478">平均原成本（VND）</span><span class="average-cost-split-v469">
-    <span class="average-cost-part-v469"><small><span class="cost-label-desktop-v478">平均原成本（VND不含盆）</span><span class="cost-label-mobile-v478">不含盆</span></small><strong>${formatMoney(cost, "RM ")}</strong></span>
-    ${manualCost || `<span class="average-cost-part-v469"><small>含盆</small><strong>${formatMoney(cost + potCost, "RM ")}</strong></span>`}
+// The left side keeps the average import cost. Only a saved manual pot fee
+// switches the right side to the same per-batch total used by the dialog.
+function renderProductAverageCostV469(product, originIndex, profitInfo, manualPotDisplay = null) {
+  const cost = profitInfo.averageCost;
+  const vnd = isVndProductV205(product, originIndex);
+  const pot = vnd ? Math.max(0, Number(profitInfo.potCost) || 0) : 0;
+  const display = manualPotDisplay?.canEditPot && manualPotDisplay.hasCost && manualPotDisplay.hasPot
+    ? manualPotDisplay
+    : getCostTotalDisplayV500(cost, pot, profitInfo.freight);
+  const baseLabel = vnd ? "平均原成本（VND不含盆）" : "平均原成本（不含运费）";
+  return `<span class="average-cost-mobile-heading-v478">${vnd ? "平均原成本（VND）" : "平均原成本"}</span><span class="average-cost-split-v469">
+    <span class="average-cost-part-v469"><small><span class="cost-label-desktop-v478">${baseLabel}</span><span class="cost-label-mobile-v478">${vnd ? "不含盆" : "不含运费"}</span></small><strong>${formatMoney(cost, "RM ")}</strong></span>
+    <span class="average-cost-part-v469 displayed-cost-total-v500"><small>${display.totalLabel}</small><strong>${formatMoney(display.total, "RM ")}</strong></span>
   </span>`;
 }
 
