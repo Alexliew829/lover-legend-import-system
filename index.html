@@ -5,18 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=48.9" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=48.9" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=48.9" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=48.9" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=48.9" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=48.9" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=48.9" />
+  <link rel="manifest" href="./manifest.json?v=49.0" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=49.0" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=49.0" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=49.0" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=49.0" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=49.0" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=49.0" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=48.9" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=49.0" />
   <style id="access-lock-critical-v299">
     html,body{margin:0;min-height:100%;font-family:Arial,Helvetica,sans-serif}
     .access-lock{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(242,248,244,.96)}
@@ -24,25 +24,15 @@
     .access-lock-card{width:min(360px,calc(100vw - 36px));box-sizing:border-box;background:#fff;border:1px solid #cad8d0;border-radius:18px;padding:28px 22px;text-align:center;box-shadow:0 18px 48px rgba(31,93,58,.16)}
     .access-lock-logo{font-size:34px}.access-lock-card h1{margin:10px 0 8px;color:#1f5d3a}.access-lock-card p{margin:0 0 16px;color:#66736b;line-height:1.5}
     .access-lock-card form{display:grid;gap:10px}.access-lock-card input,.access-lock-card button{box-sizing:border-box;width:100%;min-height:46px;border-radius:11px;font-size:17px}
-    .access-lock-card input{border:1px solid #1f5d3a;padding:0 14px;text-align:center}.app-shell{visibility:hidden}.access-lock-ready .app-shell{visibility:visible}html:not(.access-lock-ready) .app-shell{display:none!important}html.desktop-auto-pending-v316 .access-lock-card{visibility:hidden}.access-lock-card .primary-btn{border:0;background:#1f6b40;color:#fff;font-weight:700}
-    html.biometric-auto-pending-v304 .access-lock-card{visibility:hidden}
+    .access-lock-card input{border:1px solid #1f5d3a;padding:0 14px;text-align:center}.app-shell{visibility:hidden}.access-lock-ready .app-shell{visibility:visible}html:not(.access-lock-ready) .app-shell{display:none!important}.access-lock-card .primary-btn{border:0;background:#1f6b40;color:#fff;font-weight:700}
   </style>
-  <script id="biometric-first-paint-v304">
-    try {
-      const ua = String(navigator.userAgent || "");
-      const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (/Macintosh/i.test(ua) && Number(navigator.maxTouchPoints || 0) > 1);
-      if (mobile && localStorage.getItem("loverLegendBiometricCredentialId")) {
-        document.documentElement.classList.add("biometric-auto-pending-v304");
-        window.setTimeout(() => document.documentElement.classList.remove("biometric-auto-pending-v304"), 3500);
-      }
-    } catch (_) {}
-  </script>
-  <link rel="preload" href="./css/style.css?v=48.9" as="style" />
-  <link rel="stylesheet" href="./css/style.css?v=48.9" media="print" onload="this.media='all'" />
-  <noscript><link rel="stylesheet" href="./css/style.css?v=48.9" /></noscript>
-  <script defer src="./js/common.js?v=48.9"></script>
-  <script defer src="./js/sync.js?v=48.9"></script>
-  <script defer src="./js/app.js?v=48.9"></script>
+  <link rel="preload" href="./css/style.css?v=49.0" as="style" />
+  <link rel="stylesheet" href="./css/style.css?v=49.0" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="./css/style.css?v=49.0" /></noscript>
+  <script defer src="./js/common.js?v=49.0"></script>
+  <script defer src="./js/access.js?v=49.0"></script>
+  <script defer src="./js/sync.js?v=49.0"></script>
+  <script defer src="./js/app.js?v=49.0"></script>
 </head>
 <body>
   <div id="accessLock"
@@ -60,6 +50,7 @@
             data-lpignore="true"
             data-1p-ignore="true">
         <input id="accessPasswordInput"
+               disabled
                name="systemAccessCode"
                class="masked-access-code"
                type="password"
@@ -74,7 +65,7 @@
                inputmode="text" />
 
         <button class="primary-btn"
-                type="submit">进入系统</button>
+                type="submit" disabled>进入系统</button>
       </form>
 
       <button id="biometricLoginBtn"
@@ -88,7 +79,7 @@
 
       <button id="showPasswordHintBtn"
               class="password-hint-btn"
-              type="button">忘记密码？查看提示</button>
+              type="button" disabled>忘记密码？查看提示</button>
 
       <div id="accessPasswordHint"
            class="access-password-hint"
@@ -116,7 +107,7 @@
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 48.9 Stable</div>
+          <div class="app-header-version">正式版 49.0 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -1023,7 +1014,7 @@
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 48.9 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 49.0 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>

@@ -1,4 +1,4 @@
-// V43.1 startup access module: extracted from app.js so password login is ready before the large main app bundle.
+// Login initializes before the deferred sync and main application scripts.
 const DEFAULT_ACCESS_PASSWORD_HASH =
   "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92";
 const DEFAULT_ACCESS_PASSWORD_HINT = "6个数字";
@@ -6,9 +6,6 @@ const ACCESS_UNLOCK_SESSION_KEY =
   "loverLegendImportSystemUnlocked";
 const DESKTOP_SAVED_PASSWORD_KEY =
   "loverLegendDesktopSavedPassword";
-const RESTORE_JOB_LOCAL_KEY = "loverLegendRestoreJobV75";
-let dataOperationActive = false;
-let restoreJobPollTimer = null;
 
 async function hashAccessPassword(value) {
   const bytes = new TextEncoder().encode(String(value || ""));
@@ -328,7 +325,6 @@ function unlockAccessLock(lock, input, status) {
   if (lock) lock.hidden = true;
 
   document.body.classList.remove("access-locked");
-  document.documentElement.classList.remove("biometric-auto-pending-v304");
   document.documentElement.classList.add("access-lock-ready");
 }
 
@@ -441,46 +437,58 @@ function setupAccessLock() {
     }
   });
 
+  let biometricPending = false;
   const tryBiometricLogin = async ({
     automatic = false
   } = {}) => {
-    if (
-      !isBiometricCredentialStored() ||
-      !(await isPlatformBiometricAvailable())
-    ) {
-      return false;
-    }
-
-    if (biometricStatus) {
-      biometricStatus.hidden = false;
-      biometricStatus.textContent =
-        "请使用 Face ID / 生物辨识确认...";
-    }
-
-    const verified =
-      await authenticateDeviceBiometric();
-
-    if (verified) {
-      unlockAccessLock(lock, input, status);
-
-      if (biometricStatus) {
-        biometricStatus.textContent = "";
-        biometricStatus.hidden = true;
+    if (biometricPending) return false;
+    biometricPending = true;
+    try {
+      if (
+        !isBiometricCredentialStored() ||
+        lock.hidden ||
+        !(await isPlatformBiometricAvailable()) ||
+        lock.hidden ||
+        (automatic && input.value !== "")
+      ) {
+        return false;
       }
 
-      return true;
-    }
+      if (biometricStatus) {
+        biometricStatus.hidden = false;
+        biometricStatus.textContent =
+          "请使用 Face ID / 生物辨识确认...";
+      }
 
-    if (biometricStatus) {
-      biometricStatus.hidden = false;
-      biometricStatus.textContent =
-        automatic
-          ? "可输入密码进入系统"
-          : "生物辨识未完成，请输入密码";
-    }
+      const verified =
+        await authenticateDeviceBiometric();
 
-    input.focus();
-    return false;
+      if (lock.hidden) return false;
+
+      if (verified) {
+        unlockAccessLock(lock, input, status);
+
+        if (biometricStatus) {
+          biometricStatus.textContent = "";
+          biometricStatus.hidden = true;
+        }
+
+        return true;
+      }
+
+      if (biometricStatus) {
+        biometricStatus.hidden = false;
+        biometricStatus.textContent =
+          automatic
+            ? "可输入密码进入系统"
+            : "生物辨识未完成，请输入密码";
+      }
+
+      if (!automatic) input.focus();
+      return false;
+    } finally {
+      biometricPending = false;
+    }
   };
 
   biometricButton?.addEventListener(
@@ -497,24 +505,11 @@ function setupAccessLock() {
   if (alreadyUnlocked) {
     lock.hidden = true;
     document.body.classList.remove("access-locked");
-    document.documentElement.classList.remove("biometric-auto-pending-v304", "desktop-auto-pending-v316");
     document.documentElement.classList.add("access-lock-ready");
   } else {
     lock.hidden = false;
     document.body.classList.add("access-locked");
     document.documentElement.classList.remove("access-lock-ready");
-
-    const startAutomaticLoginV319 = async () => {
-      if (isMobileOrTabletDevice()) {
-        const biometricUsed = await tryBiometricLogin({ automatic: true });
-        document.documentElement.classList.remove("biometric-auto-pending-v304");
-        if (!biometricUsed) input.focus();
-      } else {
-        document.documentElement.classList.remove("desktop-auto-pending-v316");
-        input.focus();
-      }
-    };
-    void startAutomaticLoginV319();
   }
 
   form.addEventListener("submit", async event => {
@@ -559,6 +554,15 @@ function setupAccessLock() {
       }
     }
   });
+  input.disabled = false;
+  const submitButton = form.querySelector('button[type="submit"]');
+  if (submitButton) submitButton.disabled = false;
+  if (hintButton) hintButton.disabled = false;
+
+  if (!alreadyUnlocked) {
+    if (isMobileOrTabletDevice()) void tryBiometricLogin({ automatic:true });
+    else input.focus();
+  }
 }
 
 function setupPasswordChange() {
@@ -655,3 +659,5 @@ function setupPasswordChange() {
 
 window.updatePasswordHintDisplays =
   updatePasswordHintDisplays;
+
+setupAccessLock();
