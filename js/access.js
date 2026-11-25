@@ -418,7 +418,6 @@ function setupAccessLock() {
   if (!lock || !form || !input || !status) return;
 
   const mobile = isMobileOrTabletDevice();
-  updatePasswordHintDisplays();
   updateDeviceBiometricStatus({ loginOnly: isAppleMobileDevice() });
 
   // V34.3 desktop: if a saved password is still valid, verify locally and enter
@@ -557,11 +556,9 @@ function setupAccessLock() {
     previousAttempt?.controller?.abort();
     unlockAccessLock(lock, input, status);
   });
-  input.disabled = false;
   const submitButton = form.querySelector('button[type="submit"]');
   if (submitButton) submitButton.disabled = false;
   if (hintButton) hintButton.disabled = false;
-  lock.classList.add("login-controls-ready");
 
   if (!alreadyUnlocked) {
     if (!mobile) input.focus();
