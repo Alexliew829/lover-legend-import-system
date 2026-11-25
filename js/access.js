@@ -417,6 +417,7 @@ function setupAccessLock() {
 
   if (!lock || !form || !input || !status) return;
 
+  const mobile = isMobileOrTabletDevice();
   updatePasswordHintDisplays();
   updateDeviceBiometricStatus({ loginOnly: isAppleMobileDevice() });
 
@@ -424,7 +425,7 @@ function setupAccessLock() {
   // immediately. No network request and no password/logo flash. Invalid saved
   // passwords are cleared and the normal password card is shown.
   let savedDesktopPasswordV316 = "";
-  if (!isMobileOrTabletDevice()) {
+  if (!mobile) {
     savedDesktopPasswordV316 = String(localStorage.getItem(DESKTOP_SAVED_PASSWORD_KEY) || "");
     if (savedDesktopPasswordV316) input.value = savedDesktopPasswordV316;
   }
@@ -448,14 +449,9 @@ function setupAccessLock() {
   const tryBiometricLogin = async ({
     automatic = false
   } = {}) => {
-    if (!canRequestBiometricLogin() || !isBiometricCredentialStored() || lock.hidden) return false;
+    if (biometricAttempt || !canRequestBiometricLogin() || !isBiometricCredentialStored() || lock.hidden) return false;
     const appleMobile = isAppleMobileDevice();
-    if (biometricAttempt) {
-      if (!appleMobile || automatic || !biometricAttempt.automatic || !biometricAttempt.controller) return false;
-      biometricAttempt.controller.abort();
-    }
     const attempt = {
-      automatic,
       controller: appleMobile && typeof AbortController === "function" ? new AbortController() : null
     };
     biometricAttempt = attempt;
@@ -469,6 +465,7 @@ function setupAccessLock() {
       }
 
       if (biometricStatus) {
+        status.textContent = "";
         biometricStatus.hidden = false;
         biometricStatus.textContent =
           "请使用 Face ID / 生物辨识确认...";
@@ -529,6 +526,11 @@ function setupAccessLock() {
 
   form.addEventListener("submit", async event => {
     event.preventDefault();
+    if (lock.hidden) return;
+    if (biometricStatus) {
+      biometricStatus.textContent = "";
+      biometricStatus.hidden = true;
+    }
 
     const password = String(input.value || "");
 
@@ -546,7 +548,7 @@ function setupAccessLock() {
       return;
     }
 
-    if (!isMobileOrTabletDevice()) {
+    if (!mobile) {
       localStorage.setItem(DESKTOP_SAVED_PASSWORD_KEY, password);
     }
 
@@ -554,32 +556,16 @@ function setupAccessLock() {
     biometricAttempt = null;
     previousAttempt?.controller?.abort();
     unlockAccessLock(lock, input, status);
-
-    // 此设备首次使用正确密码进入后，自动邀请建立
-    // Face ID / Touch ID / Android 指纹 / Windows Hello。
-    if (
-      !isBiometricCredentialStored() &&
-      await isPlatformBiometricAvailable()
-    ) {
-      try {
-        await registerDeviceBiometric();
-      } catch (error) {
-        // 用户取消或设备不允许时保持密码登录，不阻止进入。
-        console.info(
-          "Biometric enrollment skipped:",
-          error?.name || error
-        );
-      }
-    }
   });
   input.disabled = false;
   const submitButton = form.querySelector('button[type="submit"]');
   if (submitButton) submitButton.disabled = false;
   if (hintButton) hintButton.disabled = false;
+  lock.classList.add("login-controls-ready");
 
   if (!alreadyUnlocked) {
-    if (!isMobileOrTabletDevice()) input.focus();
-    else void tryBiometricLogin({ automatic:true });
+    if (!mobile) input.focus();
+    else if (!isAppleMobileDevice()) void tryBiometricLogin({ automatic:true });
   }
 }
 

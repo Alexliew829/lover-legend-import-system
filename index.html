@@ -5,22 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1f5d3a" />
   <title>进口成本与库存系统</title>
-  <link rel="manifest" href="./manifest.json?v=49.4" />
-  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=49.4" />
-  <link rel="icon" href="./assets/icons/favicon.ico?v=49.4" sizes="any" />
-  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=49.4" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=49.4" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=49.4" />
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=49.4" />
+  <link rel="manifest" href="./manifest.json?v=49.5" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico?v=49.5" />
+  <link rel="icon" href="./assets/icons/favicon.ico?v=49.5" sizes="any" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png?v=49.5" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png?v=49.5" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=49.5" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png?v=49.5" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="application-name" content="Lover Legend Import System" />
   <meta name="msapplication-TileColor" content="#1f5d3a" />
-  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=49.4" />
+  <meta name="msapplication-TileImage" content="./assets/icons/icon-192.png?v=49.5" />
   <style id="access-lock-critical-v299">
     html,body{margin:0;min-height:100%;font-family:Arial,Helvetica,sans-serif}
     .access-lock{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(242,248,244,.96)}
     .access-lock[hidden]{display:none!important}
+    #accessLock:not(.login-controls-ready) .access-lock-card{visibility:hidden}
     .access-lock-card{width:min(360px,calc(100vw - 36px));box-sizing:border-box;background:#fff;border:1px solid #cad8d0;border-radius:18px;padding:28px 22px;text-align:center;box-shadow:0 18px 48px rgba(31,93,58,.16)}
     .access-lock-logo{font-size:34px}.access-lock-card h1{margin:10px 0 8px;color:#1f5d3a}.access-lock-card p{margin:0 0 16px;color:#66736b;line-height:1.5}
     .access-lock-card form{display:grid;gap:10px}.access-lock-card input,.access-lock-card button{box-sizing:border-box;width:100%;min-height:46px;border-radius:11px;font-size:17px}
@@ -29,11 +30,11 @@
     .access-lock-ready:not(.import-app-ready) .import-startup-notice{display:block;margin:12px auto;padding:12px 16px;max-width:540px;border:1px solid #cad8d0;border-radius:12px;background:#fff;color:#1f5d3a}
     .import-startup-notice p{margin:0}.import-startup-notice button{margin-top:8px}
   </style>
-  <link rel="preload" href="./css/style.css?v=49.4" as="style" />
-  <link rel="stylesheet" href="./css/style.css?v=49.4" media="print" onload="this.media='all'" />
-  <noscript><link rel="stylesheet" href="./css/style.css?v=49.4" /></noscript>
-  <script defer src="./js/sync.js?v=49.4" onerror="window.reportImportAssetError?.('同步脚本')"></script>
-  <script defer src="./js/app.js?v=49.4" onerror="window.reportImportAssetError?.('主程式')"></script>
+  <link rel="preload" href="./css/style.css?v=49.5" as="style" />
+  <link rel="stylesheet" href="./css/style.css?v=49.5" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="./css/style.css?v=49.5" /></noscript>
+  <script defer src="./js/sync.js?v=49.5" onerror="window.reportImportAssetError?.('同步脚本')"></script>
+  <script defer src="./js/app.js?v=49.5" onerror="window.reportImportAssetError?.('主程式')"></script>
 </head>
 <body>
   <div id="accessLock"
@@ -46,10 +47,8 @@
       <h1 id="accessLockTitle">系统密码</h1>
       <p>电脑必须确认密码后进入；手机可使用 Face ID</p>
 
-      <form id="accessLockForm"
-            autocomplete="off"
-            data-lpignore="true"
-            data-1p-ignore="true">
+      <form id="accessLockForm">
+        <input type="hidden" name="username" value="lover-legend-user" autocomplete="username" />
         <input id="accessPasswordInput"
                disabled
                name="systemAccessCode"
@@ -57,12 +56,10 @@
                type="password"
                maxlength="12"
                placeholder="输入密码"
-               autocomplete="off"
+               autocomplete="current-password"
                autocapitalize="none"
                autocorrect="off"
                spellcheck="false"
-               data-lpignore="true"
-               data-1p-ignore="true"
                inputmode="text" />
 
         <button class="primary-btn"
@@ -90,20 +87,13 @@
            class="status-text access-lock-status"></div>
     </div>
   </div>
-  <script id="access-lock-fast-prefill-v300">
-    try {
-      const saved = localStorage.getItem("loverLegendDesktopSavedPassword");
-      const input = document.getElementById("accessPasswordInput");
-      if (saved && input) input.value = saved;
-    } catch (_) {}
-  </script>
   <div class="import-startup-notice">
     <p id="importStartupStatus" role="status">正在载入主程式…</p>
     <button id="importStartupRetry" class="primary-btn" type="button" hidden>重新载入</button>
   </div>
   <!-- Common and access scripts are embedded from js/ so login is usable without waiting for extra requests. -->
   <script id="import-early-access">
-const APP_VERSION = "49.4";
+const APP_VERSION = "49.5";
 
 function formatMoney(value, prefix = "") {
   const number = Number(value) || 0;
@@ -672,6 +662,7 @@ function setupAccessLock() {
 
   if (!lock || !form || !input || !status) return;
 
+  const mobile = isMobileOrTabletDevice();
   updatePasswordHintDisplays();
   updateDeviceBiometricStatus({ loginOnly: isAppleMobileDevice() });
 
@@ -679,7 +670,7 @@ function setupAccessLock() {
   // immediately. No network request and no password/logo flash. Invalid saved
   // passwords are cleared and the normal password card is shown.
   let savedDesktopPasswordV316 = "";
-  if (!isMobileOrTabletDevice()) {
+  if (!mobile) {
     savedDesktopPasswordV316 = String(localStorage.getItem(DESKTOP_SAVED_PASSWORD_KEY) || "");
     if (savedDesktopPasswordV316) input.value = savedDesktopPasswordV316;
   }
@@ -703,14 +694,9 @@ function setupAccessLock() {
   const tryBiometricLogin = async ({
     automatic = false
   } = {}) => {
-    if (!canRequestBiometricLogin() || !isBiometricCredentialStored() || lock.hidden) return false;
+    if (biometricAttempt || !canRequestBiometricLogin() || !isBiometricCredentialStored() || lock.hidden) return false;
     const appleMobile = isAppleMobileDevice();
-    if (biometricAttempt) {
-      if (!appleMobile || automatic || !biometricAttempt.automatic || !biometricAttempt.controller) return false;
-      biometricAttempt.controller.abort();
-    }
     const attempt = {
-      automatic,
       controller: appleMobile && typeof AbortController === "function" ? new AbortController() : null
     };
     biometricAttempt = attempt;
@@ -724,6 +710,7 @@ function setupAccessLock() {
       }
 
       if (biometricStatus) {
+        status.textContent = "";
         biometricStatus.hidden = false;
         biometricStatus.textContent =
           "请使用 Face ID / 生物辨识确认...";
@@ -784,6 +771,11 @@ function setupAccessLock() {
 
   form.addEventListener("submit", async event => {
     event.preventDefault();
+    if (lock.hidden) return;
+    if (biometricStatus) {
+      biometricStatus.textContent = "";
+      biometricStatus.hidden = true;
+    }
 
     const password = String(input.value || "");
 
@@ -801,7 +793,7 @@ function setupAccessLock() {
       return;
     }
 
-    if (!isMobileOrTabletDevice()) {
+    if (!mobile) {
       localStorage.setItem(DESKTOP_SAVED_PASSWORD_KEY, password);
     }
 
@@ -809,32 +801,16 @@ function setupAccessLock() {
     biometricAttempt = null;
     previousAttempt?.controller?.abort();
     unlockAccessLock(lock, input, status);
-
-    // 此设备首次使用正确密码进入后，自动邀请建立
-    // Face ID / Touch ID / Android 指纹 / Windows Hello。
-    if (
-      !isBiometricCredentialStored() &&
-      await isPlatformBiometricAvailable()
-    ) {
-      try {
-        await registerDeviceBiometric();
-      } catch (error) {
-        // 用户取消或设备不允许时保持密码登录，不阻止进入。
-        console.info(
-          "Biometric enrollment skipped:",
-          error?.name || error
-        );
-      }
-    }
   });
   input.disabled = false;
   const submitButton = form.querySelector('button[type="submit"]');
   if (submitButton) submitButton.disabled = false;
   if (hintButton) hintButton.disabled = false;
+  lock.classList.add("login-controls-ready");
 
   if (!alreadyUnlocked) {
-    if (!isMobileOrTabletDevice()) input.focus();
-    else void tryBiometricLogin({ automatic:true });
+    if (!mobile) input.focus();
+    else if (!isAppleMobileDevice()) void tryBiometricLogin({ automatic:true });
   }
 }
 
@@ -988,7 +964,7 @@ watchImportStartup();
           <div class="app-header-main-title">进口成本与库存系统</div>
           <div class="app-header-subtitle">Import Cost &amp; Inventory System</div>
           <div class="app-header-brand">Lover Legend Gardening</div>
-          <div class="app-header-version">正式版 49.4 Stable</div>
+          <div class="app-header-version">正式版 49.5 Stable</div>
         </div>
 
         <img class="app-header-logo app-header-logo-red"
@@ -1895,7 +1871,7 @@ watchImportStartup();
 
         <section class="panel system-information-v203">
           <h3>系统资料 / System Information</h3>
-          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 49.4 Stable</strong></div>
+          <div class="info-row"><span>版本</span><strong id="systemInfoVersionV203">正式版 49.5 Stable</strong></div>
           <div class="info-row"><span>API版本</span><strong id="systemInfoApiVersionV203">检查中…</strong></div>
           <div class="info-row"><span>Revision（上次 → 当前）</span><strong id="settingsRevisionV185">读取中…</strong></div>
           <div class="info-row"><span>储存方式</span><strong>Google Sheet 自动同步</strong></div>
