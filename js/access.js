@@ -1,4 +1,4 @@
-// Keep Apple mobile sign-in independent of the inventory app startup.
+// The initial sign-in controls run from the page before the inventory scripts.
 const DEFAULT_ACCESS_PASSWORD_HASH =
   "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92";
 const DEFAULT_ACCESS_PASSWORD_HINT = "6个数字";
@@ -224,7 +224,7 @@ async function registerDeviceBiometric() {
   return true;
 }
 
-async function authenticateDeviceBiometric() {
+async function authenticateDeviceBiometric(signal) {
   const credentialId =
     getStoredBiometricCredentialId();
 
@@ -235,6 +235,7 @@ async function authenticateDeviceBiometric() {
 
   try {
     const assertion = await navigator.credentials.get({
+      ...(signal ? { signal } : {}),
       publicKey: {
         challenge: randomBytes(32),
         allowCredentials: [{
@@ -443,17 +444,23 @@ function setupAccessLock() {
     }
   });
 
-  let biometricPending = false;
+  let biometricAttempt = null;
   const tryBiometricLogin = async ({
     automatic = false
   } = {}) => {
-    if (biometricPending) return false;
-    biometricPending = true;
+    if (!canRequestBiometricLogin() || !isBiometricCredentialStored() || lock.hidden) return false;
+    const appleMobile = isAppleMobileDevice();
+    if (biometricAttempt) {
+      if (!appleMobile || automatic || !biometricAttempt.automatic || !biometricAttempt.controller) return false;
+      biometricAttempt.controller.abort();
+    }
+    const attempt = {
+      automatic,
+      controller: appleMobile && typeof AbortController === "function" ? new AbortController() : null
+    };
+    biometricAttempt = attempt;
     try {
-      if (!canRequestBiometricLogin() || !isBiometricCredentialStored() || lock.hidden) {
-        return false;
-      }
-      if (!isAppleMobileDevice() && (
+      if (!appleMobile && (
         !(await isPlatformBiometricAvailable()) ||
         lock.hidden ||
         (automatic && input.value !== "")
@@ -469,9 +476,9 @@ function setupAccessLock() {
 
       // Apple mobile: call WebAuthn within the button press, before any await.
       const verified =
-        await authenticateDeviceBiometric();
+        await authenticateDeviceBiometric(attempt.controller?.signal);
 
-      if (lock.hidden) return false;
+      if (lock.hidden || biometricAttempt !== attempt) return false;
 
       if (verified) {
         unlockAccessLock(lock, input, status);
@@ -495,7 +502,7 @@ function setupAccessLock() {
       if (!automatic) input.focus();
       return false;
     } finally {
-      biometricPending = false;
+      if (biometricAttempt === attempt) biometricAttempt = null;
     }
   };
 
@@ -543,6 +550,9 @@ function setupAccessLock() {
       localStorage.setItem(DESKTOP_SAVED_PASSWORD_KEY, password);
     }
 
+    const previousAttempt = biometricAttempt;
+    biometricAttempt = null;
+    previousAttempt?.controller?.abort();
     unlockAccessLock(lock, input, status);
 
     // 此设备首次使用正确密码进入后，自动邀请建立
@@ -569,7 +579,7 @@ function setupAccessLock() {
 
   if (!alreadyUnlocked) {
     if (!isMobileOrTabletDevice()) input.focus();
-    else if (!isAppleMobileDevice()) void tryBiometricLogin({ automatic:true });
+    else void tryBiometricLogin({ automatic:true });
   }
 }
 
@@ -668,44 +678,33 @@ function setupPasswordChange() {
 window.updatePasswordHintDisplays =
   updatePasswordHintDisplays;
 
-setupAccessLock();
+let importStartupTimer;
+let importStartupFailed = false;
 
-function setupImportStartup({ syncSrc, appSrc }) {
-  if (!syncSrc || !appSrc) return;
-
-  const retry = document.getElementById("importStartupRetry");
-  retry?.addEventListener("click", () => window.location.reload());
-
-  const loadScript = src => new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    // Ordered execution for dynamically inserted classic scripts.
-    script.async = false;
-    script.src = src;
-    script.onload = resolve;
-    script.onerror = () => reject(new Error("Failed to load " + src));
-    document.head.appendChild(script);
-  });
-
-  const start = async () => {
-    try {
-      await Promise.all([loadScript(syncSrc), loadScript(appSrc)]);
-      initializeImportApplication();
-      document.documentElement.classList.add("import-app-ready");
-    } catch (error) {
-      console.error("Import startup failed:", error);
-      const status = document.getElementById("importStartupStatus");
-      if (status) status.textContent = "系统载入失败，请重新载入。";
-      if (retry) retry.hidden = false;
-    }
-  };
-
-  if (isAppleMobileDevice() && !document.documentElement.classList.contains("access-lock-ready")) {
-    document.addEventListener("import-access-unlocked", start, { once: true });
-  } else {
-    void start();
+function finishImportStartup(error) {
+  window.clearTimeout(importStartupTimer);
+  if (error) {
+    console.error("Import startup failed:", error);
+    importStartupFailed = true;
+    const status = document.getElementById("importStartupStatus");
+    const retry = document.getElementById("importStartupRetry");
+    if (status) status.textContent = "系统载入失败，请重新载入。";
+    if (retry) retry.hidden = false;
+    return;
   }
+  document.documentElement.classList.add("import-app-ready");
 }
 
-if (document.currentScript?.dataset) {
-  setupImportStartup(document.currentScript.dataset);
+function watchImportStartup() {
+  if (!document.documentElement.classList.contains("access-lock-ready") ||
+      document.documentElement.classList.contains("import-app-ready") ||
+      importStartupFailed || importStartupTimer !== undefined) return;
+  importStartupTimer = window.setTimeout(() => {
+    finishImportStartup(new Error("Import startup timed out"));
+  }, 8000);
 }
+
+document.addEventListener("import-access-unlocked", watchImportStartup);
+document.getElementById("importStartupRetry")?.addEventListener("click", () => window.location.reload());
+setupAccessLock();
+watchImportStartup();
