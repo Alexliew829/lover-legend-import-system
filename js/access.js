@@ -1,4 +1,4 @@
-// Login initializes before the deferred sync and main application scripts.
+// Keep Apple mobile sign-in independent of the inventory app startup.
 const DEFAULT_ACCESS_PASSWORD_HASH =
   "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92";
 const DEFAULT_ACCESS_PASSWORD_HINT = "6个数字";
@@ -259,7 +259,7 @@ function clearDeviceBiometric() {
   updateDeviceBiometricStatus();
 }
 
-async function updateDeviceBiometricStatus() {
+async function updateDeviceBiometricStatus({ loginOnly = false } = {}) {
   const status =
     document.getElementById("deviceBiometricStatus");
   const setupButton =
@@ -274,6 +274,7 @@ async function updateDeviceBiometricStatus() {
     loginButton.hidden =
       !(canRequestBiometricLogin() && isBiometricCredentialStored());
   }
+  if (loginOnly) return;
 
   const available =
     await isPlatformBiometricAvailable();
@@ -330,6 +331,7 @@ function unlockAccessLock(lock, input, status) {
 
   document.body.classList.remove("access-locked");
   document.documentElement.classList.add("access-lock-ready");
+  document.dispatchEvent(new Event("import-access-unlocked"));
 }
 
 function setupDeviceBiometricSettings() {
@@ -415,7 +417,7 @@ function setupAccessLock() {
   if (!lock || !form || !input || !status) return;
 
   updatePasswordHintDisplays();
-  updateDeviceBiometricStatus();
+  updateDeviceBiometricStatus({ loginOnly: isAppleMobileDevice() });
 
   // V34.3 desktop: if a saved password is still valid, verify locally and enter
   // immediately. No network request and no password/logo flash. Invalid saved
@@ -667,3 +669,43 @@ window.updatePasswordHintDisplays =
   updatePasswordHintDisplays;
 
 setupAccessLock();
+
+function setupImportStartup({ syncSrc, appSrc }) {
+  if (!syncSrc || !appSrc) return;
+
+  const retry = document.getElementById("importStartupRetry");
+  retry?.addEventListener("click", () => window.location.reload());
+
+  const loadScript = src => new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    // Ordered execution for dynamically inserted classic scripts.
+    script.async = false;
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error("Failed to load " + src));
+    document.head.appendChild(script);
+  });
+
+  const start = async () => {
+    try {
+      await Promise.all([loadScript(syncSrc), loadScript(appSrc)]);
+      initializeImportApplication();
+      document.documentElement.classList.add("import-app-ready");
+    } catch (error) {
+      console.error("Import startup failed:", error);
+      const status = document.getElementById("importStartupStatus");
+      if (status) status.textContent = "系统载入失败，请重新载入。";
+      if (retry) retry.hidden = false;
+    }
+  };
+
+  if (isAppleMobileDevice() && !document.documentElement.classList.contains("access-lock-ready")) {
+    document.addEventListener("import-access-unlocked", start, { once: true });
+  } else {
+    void start();
+  }
+}
+
+if (document.currentScript?.dataset) {
+  setupImportStartup(document.currentScript.dataset);
+}
