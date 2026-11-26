@@ -1,14 +1,14 @@
-const CACHE = "lover-legend-import-cost-v50.6-stable";
+const CACHE = "lover-legend-import-cost-v50.7-stable";
 const CORE = [
   "./",
-  "./index.html?v=50.6",
-  "./css/style.css?v=50.6",
-  "./js/common.js?v=50.6",
-  "./js/access.js?v=50.6",
-  "./js/sync.js?v=50.6",
-  "./js/app.js?v=50.6",
-  "./manifest.json?v=50.6",
-  "./version.json?v=50.6",
+  "./index.html?v=50.7",
+  "./css/style.css?v=50.7",
+  "./js/common.js?v=50.7",
+  "./js/access.js?v=50.7",
+  "./js/sync.js?v=50.7",
+  "./js/app.js?v=50.7",
+  "./manifest.json?v=50.7",
+  "./version.json?v=50.7",
   "./assets/images/logo-green.jpg",
   "./assets/images/logo-red.jpg",
   "./assets/icons/favicon.ico",
@@ -43,7 +43,7 @@ self.addEventListener("fetch", event => {
       fetch(event.request)
         .then(response => {
           const copy = response.clone();
-          caches.open(CACHE).then(cache => cache.put("./index.html?v=50.6", copy));
+          caches.open(CACHE).then(cache => cache.put("./index.html?v=50.7", copy));
           return response;
         })
         .catch(() => caches.match("./index.html"))
