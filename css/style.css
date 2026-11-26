@@ -7463,3 +7463,27 @@ button.history-species-toggle-v470{
   .product-stock-sales-v505 strong,
   .product-stock-sales-v505 b { font-size: 18px; }
 }
+
+/* V50.8: keep history type next to the keyword on desktop and mobile. */
+.history-lookup-row #historyLookupInput {
+  flex-basis: 280px;
+  min-width: 0;
+}
+#historyTypeV508 {
+  flex: 0 0 132px;
+  width: 132px;
+  min-width: 0;
+  margin: 0;
+}
+#vndPotActivationV508 {
+  margin: 10px 0;
+}
+@media (max-width: 640px) {
+  .history-lookup-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(96px, 32%);
+  }
+  .history-lookup-row #historyTypeV508 {
+    width: 100%;
+  }
+}

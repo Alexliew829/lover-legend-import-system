@@ -2378,10 +2378,6 @@ const MINIMUM_PRICE_SETTING_FIELDS_V160 = Object.freeze({
   freightTierD: { id: "minimumFreightTierD", label: "D · 售价 RM1,000.01–2,000 木架＋本地运费", prefix: "RM " },
   freightTierE: { id: "minimumFreightTierE", label: "E · 售价 RM2,000.01–4,999.99 木架＋本地运费", prefix: "RM " },
   freightTierF: { id: "minimumFreightTierF", label: "F · 售价 RM5,000以上 木架＋本地运费", prefix: "RM " },
-  vndPotUnder1m: { id: "minimumVndPotUnder1m", label: "VND 原价低于 1,000,000 花盆成本", prefix: "RM " },
-  vndPot1mTo4m: { id: "minimumVndPot1mTo4m", label: "VND 原价 1,000,000–3,999,999 花盆成本", prefix: "RM " },
-  vndPot4mTo10m: { id: "minimumVndPot4mTo10m", label: "VND 原价 4,000,000–9,999,999 花盆成本", prefix: "RM " },
-  vndPot10mPlus: { id: "minimumVndPot10mPlus", label: "VND 原价 10,000,000以上花盆成本", prefix: "RM " }
 });
 
 const DEFAULT_EXCHANGE_RATES_V160 = Object.freeze({
@@ -2481,7 +2477,6 @@ function updateMinimumPriceCustomBadgeV202(rules = getMinimumPriceRulesV160()) {
   const groups = [];
   if (changed(["margin0To300","margin300To500","margin500To800","margin800To5000","margin5000To8000","margin8000Plus"])) groups.push("净利");
   if (changed(["freightTierA","freightTierB","freightTierC","freightTierD","freightTierE","freightTierF"])) groups.push("运费");
-  if (changed(["vndPotUnder1m","vndPot1mTo4m","vndPot4mTo10m","vndPot10mPlus"])) groups.push("VND");
   badge.textContent = groups.length === 0 ? "" : (groups.length === 1 ? `🔴 ${groups[0]}自定义` : "🔴 多项已自定义");
   badge.hidden = groups.length === 0;
 }
@@ -2493,9 +2488,28 @@ function populateMinimumPriceSettingsV160() {
     if (input) input.value = formatMoney(rules[key]);
   });
   updateMinimumPriceCustomBadgeV202(rules);
+  refreshVndPotActivationV508();
+}
+
+function refreshVndPotActivationV508() {
+  const row = document.getElementById("vndPotActivationV508");
+  if (row) row.hidden = Boolean(getCachedSettingsV317().vndPotFeesV508);
 }
 
 function setupMinimumPriceSettingsV160() {
+  const activation = document.getElementById("activateVndPotFeesV508");
+  activation?.addEventListener("click", async () => {
+    if (!window.confirm("保留现有 VND 产品和批次的盆费，并改用产品管理手动编辑？")) return;
+    activation.disabled = true;
+    try {
+      await saveVndPotFeesFastV508("activate");
+      refreshVndPotActivationV508();
+    } catch (error) {
+      window.alert(error.message);
+    } finally {
+      activation.disabled = false;
+    }
+  });
   populateMinimumPriceSettingsV160();
   Object.values(MINIMUM_PRICE_SETTING_FIELDS_V160).forEach(field => {
     const input = document.getElementById(field.id);
@@ -2578,12 +2592,14 @@ function setupMinimumPriceSettingsV160() {
   if (resetButton && resetButton.dataset.boundV200 !== "1") {
     resetButton.dataset.boundV200 = "1";
     resetButton.addEventListener("click", () => {
-      const warning = "Reset to Factory 会把自动最低售价管理的目标净利率、木架＋本地运费和 VND 花盆成本恢复为系统默认值。\n\n主播佣金已移到独立板块，不会在这里改变；手动原最低售价不会被覆盖。";
+      const warning = "Reset to Factory 会把自动最低售价管理的目标净利率和木架＋本地运费恢复为系统默认值。\n\n主播佣金已移到独立板块，不会在这里改变；手动原最低售价不会被覆盖。";
       if (!window.confirm(`${warning}\n\n是否继续？`)) return;
       if (!window.confirm("再次确认：恢复原设置后，所有自动原最低售价会立即按默认参数重新计算。\n\n确定执行 Reset to Factory？")) return;
       const settings = loadJSON("importSystemSettings", {});
       const currentRulesV441 = getMinimumPriceRulesV160();
       const resetRulesV441 = { ...DEFAULT_MINIMUM_PRICE_RULES_V160, commissionRate: currentRulesV441.commissionRate };
+      // Keep the V50.7 tier configuration available for first migration and rollback.
+      for (const key of Object.keys(resetRulesV441).filter(key => key.startsWith("vndPot"))) resetRulesV441[key] = currentRulesV441[key];
       saveJSON("importSystemSettings", { ...settings, minimumPriceRules: resetRulesV441 });
       populateMinimumPriceSettingsV160();
       updateMinimumPriceCustomBadgeV202(resetRulesV441);
@@ -2716,7 +2732,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V50.7 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V50.8 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -2841,7 +2857,7 @@ async function saveCommissionRateV441(value, { enabled = true, skipConfirm = fal
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V50.7 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V50.8 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate, hostCommissionV481:{enabled, rate:rememberedRate} });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -4128,6 +4144,7 @@ function getMinimumPriceRulesV160() {
     normalized[key] = Number.isFinite(value) && value >= 0 ? value : fallback;
   });
   if (saved.hostCommissionV481?.enabled === false) normalized.commissionRate = 0;
+  Object.defineProperty(normalized, "vndPotFeesV508", {value:saved.vndPotFeesV508 || null});
   return normalized;
 }
 
@@ -4204,6 +4221,7 @@ function getVndPotCostV160(product, rules, originIndex = null) {
   const index = originIndex || getMinimumPriceOriginIndexV160();
   const productId = String(product?.id || "").trim();
   const productName = String(product?.name || "").trim().toLowerCase();
+  if (rules.vndPotFeesV508) return Math.max(0, Number(rules.vndPotFeesV508.products[productId.toUpperCase()]) || 0);
   const original = index.byId.get(productId) || index.byName.get(productName);
   return getImportOriginPotCostV480(original, rules);
 }
@@ -10374,8 +10392,14 @@ function buildHistoryImportNumberButton(importNumber) {
   `;
 }
 
+function getHistoryTypeV508() {
+  return document.getElementById("historyTypeV508")?.value || "all";
+}
+
 function clearHistoryPageView() {
   historyManualLookupReadyV246 = false;
+  const type = document.getElementById("historyTypeV508");
+  if (type) type.value = "all";
   const input =
     document.getElementById("historyLookupInput");
   const startInput =
@@ -10484,7 +10508,8 @@ function setupImportHistory() {
     const lookupKey = [
       keyword.toLowerCase(),
       startDate,
-      endDate
+      endDate,
+      getHistoryTypeV508()
     ].join("::");
 
     if (
@@ -10504,6 +10529,13 @@ function setupImportHistory() {
 
     return true;
   };
+
+  document.getElementById("historyTypeV508")?.addEventListener("change", () => {
+    if (historyManualLookupReadyV246) {
+      lastCompletedHistoryLookup = "";
+      runHistoryLookup();
+    }
+  });
 
   const runDateLookup = (
     textInput,
@@ -12506,6 +12538,7 @@ function getHistoryFinancialValueHTMLV452(value, snapshot) {
 }
 
 function buildHistorySoldCostSummary(options = {}) {
+  if (getHistoryTypeV508() === "imports") return "";
   hydrateHistorySalesCacheV179();
   const forceZero = options?.forceZero === true;
   const range = options?.range && !options.range.error ? options.range : null;
@@ -12623,7 +12656,7 @@ function getHistorySingleDateEventCount(
     return importNumberMatch || productMatch;
   }).length;
 
-  const adjustments =
+  const adjustments = getHistoryTypeV508() === "imports" ? [] :
     getDailyStockAdjustments(
       selectedDate,
       normalizedKeyword
@@ -12692,7 +12725,7 @@ function renderHistorySingleDateSection(
       )
     );
 
-  const adjustments =
+  const adjustments = getHistoryTypeV508() === "imports" ? [] :
     getDailyStockAdjustments(
       selectedDate,
       normalizedKeyword
@@ -12748,10 +12781,9 @@ function renderHistorySingleDateSection(
           共 ${formatNumber(
             incomingMatches.length +
             adjustments.filter(adjustment => Math.trunc(Number(adjustment.delta) || 0) !== 0).length
-          )} 项进出记录 ·
-          进 ${formatNumber(incomingTotals.quantity)} ·
-          出 ${formatNumber(adjustmentTotals.outQuantity)} ·
-          修改增加 ${formatNumber(adjustmentTotals.increaseQuantity)}
+          )} 项${getHistoryTypeV508() === "imports" ? "进口" : "进出"}记录 ·
+          进 ${formatNumber(incomingTotals.quantity)}
+          ${getHistoryTypeV508() === "imports" ? "" : ` · 出 ${formatNumber(adjustmentTotals.outQuantity)} · 修改增加 ${formatNumber(adjustmentTotals.increaseQuantity)}`}
         </span>
       </div>
 
@@ -12903,8 +12935,7 @@ function renderCompactProductHistoryByRange(
           ""
         ).trim();
 
-        const adjustments =
-          getProductStockAdjustments(product)
+        const adjustments = (getHistoryTypeV508() === "imports" ? [] : getProductStockAdjustments(product))
             .filter(adjustment => {
               const sameImportNumber =
                 String(
@@ -13227,6 +13258,7 @@ function renderCompactProductHistoryByRange(
 // V19.8: source lookup uses surviving net-sale lots. Cancelled or restored
 // sales are excluded from both the displayed records and the totals.
 function renderHistorySalesSourceLookupV149(keyword, range, output) {
+  if (getHistoryTypeV508() === "imports") return false;
   const sourceKeyword = String(keyword || "").trim();
   if (!sourceKeyword || parseUnifiedProductSearchQueryV454(sourceKeyword).strictPrefix) return false;
   const allSourceLots = getHistoryNetSoldLots({ source: sourceKeyword });
@@ -13361,7 +13393,7 @@ function renderImportHistoryByRange(
       <div class="history-date-summary">
         <strong>${escapeHTML(dateLabel)}</strong>
         <span>
-          共 ${formatNumber(eventCount)} 项进出记录
+          共 ${formatNumber(eventCount)} 项${getHistoryTypeV508() === "imports" ? "进口" : "进出"}记录
           ${filterText}
         </span>
       </div>
@@ -13387,6 +13419,35 @@ function renderImportHistoryByRange(
 }
 
 
+function renderSalesOnlyHistoryV508(startDate, endDate, input, output) {
+  const range = startDate || endDate ? getHistoryDateRange(startDate,endDate) : null;
+  if (range?.error) {
+    output.innerHTML = `<div class="empty-state">${escapeHTML(range.error)}</div>`;
+    return;
+  }
+  const keyword = input.value.trim();
+  if (!keyword && !range) {
+    output.innerHTML = '<div class="empty-state">输入产品、进口编号、地点或人员，或选择日期查看卖出历史</div>';
+    return;
+  }
+  const batch = keyword && getBatches().find(row => [row.importNumber, getBatchShipmentLocalNumberV235(row)]
+    .some(value => String(value || "").trim().toLowerCase() === keyword.toLowerCase()));
+  if (!batch && keyword && renderHistorySalesSourceLookupV149(keyword,range,output)) return;
+  const options = batch ? {range,importNumber:batch.importNumber} : {range,keyword,exactProduct:input.dataset.exactHistoryProduct || ""};
+  const lots = getHistoryNetSoldLots(options);
+  const byDate = new Map();
+  for (const lot of lots) {
+    const date = historyAdjustmentEventDateV134(lot.adjustment) || "—";
+    if (!byDate.has(date)) byDate.set(date,[]);
+    byDate.get(date).push({...lot.adjustment,delta:-Math.max(0,Number(lot.remainingQuantity)||0)});
+  }
+  const rows = [...byDate.entries()].sort(([a],[b]) => parseDDMMYYYY(b)-parseDDMMYYYY(a)).map(([date,adjustments]) =>
+    `<section class="history-range-day"><div class="history-range-day-header">
+      <strong>${escapeHTML(date)}</strong><span>卖出记录 ${formatNumber(adjustments.length)} 笔</span>
+      </div>${buildDailyStockAdjustmentHtml(adjustments)}</section>`).join("");
+  output.innerHTML = (rows || '<div class="empty-state">没有符合的卖出记录</div>') + buildHistorySoldCostSummary(options);
+}
+
 function renderImportHistoryNowV134() {
   const input = document.getElementById("historyLookupInput");
   const startInput =
@@ -13403,6 +13464,10 @@ function renderImportHistoryNowV134() {
     endInput?.value || ""
   ).trim();
 
+  if (getHistoryTypeV508() === "sales") {
+    renderSalesOnlyHistoryV508(startDate,endDate,input,output);
+    return;
+  }
   if (startDate || endDate) {
     renderImportHistoryByRange(
       startDate,
@@ -13637,7 +13702,7 @@ function renderImportHistoryNowV134() {
       const importNumber =
         String(match.batch.importNumber || item.importNumber || "").trim();
 
-      const adjustments = getProductStockAdjustments(product)
+      const adjustments = (getHistoryTypeV508() === "imports" ? [] : getProductStockAdjustments(product))
         .filter(adjustment =>
           String(adjustment.importNumber || "")
             .trim()
@@ -13758,16 +13823,18 @@ async function renderImportHistory() {
   if (!historyManualLookupReadyV246) return;
   if (!document.getElementById("historyPage")?.classList.contains("active")) return;
   const token = ++historyLookupRenderTokenV134;
-  hydrateHistorySalesCacheV179();
+  const type = getHistoryTypeV508();
+  if (type !== "imports") hydrateHistorySalesCacheV179();
   renderImportHistoryNowV134();
-  appendAverageCostAuditHistoryV359();
+  if (type === "imports") return;
+  if (type === "all") appendAverageCostAuditHistoryV359();
   await Promise.all([
     ensureCurrentVisibleHistorySalesDetailsV430(),
-    ensureAverageCostAuditHistoryV359(false)
+    type === "all" ? ensureAverageCostAuditHistoryV359(false) : null
   ]);
   if (token === historyLookupRenderTokenV134) {
     renderImportHistoryNowV134();
-    appendAverageCostAuditHistoryV359();
+    if (type === "all") appendAverageCostAuditHistoryV359();
   }
 }
 
@@ -16455,14 +16522,20 @@ function hasIncludedImportPotV503(currency, productId) {
   return currency === "CNY" && String(productId || "").trim().toUpperCase() !== "AR0001";
 }
 
+function getVndBatchPotFeeV508(latest, productId) {
+  const rules = getMinimumPriceRulesV160();
+  if (!rules.vndPotFeesV508) return latest.unitPrice > 0 ? getImportOriginPotCostV480(latest, rules) : 0;
+  const saved = rules.vndPotFeesV508;
+  return saved.batches[latest.importId] ?? saved.products[String(productId || "").trim().toUpperCase()] ?? 0;
+}
+
 function getLatestImportCostDisplayV499(latest, freight, productId) {
-  const { currency, unitPrice, unitCost } = latest;
-  const automaticPot = currency === "VND" && unitPrice > 0
-    ? Math.max(0, Number(getImportOriginPotCostV480(latest, getMinimumPriceRulesV160())) || 0)
-    : 0;
+  const { currency, unitCost } = latest;
   const hasCost = Number.isFinite(unitCost) && unitCost > 0;
-  const canEditPot = Boolean(currency && currency !== "VND" && latest.importId);
-  const pot = canEditPot ? Math.max(0, Number(getManualBatchPotV487(latest)?.amount) || 0) : automaticPot;
+  const canEditPot = Boolean(currency && latest.importId);
+  const pot = currency === "VND"
+    ? getVndBatchPotFeeV508(latest, productId)
+    : Math.max(0, Number(getManualBatchPotV487(latest)?.amount) || 0);
   return { hasCost, canEditPot, currency, ...getCostTotalDisplayV500(
     unitCost, pot, freight, hasIncludedImportPotV503(currency, productId)
   ) };
@@ -16527,7 +16600,8 @@ function openProductCostBreakdownV421(productId) {
           ${renderPreviousImportCostV483(previous)}
           <h4 class="current-cost-title-v483">当前附加成本</h4>
           <div class="product-cost-breakdown-lines-v421">
-            ${Number(info.potCost) > 0 ? `<div><span>花盆成本</span><strong>${formatMoney(info.potCost, "RM ")}</strong></div>` : ""}
+            ${isVndProductV205(product) || Object.prototype.hasOwnProperty.call(getCachedSettingsV317().vndPotFeesV508?.products || {}, id.toUpperCase())
+              ? `<div><span>花盆成本（点击可编辑）</span><button type="button" class="latest-import-pot-v489" data-pot-product-id="${escapeHTML(id)}">${formatMoney(info.potCost, "RM ")}</button></div>` : ""}
             ${includeFreightV439 ? `<div><span>运费木架</span><strong>${formatMoney(info.freight, "RM ")}</strong></div>` : ""}
             ${Number(info.commission) > 0.0001 ? `<div><span>主播佣金</span><strong>${formatMoney(info.commission, "RM ")}</strong></div>` : ""}
             <div class="cost-subtotal-v421"><span>共</span><strong>${formatMoney(extras, "RM ")}</strong></div>
@@ -16633,25 +16707,30 @@ function openProductCostBreakdownV421(productId) {
     });
   }
   overlay.addEventListener("click", async event => {
-    const button = event.target.closest?.("[data-pot-import-id]");
+    const button = event.target.closest?.("[data-pot-import-id], [data-pot-product-id]");
     if (!button || overlay.dataset.savingPotV487 === "1") return;
     const batch = latest;
-    if (!batch?.currency || batch.currency === "VND" || !batch.importId || batch.importId !== button.dataset.potImportId) return;
-    const entry = getManualBatchPotV487(batch);
-    const input = window.prompt(`进口编号：${batch.number || "—"}\n输入每棵本地盆费（RM），最多两位小数；0 表示不加盆费。`, (entry?.amount || 0).toFixed(2));
+    const isProduct = button.dataset.potProductId === id;
+    if (!isProduct && (!batch?.currency || !batch.importId || batch.importId !== button.dataset.potImportId)) return;
+    const vnd = isProduct || batch.currency === "VND";
+    const entry = vnd ? null : getManualBatchPotV487(batch);
+    const before = isProduct ? info.potCost : vnd ? getVndBatchPotFeeV508(batch,id) : entry?.amount || 0;
+    const context = isProduct ? `产品：${product.name}` : `进口编号：${batch.number || "—"}`;
+    const input = window.prompt(`${context}\n输入每棵本地盆费（RM），最多两位小数；0 表示不加盆费。`, Number(before).toFixed(2));
     if (input === null) return;
     const amount = normalizeMinimumPriceInput(input);
     if (amount === null || !Number.isSafeInteger(Math.round(amount * 100))) {
       window.alert("盆费必须为 0 或正数，最多两位小数。");
       return;
     }
-    if (amount === (entry?.amount || 0)) return;
+    if (amount === before && (!vnd || getCachedSettingsV317().vndPotFeesV508)) return;
     overlay.dataset.savingPotV487 = "1";
     button.disabled = true;
     const label = button.textContent;
     button.textContent = "保存中…";
     try {
-      await updateManualBatchPotFastV487(batch.importId, amount, entry?.operationId || "");
+      if (vnd) await saveVndPotFeesFastV508(isProduct ? "products" : "batches", isProduct ? id : batch.importId, amount, before);
+      else await updateManualBatchPotFastV487(batch.importId, amount, entry?.operationId || "");
       const results = document.getElementById("batchProductStockResults");
       if (results && !results.hidden && document.getElementById("supplierPage")?.classList.contains("active")) {
         renderBatchProductStockResults();
