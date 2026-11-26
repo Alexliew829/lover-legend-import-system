@@ -277,19 +277,14 @@ function scheduleSearchRenderV302(key, fn, delay = 70) {
 let historyAllSalesLinksLoadedV136 = false;
 let historyAllSalesLinksLoadingV136 = null;
 let inventorySalesAnalyticsCacheV146 = { signature: "", value: null };
-const INVENTORY_SALES_ANALYTICS_CACHE_KEY_V343="inventorySalesAnalyticsCacheV343";
-let inventorySalesAnalyticsFullRevisionV360 = 0;
-let inventorySalesAnalyticsFullCachedV360 = false;
-function salesMapToArrayV343(map){return Array.from((map instanceof Map?map:new Map()).entries())}
-function salesArrayToMapV343(rows){return new Map(Array.isArray(rows)?rows:[])}
-function getInventorySalesSourceSignatureV343(){const products=loadJSON("importSystemProducts",[]);return JSON.stringify((Array.isArray(products)?products:[]).map(p=>[String(p?.id||""),String(p?.name||""),String(p?.stockAdjustmentsJson??JSON.stringify(p?.stockAdjustments||[]))]))}
-function getInventoryAnalyticsCloudRevisionV360(){try{return typeof getCloudConfig==="function"?(Number(getCloudConfig()?.revision)||0):0}catch(_){return 0}}
-function serializeInventorySalesAnalyticsV343(value){return{quantityById:salesMapToArrayV343(value?.quantityById),quantityByName:salesMapToArrayV343(value?.quantityByName),profitById:salesMapToArrayV343(value?.profitById),profitByName:salesMapToArrayV343(value?.profitByName),latestById:salesMapToArrayV343(value?.latestById),latestByName:salesMapToArrayV343(value?.latestByName)}}
-function deserializeInventorySalesAnalyticsV343(v){if(!v||typeof v!=="object")return null;return{quantityById:salesArrayToMapV343(v.quantityById),quantityByName:salesArrayToMapV343(v.quantityByName),profitById:salesArrayToMapV343(v.profitById),profitByName:salesArrayToMapV343(v.profitByName),latestById:salesArrayToMapV343(v.latestById),latestByName:salesArrayToMapV343(v.latestByName)}}
-function hydrateInventorySalesAnalyticsV343(){try{const raw=JSON.parse(localStorage.getItem(INVENTORY_SALES_ANALYTICS_CACHE_KEY_V343)||"null");if(!raw||raw.sourceSignature!==getInventorySalesSourceSignatureV343())return false;const value=deserializeInventorySalesAnalyticsV343(raw.value);if(!value)return false;const productsSnapshot=String(localStorage.getItem("importSystemProducts")||"");inventorySalesAnalyticsCacheV146={signature:`${productsSnapshot}|links:0|all:0`,value};inventorySalesAnalyticsFullCachedV360=raw.full===true;inventorySalesAnalyticsFullRevisionV360=Number(raw.revision)||0;return true}catch(_){return false}}
-function persistInventorySalesAnalyticsV343(value){try{const revision=getInventoryAnalyticsCloudRevisionV360();localStorage.setItem(INVENTORY_SALES_ANALYTICS_CACHE_KEY_V343,JSON.stringify({sourceSignature:getInventorySalesSourceSignatureV343(),savedAt:new Date().toISOString(),full:Boolean(historyAllSalesLinksLoadedV136),revision,value:serializeInventorySalesAnalyticsV343(value)}));if(historyAllSalesLinksLoadedV136){inventorySalesAnalyticsFullCachedV360=true;inventorySalesAnalyticsFullRevisionV360=revision}}catch(_){}}
-function hasUsableInventorySalesAnalyticsV343(){return Boolean(inventorySalesAnalyticsCacheV146?.value)||hydrateInventorySalesAnalyticsV343()}
-function hasCurrentFullInventorySalesAnalyticsV360(){if(!hasUsableInventorySalesAnalyticsV343())return false;const revision=getInventoryAnalyticsCloudRevisionV360();return Boolean(inventorySalesAnalyticsFullCachedV360&&revision>0&&inventorySalesAnalyticsFullRevisionV360===revision)}
+let historySalesDetailsGenerationV505 = 0;
+function hasUsableInventorySalesAnalyticsV343() {
+  hydrateHistorySalesCacheV179();
+  return historyAllSalesLinksLoadedV136 || historySalesDetailsByLinkV134.size > 0;
+}
+function hasCurrentFullInventorySalesAnalyticsV360() {
+  return historyAllSalesLinksLoadedV136;
+}
 function invalidateInventorySalesAnalyticsAfterFullLoadV360(){inventorySalesAnalyticsCacheV146={signature:"",value:null};inventoryPreparedRowsCacheV321={rawProducts:null,settings:null,imports:null,batches:null,sales:null,rows:[]};}
 function refreshProfitAnalyticsInBackgroundV360(rerender,label="profit analytics"){if(!navigator.onLine||historyAllSalesLinksLoadedV136||historyAllSalesLinksLoadingV136)return;Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(()=>{invalidateInventorySalesAnalyticsAfterFullLoadV360();try{getInventorySalesAnalyticsV146()}catch(_){};try{rerender?.()}catch(error){console.warn(`V37.4 ${label} rerender failed`,error)}}).catch(error=>console.warn(`V37.4 ${label} background refresh failed`,error))}
 const HISTORY_SALES_CACHE_KEY_V179 = "lover_import_history_sales_financial_v179";
@@ -2721,7 +2716,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V50.4 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V50.5 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -2846,7 +2841,7 @@ async function saveCommissionRateV441(value, { enabled = true, skipConfirm = fal
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V50.4 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V50.5 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate, hostCommissionV481:{enabled, rate:rememberedRate} });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -7511,31 +7506,10 @@ function setupImportModule(){
     });
   }
   const productStockSortV421 = document.getElementById("batchProductStockSortV421");
-  productStockSortV421?.addEventListener("change", event => {
+  productStockSortV421?.addEventListener("change", () => {
     if (batchSearch) batchSearch.value = "";
     batchListExpanded = false;
-    const mode = String(event.target.value || "");
-    const needsSales = ["latest-sold","bestseller-desc","profit-desc"].includes(mode);
-    const hasCachedSalesV421 = hasUsableInventorySalesAnalyticsV343();
-    const needsMissingSalesV421 = needsSales && !historyAllSalesLinksLoadedV136 && !hasCachedSalesV421 && navigator.onLine;
-    if (needsMissingSalesV421) {
-      const output = document.getElementById("batchProductStockResults");
-      if (output) { output.hidden = false; output.innerHTML = '<div class="empty-state">正在读取销售分析…</div>'; }
-      Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(() => {
-        invalidateInventorySalesAnalyticsAfterFullLoadV360();
-        if (String(productStockSortV421.value || "") === mode) renderBatchProductStockResults();
-      }).catch(error => {
-        console.warn("Product query sales analytics load failed:", error);
-        if (productStockSortV421.value === mode) renderBatchProductStockResults();
-      });
-      return;
-    }
     renderBatchProductStockResults();
-    if (mode === "profit-desc" && navigator.onLine && !historyAllSalesLinksLoadedV136 && !hasCurrentFullInventorySalesAnalyticsV360()) {
-      refreshProfitAnalyticsInBackgroundV360(() => {
-        if (String(productStockSortV421.value || "") === mode) renderBatchProductStockResults();
-      }, "product query profit analytics");
-    }
   });
 
   if (toggleBatchListBtn) {
@@ -11503,6 +11477,7 @@ function hydrateHistorySalesCacheV179() {
     const cached=JSON.parse(localStorage.getItem(HISTORY_SALES_CACHE_KEY_V179)||"null");
     const links=Array.isArray(cached?.links)?cached.links:[];
     links.forEach(link=>{const id=String(link?.linkId||"").trim();if(id)historySalesDetailsByLinkV134.set(id,link)});
+    historySalesDetailsGenerationV505++;
     historySalesCacheHasDataV179=links.length>0;
   } catch (_) { historySalesCacheHasDataV179=false; }
   return historySalesCacheHasDataV179;
@@ -11560,6 +11535,7 @@ async function ensureHistorySalesContextV134(context, options = {}) {
       historySalesFailedLinkIdsV430.delete(id);
       historySalesMissingLinkIdsV452.delete(id);
     });
+    historySalesDetailsGenerationV505++;
     historySalesContextLoadedV134.add(key);
     // V45.3: a long range can contain dozens of Sales contexts. Coalesce the
     // localStorage cache write instead of serialising the full cache after every
@@ -11603,13 +11579,10 @@ async function runHistorySalesContextQueueV452(entries, worker) {
   await Promise.all(runners);
 }
 
-async function ensureCurrentVisibleHistorySalesDetailsV430() {
+async function ensureCurrentVisibleHistorySalesDetailsV430(requestedIds = null) {
   hydrateHistorySalesCacheV179();
-  const result = document.getElementById("historyResult");
-  if (!result) return;
-
-  const visibleIds = new Set(Array.from(
-    result.querySelectorAll("[data-history-sales-link-id]")
+  const visibleIds = requestedIds || new Set(Array.from(
+    document.getElementById("historyResult")?.querySelectorAll("[data-history-sales-link-id]") || []
   ).map(node => String(node.dataset.historySalesLinkId || "").trim()).filter(Boolean));
   if (!visibleIds.size) return;
 
@@ -11705,12 +11678,19 @@ async function ensureVisibleHistorySalesDetailsV134() {
     window[callbackName] = data => {
       cleanup();
       if (!data?.ok) { reject(new Error(data?.error || "读取完整销售卡失败")); return; }
-      const links=Array.isArray(data.links) ? data.links : [];
+      if (!Array.isArray(data.links)) { reject(new Error("销售卡资料格式不正确")); return; }
+      const links = data.links;
       links.forEach(link => {
         const id = String(link?.linkId || "").trim();
-        if (id) historySalesDetailsByLinkV134.set(id, link);
+        if (!id) return;
+        const previous = historySalesDetailsByLinkV134.get(id);
+        if (historySalesFiniteOrNullV452(link?.profit) !== null ||
+            historySalesFiniteOrNullV452(previous?.profit) === null) {
+          historySalesDetailsByLinkV134.set(id, link);
+        }
       });
-      persistHistorySalesCacheV179(links);
+      historySalesDetailsGenerationV505++;
+      flushHistorySalesCacheV452();
       historyAllSalesLinksLoadedV136 = true;
       resolve();
     };
@@ -16940,6 +16920,7 @@ function renderBatchProductStockResults() {
     return;
   }
 
+  scheduleInventorySalesDetailsV505(products, "supplierPage");
   const suggestedPriceRulesV462 = getMinimumPriceRulesV160();
   const suggestedPriceOriginIndexV462 = getMinimumPriceOriginIndexV160();
   const clearanceMapV478 = getClearancePriceMapV478();
@@ -16991,6 +16972,7 @@ function renderBatchProductStockResults() {
       <div class="product-stock-english-row-v447">
         <button type="button" class="product-stock-english-edit-btn-v266" data-product-id="${escapeHTML(productIdV256)}" aria-label="点击复制英文名；长按修改英文名" title="点击复制英文名；长按修改英文名">${escapeHTML(productEnglishNameV262(product)||"英文名：未设置")}</button>
         ${productIdV256 ? buildProductManagementCopyButtonV438(productIdV256, "product-stock-copy-mobile-v447") : ""}
+        ${renderInventorySalesBadgeV505(product, true)}
       </div>
 
       <div class="product-stock-modify-card-v376">
@@ -19006,38 +18988,11 @@ function getLatestImportDateByProduct(productId) {
 }
 
 function setupInventoryModule() {
-  hydrateInventorySalesAnalyticsV343();
   document
     .getElementById("inventorySearch")
     .addEventListener("input", () => scheduleSearchRenderV302("inventory", renderInventoryManagementList, 80));
-  document
-    .getElementById("inventorySort")
-    .addEventListener("change", event => {
-      const mode = String(event.target.value || "");
-      const needsSales = ["latest-sold","bestseller-desc","profit-desc"].includes(mode);
-      // V36.3: 利润最高必须使用完整 Sales History 明细。旧版仅在缓存为空时读取，
-      // 若缓存存在但不完整，会产生错误排序。只在用户主动选择利润最高时补齐，
-      // 不改变利润公式，也不增加日常同步负担。
-      const hasCachedSalesV360 = hasUsableInventorySalesAnalyticsV343();
-      const needsMissingSalesV360 = needsSales && !historyAllSalesLinksLoadedV136 && !hasCachedSalesV360 && navigator.onLine;
-      if (needsMissingSalesV360) {
-        const list = document.getElementById("inventoryManagementList");
-        if (list) list.innerHTML = '<div class="empty-state">正在读取销售分析…</div>';
-        Promise.resolve(ensureVisibleHistorySalesDetailsV134()).then(() => {
-          invalidateInventorySalesAnalyticsAfterFullLoadV360();
-          if (String(document.getElementById("inventorySort")?.value || "") === mode) renderInventoryManagementList();
-        }).catch(error => { console.warn("Sales analytics load failed:", error); renderInventoryManagementList(); });
-        return;
-      }
-      // V36.3: once Profit Highest has a verified local analytics cache, render it immediately.
-      // If cloud revision changed, refresh full Sales details quietly in background and repaint later.
-      renderInventoryManagementList();
-      if (mode === "profit-desc" && navigator.onLine && !historyAllSalesLinksLoadedV136 && !hasCurrentFullInventorySalesAnalyticsV360()) {
-        refreshProfitAnalyticsInBackgroundV360(() => {
-          if (String(document.getElementById("inventorySort")?.value || "") === mode) renderInventoryManagementList();
-        }, "inventory profit analytics");
-      }
-    });
+  document.getElementById("inventorySort")
+    .addEventListener("change", renderInventoryManagementList);
 
   const inventoryList = document.getElementById("inventoryManagementList");
 
@@ -19198,16 +19153,19 @@ function showCopiedSyncMessage(importNumber) {
 }
 
 // V19.8: 一次扫描 History，同时建立售出数量、累计利润及最近售出索引。
-// 缓存以 Products 原始资料及已载入销售明细数量为签名；资料改变后自动重算。
+// Invalidate on modified Sales details, including updates that replace an existing link.
 function getInventorySalesAnalyticsV146() {
+  hydrateHistorySalesCacheV179();
   const productsSnapshot = String(localStorage.getItem("importSystemProducts") || "");
-  const signature = `${productsSnapshot}|links:${historySalesDetailsByLinkV134.size}|all:${historyAllSalesLinksLoadedV136 ? 1 : 0}`;
+  const signature = `${productsSnapshot}|links:${historySalesDetailsGenerationV505}|all:${historyAllSalesLinksLoadedV136 ? 1 : 0}`;
   if (inventorySalesAnalyticsCacheV146.signature === signature && inventorySalesAnalyticsCacheV146.value) {
     return inventorySalesAnalyticsCacheV146.value;
   }
 
   const quantityById = new Map(), quantityByName = new Map();
   const profitById = new Map(), profitByName = new Map();
+  const coveredById = new Map(), coveredByName = new Map();
+  const missingLinksByProduct = new Map();
   const latestById = new Map(), latestByName = new Map();
   const profitGroups = new Map();
   const allAdjustments = getAllHistoryStockAdjustments();
@@ -19232,11 +19190,17 @@ function getInventorySalesAnalyticsV146() {
 
     const link = getHistorySalesLinkForAdjustmentV137(adjustment, allAdjustments);
     const linkId = String(link?.linkId || "").trim();
-    const detail = historySalesDetailsByLinkV134.get(linkId) || link;
-    const profit = Number(detail?.profit);
-    const originalQuantity = Math.max(1, Number(detail?.quantity || link?.processedQty || 0) || 1);
-    if (!linkId || !Number.isFinite(profit)) return;
+    if (!linkId || !quantity) return;
     const productKey = productId ? `id:${productId}` : `name:${productName}`;
+    const detail = historySalesDetailsByLinkV134.get(linkId);
+    const profit = historySalesFiniteOrNullV452(detail?.profit) ?? historySalesFiniteOrNullV452(link?.profit);
+    const source = historySalesFiniteOrNullV452(detail?.profit) !== null ? detail : link;
+    const originalQuantity = Number(source?.quantity) || Number(source?.processedQty) || 0;
+    if (profit === null || originalQuantity <= 0) {
+      if (!missingLinksByProduct.has(productKey)) missingLinksByProduct.set(productKey, new Set());
+      missingLinksByProduct.get(productKey).add(linkId);
+      return;
+    }
     const key = `${productKey}::${linkId}`;
     const entry = profitGroups.get(key) || { productId, productName, originalQuantity, profit, quantity: 0 };
     entry.quantity += quantity;
@@ -19246,14 +19210,81 @@ function getInventorySalesAnalyticsV146() {
   profitGroups.forEach(entry => {
     const quantity = Math.min(entry.originalQuantity, entry.quantity);
     const netProfit = entry.profit * (quantity / entry.originalQuantity);
+    if (entry.productId) coveredById.set(entry.productId, (coveredById.get(entry.productId) || 0) + quantity);
+    if (entry.productName) coveredByName.set(entry.productName, (coveredByName.get(entry.productName) || 0) + quantity);
     if (entry.productId) profitById.set(entry.productId, (Number(profitById.get(entry.productId)) || 0) + netProfit);
     if (entry.productName) profitByName.set(entry.productName, (Number(profitByName.get(entry.productName)) || 0) + netProfit);
   });
 
-  const value = { quantityById, quantityByName, profitById, profitByName, latestById, latestByName };
+  const value = { quantityById, quantityByName, profitById, profitByName, latestById, latestByName, coveredById, coveredByName, missingLinksByProduct };
   inventorySalesAnalyticsCacheV146 = { signature, value };
-  if(historyAllSalesLinksLoadedV136)persistInventorySalesAnalyticsV343(value);
   return value;
+}
+
+function getInventoryProductSalesV505(product, analytics) {
+  const id = String(product?.id || "").trim();
+  const name = String(product?.name || "").trim().toLowerCase();
+  const byId = analytics.quantityById.has(id);
+  const get = (byIdMap, byNameMap) => (byId ? byIdMap.get(id) : byNameMap.get(name)) ?? 0;
+  return {
+    latestSoldAt: get(analytics.latestById, analytics.latestByName),
+    netSoldQuantity: get(analytics.quantityById, analytics.quantityByName),
+    cumulativeSoldProfit: get(analytics.profitById, analytics.profitByName),
+    soldProfitCoveredQuantity: get(analytics.coveredById, analytics.coveredByName),
+    outstandingProfitLinksV505: analytics.missingLinksByProduct.get(byId ? `id:${id}` : `name:${name}`)
+  };
+}
+
+function renderInventorySalesBadgeV505(product, compact = false) {
+  const quantity = Number(product?.netSoldQuantity) || 0;
+  const covered = Number(product?.soldProfitCoveredQuantity) || 0;
+  const partial = covered > 0 && covered < quantity;
+  const missing = quantity > 0 && covered === 0;
+  const profit = missing ? "—" : formatMoney(Number(product?.cumulativeSoldProfit) || 0, "RM ");
+  const label = partial ? "累计利润（部分）" : "累计利润";
+  const hint = missing ? "销售利润明细未取得" : partial ? `仅含 ${covered} / ${quantity} 棵的已知利润` : "全部历史净售出";
+  const sold = `<span>售出数量</span><div><strong>${formatNumber(quantity)}</strong><small>棵</small></div>`;
+  const result = `<span class="inventory-cumulative-profit-v146">${label}</span><b>${profit}</b>`;
+  return compact
+    ? `<div class="product-stock-sales-v505" title="${hint}"><div>${sold}</div><div>${result}</div></div>`
+    : `<div class="inventory-sold-quantity" title="${hint}">${sold}${result}</div>`;
+}
+
+let inventorySalesDetailsScheduledV505 = false;
+const inventorySalesLinkAttemptV505 = new Map();
+function scheduleInventorySalesDetailsV505(products, page) {
+  if (inventorySalesDetailsScheduledV505 || !navigator.onLine || document.hidden ||
+      document.querySelector(".page.active")?.id !== page) return;
+  const now = Date.now();
+  const ids = new Set();
+  products.forEach(product => product.outstandingProfitLinksV505?.forEach(id => {
+    if (!historySalesMissingLinkIdsV452.has(id) && now - (inventorySalesLinkAttemptV505.get(id) || 0) >= 60000) ids.add(id);
+  }));
+  if (!ids.size) return;
+  const renderActive = () => {
+    if (document.hidden) return;
+    const active = document.querySelector(".page.active")?.id;
+    if (active === "dashboardPage") renderInventoryManagementList();
+    if (active === "supplierPage") renderBatchProductStockResults();
+  };
+  inventorySalesDetailsScheduledV505 = true;
+  window.setTimeout(async () => {
+    try {
+      if (document.hidden || document.querySelector(".page.active")?.id !== page) return;
+      ids.forEach(id => inventorySalesLinkAttemptV505.set(id, Date.now()));
+      await ensureVisibleHistorySalesDetailsV134();
+      const remaining = new Set(Array.from(ids).filter(id =>
+        historySalesFiniteOrNullV452(historySalesDetailsByLinkV134.get(id)?.profit) === null));
+      if (remaining.size && historyAllSalesLinksLoadedV136) renderActive();
+      // Some older Sales cards are only returned by the per-date/location endpoint.
+      if (remaining.size) await ensureCurrentVisibleHistorySalesDetailsV430(remaining);
+    } catch (error) {
+      console.warn("Inventory Sales profit refresh failed:", error);
+    } finally {
+      inventorySalesDetailsScheduledV505 = false;
+      renderActive();
+    }
+  }, 350);
 }
 
 let inventoryVisibleProductsV153 = [];
@@ -19340,9 +19371,7 @@ function getInventoryPreparedRowsV321() {
         importNumbers, overseasTrackingNumbers, originalCostValuesV216, batchStocks,
         latestOriginalCost, latestOriginalCurrency,
         latestImportNumber: String(batchStocks[0]?.importNumber || matchingImports[0]?.importNumber || "").trim(),
-        latestSoldAt: Number(salesAnalyticsV146.latestById.get(String(product.id || "").trim()) || 0) || Number(salesAnalyticsV146.latestByName.get(productName) || 0),
-        netSoldQuantity: Number(salesAnalyticsV146.quantityById.get(String(product.id || "").trim()) || 0) || Number(salesAnalyticsV146.quantityByName.get(productName) || 0),
-        cumulativeSoldProfit: Number(salesAnalyticsV146.profitById.get(String(product.id || "").trim()) || 0) || Number(salesAnalyticsV146.profitByName.get(productName) || 0),
+        ...getInventoryProductSalesV505(product, salesAnalyticsV146),
         displayLastImport: getImportDisplayDate(latestRecord, latestBatch) || normalizeDateToDDMMYYYY(product.lastImport) || ""
       };
     });
@@ -19412,7 +19441,13 @@ function filterSortInventoryProductsV324(query = "", sortMode = "latest", source
     if (sortMode === "name") return String(a.name || "").localeCompare(String(b.name || ""), "zh");
     if (sortMode === "latest-sold") return (Number(b.latestSoldAt) || 0) - (Number(a.latestSoldAt) || 0) || String(a.name || "").localeCompare(String(b.name || ""), "zh");
     if (sortMode === "bestseller-desc") return (Number(b.netSoldQuantity) || 0) - (Number(a.netSoldQuantity) || 0) || String(a.name || "").localeCompare(String(b.name || ""), "zh");
-    if (sortMode === "profit-desc") return (Number(b.cumulativeSoldProfit) || 0) - (Number(a.cumulativeSoldProfit) || 0) || String(a.name || "").localeCompare(String(b.name || ""), "zh");
+    if (sortMode === "profit-desc") {
+      const aComplete = !a.netSoldQuantity || a.soldProfitCoveredQuantity >= a.netSoldQuantity;
+      const bComplete = !b.netSoldQuantity || b.soldProfitCoveredQuantity >= b.netSoldQuantity;
+      return Number(bComplete) - Number(aComplete) ||
+        (Number(b.cumulativeSoldProfit) || 0) - (Number(a.cumulativeSoldProfit) || 0) ||
+        String(a.name || "").localeCompare(String(b.name || ""), "zh");
+    }
     if (sortMode === "stock-desc") return stockB - stockA;
     if (sortMode === "stock-asc") return stockA - stockB;
     if (sortMode === "value-desc") return stockB * costB - stockA * costA;
@@ -19463,8 +19498,6 @@ function buildInventoryManageCardV337(product, productMediaLinksV229 = {}) {
     console.warn("Inventory average-cost label skipped:", product?.id, error);
   }
 
-  const soldQuantity = Number(product?.netSoldQuantity) || 0;
-  const cumulativeProfit = Number(product?.cumulativeSoldProfit) || 0;
   let englishName = "";
   try { englishName = productEnglishNameV262(product) || ""; } catch (error) {
     console.warn("Inventory English name skipped:", product?.id, error);
@@ -19510,12 +19543,7 @@ function buildInventoryManageCardV337(product, productMediaLinksV229 = {}) {
             </div>
             ${mediaButtons}
           </div>
-          <div class="inventory-sold-quantity" title="按 Import History 的实际净售出数量计算">
-            <span>售出数量</span>
-            <div><strong>${formatNumber(soldQuantity)}</strong><small>棵</small></div>
-            <span class="inventory-cumulative-profit-v146">累计利润</span>
-            <b>${formatMoney(cumulativeProfit, "RM ")}</b>
-          </div>
+          ${renderInventorySalesBadgeV505(product)}
         </div>
 
         <div class="inventory-summary-grid">
@@ -19541,6 +19569,8 @@ function renderInventoryManagementList() {
   const sortMode = document.getElementById("inventorySort").value;
   const preparedProductsV321 = getInventoryPreparedRowsV321();
   const products = filterSortInventoryProductsV324(keyword, sortMode, preparedProductsV321);
+
+  scheduleInventorySalesDetailsV505(products, "dashboardPage");
 
   // V19.8: both views consume this same sorted and filtered product array.
   inventoryVisibleProductsV153 = products.map(product => ({ ...product }));
@@ -19645,8 +19675,6 @@ function renderInventoryManagementList() {
     const inventoryValue = stock * averageCost;
     const profitInfoV205 = minimumDisplayV315.profitInfo;
     const averageCostLabelV205 = getAverageCostLabelV205(product);
-    const soldQuantity = Number(product.netSoldQuantity) || 0;
-    const cumulativeProfit = Number(product.cumulativeSoldProfit) || 0;
     const englishName = productEnglishNameV262(product);
 
     return `
@@ -19673,12 +19701,7 @@ function renderInventoryManagementList() {
             </div>
             ${renderProductMediaButtonsV229(product.id, productMediaLinksV229)}
           </div>
-          <div class="inventory-sold-quantity" title="按 Import History 的实际净售出数量计算">
-            <span>售出数量</span>
-            <div><strong>${formatNumber(soldQuantity)}</strong><small>棵</small></div>
-            <span class="inventory-cumulative-profit-v146">累计利润</span>
-            <b>${formatMoney(cumulativeProfit, "RM ")}</b>
-          </div>
+          ${renderInventorySalesBadgeV505(product)}
         </div>
 
         <div class="inventory-summary-grid">

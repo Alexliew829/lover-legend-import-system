@@ -7406,3 +7406,41 @@ button.history-species-toggle-v470{
 .product-stock-cost-btn .average-cost-part-v469.displayed-cost-total-v500 small {
   white-space: normal;
 }
+
+/* Keep the sales figures beside the English name when there is room. */
+.product-stock-card-v256 .product-stock-english-row-v447 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 5px 0 10px;
+}
+.product-stock-card-v256 .product-stock-english-row-v447 .product-stock-english-edit-btn-v266 {
+  margin: 0 !important;
+}
+.product-stock-sales-v505 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  max-width: 100%;
+  margin-inline-start: auto;
+}
+.product-stock-sales-v505 > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 5px;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid #edd5b0;
+  border-radius: 8px;
+  background: #fffaf2;
+  color: #755229;
+  font-size: 12px;
+  line-height: 1.3;
+}
+.product-stock-sales-v505 > div > div,
+.product-stock-sales-v505 b { white-space: nowrap; }
+.product-stock-sales-v505 strong { color: #17613a; }
+.product-stock-sales-v505 b { color: #b42318; }
+.product-stock-sales-v505 small { margin-inline-start: 2px; }
