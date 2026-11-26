@@ -7464,7 +7464,7 @@ button.history-species-toggle-v470{
   .product-stock-sales-v505 b { font-size: 18px; }
 }
 
-/* V50.9: keep history type next to the keyword on desktop and mobile. */
+/* V51.0: keep history type next to the keyword on desktop and mobile. */
 .history-lookup-row #historyLookupInput {
   flex-basis: 280px;
   min-width: 0;
@@ -7492,3 +7492,7 @@ button.history-species-toggle-v470{
 @media (pointer:coarse){
   .product-cost-breakdown-name-v421 .latest-import-copy-v480{min-height:44px}
 }
+
+/* Optional local pot fee is separate from the original purchase price. */
+.batch-local-pot-v510{display:flex;flex-direction:column;gap:3px;margin-top:6px;font-size:12px;line-height:1.25}
+.batch-local-pot-v510 input{min-width:0}

@@ -2713,7 +2713,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V50.9 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V51.0 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -2838,7 +2838,7 @@ async function saveCommissionRateV441(value, { enabled = true, skipConfirm = fal
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V50.9 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V51.0 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate, hostCommissionV481:{enabled, rate:rememberedRate} });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -7613,6 +7613,7 @@ function importDraftFingerprintV243(state) {
     name: String(row?.name || "").trim(), productId: String(row?.productId || "").trim(),
     category: String(row?.category || "盆栽"), quantity: Number(row?.quantity) || 0,
     unitPrice: Number(row?.unitPrice) || 0,
+    ...(String(row?.localPotFeeRMTextV510 ?? "").trim() ? {localPotFeeRMTextV510:String(row.localPotFeeRMTextV510).trim()} : {}),
     autoOriginalCostV249: String(row?.autoOriginalCostV249 || ""),
     autoOriginalCostSourceValueV249: String(row?.autoOriginalCostSourceValueV249 || ""),
     autoOriginalCostSourceCurrencyV249: String(row?.autoOriginalCostSourceCurrencyV249 || ""),
@@ -7786,6 +7787,7 @@ function collectImportDraftStateV242() {
       category: String(document.getElementById(`batchCategory-${id}`)?.value || "\u76c6\u683d"),
       quantity: Math.max(0, Math.floor(parseAmount(document.getElementById(`batchQty-${id}`)?.value))),
       unitPrice: Math.max(0, parseAmount(document.getElementById(`batchPrice-${id}`)?.value)),
+      localPotFeeRMTextV510: String(document.getElementById(`batchLocalPot-${id}`)?.value ?? "").trim(),
       autoOriginalCostV249: String(tr.dataset.autoOriginalCostV249 || ""),
       autoOriginalCostSourceValueV249: String(tr.dataset.autoOriginalCostSourceValueV249 || ""),
       autoOriginalCostSourceCurrencyV249: String(tr.dataset.autoOriginalCostSourceCurrencyV249 || ""),
@@ -7945,7 +7947,8 @@ function applyImportDraftV242(draftId) {
       productId: row.productId || "",
       category: row.category || "\u76c6\u683d",
       quantity: Number(row.quantity) || 0,
-      unitPrice: Number(row.unitPrice) || 0
+      unitPrice: Number(row.unitPrice) || 0,
+      localPotFeeRMTextV510: row.localPotFeeRMTextV510
     });
     const tr = document.querySelector("#batchRows tr:last-child");
     if (!tr) return;
@@ -14609,7 +14612,9 @@ function addBatchRow(prefill = {}){
            value="${escapeHTML(prefill.productId || "")}">
   </td>
   <td><input id="batchQty-${id}" inputmode="numeric" placeholder="0"></td>
-  <td><input id="batchPrice-${id}" inputmode="decimal" placeholder="0.00"></td>
+  <td><input id="batchPrice-${id}" inputmode="decimal" placeholder="0.00">
+    ${currentEditingImportNumber ? "" : `<label class="batch-local-pot-v510">本地盆费 RM／棵<input id="batchLocalPot-${id}" inputmode="decimal" maxlength="12" placeholder="留空沿用上一批" value="${escapeHTML(prefill.localPotFeeRMTextV510 ?? "")}"></label>`}
+  </td>
   <td><input id="batchPurchaseForeign-${id}" value="0.00" disabled></td>
   <td><select id="batchCategory-${id}">${productCategoryOptionsHTMLV227(prefill.category || "盆栽")}</select></td>
   <td><input id="batchStock-${id}" inputmode="numeric" placeholder="0" disabled></td>
@@ -14651,6 +14656,7 @@ function addBatchRow(prefill = {}){
       formatMoney(prefill.unitPrice);
   }
   attachBatchRowEvents(id);
+  document.getElementById(`batchLocalPot-${id}`)?.addEventListener("input",refreshImportDraftStatusV457);
   applyBatchCostEditability();
   updateProductNameLimitHintV461(document.getElementById(`batchName-${id}`));
   calculateBatch();
@@ -15722,8 +15728,20 @@ function saveBatchImport() {
     batches
   );
 
+  const localPotFeesV510 = new Map();
+  for (const item of result.valid) {
+    const raw = String(document.getElementById(`batchLocalPot-${item.id}`)?.value ?? "").trim();
+    if (!raw) continue;
+    const fee = normalizeMinimumPriceInput(raw);
+    if (fee === null || !Number.isSafeInteger(Math.round(fee * 100))) {
+      status.textContent = `${item.name}：本地盆费须为 0 或正数，最多两位小数。`;
+      document.getElementById(`batchLocalPot-${item.id}`)?.focus();
+      return;
+    }
+    localPotFeesV510.set(item.id,fee);
+  }
   const newImportSummary = result.valid.map(item =>
-    `• ${item.name}（${item.category}）：${formatNumber(item.quantity)}，单位成本 ${formatMoney(item.unitCost, "RM ")}`
+    `• ${item.name}（${item.category}）：${formatNumber(item.quantity)}，单位成本 ${formatMoney(item.unitCost, "RM ")}；本地盆费 ${localPotFeesV510.has(item.id) ? formatMoney(localPotFeesV510.get(item.id), "RM ") + "／棵" : "沿用上批已记录金额，无记录按 RM0"}`
   ).join("\n");
   if (!window.confirm(
     `⚠️ 最后确认保存新进口？\n\n即将生成进口编号：${importNumber}\n产品种类：${result.valid.length}\n总数量：${formatNumber(result.totalQuantity)}\n整批总成本：${formatMoney(result.grandTotal, "RM ")}\n\n${newImportSummary}\n\n保存会增加库存并写入 Products、Imports 与 Batches。\n只有按「确定」后才会真正保存。`
@@ -15820,7 +15838,7 @@ function saveBatchImport() {
       transitDays: batch.transitDays, createdAt: new Date().toISOString()
     };
     imports.push(record);
-    batch.items.push(record);
+    batch.items.push(localPotFeesV510.has(item.id) ? {...record,localPotFeeRMPerPlantV510:localPotFeesV510.get(item.id)} : record);
   });
 
   batches.unshift(batch);
@@ -16528,7 +16546,7 @@ function getVndBatchPotFeeV508(latest, productId) {
   const rules = getMinimumPriceRulesV160();
   if (!rules.vndPotFeesV508) return latest.unitPrice > 0 ? getImportOriginPotCostV480(latest, rules) : 0;
   const saved = rules.vndPotFeesV508;
-  return saved.batches[latest.importId] ?? saved.products[String(productId || "").trim().toUpperCase()] ?? 0;
+  return saved.batches[latest.importId] ?? 0;
 }
 
 function getLatestBatchPotFeeV509(latest, productId) {
@@ -16610,8 +16628,7 @@ function openProductCostBreakdownV421(productId) {
           ${renderPreviousImportCostV483(previous)}
           <h4 class="current-cost-title-v483">当前附加成本</h4>
           <div class="product-cost-breakdown-lines-v421">
-            ${isVndProductV205(product) || Object.prototype.hasOwnProperty.call(getCachedSettingsV317().vndPotFeesV508?.products || {}, id.toUpperCase())
-              ? `<div><span>花盆成本（点击可编辑）</span><button type="button" class="latest-import-pot-v489" data-pot-product-id="${escapeHTML(id)}">${formatMoney(info.potCost, "RM ")}</button></div>` : ""}
+            <div><span>当前平均盆费（点击可编辑）</span><button type="button" class="latest-import-pot-v489" data-pot-product-id="${escapeHTML(id)}">${formatMoney(info.potCost, "RM ")}</button></div>
             ${includeFreightV439 ? `<div><span>运费木架</span><strong>${formatMoney(info.freight, "RM ")}</strong></div>` : ""}
             ${Number(info.commission) > 0.0001 ? `<div><span>主播佣金</span><strong>${formatMoney(info.commission, "RM ")}</strong></div>` : ""}
             <div class="cost-subtotal-v421"><span>共</span><strong>${formatMoney(extras, "RM ")}</strong></div>
@@ -16706,14 +16723,15 @@ function openProductCostBreakdownV421(productId) {
     const state = getCachedSettingsV317().vndPotFeesV508;
     const savedAmount = isProduct ? state?.products?.[id.toUpperCase()] : state?.batches?.[batch.importId];
     const context = isProduct ? `产品：${product.name}` : `进口编号：${batch.number || "—"}`;
-    const input = window.prompt(`${context}\n输入每棵本地盆费（RM），最多两位小数；0 表示不加盆费。`, Number(before).toFixed(2));
+    const note = isProduct ? "手动值保留至下次确认入库。" : "只更新本批盆费。左侧在下次新进口入库时重算。";
+    const input = window.prompt(`${context}\n输入每棵本地盆费（RM），最多两位小数；0 表示不加盆费。\n${note}`, Number(before).toFixed(2));
     if (input === null) return;
     const amount = normalizeMinimumPriceInput(input);
     if (amount === null || !Number.isSafeInteger(Math.round(amount * 100))) {
       window.alert("盆费必须为 0 或正数，最多两位小数。");
       return;
     }
-    if (amount === before && savedAmount != null && (isProduct || info.potCost === amount)) return;
+    if (amount === before && savedAmount != null) return;
     overlay.dataset.savingPotV487 = "1";
     button.disabled = true;
     const label = button.textContent;
@@ -18391,7 +18409,7 @@ async function editProductMinimumPrice(productId) {
   }
 
   const confirmed = window.confirm(
-    `确认修改最低售价？\n\n产品：${product.name}\n目前：${formatMoney(currentMinimumPrice, "RM ")}\n修改为：${formatMoney(nextMinimumPrice, "RM ")}\n\n${restoreAutomatic ? "保存后按平均成本自动计算；VND 产品会按原进口单价加入花盆成本。" : "保存后采用本次手动价格。"}\n最低售价不会改变库存数量、平均成本或库存总值。`
+    `确认修改最低售价？\n\n产品：${product.name}\n目前：${formatMoney(currentMinimumPrice, "RM ")}\n修改为：${formatMoney(nextMinimumPrice, "RM ")}\n\n${restoreAutomatic ? "保存后按平均成本自动计算；会计入当前盆费。" : "保存后采用本次手动价格。"}\n最低售价不会改变库存数量、平均成本或库存总值。`
   );
   if (!confirmed) return;
 
