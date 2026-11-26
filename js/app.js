@@ -2716,7 +2716,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V50.5 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V50.6 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -2841,7 +2841,7 @@ async function saveCommissionRateV441(value, { enabled = true, skipConfirm = fal
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V50.5 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V50.6 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate, hostCommissionV481:{enabled, rate:rememberedRate} });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -19241,10 +19241,9 @@ function renderInventorySalesBadgeV505(product, compact = false) {
   const partial = covered > 0 && covered < quantity;
   const missing = quantity > 0 && covered === 0;
   const profit = missing ? "—" : formatMoney(Number(product?.cumulativeSoldProfit) || 0, "RM ");
-  const label = partial ? "累计利润（部分）" : "累计利润";
   const hint = missing ? "销售利润明细未取得" : partial ? `仅含 ${covered} / ${quantity} 棵的已知利润` : "全部历史净售出";
   const sold = `<span>售出数量</span><div><strong>${formatNumber(quantity)}</strong><small>棵</small></div>`;
-  const result = `<span class="inventory-cumulative-profit-v146">${label}</span><b>${profit}</b>`;
+  const result = `<span class="inventory-cumulative-profit-v146">累计利润</span><b>${profit}</b>`;
   return compact
     ? `<div class="product-stock-sales-v505" title="${hint}"><div>${sold}</div><div>${result}</div></div>`
     : `<div class="inventory-sold-quantity" title="${hint}">${sold}${result}</div>`;
