@@ -7464,7 +7464,7 @@ button.history-species-toggle-v470{
   .product-stock-sales-v505 b { font-size: 18px; }
 }
 
-/* V50.8: keep history type next to the keyword on desktop and mobile. */
+/* V50.9: keep history type next to the keyword on desktop and mobile. */
 .history-lookup-row #historyLookupInput {
   flex-basis: 280px;
   min-width: 0;
@@ -7486,4 +7486,9 @@ button.history-species-toggle-v470{
   .history-lookup-row #historyTypeV508 {
     width: 100%;
   }
+}
+
+.product-cost-breakdown-name-v421{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+@media (pointer:coarse){
+  .product-cost-breakdown-name-v421 .latest-import-copy-v480{min-height:44px}
 }

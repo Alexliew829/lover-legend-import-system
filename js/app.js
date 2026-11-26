@@ -2488,28 +2488,9 @@ function populateMinimumPriceSettingsV160() {
     if (input) input.value = formatMoney(rules[key]);
   });
   updateMinimumPriceCustomBadgeV202(rules);
-  refreshVndPotActivationV508();
-}
-
-function refreshVndPotActivationV508() {
-  const row = document.getElementById("vndPotActivationV508");
-  if (row) row.hidden = Boolean(getCachedSettingsV317().vndPotFeesV508);
 }
 
 function setupMinimumPriceSettingsV160() {
-  const activation = document.getElementById("activateVndPotFeesV508");
-  activation?.addEventListener("click", async () => {
-    if (!window.confirm("保留现有 VND 产品和批次的盆费，并改用产品管理手动编辑？")) return;
-    activation.disabled = true;
-    try {
-      await saveVndPotFeesFastV508("activate");
-      refreshVndPotActivationV508();
-    } catch (error) {
-      window.alert(error.message);
-    } finally {
-      activation.disabled = false;
-    }
-  });
   populateMinimumPriceSettingsV160();
   Object.values(MINIMUM_PRICE_SETTING_FIELDS_V160).forEach(field => {
     const input = document.getElementById(field.id);
@@ -2732,7 +2713,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V50.8 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V50.9 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -2857,7 +2838,7 @@ async function saveCommissionRateV441(value, { enabled = true, skipConfirm = fal
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V50.8 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V50.9 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate, hostCommissionV481:{enabled, rate:rememberedRate} });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -4253,8 +4234,7 @@ function getAverageCostLabelV205(product, originIndex = null) {
 
 // V46.2: read-only suggested shop/Fair prices for Product Query & Modify.
 // This is deliberately isolated from Current / Initial / Promotion Minimum Price.
-// Non-boxwood: VND uses Average Cost + configured VND pot; other currencies use Average Cost.
-// Boxwood (BX): Average Cost + the current chargeable freight/rack tier, with Current Minimum Price protection.
+// Add the current product pot fee. Boxwood also includes the freight/rack tier and retains minimum-price protection.
 const SUGGESTED_CHANNEL_PRICE_RULES_V462 = Object.freeze({
   retailMultiplier: 2,
   pricingFactor: 1.12,
@@ -4301,17 +4281,9 @@ function getSuggestedRetailFairPricesV462(product, rules = null, originIndex = n
   const boxwood = isBoxwoodProductV462(product);
   const currentMinimumPrice = getOrdinaryCurrentMinimumPriceV462(product, configuredRules, index);
 
-  let potCost = 0;
-  let freight = 0;
-  let pricingBaseCost = averageCost;
-
-  if (boxwood) {
-    freight = getChargeableMinimumFreightTierV439(currentMinimumPrice, configuredRules).amount;
-    pricingBaseCost += freight;
-  } else if (isVndProductV205(product, index)) {
-    potCost = getVndPotCostV160(product, configuredRules, index);
-    pricingBaseCost += potCost;
-  }
+  const potCost = getVndPotCostV160(product, configuredRules, index);
+  const freight = boxwood ? getChargeableMinimumFreightTierV439(currentMinimumPrice, configuredRules).amount : 0;
+  const pricingBaseCost = averageCost + potCost + freight;
 
   const calculatedRetail = roundSuggestedPriceToEnding80V462(
     pricingBaseCost * SUGGESTED_CHANNEL_PRICE_RULES_V462.retailMultiplier *
@@ -16493,9 +16465,39 @@ function renderImportCostContextV482(batchCost) {
   return `<p class="latest-import-context-v480">${escapeHTML(displayDate)} ${arrival ? "到货" : "记录日期（未填到货日期）"}${currency && unitPrice > 0 ? ` · 原单价 ${escapeHTML(currency)} ${formatMoney(unitPrice)}` : ""}</p>`;
 }
 
+function renderCostCopyButtonV509(value, label, fallback = "—") {
+  if (!value) return `<strong>${escapeHTML(fallback)}</strong>`;
+  const safe = escapeHTML(value);
+  return `<button type="button" class="latest-import-copy-v480" data-copy-value="${safe}" title="点击复制${label}" aria-label="复制${label}：${safe}"><span class="import-copy-number-v485">${safe}</span><span class="import-copy-feedback-v485" role="status"></span></button>`;
+}
+
+function bindCostCopyButtonsV509(overlay) {
+  for (const button of overlay.querySelectorAll(".latest-import-copy-v480")) {
+    const feedback = button.querySelector(".import-copy-feedback-v485");
+    let copying = false;
+    let resetTimer;
+    button.addEventListener("click", async () => {
+      if (copying) return;
+      copying = true;
+      try {
+        const copied = await copyHistoryText(button.dataset.copyValue, null);
+        window.clearTimeout(resetTimer);
+        button.dataset.copyState = copied ? "copied" : "failed";
+        feedback.textContent = copied ? "已复制" : "复制失败";
+        resetTimer = window.setTimeout(() => {
+          delete button.dataset.copyState;
+          feedback.textContent = "";
+        }, 1500);
+      } finally {
+        copying = false;
+      }
+    });
+  }
+}
+
 function renderImportCostNumberV483(number) {
   return `<div class="latest-import-meta-v480"><span>进口编号</span>
-      ${number ? `<button type="button" class="latest-import-copy-v480" data-copy-value="${escapeHTML(number)}" title="点击复制进口编号"><span class="import-copy-number-v485">${escapeHTML(number)}</span><span class="import-copy-feedback-v485" role="status"></span></button>` : "<strong>—</strong>"}
+      ${renderCostCopyButtonV509(number,"进口编号")}
     </div>`;
 }
 
@@ -16529,13 +16531,18 @@ function getVndBatchPotFeeV508(latest, productId) {
   return saved.batches[latest.importId] ?? saved.products[String(productId || "").trim().toUpperCase()] ?? 0;
 }
 
+function getLatestBatchPotFeeV509(latest, productId) {
+  const saved = getCachedSettingsV317().vndPotFeesV508;
+  const amount = saved?.batches?.[latest.importId] ?? getManualBatchPotV487(latest)?.amount ??
+    (latest.currency === "VND" ? getVndBatchPotFeeV508(latest, productId) : 0);
+  return Math.max(0,Number(amount) || 0);
+}
+
 function getLatestImportCostDisplayV499(latest, freight, productId) {
   const { currency, unitCost } = latest;
   const hasCost = Number.isFinite(unitCost) && unitCost > 0;
   const canEditPot = Boolean(currency && latest.importId);
-  const pot = currency === "VND"
-    ? getVndBatchPotFeeV508(latest, productId)
-    : Math.max(0, Number(getManualBatchPotV487(latest)?.amount) || 0);
+  const pot = getLatestBatchPotFeeV509(latest, productId);
   return { hasCost, canEditPot, currency, ...getCostTotalDisplayV500(
     unitCost, pot, freight, hasIncludedImportPotV503(currency, productId)
   ) };
@@ -16594,7 +16601,10 @@ function openProductCostBreakdownV421(productId) {
   overlay.innerHTML = `
     <div class="product-cost-breakdown-dialog-v421" role="dialog" aria-modal="true" aria-labelledby="productCostBreakdownTitleV421">
       <h3 id="productCostBreakdownTitleV421">附加成本明细</h3>
-      <div class="product-cost-breakdown-name-v421">${escapeHTML(product.name || "未命名产品")} · ${escapeHTML(product.id || "")}</div>
+      <div class="product-cost-breakdown-name-v421">
+        ${renderCostCopyButtonV509(product.name || "", "产品名", "未命名产品")}
+        ${renderCostCopyButtonV509(product.id || "", "产品编号")}
+      </div>
       <div class="product-cost-breakdown-columns-v480">
         <div class="product-cost-breakdown-current-v482">
           ${renderPreviousImportCostV483(previous)}
@@ -16685,36 +16695,16 @@ function openProductCostBreakdownV421(productId) {
     dragHandle.addEventListener("pointercancel", stopDragV424);
   }
 
-  for (const button of overlay.querySelectorAll(".latest-import-copy-v480")) {
-    const feedback = button.querySelector(".import-copy-feedback-v485");
-    let copying = false;
-    let resetTimer;
-    button.addEventListener("click", async () => {
-      if (copying) return;
-      copying = true;
-      try {
-        const copied = await copyHistoryText(button.dataset.copyValue, null);
-        window.clearTimeout(resetTimer);
-        button.dataset.copyState = copied ? "copied" : "failed";
-        feedback.textContent = copied ? "已复制" : "复制失败";
-        resetTimer = window.setTimeout(() => {
-          delete button.dataset.copyState;
-          feedback.textContent = "";
-        }, 1500);
-      } finally {
-        copying = false;
-      }
-    });
-  }
+  bindCostCopyButtonsV509(overlay);
   overlay.addEventListener("click", async event => {
     const button = event.target.closest?.("[data-pot-import-id], [data-pot-product-id]");
     if (!button || overlay.dataset.savingPotV487 === "1") return;
     const batch = latest;
     const isProduct = button.dataset.potProductId === id;
     if (!isProduct && (!batch?.currency || !batch.importId || batch.importId !== button.dataset.potImportId)) return;
-    const vnd = isProduct || batch.currency === "VND";
-    const entry = vnd ? null : getManualBatchPotV487(batch);
-    const before = isProduct ? info.potCost : vnd ? getVndBatchPotFeeV508(batch,id) : entry?.amount || 0;
+    const before = isProduct ? info.potCost : getLatestBatchPotFeeV509(batch,id);
+    const state = getCachedSettingsV317().vndPotFeesV508;
+    const savedAmount = isProduct ? state?.products?.[id.toUpperCase()] : state?.batches?.[batch.importId];
     const context = isProduct ? `产品：${product.name}` : `进口编号：${batch.number || "—"}`;
     const input = window.prompt(`${context}\n输入每棵本地盆费（RM），最多两位小数；0 表示不加盆费。`, Number(before).toFixed(2));
     if (input === null) return;
@@ -16723,14 +16713,13 @@ function openProductCostBreakdownV421(productId) {
       window.alert("盆费必须为 0 或正数，最多两位小数。");
       return;
     }
-    if (amount === before && (!vnd || getCachedSettingsV317().vndPotFeesV508)) return;
+    if (amount === before && savedAmount != null && (isProduct || info.potCost === amount)) return;
     overlay.dataset.savingPotV487 = "1";
     button.disabled = true;
     const label = button.textContent;
     button.textContent = "保存中…";
     try {
-      if (vnd) await saveVndPotFeesFastV508(isProduct ? "products" : "batches", isProduct ? id : batch.importId, amount, before);
-      else await updateManualBatchPotFastV487(batch.importId, amount, entry?.operationId || "");
+      await saveVndPotFeesFastV508(isProduct ? "products" : "batches", isProduct ? id : batch.importId, amount, before);
       const results = document.getElementById("batchProductStockResults");
       if (results && !results.hidden && document.getElementById("supplierPage")?.classList.contains("active")) {
         renderBatchProductStockResults();
@@ -22196,9 +22185,9 @@ function getClearancePriceMapV478(settings = getCachedSettingsV317()) {
 
 function getClearanceMarginV478(product, price, rules, originIndex, currentMinimumPrice) {
   const base = Number(product?.averageCost) || 0;
-  const extra = isVndProductV205(product, originIndex)
-    ? Number(getVndPotCostV160(product, rules, originIndex)) || 0
-    : Number(getChargeableMinimumFreightTierV439(currentMinimumPrice, rules).amount) || 0;
+  const pot = getVndPotCostV160(product, rules, originIndex);
+  const extra = pot + (isVndProductV205(product, originIndex)
+    ? 0 : getChargeableMinimumFreightTierV439(currentMinimumPrice, rules).amount);
   return price > 0 ? (price - base - extra) / price * 100 : null;
 }
 
