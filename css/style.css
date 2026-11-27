@@ -7155,16 +7155,30 @@ body.system-media-preview-open-v305{overflow:hidden}
 /* V46.8: compact monthly inventory history; all entries share full-stock data. */
 .monthly-inventory-toggle-v468{cursor:pointer;text-underline-offset:3px}
 .monthly-inventory-toggle-v468:hover,.monthly-inventory-toggle-v468:focus-visible{text-decoration:underline}
-.monthly-inventory-history-v468{width:100%;max-width:460px;margin:10px 0 12px;color:var(--text,#17231b);text-align:left}
-.monthly-inventory-scroll-v468{max-height:278px;overflow:auto;border:1px solid var(--border,#dce5df);border-radius:8px}
-.monthly-inventory-history-v468 table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:14px;line-height:1.4}
+.monthly-inventory-history-v468{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;width:100%;margin:10px 0 12px;color:var(--text,#17231b);text-align:left}
+.inventory-history-pane-v511{display:flex;flex-direction:column;min-width:0;height:354px;overflow:hidden;border:1px solid var(--border,#dce5df);border-radius:10px;background:#fff}
+.inventory-history-pane-v511 header,.inventory-species-total-v511{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px}
+.inventory-history-pane-v511 header h4{margin:0;font-size:15px}
+.inventory-history-pane-v511 header span{font-size:12px;color:var(--muted,#68746b)}
+.inventory-species-total-v511{background:var(--green-soft,#edf5ef);font-variant-numeric:tabular-nums;flex-wrap:wrap}
+.inventory-species-quantity-v511{color:#156344}
+.inventory-species-cost-v511{color:#b32626}
+.monthly-inventory-scroll-v468{flex:1;min-height:0;overflow:auto;scrollbar-gutter:stable;border-block:1px solid var(--border,#dce5df)}
+.monthly-inventory-history-v468 table{width:100%;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums;font-size:14px;line-height:1.4}
 .monthly-inventory-history-v468 th,.monthly-inventory-history-v468 td{padding:6px 10px;white-space:nowrap;border-bottom:1px solid var(--border,#dce5df);text-align:right}
-.monthly-inventory-history-v468 th:first-child,.monthly-inventory-history-v468 td:first-child{text-align:left}
-.monthly-inventory-history-v468 th{position:sticky;top:0;background:var(--green-soft,#edf5ef);font-weight:600}
-.monthly-inventory-history-v468 tr:last-child td{border-bottom:0}
+.monthly-inventory-history-v468 th:first-child,.monthly-inventory-history-v468 td:first-child{text-align:left;white-space:normal;overflow-wrap:anywhere}
+.monthly-inventory-history-v468 thead th{position:sticky;top:0;background:var(--green-soft,#edf5ef);font-weight:600}
+.monthly-inventory-history-v468 tbody th{font-weight:400}
+.monthly-inventory-history-v468 tbody tr:nth-child(even){background:#f7faf8}
+.monthly-inventory-history-v468 tbody tr:last-child>*{border-bottom:0}
 .monthly-inventory-history-v468 .monthly-inventory-highest-v468 td{color:#c62828;font-weight:700}
-.monthly-inventory-note-v468{display:block;margin-top:5px;font-size:12px;color:var(--muted,#68746b);line-height:1.5}
-@media(max-width:620px){.monthly-inventory-history-v468 table{font-size:15px}.monthly-inventory-history-v468 th,.monthly-inventory-history-v468 td{padding:6px 7px}}
+.monthly-inventory-note-v468{display:block;padding:6px 10px;font-size:12px;color:var(--muted,#68746b);line-height:1.5}
+@media(max-width:680px){
+  .monthly-inventory-history-v468{grid-template-columns:minmax(0,1fr);gap:8px}
+  .inventory-history-pane-v511{height:208px}
+  #currentInventorySpeciesV511{height:248px}
+  .monthly-inventory-history-v468 th,.monthly-inventory-history-v468 td{padding:6px 7px}
+}
 
 /* V47.8: two VND cost values inside the existing one-of-ten metric cell. */
 .product-stock-cost-btn .average-cost-split-v469{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px 8px;width:100%;margin-top:3px;text-align:left}
@@ -7464,7 +7478,7 @@ button.history-species-toggle-v470{
   .product-stock-sales-v505 b { font-size: 18px; }
 }
 
-/* V51.0: keep history type next to the keyword on desktop and mobile. */
+/* V51.1: keep history type next to the keyword on desktop and mobile. */
 .history-lookup-row #historyLookupInput {
   flex-basis: 280px;
   min-width: 0;

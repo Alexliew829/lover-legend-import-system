@@ -2713,7 +2713,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V51.0 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V51.1 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -2838,7 +2838,7 @@ async function saveCommissionRateV441(value, { enabled = true, skipConfirm = fal
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V51.0 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V51.1 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate, hostCommissionV481:{enabled, rate:rememberedRate} });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -3546,15 +3546,17 @@ function setupDashboard() {
   renderDashboard();
 }
 
+function getCurrentInventoryProductsV511() {
+  const products = typeof loadJSONReadOnlyV317 === "function"
+    ? loadJSONReadOnlyV317("importSystemProducts", [])
+    : loadJSON("importSystemProducts", []);
+  // A positive stock count takes priority over any leftover archive flag.
+  return products.filter(item => (Number(item?.stock) || 0) > 0);
+}
+
 function renderDashboard() {
   if (typeof migrateLegacyProductCategoriesV227 === "function") migrateLegacyProductCategoriesV227();
-  const products = typeof loadJSONReadOnlyV317 === "function" ? loadJSONReadOnlyV317("importSystemProducts", []) : loadJSON("importSystemProducts", []);
-  // 库存数量才是首页是否显示的最终依据。
-  // 旧版本或删除批次后可能遗留 inventoryArchived=true，
-  // 只要库存仍大于 0，就必须继续显示。
-  const activeInventoryProducts = products.filter(
-    item => (Number(item.stock) || 0) > 0
-  );
+  const activeInventoryProducts = getCurrentInventoryProductsV511();
 
   const productCount = activeInventoryProducts.length;
   const categoryOrder = typeof getProductCategoriesV227 === "function" ? getProductCategoriesV227() : ["盆栽"];
@@ -3590,6 +3592,7 @@ function renderDashboard() {
   document.getElementById("productCount").textContent = categorySummary || formatNumber(productCount);
   document.getElementById("stockCount").textContent = formatNumber(stockCount);
   document.getElementById("inventoryValue").textContent = formatMoney(inventoryValue, "RM ");
+  refreshInventorySpeciesV511(activeInventoryProducts);
   const batches = getBatches();
   const latestBatchImportDate = batches
     .map(batch => normalizeDateToDDMMYYYY(batch.arrivalDate))
@@ -21975,15 +21978,74 @@ function closeMonthlyInventoryHistoryV468() {
   MONTHLY_INVENTORY_TARGET_IDS_V468.forEach(id=>document.getElementById(id)?.setAttribute("aria-expanded","false"));
   monthlyInventoryOpenIdV468="";
 }
+function getInventorySpeciesTotalsV511(products) {
+  const bySpecies = new Map();
+  let totalQuantity = 0, totalCost = 0;
+  for (const product of products) {
+    const quantity = Number(product?.stock) || 0;
+    if (quantity <= 0) continue;
+    const cost = quantity * (Number(product.averageCost) || 0);
+    const name = getHistorySoldCategoryLabelV451(product) || "其他";
+    const group = bySpecies.get(name) || {name,quantity:0,cost:0};
+    group.quantity += quantity;
+    group.cost += cost;
+    bySpecies.set(name,group);
+    totalQuantity += quantity;
+    totalCost += cost;
+  }
+  const groups = [...bySpecies.values()].sort((a,b) => b.cost - a.cost || a.name.localeCompare(b.name,"zh"));
+  // Keep independently displayed species amounts reconcilable to the dashboard.
+  // Assign any rounding cents to rows with the largest fractional cents.
+  const target = Math.round(Number(formatMoney(totalCost).replace(/,/g,"")) * 100);
+  const rounded = groups.map(group => {
+    const exact = group.cost * 100;
+    const cents = Math.floor(exact);
+    return {...group,cents,remainder:exact - cents};
+  });
+  const left = target - rounded.reduce((sum,group) => sum + group.cents,0);
+  [...rounded].sort((a,b) => b.remainder - a.remainder).slice(0,Math.max(0,left)).forEach(group => group.cents++);
+  return {totalQuantity,totalCost,groups:rounded};
+}
+
+function refreshInventorySpeciesV511(products = null) {
+  const panel = document.getElementById("currentInventorySpeciesV511");
+  if (!panel) return;
+  const {totalQuantity,totalCost,groups} = getInventorySpeciesTotalsV511(products ?? getCurrentInventoryProductsV511());
+  panel.querySelector(".inventory-species-quantity-v511").textContent = `合计 ${formatNumber(totalQuantity)}`;
+  panel.querySelector(".inventory-species-cost-v511").textContent = formatMoney(totalCost,"RM ");
+  panel.querySelector("tbody").innerHTML = groups.length ? groups.map(group =>
+    `<tr><th scope="row">${escapeHTML(group.name)}</th><td>${escapeHTML(formatNumber(group.quantity))}</td><td>${escapeHTML(formatMoney(group.cents / 100,"RM "))}</td></tr>`
+  ).join("") : '<tr><td colspan="3">暂无库存</td></tr>';
+  panel.querySelector(".monthly-inventory-note-v468").textContent =
+    `共 ${formatNumber(groups.length)} 类 · 按库存成本从高到低`;
+}
+
 function renderMonthlyInventoryHistoryV468() {
   const panel=document.getElementById("monthlyInventoryHistoryV468");
   if (!panel || !monthlyInventoryOpenIdV468) return;
   const cache=loadJSON(MONTHLY_INVENTORY_CACHE_KEY_V468,{});
-  const month=monthlyInventoryClientMonthV468();
-  const rows=monthlyInventoryTableRowsV468(cache.rows,month);
-  panel.innerHTML=`<div class="monthly-inventory-scroll-v468"><table><thead><tr><th>日期</th><th>库存数量</th><th>库存成本</th></tr></thead><tbody>${rows.map(row=>
-    `<tr${row.highest?' class="monthly-inventory-highest-v468"':''}><td>${row.date}</td><td>${row.record?escapeHTML(formatNumber(Number(row.record.quantity))):"无记录"}</td><td>${row.record?escapeHTML(formatMoney(Number(row.record.cost),"RM ")):"无记录"}</td></tr>`).join("")}</tbody></table></div>
-    <small class="monthly-inventory-note-v468">${escapeHTML(cache.warning || (cache.fetchedAt ? "全库存月初记录 · 最近12个月" : "正在读取月初记录…"))}</small>`;
+  const rows=monthlyInventoryTableRowsV468(cache.rows,monthlyInventoryClientMonthV468());
+  if (!panel.firstElementChild) {
+    panel.innerHTML = `<section class="inventory-history-pane-v511" aria-labelledby="monthlyInventoryTitleV511">
+      <header><h4 id="monthlyInventoryTitleV511">月初库存记录</h4><span>最近 12 个月</span></header>
+      <div class="monthly-inventory-scroll-v468" tabindex="0" role="region" aria-label="月初库存列表">
+        <table><thead><tr><th scope="col">日期</th><th scope="col">库存数量</th><th scope="col">库存成本</th></tr></thead><tbody></tbody></table>
+      </div><small class="monthly-inventory-note-v468" id="monthlyInventoryNoteV511"></small>
+    </section>
+    <section class="inventory-history-pane-v511" id="currentInventorySpeciesV511" aria-labelledby="currentInventorySpeciesTitleV511">
+      <header><h4 id="currentInventorySpeciesTitleV511">当前库存按树种</h4><span>全库存</span></header>
+      <div class="inventory-species-total-v511"><strong class="inventory-species-quantity-v511"></strong><strong class="inventory-species-cost-v511"></strong></div>
+      <div class="monthly-inventory-scroll-v468" tabindex="0" role="region" aria-label="当前库存树种列表">
+        <table><thead><tr><th scope="col">树种</th><th scope="col">库存数量</th><th scope="col">库存成本</th></tr></thead><tbody></tbody></table>
+      </div><small class="monthly-inventory-note-v468"></small>
+    </section>`;
+    refreshInventorySpeciesV511();
+  }
+  const history = panel.firstElementChild;
+  history.querySelector("tbody").innerHTML = rows.map(row =>
+    `<tr${row.highest?' class="monthly-inventory-highest-v468"':''}><td>${row.date}</td><td>${row.record?escapeHTML(formatNumber(Number(row.record.quantity))):"无记录"}</td><td>${row.record?escapeHTML(formatMoney(Number(row.record.cost),"RM ")):"无记录"}</td></tr>`).join("");
+  document.getElementById("monthlyInventoryNoteV511").textContent =
+    cache.warning || (cache.fetchedAt ? "每月 1 日 · 全库存快照" : "正在读取月初记录…");
 }
 async function fetchMonthlyInventoryHistoryV468(force=false) {
   const cache=loadJSON(MONTHLY_INVENTORY_CACHE_KEY_V468,{});
@@ -22012,14 +22074,15 @@ async function toggleMonthlyInventoryHistoryV468(id) {
   panel.id="monthlyInventoryHistoryV468";
   panel.className="monthly-inventory-history-v468";
   panel.setAttribute("role","region");
-  panel.setAttribute("aria-label","最近12个月月初库存");
-  const heading=trigger.closest(".section-title-row");
+  panel.setAttribute("aria-label","月初库存记录及当前库存树种明细");
+  const heading=trigger.closest(".section-title-row") ||
+    (id==="inventoryValue" ? document.getElementById("inventoryFilteredValue")?.closest(".section-title-row") : null);
   if (heading) heading.insertAdjacentElement("afterend",panel);
   else trigger.closest(".stat-card")?.appendChild(panel);
   renderMonthlyInventoryHistoryV468();
   try {await fetchMonthlyInventoryHistoryV468();}
   catch(error) {
-    const note=document.querySelector("#monthlyInventoryHistoryV468 .monthly-inventory-note-v468");
+    const note=panel.querySelector("#monthlyInventoryNoteV511");
     if (monthlyInventoryOpenIdV468===id && note) note.textContent=String(error.message||error);
     return;
   }
@@ -22046,7 +22109,7 @@ function setupMonthlyInventoryHistoryV468() {
     target.setAttribute("tabindex","0");
     target.setAttribute("aria-expanded","false");
     target.setAttribute("aria-controls","monthlyInventoryHistoryV468");
-    target.title="点击展开 / 收起月初库存记录（全库存）";
+    target.title="点击展开 / 收起月初库存及当前树种明细（全库存）";
     target.addEventListener("click",()=>toggleMonthlyInventoryHistoryV468(id));
     target.addEventListener("keydown",event=>{
       if(event.key!=="Enter" && event.key!==" ") return;
