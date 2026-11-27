@@ -2713,7 +2713,7 @@ function setupShippingResponsibilityV439() {
     button.textContent = "保存中…";
     setShippingResponsibilityStatusV440("保存中…", "saving");
     try {
-      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V51.1 成本设置原子同步模块未载入，请强制刷新。");
+      if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V51.2 成本设置原子同步模块未载入，请强制刷新。");
       await updatePricingSettingsFastV446({ shippingResponsibilityV439:selected });
       populateShippingResponsibilityV439();
       if (panel) panel.dataset.dirtyV439 = "0";
@@ -2838,7 +2838,7 @@ async function saveCommissionRateV441(value, { enabled = true, skipConfirm = fal
   if (button) { button.disabled = true; button.textContent = "保存中…"; }
   setCommissionRateStatusV441("保存中…", "saving");
   try {
-    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V51.1 成本设置原子同步模块未载入，请强制刷新。");
+    if (typeof updatePricingSettingsFastV446 !== "function") throw new Error("V51.2 成本设置原子同步模块未载入，请强制刷新。");
     await updatePricingSettingsFastV446({ commissionRate:nextRate, hostCommissionV481:{enabled, rate:rememberedRate} });
     populateCommissionRateV441();
     if (panel) panel.dataset.dirtyV441 = "0";
@@ -22033,8 +22033,11 @@ function renderMonthlyInventoryHistoryV468() {
       </div><small class="monthly-inventory-note-v468" id="monthlyInventoryNoteV511"></small>
     </section>
     <section class="inventory-history-pane-v511" id="currentInventorySpeciesV511" aria-labelledby="currentInventorySpeciesTitleV511">
-      <header><h4 id="currentInventorySpeciesTitleV511">当前库存按树种</h4><span>全库存</span></header>
-      <div class="inventory-species-total-v511"><strong class="inventory-species-quantity-v511"></strong><strong class="inventory-species-cost-v511"></strong></div>
+      <header class="inventory-species-header-v512">
+        <h4 id="currentInventorySpeciesTitleV511">当前库存按树种</h4>
+        <strong class="inventory-species-quantity-v511"></strong>
+        <strong class="inventory-species-cost-v511"></strong>
+      </header>
       <div class="monthly-inventory-scroll-v468" tabindex="0" role="region" aria-label="当前库存树种列表">
         <table><thead><tr><th scope="col">树种</th><th scope="col">库存数量</th><th scope="col">库存成本</th></tr></thead><tbody></tbody></table>
       </div><small class="monthly-inventory-note-v468"></small>

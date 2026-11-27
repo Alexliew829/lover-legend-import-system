@@ -7157,10 +7157,12 @@ body.system-media-preview-open-v305{overflow:hidden}
 .monthly-inventory-toggle-v468:hover,.monthly-inventory-toggle-v468:focus-visible{text-decoration:underline}
 .monthly-inventory-history-v468{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;width:100%;margin:10px 0 12px;color:var(--text,#17231b);text-align:left}
 .inventory-history-pane-v511{display:flex;flex-direction:column;min-width:0;height:354px;overflow:hidden;border:1px solid var(--border,#dce5df);border-radius:10px;background:#fff}
-.inventory-history-pane-v511 header,.inventory-species-total-v511{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px}
-.inventory-history-pane-v511 header h4{margin:0;font-size:15px}
+.inventory-history-pane-v511 header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px}
+.inventory-history-pane-v511 header h4{margin:0;font-size:15px;line-height:20px}
 .inventory-history-pane-v511 header span{font-size:12px;color:var(--muted,#68746b)}
-.inventory-species-total-v511{background:var(--green-soft,#edf5ef);font-variant-numeric:tabular-nums;flex-wrap:wrap}
+.inventory-history-pane-v511 .inventory-species-header-v512{justify-content:flex-start;flex-wrap:wrap;gap:2px 8px;font-variant-numeric:tabular-nums}
+.inventory-species-header-v512 strong{font-size:14px;line-height:1.25;white-space:nowrap}
+.inventory-species-header-v512 .inventory-species-cost-v511{margin-inline-start:auto}
 .inventory-species-quantity-v511{color:#156344}
 .inventory-species-cost-v511{color:#b32626}
 .monthly-inventory-scroll-v468{flex:1;min-height:0;overflow:auto;scrollbar-gutter:stable;border-block:1px solid var(--border,#dce5df)}
@@ -7177,6 +7179,8 @@ body.system-media-preview-open-v305{overflow:hidden}
   .monthly-inventory-history-v468{grid-template-columns:minmax(0,1fr);gap:8px}
   .inventory-history-pane-v511{height:208px}
   #currentInventorySpeciesV511{height:248px}
+  .inventory-history-pane-v511 .inventory-species-header-v512{gap:2px 6px}
+  .inventory-history-pane-v511 .inventory-species-header-v512 h4,.inventory-species-header-v512 strong{font-size:13px}
   .monthly-inventory-history-v468 th,.monthly-inventory-history-v468 td{padding:6px 7px}
 }
 
@@ -7478,7 +7482,7 @@ button.history-species-toggle-v470{
   .product-stock-sales-v505 b { font-size: 18px; }
 }
 
-/* V51.1: keep history type next to the keyword on desktop and mobile. */
+/* V51.2: keep history type next to the keyword on desktop and mobile. */
 .history-lookup-row #historyLookupInput {
   flex-basis: 280px;
   min-width: 0;
